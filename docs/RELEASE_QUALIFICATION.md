@@ -1,31 +1,47 @@
 # Next-release qualification
 
-Status: implementation and qualification in progress. No physical Android phone
-has been qualified for this release yet. The latest official release remains
-unchanged until the gates below are satisfied.
+Status: the 0.36.0-rc1 implementation and emulator qualification are complete.
+Physical-phone qualification remains open, so the official Latest APK is unchanged.
 
-## Evidence collected so far
+## Recorded checks
 
-- An independent all-ABI build started with an empty tools/products root and
-  completed all 12 dependency-ordered steps, JVM tests, debug/release APKs, both
-  lints and corresponding-source packaging. Its candidate source tree was
-  `5fb28e104ffc5724a025a571a662f413022cacfb`; later Context/cache changes require
-  their own final regression. Elapsed time: 3,290 seconds. This verifies the
-  documented build path, not phone performance or the final release artifact.
-- On an isolated API 35 x86_64 emulator, 38 local-discovery/menu/announcement
-  instrumentation tests passed before the final cache refinements. Native event
-  and detail screens were inspected. A generated flyer was recognized by the
-  real OCR worker with AI disabled and selected Tor unavailable; neither Context
-  media preferences nor AI activation were changed.
-- Context trials separate harvested, admitted and delivered facts, noise
-  admission, cached reuse and elapsed time. Early trials that improved recall
-  while admitting irrelevant material were rejected. Fixtures must include the
-  same prepared-English metadata as the app; earlier fixtures lacking it are
-  diagnostic experiments, not production-input comparisons.
+- Full JVM suite: **1,743 tests, zero failures, one optional weight-dependent skip**.
+  The four offline retention-scoring tests also pass. Debug/release APK assembly
+  and both Android lint variants pass. Lint warnings remain; a pass is not a
+  statement that every warning has been removed.
+- An independent build began with an empty tools/products root and completed
+  all 12 dependency-ordered steps, native ABIs, JVM tests, debug/release APKs,
+  lints and corresponding-source packaging in 3,290 seconds. Its early candidate
+  tree was `5fb28e104ffc5724a025a571a662f413022cacfb`. Final implementation commit
+  `b82b6e0` then passed all 11 steps without bootstrap in that independent checkout
+  and prepared root in **607 seconds**. This separates a verified clean build
+  path from final source validation; neither measures phone performance.
+- The final broad API 35 x86_64 Android run covered **746 tests** and reported
+  four failures. Each affected class subsequently passed independently on the
+  latest candidate: native HLS/DASH playback (2), filter UI (13), discussion and
+  original-edition UI (9), and native RSS (9): **33 tests without failures**.
+  Playback passed when the concurrent host-model work ended; the timeout remains
+  in the raw batch record. Other fixes finished text editing before a scrolling
+  assertion, isolated optional name lookup in the RSS fixture, and prevented new
+  identity lookups in the captured-originals view. The entire 746-test batch was
+  not repeated after that last narrow view change.
+- That broad run passed all six new announcement tests and all 72 Context-reader
+  controller tests. The new checks include AI-off bundled OCR, selected Tor
+  unavailable, exact image evidence and portable fields, saved-record expiry
+  protection, cached observation dates, forced-refresh refusal/scratch cleanup,
+  first cards preceding deferred flyers, and Free-only admission filtering.
+- Native search, uncertain-announcement, evidence and local HLS/DASH screens were
+  inspected. Public README images use synthetic data. Live-provider/model tests
+  have separate opt-ins and are not implied by the ordinary Android suite.
+- Frozen real-model Context controls, candidates and holdouts record fact-marker
+  retention, actual omissions, noise admission and reuse independently. See
+  [the evaluation record](CONTEXT_EVALUATION.md#036-candidate-retention-separately-from-completion).
+  Early recall changes admitting unrelated material were rejected. A successful
+  response or exact quotation alone does not establish retained information.
 
-Private raw artifacts remain under the external `quality-release` evidence
-folder. No physical phone has been qualified. These partial receipts do not
-satisfy the publication gate.
+Private raw artifacts, process/fixture hashes and preview backups remain under
+`LiberBuild/quality-release`. No physical phone is claimed qualified. These
+receipts do not satisfy the publication gate below.
 
 ## Required journeys
 

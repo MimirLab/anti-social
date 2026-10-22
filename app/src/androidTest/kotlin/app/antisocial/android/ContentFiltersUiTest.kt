@@ -193,6 +193,9 @@ class ContentFiltersUiTest {
         ui.onNodeWithTag("Filter site mastodon").performClick()
         ui.onNodeWithTag("Feed filter editor").performScrollToNode(hasTestTag("Filter servers"))
         ui.onNodeWithTag("Filter servers").performTextInput("https://social.example/@someone")
+        // Finish editing before scrolling to Preview; a focused field can
+        // request that it be brought back onscreen during IME relayout.
+        ui.runOnIdle {ui.activity.currentFocus?.clearFocus()}
         evidence("federated-details")
         ui.onNodeWithTag("Feed filter editor").performScrollToNode(hasTestTag("Preview feed filter"))
         ui.onNodeWithTag("Preview feed filter").performClick()

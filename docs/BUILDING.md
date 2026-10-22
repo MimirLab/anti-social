@@ -58,7 +58,8 @@ not imply byte-identical APK signatures, generated keys or ZIP timestamps.
 
 ## Android tests and preview
 
-Android instrumentation needs a connected owned device or isolated emulator:
+Run the full instrumentation command on a disposable owned test device or an
+isolated emulator. Use the non-destructive manual journeys for a personal phone:
 
 ```sh
 ANDROID_SERIAL=emulator-5570 python3 scripts/build.py --skip-bootstrap --instrumentation

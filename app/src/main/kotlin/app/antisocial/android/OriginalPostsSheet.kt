@@ -52,7 +52,7 @@ import java.time.format.DateTimeFormatter
                     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)) {
                         Row(verticalAlignment=Alignment.CenterVertically) {
                             PlatformMark(post.platform,24.dp)
-                            Column(Modifier.weight(1f).padding(start=10.dp)) {MentionText(post.author.ifBlank {"Author not supplied"},repo,post.platform,post.canonicalUrl,accountLabel=true,explicitProfileLinks=post.links.orEmpty(),fontWeight=FontWeight.SemiBold,fontSize=15.sp);Text(post.platform.label,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                            Column(Modifier.weight(1f).padding(start=10.dp)) {MentionText(post.author.ifBlank {"Author not supplied"},repo,post.platform,post.canonicalUrl,accountLabel=true,explicitProfileLinks=post.links.orEmpty(),networkAllowed=false,fontWeight=FontWeight.SemiBold,fontSize=15.sp);Text(post.platform.label,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                         }
                         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                             Text(post.publishedAt?.takeIf {it>0}?.let {runCatching {formatter.format(Instant.ofEpochMilli(it))}.getOrNull()} ?: "Date not supplied",Modifier.weight(1f),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -65,9 +65,9 @@ import java.time.format.DateTimeFormatter
                                 if(originals.map {it.platform}.distinct().size>1)Text("Within ${copyTarget.platform.label} originals",fontSize=10.sp,color=MaterialTheme.colorScheme.onSecondaryContainer)
                             }
                         }
-                        presentation.attribution?.let {MentionText(it,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                        presentation.attribution?.let {MentionText(it,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),networkAllowed=false,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                         if(caption.isNotBlank())SelectionContainer {
-                            MentionText(caption,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),fontSize=14.sp,lineHeight=21.sp,maxLines=if(expanded)Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,onTextLayout={overflowing=it.hasVisualOverflow},modifier=Modifier.testTag("Original caption $key"))
+                            MentionText(caption,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),networkAllowed=false,fontSize=14.sp,lineHeight=21.sp,maxLines=if(expanded)Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,onTextLayout={overflowing=it.hasVisualOverflow},modifier=Modifier.testTag("Original caption $key"))
                         }else Text("No caption was supplied.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Original caption $key"))
                         if(overflowing||expanded)TextButton(onClick={expanded=!expanded},contentPadding=PaddingValues(0.dp),modifier=Modifier.testTag("Expand original caption $key")){Text(if(expanded)"Collapse caption"else "Read full caption",fontSize=12.sp)}
                         SelectionContainer {Text(url,fontSize=11.sp,lineHeight=17.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Original URL $key"))}

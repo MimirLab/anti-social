@@ -60,6 +60,9 @@ class RssFeedTest {
             ui.activity.getSharedPreferences("antisocial",Context.MODE_PRIVATE).edit().clear().commit()
             repo.prefs.intervalMinutes=0;repo.prefs.wifiOnly=false;repo.prefs.archiveChecks=false
             repo.prefs.archiveRecovery=false;repo.prefs.communityComments=false;repo.prefs.theme="dark"
+            // This fixture tests cached RSS/card navigation, not the independent
+            // deferred name lookup for the accompanying social account.
+            repo.prefs.mentionLookups=false;repo.mentionNames.changed()
             repo.prefs.selected=listOf(Platform.X);repo.prefs.activePlatform=Platform.X
             Platform.entries.forEach {repo.prefs.lastUrl(it,"")}
             repo.gateway.configure(NetworkPolicy(tor=true,ready=false))
@@ -278,6 +281,6 @@ class RssFeedTest {
         assertEquals(Platform.RSS,vm.screen.value.target!!.platform)
         ui.onNodeWithText(post.body).assertIsDisplayed()
         evidence("native-cached-blog-summary")
-        assertTrue(networkEvents.isEmpty());assertTrue(directReads.isEmpty())
+        assertTrue("Unexpected gateway events: $networkEvents",networkEvents.isEmpty());assertTrue("Unexpected social reads: $directReads",directReads.isEmpty())
     }
 }

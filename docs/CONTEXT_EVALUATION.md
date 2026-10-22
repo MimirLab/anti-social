@@ -762,3 +762,63 @@ compiler adaptations, outputs and resource receipts are retained under
 probes. The Leanmt probe used commit
 `02ea82ab3258e45347bc8d48b8b9cf73c4343205`; the discovered fxtranslate mirror
 used `4d289556a2fd76e0e6a0046a4724a265771a7a80` (package version 0.5.0).
+
+
+## 0.36 candidate: retention separately from completion
+
+The complete-engine cohort now lives in `core/src/test/resources/context-evaluation/retention-v1.json`,
+with a separate predeclared `retention-holdout-v1.json`. Both carry the app's
+prepared-English working metadata. Each case has a post, one contribution,
+explicit expected fact markers, and 100 emoji-only arrivals. Their `update` arrays
+are empty: the unchanged/noise stages prove reuse, not meaningful-update recall.
+Edited-parent, changed-qualification and cursor-resumption behavior has separate
+controller tests.
+
+| Profile and cohort | Literal fact markers delivered | Completed cases | Noise controls promoted |
+|---|---:|---:|---:|
+| 2B F16/2K release control, 10 cases | 2 / 13 | 10 / 10 | 0 / 4 |
+| 2B F16/2K improved detail path, same cases | 10 / 13 | 10 / 10 | 0 / 4 |
+| 4B F16/2K release control, 10 cases | 6 / 13 | 9 / 10 | 0 / 4 |
+| 4B F16/2K routed candidate, same cases | 8 / 13 | 10 / 10 | 0 / 4 |
+| Authorized server, routed candidate, 10 cases | 11 / 13 | 10 / 10 | 0 / 4 |
+| 2B routed candidate, six holdouts | 6 / 8 | 6 / 6 | 0 / 2 |
+| 4B routed candidate, six holdouts | 6 / 8 | 6 / 6 | 0 / 2 |
+| Authorized server, six holdouts | 7 / 8 | 6 / 6 | 0 / 2 |
+
+Native profiles use Ternary Bonsai 2 PQ2_0 weights; F16 refers to their KV cache.
+These are deliberately literal predeclared regex checks, not semantic accuracy
+percentages. They can miss faithful rephrasings; the markers were not loosened
+after seeing results. Manual source/prose review found a real 2B omission of the
+holdout paper-application fee, and a real 4B omission of the known rude Linux/PNG
+workaround. The 4B and server holdouts retained all four useful reports and their
+conditions. All profiles reused unchanged/noise-only work with zero generation
+calls. Several micro-model sentences remain awkward, and some server prose keeps
+unnecessary scene-setting. An empty result can still be a false negative.
+
+The fixes keep coherent prepared comments and their limitations together, use
+closed passage IDs for longer prepared contributions, and repair inconsistent
+evidence-category decisions once. A rejected prose draft accompanies its bounded
+rewrite; mechanical cleanup cannot remove its numbers/negations just to remove
+speaker narration. The 2B detail retry uses one narrow decision, while the measured
+4B recipe keeps two properties. Generic adapters retain their original source
+protocol; real capability-routed adapters opt into the prepared-contribution
+recipe. Receipt identity includes the recipe. Size selects an initial duty, not
+a quality score, and unsupported formats cannot invent quotes or complete a source.
+
+Controls and candidates use frozen verified JVM classes, native runner bytes,
+weights and fixture hashes. Native comparisons used the rebuilt host Vulkan
+runner, F16 cache, a 2,048-token active window, two CPU threads and the existing
+sampling profile; no compressed-cache or positional-scaling promotion follows.
+The 2B known-case result precedes the final 4B-specific routing adjustment; the
+unchanged 2B branch is additionally exercised by the final holdout run. The server
+uses the app's actual vLLM utility flag and its reported active window. Host runs
+occurred alongside engineering work, so elapsed times do not qualify phone speed,
+energy, cold starts or a universal model ranking.
+
+Earlier unprepared-English fixtures and the server run missing the utility flag
+remain preserved as diagnostic experiments. Early recall changes that admitted
+irrelevant recipe/hearsay controls were rejected. Failed composition remains in
+the fact denominator. Raw frozen evidence is indexed by
+`LiberBuild/quality-release/retention-evidence-index.json`; no credentials or reader
+history belong in these public fixtures. The associated engineering lesson is
+`capture.revision.21f26288db774c5fbbf00393f03ef841` in the user's DejaVu store.
