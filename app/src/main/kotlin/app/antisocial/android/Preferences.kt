@@ -12,6 +12,7 @@ class Preferences(private val context: Context) {
     private val prefs=context.getSharedPreferences("antisocial",Context.MODE_PRIVATE)
     internal var localAreas:String get()=prefs.getString("localAreas","[]").orEmpty();set(value){app.antisocial.core.LocalAreaCodec.decode(value);prefs.edit().putString("localAreas",value).apply()}
     internal var localArea:String get()=prefs.getString("localArea","").orEmpty();set(value){require(value.length<=256&&!value.any(Char::isISOControl));prefs.edit().putString("localArea",value).apply()}
+    internal var localFlyerReading:Boolean get()=prefs.getBoolean("localFlyerReading",true);set(value){prefs.edit().putBoolean("localFlyerReading",value).apply()}
     internal var localDistanceUnit:app.antisocial.core.LocalDistanceUnit
         get()=app.antisocial.core.LocalDistanceUnit.fromId(prefs.getString("localDistanceUnit","").orEmpty()) ?: if(context.resources.configuration.locales[0].country=="US")app.antisocial.core.LocalDistanceUnit.MILES else app.antisocial.core.LocalDistanceUnit.KILOMETRES
         set(value){prefs.edit().putString("localDistanceUnit",value.id).apply()}
@@ -109,7 +110,7 @@ class Preferences(private val context: Context) {
         // JSONObject's typed getters coerce values such as "true" and "500".
         // SharedPreferences does not: validate the actual types before any import
         // writes, including fields from earlier versions and per-platform state.
-        val booleans=setOf("tor","communityComments","archiveChecks","archiveRecovery","originalFallback","wifiOnly","onboarding","videoDownloadWifiOnly","historyFullText","sponsorBlockEnabled","readableMentions","mentionLookups")
+        val booleans=setOf("localFlyerReading","tor","communityComments","archiveChecks","archiveRecovery","originalFallback","wifiOnly","onboarding","videoDownloadWifiOnly","historyFullText","sponsorBlockEnabled","readableMentions","mentionLookups")
         val integers=mapOf("cacheMb" to 50..5000,"videoCacheMb" to 0..5000,"videoCacheDays" to 1..365,"videoDownloadLimitMb" to 0..100_000,"historyTextMb" to 5..500,"interval" to 0..10080,"unseenDays" to 1..365,"viewedDays" to 1..365,"historyDays" to 1..3650)
         val strings=setOf("searchProvider","browser","theme","platforms","active","readingView","readingPerson","personalChannels","personalChannel","contentRules","localAreas","localArea","localDistanceUnit")
         val sets=setOf("disabledLists","customLists","sponsorBlockCategories")

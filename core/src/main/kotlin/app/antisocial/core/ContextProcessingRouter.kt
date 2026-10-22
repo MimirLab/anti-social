@@ -1,6 +1,8 @@
 /* AntiSocial, GPL-3.0-or-later. Processing plans never grant tools or network access. */
 package app.antisocial.core
 
+enum class ContextDetailReview { DETAIL_ONLY, TWO_CHECKS }
+
 enum class ContextProcessingStyle { AUTO, FOCUSED, BALANCED, EXTENDED }
 
 /** Size selects an initial work recipe, not a quality score. The actual working
@@ -14,7 +16,11 @@ data class ContextProcessingPlan(
     val summaryGroupLimit: Int,
     val unitCharacters: Int,
     val reason: String,
-    val extractiveFindings: Boolean = false
+    val extractiveFindings: Boolean = false,
+    val detailReview: ContextDetailReview = ContextDetailReview.DETAIL_ONLY,
+    /** Routed adapters opt into exact prepared-contribution capture/selection.
+     * The generic adapter default retains its original source-response protocol. */
+    val preservePreparedContributions:Boolean=false
 ) {
     init {
         require(style != ContextProcessingStyle.AUTO && sourcesPerCall in 1..8 && knownLimit in 1..32)
@@ -22,7 +28,7 @@ data class ContextProcessingPlan(
     }
     // Version the recipe as well as the prompt. Switching plans must not reuse
     // a receipt produced with different scope or screening responsibilities.
-    val identity: String get() = "router-v2:${style.name}:$screenComments:$sourcesPerCall:$knownLimit:$summaryGroupLimit:$unitCharacters:$extractiveFindings"
+    val identity: String get() = "router-v3:${style.name}:$screenComments:$sourcesPerCall:$knownLimit:$summaryGroupLimit:$unitCharacters:$extractiveFindings:${detailReview.name}:$preservePreparedContributions"
 
     companion object {
         /** Conservative interface default for adapters without capability data. */
@@ -75,6 +81,11 @@ object ContextProcessingRouter {
             ContextProcessingStyle.EXTENDED -> ContextProcessingPlan(selected, false, batch, 24,
                 (capabilities.contextTokens / 512).coerceIn(16, 2048), (capabilities.contextTokens.toLong() * 3).coerceIn(65536, 262144).toInt(), reason)
             ContextProcessingStyle.AUTO -> error("Automatic is not an executable plan")
-        }.copy(extractiveFindings = onDevice || size?.let { it <= 4_000_000_000L } == true)
+        }.copy(extractiveFindings = onDevice || size?.let { it <= 4_000_000_000L } == true,
+            // Measured recipe starting points: Bonsai 2B retains more with one
+            // detail duty; 4B retains more with the original two-property review.
+            // Size is not a quality score; actual-window budgets still apply.
+            detailReview=if(size!=null&&size>3_000_000_000L)ContextDetailReview.TWO_CHECKS else ContextDetailReview.DETAIL_ONLY,
+            preservePreparedContributions=true)
     }
 }

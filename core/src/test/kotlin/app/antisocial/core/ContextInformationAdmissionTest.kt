@@ -146,34 +146,21 @@ class ContextInformationAdmissionTest {
             }}
         }
     }
-    @Test fun shortPreparedCommentGetsOneStrictSameSourceFormatRetry():Unit=runBlocking {
-        val source="The service manual says 56 Wh, not 65 Wh."
-        for(repaired in listOf(true,false)) {
-            var calls=0;var committed=0
-            val model=object:ContextModel {
-                override val contextTokens=8192
-                override suspend fun count(system:String,user:String)=128
-                override suspend fun generate(system:String,user:String,maxTokens:Int):String {
-                    calls++
-                    assertEquals(source,JsonParser.parseString(user).asJsonObject["text"].asString)
-                    assertFalse(user.contains("unreviewed-extra"))
-                    if(calls==2)assertTrue(system.contains("failed response is discarded"))
-                    val extra=if(calls==1||!repaired)",\"unreviewed-extra\":true" else ""
-                    return "{\"status\":\"signal\",\"findings\":[{\"text\":\"The battery is 56 Wh, not 65 Wh.\",\"kind\":\"correction\",\"quote\":\"$source\"$extra}]}"
-                }
-            }
-            val engine=ContextEngine(model,readerBrief=true)
-            val doc=ContextDocument("comment","revision",source,kind="comment",metadata=mapOf("readingLanguage" to "en"))
-            if(repaired) {
-                val result=engine.process(listOf(doc),onUnit={committed++})
-                assertEquals(source,result.findings.single().quotes[doc.id]);assertEquals(1,committed)
-                engine.process(listOf(doc),result.findings,result.outcomes)
-            } else {
-                assertThrows(ContextProcessingException::class.java){runBlocking {engine.process(listOf(doc),onUnit={committed++})}}
-                assertEquals(0,committed)
-            }
-            assertEquals(2,calls)
+    @Test fun shortPreparedContributionKeepsItsQualificationBeforeAdmission():Unit=runBlocking {
+        val source="The service manual says 56 Wh, not 65 Wh. We have not tested other batteries."
+        var committed=0
+        val model=object:ContextModel {
+            override val contextTokens=8192
+            override val processingPlan=ContextProcessingRouter.select(ContextModelCapabilities(contextTokens=8192,parameterCount=27_000_000_000),false,2048)
+            override suspend fun count(system:String,user:String)=128
+            override suspend fun generate(system:String,user:String,maxTokens:Int):String=error("Source harvesting must not split a prepared short report from its qualification")
         }
+        val engine=ContextEngine(model,readerBrief=true)
+        val doc=ContextDocument("comment","revision",source,kind="comment",metadata=mapOf("readingLanguage" to "en"))
+        val result=engine.process(listOf(doc),onUnit={committed++})
+        assertEquals(source,result.findings.single().text);assertEquals(source,result.findings.single().quotes[doc.id]);assertEquals(1,committed)
+        engine.process(listOf(doc),result.findings,result.outcomes)
+        assertEquals(1,committed)
     }
     @Test fun correctionFallbackCannotMergeAuthorsOrUseUncertainText():Unit=runBlocking {
         val fact=finding("manual","The service manual says 56 Wh, not 65 Wh.","correction")
@@ -242,8 +229,9 @@ class ContextInformationAdmissionTest {
             override suspend fun count(system:String,user:String)=128
             override suspend fun generate(system:String,user:String,maxTokens:Int):String {
                 val input=JsonParser.parseString(user).asJsonObject
+                if(input["detail_review"]?.asBoolean==true){supplements++;return "{\"has_detail\":true}"}
                 if(input.has("items")) {
-                    val extra=system.startsWith("Review each item for two properties")
+                    val extra=false
                     if(extra)supplements++ else ordinary++
                     // An over-eager supplemental fake exposes routing errors:
                     // nomination itself must exclude the other three sources.

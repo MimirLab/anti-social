@@ -38,6 +38,32 @@ class ContextReaderTest {
         assertTrue("Expired Context resumes without another Refresh tap",reader.queueRequested(record.id))
         read(record.id)
     }
+    @Test fun productionRoutedRecipeKeepsACompletePreparedReportAndItsLimitsWithoutASecondHarvest():Unit=runBlocking {
+        val record=fixture();val root=record.snapshot.roots.single()
+        val report="I measured 12 volts at this battery connector at 09:15. I did not inspect the other batteries."
+        val brief="The battery connector measured 12 volts at 09:15; other batteries were not inspected."
+        val count=AtomicInteger()
+        reader.discussionRead={_,_->Page(listOf(root,comment(root,1).copy(body=report)))}
+        reader.modelFactory={object:ContextModel {
+            override val contextTokens=32768
+            override val processingPlan=ContextProcessingRouter.select(ContextModelCapabilities(contextTokens=32768,parameterCount=27_000_000_000),false,2048)
+            override suspend fun count(system:String,user:String)=128
+            override suspend fun generate(system:String,user:String,maxTokens:Int):String {
+                count.incrementAndGet();fixtureBriefAdmission(user)?.let {return it}
+                val input=JsonParser.parseString(user).asJsonObject
+                if(input.has("source_id")) {
+                    assertEquals("Prepared comments reach information admission whole", "post",input["kind"].asString)
+                    return """{"status":"no_signal","findings":[]}"""
+                }
+                return repo.gson.toJson(mapOf("text" to brief))
+            }
+        }}
+        read(record.id);assertEquals(brief,ready(record.id).brief)
+        val stored=reader.store.documents(record.id).single {it.document.kind=="comment"}
+        assertNotNull(reader.store.reading(record.id,stored.document,"body",stored.document.text))
+        assertTrue(reader.store.findings(record.id).any {it.text==report})
+        val before=count.get();read(record.id);assertEquals(before,count.get())
+    }
     @Test fun aCompletedEmptyReviewUsesItsRetryFloorAndExplicitRefreshStillWorks():Unit=runBlocking {
         val record=fixture();val model=TraceModel()
         reader.modelFactory={model};read(record.id)

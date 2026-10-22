@@ -265,7 +265,9 @@ class RssFeedTest {
         assertEquals(listOf(repo.key(post),repo.key(social),repo.key(page.posts[1])),repo.feedMemory.get("channel:${channel.id}:${PersonalChannels.fingerprint(channel)}:all").acceptedKeys)
         evidence("blog-and-social-chronological-channel")
         val why="Why post ${repo.key(post)}"
-        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag(why))
+        val options="Post options ${repo.key(post)}"
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag(options))
+        ui.onNodeWithTag(options).performClick()
         ui.onNodeWithTag(why).performClick()
         ui.onNodeWithText("From $sourceName on RSS / Atom").assertIsDisplayed()
         ui.onNodeWithText("Contains “release”").assertIsDisplayed()

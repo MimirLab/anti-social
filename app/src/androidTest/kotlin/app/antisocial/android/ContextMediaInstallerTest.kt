@@ -22,7 +22,7 @@ import java.security.MessageDigest
  * install marker, credentials, or acquired worker-only model fixture is used. */
 @RunWith(AndroidJUnit4::class)
 class ContextMediaInstallerTest {
-    @Test fun verifiedEnglishDownloadActivatesAndManagerReturnsSafeAttributedOcr(): Unit=runBlocking {
+    @Test fun bundledEnglishActivatesOfflineAndManagerReturnsSafeAttributedOcr(): Unit=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialContextMediaInstall")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
         val context=ApplicationProvider.getApplicationContext<Context>()
@@ -35,10 +35,10 @@ class ContextMediaInstallerTest {
         val file=File(context.cacheDir,"context-manager-install-test.png")
         val started=System.currentTimeMillis()
         try {
-            repo.ai.enabled(false);repo.gateway.configure(NetworkPolicy());repo.ai.enabled(true)
+            repo.ai.enabled(false);repo.gateway.configure(NetworkPolicy(tor=true,ready=false));repo.ai.enabled(true)
             // This explicit development test is restricted to an isolated
             // fixture device. Clear only its English optional tool so the
-            // successful path really downloads and verifies public bytes.
+            // successful path really copies and verifies the bundled bytes offline.
             manager.remove(ContextMediaKind.OCR,"eng")
             assertFalse(manager.hasDownload(ContextMediaKind.OCR,"eng"))
             val image=Bitmap.createBitmap(1400,400,Bitmap.Config.ARGB_8888)
@@ -65,7 +65,7 @@ class ContextMediaInstallerTest {
             manager.remove(ContextMediaKind.OCR,"eng")
             assertFalse(manager.hasDownload(ContextMediaKind.OCR,"eng"))
             File(context.filesDir,"context-media-manager-install-evidence.json").writeText(Gson().toJson(mapOf(
-                "passed" to true,"downloadBytes" to manager.downloadBytes(ContextMediaKind.OCR,"eng"),
+                "passed" to true,"bundledBytes" to manager.downloadBytes(ContextMediaKind.OCR,"eng"),
                 "activated" to true,"disabledWithDownloadKept" to true,"removed" to true,
                 "sourceSha256" to result.sourceSha256,"text" to result.text,"meanConfidence" to result.meanConfidence,
                 "safeConstructedDefaults" to true,"elapsedMs" to System.currentTimeMillis()-started

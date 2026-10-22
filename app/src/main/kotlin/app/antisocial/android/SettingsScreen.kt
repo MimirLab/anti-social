@@ -231,6 +231,7 @@ private fun readSettings(prefs: Preferences)=SettingsValues(
                         }}
                         item {StatusCard(if(provider.torOnly)"Search through Tor"else "Darwin search routes",if(provider.torOnly){if(values.originalFallback)tor.message else "Enable original-site fallback in Privacy & connection to use this provider."}else if(values.tor)"These sources follow your all-traffic Tor setting."else "These sources use your direct connection.",Icons.Rounded.TravelExplore)}
                         if(provider.torOnly&&!values.originalFallback)item {TextButton(onClick={vm.settings(SettingsPage.PRIVACY)}){Text("Open privacy settings")}}
+                        item {SettingsGroup("LOCAL DISCOVERY") {SettingToggle("Read event flyers","Read image announcements on this device after initial results. Works without AI; no background crawling.",prefs.localFlyerReading){prefs.localFlyerReading=it;revision++}}}
                         item {SettingsNote("Queries go only to the selected provider. anti social never silently switches engines. The provider receives your query; opening a result follows your content connection setting.")}
                     }
                     SettingsPage.COMMENTS -> {

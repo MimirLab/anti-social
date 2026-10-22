@@ -171,7 +171,7 @@ import kotlinx.coroutines.launch
     LaunchedEffect(Unit) { tools.refresh() }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.testTag("Context media settings")) {
         Text("Read text in images", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text("Include readable words from images and PDF pages. Download only the languages you use.", fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Include readable words from images and PDF pages. English is included; download other languages only if you use them.", fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ContextSettingMenu("Image text language", language, tools.availableOcrLanguages, "Context OCR language menu", enabled = !state.working) { language = it }
         val ocrInstalled = language in state.languages
         val ocrBytes = remember(language, state) { runCatching { tools.downloadBytes(ContextMediaKind.OCR, language) }.getOrNull() }
@@ -179,8 +179,8 @@ import kotlinx.coroutines.launch
         val ocrDownload = remember(language, state) { runCatching { tools.hasDownload(ContextMediaKind.OCR, language) }.getOrDefault(false) }
         val speechDownload = remember(state) { runCatching { tools.hasDownload(ContextMediaKind.SPEECH) }.getOrDefault(false) }
         if (ocrInstalled) {
-            ContextSettingSwitch("Use image text", "The selected language is downloaded.", state.ocrEnabled, "Context OCR enabled", enabled = capabilities.ocrAllowed && !state.working) { work { tools.activate(ContextMediaKind.OCR, it, language) } }
-        } else if (capabilities.ocrAllowed && ocrBytes != null) OutlinedButton(onClick = { download(ContextMediaKind.OCR) }, enabled = !state.working, modifier = Modifier.fillMaxWidth().testTag("Context download OCR")) { Icon(Icons.Rounded.Download, null, Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text("Download & enable · ${contextToolBytes(ocrBytes)}") }
+            ContextSettingSwitch("Use image text", if(language=="eng")"English reader included in the app."else "The selected language is downloaded.", state.ocrEnabled, "Context OCR enabled", enabled = capabilities.ocrAllowed && !state.working) { work { tools.activate(ContextMediaKind.OCR, it, language) } }
+        } else if (capabilities.ocrAllowed && ocrBytes != null) OutlinedButton(onClick = { download(ContextMediaKind.OCR) }, enabled = !state.working, modifier = Modifier.fillMaxWidth().testTag("Context download OCR")) { Icon(Icons.Rounded.Download, null, Modifier.size(17.dp)); Spacer(Modifier.width(7.dp)); Text(if(language=="eng")"Enable included English reader"else "Download & enable · ${contextToolBytes(ocrBytes)}") }
         else Text(capabilities.reason ?: "Image text setup is unavailable. Text Context remains available.", fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("Context OCR unavailable"))
         if (ocrDownload) TextButton(onClick = { work { tools.remove(ContextMediaKind.OCR, language) } }, enabled = !state.working, modifier = Modifier.testTag("Context remove OCR")) { Text(if (ocrInstalled) "Remove this language" else "Remove partial language download") }
         HorizontalDivider()

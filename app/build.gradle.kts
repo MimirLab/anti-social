@@ -20,6 +20,12 @@ val verifyBranding=tasks.register<Exec>("verifyBranding") {
 }
 val aiAssets=layout.buildDirectory.dir("generated/ai-assets")
 val runtimeAssets=layout.buildDirectory.dir("generated/runtime-assets")
+val discoveryAssets=layout.buildDirectory.dir("generated/discovery-assets")
+val prepareBundledOcr=tasks.register<Exec>("prepareBundledOcr") {
+    inputs.files(rootProject.file("scripts/prepare_bundled_ocr.py"),file("src/main/context-media-catalog/catalog.json"))
+    outputs.dir(discoveryAssets)
+    commandLine("python3",rootProject.file("scripts/prepare_bundled_ocr.py"),"--output",discoveryAssets.get().asFile)
+}
 val prepareLocalRuntime=tasks.register<Exec>("prepareLocalRuntime") {
     inputs.file(rootProject.file("scripts/prepare_local_runtime.py"))
     val abis=if(targetAbi in setOf("arm64-v8a","x86_64"))listOf(targetAbi!!)else listOf("arm64-v8a","x86_64")
@@ -40,6 +46,7 @@ tasks.named("preBuild"){dependsOn(verifyBundledFilters)}
 tasks.named("preBuild"){dependsOn(verifyBranding)}
 tasks.named("preBuild"){dependsOn(signAiCatalog)}
 tasks.named("preBuild"){dependsOn(prepareLocalRuntime)}
+tasks.named("preBuild"){dependsOn(prepareBundledOcr)}
 val torWrapperArchive=tasks.register("torWrapperArchive") {
     val output=layout.buildDirectory.file("tor/tor-android-native.aar")
     inputs.files(torArchive);outputs.file(output)
@@ -67,10 +74,11 @@ android {
     namespace = "app.antisocial.android"
     compileSdk = 37
     buildToolsVersion = "36.0.0"
-    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 95; versionName = "0.35.47"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 96; versionName = "0.36.0-rc1"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     defaultConfig { if(targetAbi!=null)ndk {abiFilters+=targetAbi} }
     sourceSets.getByName("main").assets.srcDir(aiAssets.get().asFile)
     sourceSets.getByName("main").assets.srcDir(runtimeAssets.get().asFile)
+    sourceSets.getByName("main").assets.srcDir(discoveryAssets.get().asFile)
     buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += setOf("compiled","packed","bsdiff") }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21; isCoreLibraryDesugaringEnabled = true }

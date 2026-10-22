@@ -8,6 +8,9 @@ REPO = Path(__file__).resolve().parents[1]
 # These are real development-volume/AVD locations, not Android identities.
 HISTORICAL_PATHS = ("LiberBuild", "/home/red/Desktop/Liber", "LiberPreview", "LiberLinks35")
 OLD_ID = re.compile(r"app\.liber\b|Java_app_liber_|libliber_|(?<![A-Za-z])(?:Liber(?:\b|[A-Z_])|LIBER(?:\b|_)|liber(?=[_.-]|\b))")
+# A cryptographically signed test asset keeps its historical signer. Rebranding
+# that evidence would invalidate the signature; permit only this exact assertion.
+SIGNED_FIXTURE_ASSERTION = ("app/src/androidTest/kotlin/app/antisocial/android/C2paInspectorTest.kt", 'assertEquals("Liber Fixture Studio",result.signer)')
 findings = []
 for base in ("app", "core", "native", "scripts"):
     for path in (REPO / base).rglob("*"):
@@ -20,6 +23,8 @@ for base in ("app", "core", "native", "scripts"):
         except UnicodeError:
             continue
         for number, line in enumerate(body.splitlines(), 1):
+            if (path.relative_to(REPO).as_posix(),line.strip()) == SIGNED_FIXTURE_ASSERTION:
+                continue
             for allowed in HISTORICAL_PATHS:
                 line = line.replace(allowed, "")
             if OLD_ID.search(line):

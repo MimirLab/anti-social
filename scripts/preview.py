@@ -15,9 +15,9 @@ ROOT = Path(os.environ.get("ANTISOCIAL_BUILD_ROOT", "/run/media/red/RedtopStorag
 SDK = ROOT / "android-sdk"
 ADB = SDK / "platform-tools/adb"
 EMULATOR = SDK / "emulator/emulator"
-APK = Path(os.environ.get("ANTISOCIAL_PREVIEW_APK", str(REPO / "artifacts/anti-social-preview.apk")))
+APK = Path(os.environ.get("ANTISOCIAL_PREVIEW_APK", str(ROOT / "artifacts/anti-social-preview.apk")))
 if not APK.exists() and "ANTISOCIAL_PREVIEW_APK" not in os.environ:
-    APK = REPO / "artifacts/anti-social-current-debug.apk"
+    APK = ROOT / "artifacts/anti-social-current-debug.apk"
 SERIAL = "emulator-5560"
 AVD = "AntiSocialPreview"
 LOG = ROOT / "evidence/laptop-preview.log"

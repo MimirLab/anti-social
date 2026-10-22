@@ -118,7 +118,7 @@ import java.time.format.DateTimeFormatter
             }
             if(all.selected=="all"||composing)Text((repo?.publicUrl(current.url,current.post.platform) ?: current.url).removePrefix("https://"),fontSize=10.sp,maxLines=1,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Shared composer original URL"))
             if(all.posts.size>1)Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                all.posts.forEach {post->val key=all.threadKey(post);FilterChip(selected=all.edition==key,onClick={reader.edition(key)},enabled=!draft.working,label={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)){PlatformMark(post.platform,20.dp);if(all.posts.count {it.platform==post.platform}>1)Text("${all.originalNumber(post)}",fontSize=11.sp)}},modifier=Modifier.testTag("CommentAnywhere edition $key"))}
+                all.posts.forEach {post->val key=all.threadKey(post);FilterChip(selected=all.edition==key,onClick={reader.edition(key)},label={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)){PlatformMark(post.platform,20.dp);if(all.posts.count {it.platform==post.platform}>1)Text("${all.originalNumber(post)}",fontSize=11.sp)}},modifier=Modifier.testTag("CommentAnywhere edition $key"))}
             }
             draft.target?.let {target->Row(verticalAlignment=Alignment.CenterVertically) {
                 Text(if(draft.editing)"Editing your shared comment"else "Replying to ${target.username}",Modifier.weight(1f),fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)

@@ -25,8 +25,9 @@ data class LocalArea(val id:String,val name:String,val label:String,val point:Lo
     val cacheKey:String get()=LocalDiscoveryIdentity.hash("${point.latitude},${point.longitude}|$radiusKm")
 }
 enum class LocalEvidenceKind { PUBLISHER, CALENDAR, DIRECTORY, PUBLIC_POST, POSTER }
+data class LocalImageRegion(val imageUrl:String,val sha256:String,val left:Int,val top:Int,val right:Int,val bottom:Int,val width:Int,val height:Int)
 data class LocalFieldEvidence(val field:String,val value:String,val sourceUrl:String,val checkedAt:Long,
-    val kind:LocalEvidenceKind,val excerpt:String="",val license:String?=null)
+    val kind:LocalEvidenceKind,val excerpt:String="",val license:String?=null,val region:LocalImageRegion?=null)
 /** A source publisher is never silently promoted to a business owner. */
 data class LocalRelatedEntity(val name:String,val role:String,val accounts:List<String>,val sourceUrl:String)
 data class LocalBusiness(val id:String,val name:String,val category:String="",val description:String="",val address:String="",
@@ -54,7 +55,8 @@ enum class LocalSourceKind { WEB, CALENDAR, TRIBE, SOCIAL, LOCALIST, MENU, LIVEW
 data class LocalPublisherSource(val url:String,val kind:LocalSourceKind=LocalSourceKind.WEB,val businessId:String?=null,val label:String="",
     val checkedAt:Long=0,val nextCheckAt:Long=0,val failures:Int=0,val etag:String?=null,val lastModified:String?=null,val window:String?=null,val discoveredFrom:String?=null,val menuBranch:Boolean?=null)
 data class LocalExtraction(val businesses:List<LocalBusiness> = emptyList(),val events:List<LocalEvent> = emptyList(),
-    val sources:List<LocalPublisherSource> = emptyList(),val notice:String?=null,val validEmpty:Boolean=false)
+    val sources:List<LocalPublisherSource> = emptyList(),val notice:String?=null,val validEmpty:Boolean=false,
+    val announcements:List<LocalAnnouncementCandidate> = emptyList(),val posters:List<LocalPosterSource> = emptyList())
 data class LocalWebHit(val url:String,val title:String) // Discovery only. A snippet is never a business/event fact.
 enum class LocalSearchMode { POSTS, BUSINESSES, EVENTS }
 enum class LocalEventWindow(val label:String) { WEEK("Next 7 days"), WEEKEND("This weekend"), MONTH("Next 30 days"), TODAY("Today") }
@@ -126,7 +128,7 @@ object LocalDiscoveryFilter {
         val available=LocalDiscoveryIdentity.words(content.take(32000)).map(::term).toSet()
         return terms.all {term->(alternatives[term] ?: setOf(term)).any {it in available}}
     }
-    fun eventQuery(value:String)=LocalDiscoveryIdentity.words(normalizedQuery(value)).filterNot {it in stop||it in setOf("event","events","activity","activities","local","nearby")}.joinToString(" ")
+    fun eventQuery(value:String)=LocalEventIntent.parse(value).discoveryText
     fun business(query:LocalDiscoveryQuery,business:LocalBusiness)=LocalGeography.inside(query.area,business.point,business.locality,business.address,business.evidence)
     fun geographic(area:LocalArea,event:LocalEvent)=!event.online&&LocalGeography.inside(area,event.point,event.locality,event.address,event.evidence)
     fun event(query:LocalDiscoveryQuery,event:LocalEvent,now:Long=System.currentTimeMillis()):Boolean {

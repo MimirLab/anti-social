@@ -3,6 +3,14 @@
 package app.antisocial.core
 
 object LocalDocumentWashing {
+    /** Preserve announcement headings and date blocks while removing the husk. */
+    fun lines(value:String,max:Int=24000):String {
+        val page=org.jsoup.Jsoup.parseBodyFragment(value.take(max*2))
+        page.select("script,style,noscript,template,iframe,object,embed").remove()
+        page.select("br").before("\n")
+        page.select("p,div,li,h1,h2,h3,h4").forEach {it.before("\n");it.after("\n")}
+        return page.body().wholeText().lineSequence().map {text(it,1000).trim()}.filter(String::isNotBlank).joinToString("\n").take(max)
+    }
     fun text(value:String,max:Int=8000):String {
         val plain=org.jsoup.Jsoup.parseBodyFragment(value.take(max*2)).text()
         // Some calendars encode HTML twice. A bounded second inert parse

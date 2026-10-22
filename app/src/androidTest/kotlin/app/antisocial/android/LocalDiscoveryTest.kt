@@ -370,7 +370,7 @@ class LocalDiscoveryTest {
         try {withContext(Dispatchers.IO) {
             LocalDiscoveryStore(ui.activity,databaseName=name).use {store->store.save(place);store.source(area,healthy);store.source(area,failed);store.writableDatabase.version=6}
             LocalDiscoveryStore(ui.activity,databaseName=name).use {store->
-                assertEquals(7,store.readableDatabase.version)
+                assertEquals(8,store.readableDatabase.version)
                 assertEquals(0L,store.sources(area).single {it.url==healthy.url}.nextCheckAt)
                 assertEquals(failed,store.sources(area).single {it.url==failed.url})
                 assertEquals(place,store.businesses(null,true).single())

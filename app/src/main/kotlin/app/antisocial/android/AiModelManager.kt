@@ -283,6 +283,7 @@ class AiModelManager(private val repo: Repository) {
         return if(useDevice(AiKind.TEXT,installed))installed?.let(::runtimeKey) ?: "device-unavailable"
         else preferences.provider("text").let {Repository.hash("${it.id}|${it.baseUrl}|${it.model}|${it.protocol}")}
     }
+    internal val processing:Boolean get()=calls.isNotEmpty()||inferenceLane.isLocked
     suspend fun releaseForMedia()=client.release()
     /** Context candidate hints are strictly local, even if provider settings
      * change between two lookups or while waiting for the inference lane. */

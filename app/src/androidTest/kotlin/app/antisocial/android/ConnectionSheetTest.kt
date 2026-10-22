@@ -43,6 +43,9 @@ class ConnectionSheetTest {
 
     @Before fun preserve() {
         runBlocking {repo.awaitReady()}
+        // Policy assertions exercise the app sheet, not Android's first-use
+        // notification permission window. That window has no Compose hierarchy.
+        if(android.os.Build.VERSION.SDK_INT>=33)InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(ui.activity.packageName,android.Manifest.permission.POST_NOTIFICATIONS)
         preferences=repo.prefs.export().toString()
         originalMemory=repo.feedMemory
         ui.runOnIdle {

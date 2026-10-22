@@ -3,6 +3,8 @@ package app.antisocial.android
 
 internal fun fixtureBriefAdmission(user:String):String? {
     val input=com.google.gson.JsonParser.parseString(user).asJsonObject
+    if(input["topic_review"]?.asBoolean==true)return """{"related":true}"""
+    if(input["detail_review"]?.asBoolean==true)return """{"has_detail":true}"""
     val items=input.getAsJsonArray("items") ?: return null
     if(input["support_review"]?.asBoolean==true)return com.google.gson.JsonObject().apply {
         add("checks",com.google.gson.JsonArray().apply {items.forEach {item->add(com.google.gson.JsonObject().apply {

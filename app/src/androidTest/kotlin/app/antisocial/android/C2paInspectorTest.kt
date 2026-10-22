@@ -27,7 +27,8 @@ class C2paInspectorTest {
         val result=requireNotNull(C2paInspector.inspect(bytes,"image/png"))
         assertEquals(AiCredentialState.VALID,result.credentialState)
         assertEquals(AiSignerTrust.UNTRUSTED,result.trust)
-        assertEquals("anti social Fixture Studio",result.signer)
+        // The signed fixture predates rebranding; changing its bytes invalidates the signature.
+        assertEquals("Liber Fixture Studio",result.signer)
         assertEquals(AiUse.GENERATED,result.disclosures.single().use)
         assertEquals(AiEvidence.CONTENT_CREDENTIALS,result.disclosures.single().evidence)
         assertEquals("Fixture Studio",result.disclosures.single().tool)

@@ -10,7 +10,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Instant
 
-internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,7) {
+internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,8) {
     private val gson=Gson()
     val revision=MutableStateFlow(0L)
     override fun onConfigure(db:SQLiteDatabase){db.enableWriteAheadLogging();db.rawQuery("PRAGMA journal_size_limit=1048576",null).use {it.moveToFirst()}}
@@ -25,7 +25,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     }
     override fun onUpgrade(db:SQLiteDatabase,oldVersion:Int,newVersion:Int){
         if(oldVersion<2)db.execSQL("ALTER TABLE sources ADD COLUMN expires INTEGER NOT NULL DEFAULT 0")
-        if(oldVersion<7) {
+        if(oldVersion<8) {
             // Re-read formerly successful pages with the corrected ownership
             // and visit/calendar/opportunity projections on the next explicit search. Keep failure backoffs.
             val updates=mutableListOf<Triple<String,String,String>>()
@@ -52,6 +52,9 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     }
     @Synchronized fun events(saved:Boolean=false):List<LocalEvent> = (if(saved)rows("SELECT payload FROM copies WHERE kind='event' ORDER BY saved DESC LIMIT 2000")else rows("SELECT payload FROM records WHERE kind='event' AND expires>? ORDER BY checked DESC LIMIT 5000",arrayOf(now().toString())))
         .mapNotNull {runCatching {gson.fromJson(it,LocalEvent::class.java)}.getOrNull()}
+    @Synchronized fun announcements(area:LocalArea):List<LocalAnnouncementCandidate> = rows("SELECT payload FROM records WHERE kind='announcement' AND expires>? ORDER BY checked DESC LIMIT 200",arrayOf(now().toString()))
+        .mapNotNull {runCatching {gson.fromJson(it,LocalAnnouncementCandidate::class.java)}.getOrNull()}
+        .filter {candidate->business(candidate.publisherId)?.let {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}==true}
     @Synchronized fun save(business:LocalBusiness)=copy(business.id,"business",gson.toJson(business))
     @Synchronized fun save(event:LocalEvent)=copy(event.id,"event",gson.toJson(event))
     private fun copy(id:String,kind:String,json:String) {
@@ -143,6 +146,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
 
             }
             val existing=events().associateBy {it.id}.toMutableMap()
+            val pendingAnnouncements=announcements(area)
             val eventAliases=mutableMapOf<String,String>();val eventKeys=mutableMapOf<String,MutableSet<String>>()
             fun indexEvent(event:LocalEvent){event.sourceIds.forEach {eventAliases[it]=event.id};LocalEventIdentity.keys(event).forEach {eventKeys.getOrPut(it){mutableSetOf()}.add(event.id)}}
             existing.values.forEach(::indexEvent)
@@ -158,6 +162,14 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
                 val expires=maxOf(now()+7L*86400000,(result.end ?: result.start).instant()?.toEpochMilli()?.plus(7L*86400000) ?: now()+37L*86400000).coerceAtMost(now()+90L*86400000)
                 put(result.id,"event",gson.toJson(result),result.point,result.checkedAt,expires,result.title+" "+result.description+" "+result.venue+" "+result.locality)
                 existing[result.id]=result;indexEvent(result);sessions++
+                db.delete("records","id=? AND kind='announcement'",arrayOf(incoming.id))
+                pendingAnnouncements.filter {it.sourceUrl in incoming.urls&&(it.date==null||it.date==incoming.start.date()?.toString())}.forEach {old->
+                    db.delete("records","id=? AND kind='announcement'",arrayOf(old.id));if(old.id!=result.id)db.delete("search","id=?",arrayOf(old.id))
+                }
+            }
+            for(candidate in extraction.announcements.take(40)) {
+                if(candidate.id in existing||business(candidate.publisherId)?.let {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}!=true)continue
+                put(candidate.id,"announcement",gson.toJson(candidate),null,candidate.checkedAt,now()+7L*86400000,candidate.title+" "+candidate.text)
             }
             extraction.sources.take(48).forEach {candidate->offerSource(area,candidate.copy(businessId=identities[candidate.businessId] ?: candidate.businessId))}
             db.setTransactionSuccessful()
@@ -174,6 +186,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         val db=writableDatabase
         db.delete("records","expires<?",arrayOf(now().toString()));db.delete("cache","expires<?",arrayOf(now().toString()))
         db.delete("sources","expires<?",arrayOf(now().toString()))
+        db.execSQL("DELETE FROM records WHERE id IN (SELECT id FROM records WHERE kind='announcement' ORDER BY checked DESC LIMIT -1 OFFSET 200)")
         db.execSQL("DELETE FROM records WHERE id IN (SELECT id FROM records ORDER BY checked DESC LIMIT -1 OFFSET 7000)")
         var size=readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM records",null).use {it.moveToFirst();it.getLong(0)}
         while(size>32L*1024*1024) {db.execSQL("DELETE FROM records WHERE id IN (SELECT id FROM records ORDER BY checked LIMIT 64)");size=readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM records",null).use {it.moveToFirst();it.getLong(0)}}

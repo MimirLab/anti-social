@@ -1,0 +1,6867 @@
+[
+  {
+    "name": "bakery_trial",
+    "split": "predeclared_holdout",
+    "review": "Preserve the specific information and all limiting conditions; no reaction or unrelated event belongs in the brief.",
+    "expectedUseful": true,
+    "expectedFacts": [
+      {
+        "id": "trial",
+        "allOf": [
+          "190",
+          "32",
+          "95"
+        ]
+      },
+      {
+        "id": "scope",
+        "allOf": [
+          "not tested a full load"
+        ]
+      }
+    ],
+    "initial": [
+      {
+        "id": "post",
+        "revision": "1",
+        "text": "The bakery announces its oven is repaired.",
+        "kind": "post",
+        "author": "Publisher",
+        "parentText": "",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "report",
+        "revision": "1",
+        "text": "We baked one loaf at 190 C for 32 minutes and measured a 95 C centre. We have not tested a full load.",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "noise": [
+      {
+        "id": "noise-0",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-1",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-2",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-3",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-4",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-5",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-6",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-7",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-8",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-9",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-10",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-11",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-12",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-13",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-14",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-15",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-16",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-17",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-18",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-19",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-20",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-21",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-22",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-23",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-24",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-25",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-26",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-27",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-28",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-29",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-30",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-31",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-32",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-33",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-34",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-35",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-36",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-37",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-38",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-39",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-40",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-41",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-42",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-43",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-44",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-45",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-46",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-47",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-48",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-49",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-50",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-51",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-52",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-53",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-54",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-55",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-56",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-57",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-58",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-59",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-60",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-61",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-62",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-63",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-64",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-65",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-66",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-67",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-68",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-69",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-70",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-71",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-72",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-73",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-74",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-75",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-76",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-77",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-78",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-79",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-80",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-81",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-82",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-83",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-84",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-85",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-86",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-87",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-88",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-89",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-90",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-91",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-92",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-93",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-94",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-95",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-96",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-97",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-98",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-99",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "update": []
+  },
+  {
+    "name": "library_entrance",
+    "split": "predeclared_holdout",
+    "review": "Preserve the specific information and all limiting conditions; no reaction or unrelated event belongs in the brief.",
+    "expectedUseful": true,
+    "expectedFacts": [
+      {
+        "id": "time and observation",
+        "allOf": [
+          "09:20",
+          "front entrance",
+          "locked"
+        ]
+      },
+      {
+        "id": "limit",
+        "allOf": [
+          "not check",
+          "side entrance"
+        ]
+      }
+    ],
+    "initial": [
+      {
+        "id": "post",
+        "revision": "1",
+        "text": "The library says its building has reopened.",
+        "kind": "post",
+        "author": "Publisher",
+        "parentText": "",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "report",
+        "revision": "1",
+        "text": "At 09:20 I checked the library front entrance; it was still locked. I did not check the side entrance.",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "noise": [
+      {
+        "id": "noise-0",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-1",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-2",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-3",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-4",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-5",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-6",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-7",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-8",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-9",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-10",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-11",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-12",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-13",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-14",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-15",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-16",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-17",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-18",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-19",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-20",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-21",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-22",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-23",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-24",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-25",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-26",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-27",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-28",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-29",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-30",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-31",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-32",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-33",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-34",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-35",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-36",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-37",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-38",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-39",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-40",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-41",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-42",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-43",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-44",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-45",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-46",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-47",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-48",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-49",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-50",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-51",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-52",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-53",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-54",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-55",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-56",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-57",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-58",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-59",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-60",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-61",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-62",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-63",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-64",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-65",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-66",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-67",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-68",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-69",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-70",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-71",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-72",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-73",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-74",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-75",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-76",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-77",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-78",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-79",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-80",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-81",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-82",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-83",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-84",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-85",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-86",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-87",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-88",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-89",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-90",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-91",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-92",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-93",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-94",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-95",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-96",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-97",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-98",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-99",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The library says its building has reopened.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "update": []
+  },
+  {
+    "name": "paper_form",
+    "split": "predeclared_holdout",
+    "review": "Preserve the specific information and all limiting conditions; no reaction or unrelated event belongs in the brief.",
+    "expectedUseful": true,
+    "expectedFacts": [
+      {
+        "id": "paper fee",
+        "allOf": [
+          "paper",
+          "15"
+        ]
+      },
+      {
+        "id": "online exception",
+        "allOf": [
+          "online",
+          "free"
+        ]
+      }
+    ],
+    "initial": [
+      {
+        "id": "post",
+        "revision": "1",
+        "text": "The council announces its new business licensing form.",
+        "kind": "post",
+        "author": "Publisher",
+        "parentText": "",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "report",
+        "revision": "1",
+        "text": "Paper applications require a 15 dollar fee. Online applications are free.",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "noise": [
+      {
+        "id": "noise-0",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-1",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-2",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-3",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-4",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-5",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-6",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-7",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-8",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-9",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-10",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-11",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-12",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-13",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-14",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-15",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-16",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-17",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-18",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-19",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-20",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-21",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-22",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-23",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-24",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-25",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-26",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-27",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-28",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-29",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-30",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-31",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-32",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-33",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-34",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-35",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-36",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-37",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-38",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-39",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-40",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-41",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-42",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-43",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-44",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-45",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-46",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-47",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-48",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-49",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-50",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-51",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-52",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-53",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-54",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-55",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-56",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-57",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-58",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-59",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-60",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-61",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-62",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-63",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-64",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-65",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-66",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-67",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-68",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-69",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-70",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-71",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-72",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-73",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-74",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-75",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-76",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-77",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-78",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-79",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-80",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-81",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-82",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-83",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-84",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-85",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-86",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-87",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-88",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-89",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-90",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-91",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-92",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-93",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-94",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-95",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-96",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-97",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-98",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-99",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "update": []
+  },
+  {
+    "name": "tool_deposit",
+    "split": "predeclared_holdout",
+    "review": "Preserve the specific information and all limiting conditions; no reaction or unrelated event belongs in the brief.",
+    "expectedUseful": true,
+    "expectedFacts": [
+      {
+        "id": "deposit condition",
+        "allOf": [
+          "20",
+          "power tools"
+        ]
+      },
+      {
+        "id": "exception",
+        "allOf": [
+          "hand tools",
+          "free"
+        ]
+      }
+    ],
+    "initial": [
+      {
+        "id": "post",
+        "revision": "1",
+        "text": "A tool library announces changes to borrowing fees.",
+        "kind": "post",
+        "author": "Publisher",
+        "parentText": "",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "report",
+        "revision": "1",
+        "text": "Section 6 requires a 20 dollar deposit only for power tools. Hand tools remain free.",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "noise": [
+      {
+        "id": "noise-0",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-1",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-2",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-3",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-4",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-5",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-6",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-7",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-8",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-9",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-10",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-11",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-12",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-13",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-14",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-15",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-16",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-17",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-18",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-19",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-20",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-21",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-22",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-23",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-24",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-25",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-26",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-27",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-28",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-29",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-30",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-31",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-32",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-33",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-34",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-35",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-36",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-37",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-38",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-39",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-40",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-41",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-42",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-43",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-44",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-45",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-46",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-47",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-48",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-49",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-50",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-51",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-52",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-53",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-54",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-55",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-56",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-57",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-58",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-59",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-60",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-61",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-62",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-63",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-64",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-65",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-66",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-67",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-68",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-69",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-70",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-71",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-72",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-73",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-74",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-75",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-76",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-77",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-78",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-79",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-80",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-81",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-82",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-83",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-84",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-85",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-86",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-87",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-88",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-89",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-90",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-91",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-92",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-93",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-94",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-95",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-96",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-97",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-98",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-99",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "A tool library announces changes to borrowing fees.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "update": []
+  },
+  {
+    "name": "unrelated_ticket",
+    "split": "predeclared_holdout",
+    "review": "Preserve the specific information and all limiting conditions; no reaction or unrelated event belongs in the brief.",
+    "expectedUseful": false,
+    "expectedFacts": [],
+    "initial": [
+      {
+        "id": "post",
+        "revision": "1",
+        "text": "The bakery announces its oven is repaired.",
+        "kind": "post",
+        "author": "Publisher",
+        "parentText": "",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "report",
+        "revision": "1",
+        "text": "I bought a concert ticket for 20 dollars yesterday and the singer was brilliant.",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "noise": [
+      {
+        "id": "noise-0",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-1",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-2",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-3",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-4",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-5",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-6",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-7",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-8",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-9",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-10",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-11",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-12",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-13",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-14",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-15",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-16",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-17",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-18",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-19",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-20",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-21",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-22",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-23",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-24",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-25",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-26",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-27",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-28",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-29",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-30",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-31",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-32",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-33",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-34",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-35",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-36",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-37",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-38",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-39",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-40",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-41",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-42",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-43",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-44",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-45",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-46",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-47",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-48",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-49",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-50",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-51",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-52",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-53",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-54",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-55",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-56",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-57",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-58",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-59",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-60",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-61",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-62",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-63",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-64",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-65",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-66",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-67",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-68",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-69",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-70",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-71",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-72",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-73",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-74",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-75",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-76",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-77",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-78",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-79",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-80",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-81",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-82",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-83",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-84",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-85",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-86",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-87",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-88",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-89",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-90",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-91",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-92",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-93",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-94",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-95",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-96",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-97",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-98",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-99",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The bakery announces its oven is repaired.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "update": []
+  },
+  {
+    "name": "vague_reaction",
+    "split": "predeclared_holdout",
+    "review": "Preserve the specific information and all limiting conditions; no reaction or unrelated event belongs in the brief.",
+    "expectedUseful": false,
+    "expectedFacts": [],
+    "initial": [
+      {
+        "id": "post",
+        "revision": "1",
+        "text": "The council announces its new business licensing form.",
+        "kind": "post",
+        "author": "Publisher",
+        "parentText": "",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "report",
+        "revision": "1",
+        "text": "Everyone says this council is corrupt and useless. You people always lie.",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "noise": [
+      {
+        "id": "noise-0",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-1",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-2",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-3",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-4",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-5",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-6",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-7",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-8",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-9",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-10",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-11",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-12",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-13",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-14",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-15",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-16",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-17",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-18",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-19",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-20",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-21",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-22",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-23",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-24",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-25",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-26",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-27",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-28",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-29",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-30",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-31",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-32",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-33",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-34",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-35",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-36",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-37",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-38",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-39",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-40",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-41",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-42",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-43",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-44",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-45",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-46",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-47",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-48",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-49",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-50",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-51",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-52",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-53",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-54",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-55",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-56",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-57",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-58",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-59",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-60",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-61",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-62",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-63",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-64",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-65",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-66",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-67",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-68",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-69",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-70",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-71",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-72",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-73",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-74",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-75",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-76",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-77",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-78",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-79",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-80",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-81",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-82",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-83",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-84",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-85",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-86",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-87",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-88",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-89",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-90",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-91",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-92",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-93",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-94",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-95",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-96",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-97",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-98",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      },
+      {
+        "id": "noise-99",
+        "revision": "1",
+        "text": "\ud83d\udc4d",
+        "kind": "comment",
+        "author": "Reader",
+        "parentText": "The council announces its new business licensing form.",
+        "metadata": {
+          "readingLanguage": "en"
+        }
+      }
+    ],
+    "update": []
+  }
+]

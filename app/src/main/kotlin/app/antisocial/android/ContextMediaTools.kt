@@ -68,14 +68,15 @@ class ContextMediaTools(private val repo:Repository) {
         ensureEnabled();admit(kind)
         catalog.pack(kind,language)
         val request=OneTimeWorkRequestBuilder<ContextMediaDownloadWorker>().setInputData(workDataOf("kind" to kind.name,"language" to language))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(if(kind==ContextMediaKind.OCR&&language=="eng")NetworkType.NOT_REQUIRED else NetworkType.CONNECTED).build()).build()
         state.value=state.value.copy(working=true,message="Preparing optional media tool…")
         WorkManager.getInstance(context).enqueueUniqueWork("context-media-download",ExistingWorkPolicy.KEEP,request)
     }
     fun cancelDownload(){WorkManager.getInstance(context).cancelUniqueWork("context-media-download");state.value=state.value.copy(working=false,progress=null,message="Download paused · tap Download to resume")}
     internal suspend fun install(kind:ContextMediaKind,language:String)=mutations.withLock {
         try {ensureEnabled();admit(kind);state.value=state.value.copy(working=true,message="Downloading verified media data…")
-            store.install(catalog.pack(kind,language)){state.value=state.value.copy(progress=it)}
+            val bundled:((String)->java.io.InputStream)?=if(kind==ContextMediaKind.OCR&&language=="eng")({name->context.assets.open("discovery-ocr/$name")})else null
+            store.install(catalog.pack(kind,language),openBundled=bundled){state.value=state.value.copy(progress=it)}
             activate(kind,true,language);state.value=state.value.copy(message="Media tool ready · processed on this device")
         }catch(e:CancellationException){state.value=state.value.copy(message="Download paused · tap Download to resume");throw e}
         catch(e:Throwable){state.value=state.value.copy(message=e.message?.take(240) ?: "The media tool could not be installed.");throw e}
@@ -137,6 +138,16 @@ class ContextMediaTools(private val repo:Repository) {
     suspend fun ocr(localFile:File,language:String="eng"):OcrResult=tracked {
         val file=this.localFile(localFile);val input=selected(ContextMediaKind.OCR,language);val hash=sourceHash(file)
         val result=gson.fromJson(request(ContextMediaIpc.OCR,input,file).toString(Charsets.UTF_8),OcrResult::class.java)
+        check(result.width>0&&result.height>0&&result.meanConfidence.isFinite()&&result.lines.size<=512)
+        result.copy(sourceSha256=hash)
+    }
+    /** Discovery owns its own opt-out. It does not activate AI or Context tools. */
+    internal suspend fun discoveryOcr(localFile:File):OcrResult=tracked {
+        check(repo.prefs.localFlyerReading){"Flyer reading is off"};admit(ContextMediaKind.OCR)
+        val file=this.localFile(localFile);val pack=catalog.pack(ContextMediaKind.OCR,"eng")
+        val directory=store.install(pack,openBundled={name->context.assets.open("discovery-ocr/$name")})
+        val hash=sourceHash(file)
+        val result=gson.fromJson(request(ContextMediaIpc.OCR,input(pack,directory),file).toString(Charsets.UTF_8),OcrResult::class.java)
         check(result.width>0&&result.height>0&&result.meanConfidence.isFinite()&&result.lines.size<=512)
         result.copy(sourceSha256=hash)
     }

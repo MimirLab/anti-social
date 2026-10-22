@@ -68,7 +68,7 @@ class ContextReaderBriefTest {
         val result=ContextEngine(model,"reader",readerBrief=true).summarizeResult(listOf(finding))
         assertEquals(supported,result.text);assertEquals(2,calls)
     }
-    @Test fun incompleteUnconfirmedAndCommentSourcesStillReceiveTheirOwnReview():Unit=runBlocking {
+    @Test fun incompleteAndUnconfirmedSourcesAreReviewedWhilePreparedCommentsStayWhole():Unit=runBlocking {
         val text="The campus funding proposal includes a new repair laboratory."
         val docs=listOf(
             ContextDocument("partial","v1",text,kind="article",metadata=mapOf("readingLanguage" to "en","truncated" to "true")),
@@ -77,6 +77,7 @@ class ContextReaderBriefTest {
         )
         var calls=0
         val model=object:ContextModel {
+            override val processingPlan=ContextProcessingPlan.SINGLE.copy(preservePreparedContributions=true)
             override suspend fun count(system:String,user:String)=128
             override suspend fun generate(system:String,user:String,maxTokens:Int):String { admission(user)?.let {return it};
                 calls++
@@ -87,8 +88,8 @@ class ContextReaderBriefTest {
         for(doc in docs) {
             val before=calls
             val result=ContextEngine(model,"reader",readerBrief=true).process(listOf(doc))
-            assertEquals(before+1,calls)
-            assertEquals(if(doc.kind=="article")text else "The proposal includes a repair laboratory.",result.findings.single().text)
+            assertEquals(before+if(doc.kind=="comment")0 else 1,calls)
+            assertEquals(text,result.findings.single().text)
         }
     }
     @Test fun shortCompleteEnglishLinkedSourceReachesCompositionWithoutAParaphraseOrComparison():Unit=runBlocking {

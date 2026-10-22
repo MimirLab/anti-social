@@ -18,6 +18,7 @@ if [[ "${1:-}" == "android" ]]; then
   export CC_aarch64_linux_android="$CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER" CC_armv7_linux_androideabi="$CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER" CC_x86_64_linux_android="$CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER"
   for antisocial_pair in 'aarch64-linux-android arm64-v8a' 'armv7-linux-androideabi armeabi-v7a' 'x86_64-linux-android x86_64'; do
     read -r antisocial_target antisocial_abi <<< "$antisocial_pair"
+    if [[ -n "${ANTISOCIAL_TARGET_ABIS:-}" && ",${ANTISOCIAL_TARGET_ABIS}," != *",${antisocial_abi},"* ]]; then continue; fi
     rustup target add "$antisocial_target"
     cargo build --locked --release --lib --manifest-path native/embedding/Cargo.toml --target "$antisocial_target"
     mkdir -p "app/src/main/jniLibs/$antisocial_abi"

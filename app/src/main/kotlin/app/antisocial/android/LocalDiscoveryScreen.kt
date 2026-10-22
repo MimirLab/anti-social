@@ -41,6 +41,9 @@ import java.time.format.DateTimeFormatter
     var selectedPlatform by remember {mutableStateOf(vm.repo.prefs.activePlatform)}
     var business by remember {mutableStateOf<LocalBusiness?>(null)}
     var event by remember {mutableStateOf<LocalEvent?>(null)}
+    var candidate by remember {mutableStateOf<LocalAnnouncementCandidate?>(null)}
+    var showPossible by rememberSaveable {mutableStateOf(false)}
+    var flyer by remember {mutableStateOf<Pair<String,String>?>(null)}
     var importError by remember {mutableStateOf<String?>(null)}
     val importer=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {uri->if(uri!=null)scope.launch {
         try {val body=withContext(Dispatchers.IO){context.contentResolver.openInputStream(uri)?.use {stream->val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192);while(true){val count=stream.read(buffer);if(count<0)break;require(output.size()+count<=8*1024*1024){"Choose a regional place pack smaller than 8 MB"};output.write(buffer,0,count)};output.toString("UTF-8")} ?: error("Could not read this file")};controller.importPlaces(body)}catch(e:Exception){importError=e.message}
@@ -83,7 +86,11 @@ import java.time.format.DateTimeFormatter
                     if(!state.savedOnly)TextButton(onClick={submit()}){Text(if(state.area==null)"Choose an area"else "Find ${if(state.mode==LocalSearchMode.EVENTS)"events"else "businesses"}")}
                 }}
                 if(state.mode==LocalSearchMode.BUSINESSES)items(state.businesses,key={it.id}) {place->BusinessCard(place,state.area,state.unit,place.id in state.saved,onOpen={business=place},onSave={controller.save(place)},onSocial=vm::openLink)}
-                if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,onOpen={event=session},onSave={controller.save(session)})}
+                if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,unknowns=LocalEventIntent.parse(state.text).match(session).unknowns,onOpen={event=session},onSave={controller.save(session)})}
+                if(state.mode==LocalSearchMode.EVENTS&&state.announcements.isNotEmpty()) {
+                    item {TextButton(onClick={showPossible=!showPossible},modifier=Modifier.testTag("Possible events toggle")){Icon(if(showPossible)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null);Text("Possible events · ${state.announcements.size}")}}
+                    if(showPossible)items(state.announcements,key={"possible:"+it.id}) {item->OutlinedCard(onClick={candidate=item},modifier=Modifier.fillMaxWidth().testTag("Possible event ${item.id}")) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text(item.title,fontWeight=FontWeight.SemiBold);Text(item.missing.joinToString(" · "),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
+                }
                 if(state.more&&!state.loading&&!state.enriching&&!state.savedOnly)item {TextButton(onClick={controller.search(more=true)},modifier=Modifier.fillMaxWidth()){Text("Check more public sources")}}
                 if(state.coverage.isNotEmpty()&&!state.loading)item {TextButton(onClick={showCoverage=true}){Text("Source details",fontSize=12.sp)}}
                 if(state.businesses.isNotEmpty()||state.events.isNotEmpty())item {Text("Public records can be incomplete or out of date. Check the linked source before travelling.",fontSize=11.sp,lineHeight=16.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -95,7 +102,7 @@ import java.time.format.DateTimeFormatter
         Text("Public sources",style=MaterialTheme.typography.headlineSmall)
         Text("Directories connect places to their websites and social accounts. We read public calendars and structured page information, then keep the discoveries locally. A reachable page does not guarantee readable content.")
         Text("Place records: Overture Maps via Fused; © OpenStreetMap contributors via Overpass and Photon (ODbL); published AllThePlaces brand data (CC0). Area names: GeoNames via Open-Meteo. Regional lookup and search requests travel through Tor. Private.coffee’s provider privacy policy is available at overpass.private.coffee. Selected websites follow your reading connection settings.",fontSize=13.sp)
-        Text("Each search checks a small batch and reuses recent discoveries. Name and category searches cover your chosen radius. Precise results connect to nearby identity records; publisher pages fill the missing details. Events without a known venue locality and occurrence date are left out.",fontSize=13.sp)
+        Text("Each search checks a small batch and reuses recent discoveries. Name and category searches cover your chosen radius. Precise results connect to nearby identity records; publisher pages fill the missing details. Incomplete announcements stay under Possible events until their date and venue can be established.",fontSize=13.sp)
         Text("${state.checked} public pages checked in this search",fontWeight=FontWeight.SemiBold)
         if(state.enriching)TextButton(onClick={controller.stop();showCoverage=false}){Text("Pause background details")}
         state.coverage.forEach {Text(it,fontSize=12.sp)}
@@ -113,11 +120,22 @@ import java.time.format.DateTimeFormatter
         ModalBottomSheet(onDismissRequest={event=null}) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Text(value.title,style=MaterialTheme.typography.headlineSmall);Text(eventTime(value,state.area),fontWeight=FontWeight.SemiBold)
         listOf(value.status.takeUnless {it=="scheduled"}.orEmpty(),value.venue,value.address,value.price,value.age.takeIf(String::isNotBlank)?.let {"Ages $it"}.orEmpty(),value.organizer).filter(String::isNotBlank).distinct().forEach {Text(it)}
+        LocalEventIntent.parse(state.text).match(value).let {match->(match.reasons+match.unknowns).distinct().forEach {Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         if(value.description.isNotBlank())Text(value.description)
         (listOfNotNull(value.registrationUrl)+value.urls).distinct().take(3).forEachIndexed {i,url->TextButton(onClick={vm.articles.open(url)}){Text(if(i==0&&value.registrationUrl!=null)"Registration & details"else "Read announcement")}}
-        EvidenceDetails(value.evidence,onOpen={vm.articles.open(it)})
+        EvidenceDetails(value.evidence,onOpen={vm.articles.open(it)},onImage={url,source->flyer=url to source})
         TextButton(onClick={controller.save(value)}){Text(if(value.id in state.saved)"Remove saved copy"else "Save local copy")};Spacer(Modifier.height(24.dp))
     }}}
+    candidate?.let {value->ModalBottomSheet(onDismissRequest={candidate=null}) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        Text(value.title,style=MaterialTheme.typography.headlineSmall)
+        Text(value.missing.joinToString(" · "),color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value.text)
+        value.image?.let {url->TextButton(onClick={flyer=url to value.sourceUrl}){Text("View flyer")}}
+        EvidenceDetails(value.evidence,onOpen={vm.articles.open(it)},onImage={url,source->flyer=url to source})
+        TextButton(onClick={vm.articles.open(value.sourceUrl)}){Text("Read announcement")}
+        Spacer(Modifier.height(24.dp))
+    }}}
+    flyer?.let {(url,source)->MediaViewer(listOf(Media(url)),0,source,vm.repo,onClose={flyer=null})}
     importError?.let {error->AlertDialog(onDismissRequest={importError=null},text={Text(error)},confirmButton={TextButton(onClick={importError=null}){Text("Close")}})}
 }
 
@@ -130,10 +148,11 @@ import java.time.format.DateTimeFormatter
         SocialAccounts(place.socials,onSocial)
     }}
 }
-@Composable private fun EventCard(event:LocalEvent,area:LocalArea?,saved:Boolean,onOpen:()->Unit,onSave:()->Unit) {
+@Composable private fun EventCard(event:LocalEvent,area:LocalArea?,saved:Boolean,unknowns:List<String> = emptyList(),onOpen:()->Unit,onSave:()->Unit) {
     ElevatedCard(onClick=onOpen,modifier=Modifier.fillMaxWidth().testTag("Event ${event.id}"),shape=RoundedCornerShape(20.dp),colors=CardDefaults.elevatedCardColors(containerColor=MaterialTheme.colorScheme.surface)) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment=Alignment.CenterVertically) {Text(eventTime(event,area),Modifier.weight(1f),fontSize=12.sp,color=MaterialTheme.colorScheme.primary);IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved ${event.title}"else "Save ${event.title}")}}
         Text(event.title,fontSize=19.sp,fontWeight=FontWeight.SemiBold)
+        if(unknowns.isNotEmpty())Text(unknowns.joinToString(" · "),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         if(event.status!="scheduled")Text(event.status.replaceFirstChar(Char::titlecase),color=MaterialTheme.colorScheme.error,fontWeight=FontWeight.SemiBold)
         Text(listOf(event.venue,event.locality,event.price).filter(String::isNotBlank).distinct().joinToString(" · "),fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
         if(event.description.isNotBlank())Text(event.description,fontSize=13.sp,maxLines=3,overflow=TextOverflow.Ellipsis)
@@ -217,12 +236,14 @@ import java.time.format.DateTimeFormatter
         if(onClick!=null)Icon(Icons.Rounded.ChevronRight,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-@Composable private fun EvidenceDetails(evidence:List<LocalFieldEvidence>,onOpen:(String)->Unit) {
+@Composable private fun EvidenceDetails(evidence:List<LocalFieldEvidence>,onOpen:(String)->Unit,onImage:((String,String)->Unit)?=null) {
     var expanded by remember {mutableStateOf(false)}
     TextButton(onClick={expanded=!expanded}){Icon(Icons.Rounded.Info,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text(if(expanded)"Hide sources"else "Where this information came from")}
     if(expanded)evidence.groupBy {it.sourceUrl}.entries.take(12).forEach {(url,fields)->Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Text(fields.map {it.field.replaceFirstChar(Char::titlecase)}.distinct().joinToString(" · "),fontWeight=FontWeight.SemiBold,fontSize=12.sp)
         Text("Retrieved "+Instant.ofEpochMilli(fields.maxOf {it.checkedAt}).atZone(ZoneId.systemDefault()).toLocalDate(),fontSize=11.sp)
+        fields.filter {it.kind in setOf(LocalEvidenceKind.PUBLIC_POST,LocalEvidenceKind.POSTER)}.map {it.excerpt}.filter(String::isNotBlank).distinct().take(5).forEach {Text(it,fontSize=12.sp)}
+        fields.mapNotNull {it.region?.imageUrl}.distinct().forEach {image->if(onImage!=null)TextButton(onClick={onImage(image,url)}){Text("Inspect source flyer")}}
         fields.mapNotNull {it.license}.distinct().forEach {Text(it,fontSize=11.sp)}
         TextButton(onClick={onOpen(url)}){Text(runCatching {java.net.URI(url).host}.getOrNull() ?: "Source",maxLines=1,overflow=TextOverflow.Ellipsis)}
     }}

@@ -347,3 +347,12 @@ Each item contains `name`, `section`, `description`, `prices`, `dietary`,
 Empty fields mean unknown. Import validates every nested type, source HTTPS URL,
 field bound and combined item count. Saved menu text is independent of ordinary
 route/cache expiry; original PDF binaries are not embedded in this JSON section.
+
+The next release adds optional boolean `settings.localFlyerReading` (default true).
+Local field evidence may contain a nullable/absent `region`: `imageUrl`, `sha256`,
+`left`, `top`, `right`, `bottom`, `width`, `height`. Coordinates refer to the OCR
+result image and must be bounded by its dimensions. The hash identifies the exact
+processed source, not the image’s authenticity. Existing exports without regions
+remain importable. Older app versions may reject snapshots using these new fields.
+Unconfirmed announcements and OCR/route caches are ordinary expiring data and are
+excluded from reader exports and shared source packs.

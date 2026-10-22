@@ -128,7 +128,7 @@ class ArchiveRecoveryTest {
         assertNull(retained.archivedVersion);assertTrue(RecoveredArchives.valid(retained));assertTrue(protected.isFile)
         val backup=repo.gson.fromJson(String(repo.exportBackup()),Backup::class.java)
         val restored=repo.gson.fromJson(backup.bookmarks.single {it.key==repo.key(post)}.payload,Post::class.java)
-        assertEquals(post.recoveredArchive,restored.recoveredArchive);assertEquals(post.media,restored.media)
+        assertEquals(post.recoveredArchive,restored.recoveredArchive);assertEquals(retained.media,restored.media)
         assertTrue(RecoveredArchives.valid(restored));assertEquals(target.canonicalUrl,restored.canonicalUrl)
     }
 

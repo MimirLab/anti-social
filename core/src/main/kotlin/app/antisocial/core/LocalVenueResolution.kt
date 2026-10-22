@@ -7,7 +7,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 object LocalVenueResolution {
     fun eligible(query:LocalDiscoveryQuery,event:LocalEvent,at:Long=System.currentTimeMillis()):Boolean {
         if(query.mode!=LocalSearchMode.EVENTS||event.point!=null||event.online||!LocalGeography.compatible(query.area,event.address,event.evidence)||LocalDiscoveryMerge.street(event.address)==null)return false
-        if(!LocalDiscoveryFilter.matches(LocalDiscoveryFilter.eventQuery(query.text),event.title+" "+event.description+" "+event.venue))return false
+        if(!LocalEventIntent.parse(query.text).match(event).matches)return false
         // Reuse the date filter with a location witness solely to check dates;
         // no such witness is ever copied into the real event or store.
         return LocalDiscoveryFilter.event(query,event.copy(point=query.area.point),at)

@@ -41,6 +41,14 @@ class ContextProcessingRouterTest {
         assertTrue(micro.summaryGroupLimit < server.summaryGroupLimit && server.summaryGroupLimit < large.summaryGroupLimit)
         assertTrue(micro.unitCharacters < server.unitCharacters && server.unitCharacters < large.unitCharacters)
     }
+    @Test fun testedMicroSizesSelectSeparateDetailDutiesAndReceiptIdentities() {
+        val two=ContextProcessingRouter.select(report(2_000_000_000),true,512)
+        val four=ContextProcessingRouter.select(report(4_205_751_296),true,512)
+        assertEquals(ContextDetailReview.DETAIL_ONLY,two.detailReview)
+        assertEquals(ContextDetailReview.TWO_CHECKS,four.detailReview)
+        assertNotEquals(two.identity,four.identity)
+        assertEquals(ContextDetailReview.DETAIL_ONLY,ContextProcessingRouter.select(report(),true,512).detailReview)
+    }
     @Test fun phoneAndTightRuntimeLimitsOverrideAnAggressiveRemoteStyle() {
         assertTrue(ContextProcessingRouter.select(report(9_000_000_000), true, 512).extractiveFindings)
         assertEquals(ContextProcessingStyle.FOCUSED, ContextProcessingRouter.select(report(120_000_000_000), true, 2048, ContextProcessingStyle.EXTENDED).style)

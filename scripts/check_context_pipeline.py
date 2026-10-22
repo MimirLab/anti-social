@@ -20,6 +20,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model",choices=[*SHA,"server"],required=True)
     parser.add_argument("--output",type=Path,required=True)
+    parser.add_argument("--binary",type=Path,help="Explicit qualified host runner; exact bytes are frozen in the evidence")
     parser.add_argument("--backend",choices=["cpu","vulkan"],default="cpu")
     parser.add_argument("--cache",default="f16_reference")
     parser.add_argument("--capacity",type=int,choices=[2048,8192],default=2048)
@@ -39,7 +40,11 @@ def main():
     parser.add_argument("--post-background",choices=["legacy","typed"],default="legacy",help="Audit only: supply the declared subject post to every comment using the reader's typed frame; legacy preserves earlier experiments")
     parser.add_argument("--passage-review",choices=["selector","binary_parent","binary_neighbors","binary_full","binary_linked","role_linked","selector_linked","qualified_linked"],default="selector",help="Research adapters: narrow passage duties or one selection over app-linked groups; app owns original IDs")
     parser.add_argument("--passage-closure",action="store_true",help="Research only: conservatively retain linked neighboring passages")
+    parser.add_argument("--fixture",type=Path,help="Predeclared complete-engine fixture; copied and hashed before generation")
+    parser.add_argument("--reader-brief",action="store_true",help="Exercise the shipping reader brief admission and composition path")
+    parser.add_argument("--fixture-cases",nargs="+",help="Case names from an explicit fixture")
     parser.add_argument("--code-snapshot",type=Path,help="Reuse a verified frozen audit classpath and fixture for a controlled model comparison")
+    parser.add_argument("--rebind-native",action="store_true",help="Explicit controlled comparison: reuse verified JVM classes with a different, newly frozen native runner; records both binary hashes")
     parser.add_argument("--prepare-only",action="store_true",help="Freeze verified audit inputs without starting a model; a later run can use them as a code snapshot")
     args=parser.parse_args()
     if not 1<=args.exchange_timeout_seconds<=900:parser.error("Native exchange deadline must be between 1 and 900 seconds")
@@ -49,10 +54,13 @@ def main():
     if args.passage_review!="selector" and args.comment_screen!="disabled":parser.error("Binary passage audit requires the disabled whole-comment screen control")
     if args.passage_closure and args.passage_review=="selector":parser.error("Passage closure requires binary passage review")
     if args.passage_closure and args.passage_review in ["binary_linked","role_linked","selector_linked","qualified_linked"]:parser.error("Linked groups already determine retention before classification; do not add post-vote closure")
+    if args.fixture_cases and args.fixture:
+        names={row["name"] for row in json.loads(args.fixture.read_text())}
+        if not set(args.fixture_cases)<=names:parser.error("Unknown fixture case names: "+str(sorted(set(args.fixture_cases)-names)))
     out=args.output.resolve()
     if not out.is_relative_to(BUILD.resolve()):parser.error("Keep evidence under LiberBuild")
     if out.exists():parser.error("Refusing to overwrite evidence")
-    binary=BUILD/f"ai-foundation/native-build/host-{args.backend}-antisocial-kv-v3/antisocial-kv-quality-reference"
+    binary=args.binary or BUILD/f"ai-foundation/native-build/host-{args.backend}-antisocial-kv-v3/antisocial-kv-quality-reference"
     weights=BUILD/f"ai-foundation/models/Ternary-Bonsai-2-{args.model}-PQ2_0.gguf"
     if args.model!="server":
         if digest(weights)!=SHA[args.model]:raise RuntimeError("Model integrity failed")
@@ -74,7 +82,7 @@ def main():
             path=Path(entry["file"]).resolve()
             if not path.is_relative_to(source) or digest(path)!=entry["sha256"]:parser.error("Frozen classpath integrity failed")
         if digest(source/"pipeline-jobs-v1.json")!=recorded["fixture_sha256"]:parser.error("Frozen fixture integrity failed")
-        if args.model!="server" and digest(binary)!=recorded.get("binary_sha256"):parser.error("Native code changed; use the intended matching snapshot")
+        if args.model!="server" and digest(binary)!=recorded.get("binary_sha256") and not args.rebind_native:parser.error("Native code changed; use the intended matching snapshot")
         out.mkdir();(out/"classpath").mkdir()
         files=[]
         for index,entry in enumerate(inputs):
@@ -85,15 +93,19 @@ def main():
         (out/"classpath.txt").write_text(os.pathsep.join(files))
         shutil.copyfile(source/"java.txt",out/"java.txt")
         snapshot={"source":str(source),"identity_sha256":digest(source/"identity.json")}
+        if args.rebind_native:snapshot["runtime_rebind"]={"parent_binary_sha256":recorded.get("binary_sha256"),"binary_sha256":digest(binary)}
     else:
         result=subprocess.run([str(ROOT/"scripts/gradle.sh"),":core:prepareContextPipelineAudit",f"-PantisocialPipelineOutput={out}"],cwd=ROOT)
         result.check_returncode()
+    if args.fixture_cases:
+        if not args.fixture and not args.code_snapshot:parser.error("--fixture-cases requires --fixture or --code-snapshot")
+        args.cases=args.fixture_cases
     fixture=out/"pipeline-jobs-v1.json"
-    shutil.copyfile(args.code_snapshot.resolve()/"pipeline-jobs-v1.json" if args.code_snapshot else ROOT/"core/src/test/resources/context-evaluation/pipeline-jobs-v1.json",fixture)
+    shutil.copyfile(args.fixture or (args.code_snapshot.resolve()/"pipeline-jobs-v1.json" if args.code_snapshot else ROOT/"core/src/test/resources/context-evaluation/pipeline-jobs-v1.json"),fixture)
     identity={"schema":"antisocial-context-pipeline-v4","model":args.model,"backend":args.backend,"cache":args.cache,"capacity":args.capacity,"position":args.position,"observation_scope":args.observation_scope,"comment_screen":args.comment_screen,"post_background":args.post_background,"passage_review":args.passage_review,"passage_closure":args.passage_closure,"reader_characters":args.reader_characters,
         "threads":args.threads,"instruction_cache_bytes":args.instruction_cache_mib*1024*1024,"sampling":args.sampling,"style":args.style,"summary_group_limit":args.summary_group_limit,"output_tokens":args.output_tokens,"composition":args.composition,"exchange_timeout_seconds":args.exchange_timeout_seconds,"cases":args.cases,"fixture_sha256":digest(fixture),
         "classpath":[{"file":str(p),"sha256":digest(p)} for p in map(Path,(out/"classpath.txt").read_text().split(os.pathsep))],
-        "scope":"Frozen complete ContextEngine fixture stages, including model initialization and process teardown; disk page cache may be warm after integrity verification. No Android or semantic admission."}
+        "reader_brief":args.reader_brief,"scope":"Frozen complete ContextEngine fixture stages, including model initialization and process teardown; disk page cache may be warm after integrity verification. No Android or semantic admission."}
     frozen=out/"native-runner"
     identity["observation_scope_modes"]=recorded.get("observation_scope_modes",["enabled","disabled"]) if snapshot else ["enabled","disabled","data_only"]
     identity["comment_screen_control"]=recorded.get("comment_screen_control",False) if snapshot else True
@@ -112,6 +124,7 @@ def main():
         f"-Dantisocial.pipeline.capacity={args.capacity}",f"-Dantisocial.pipeline.position={args.position}",f"-Dantisocial.pipeline.threads={args.threads}",
         f"-Dantisocial.pipeline.sampling={args.sampling}",
         f"-Dantisocial.pipeline.style={args.style.upper()}",
+        f"-Dantisocial.pipeline.readerBrief={str(args.reader_brief).lower()}",
         f"-Dantisocial.pipeline.summaryGroupLimit={args.summary_group_limit}",
         f"-Dantisocial.pipeline.outputTokens={args.output_tokens}",
         f"-Dantisocial.pipeline.readerCharacters={args.reader_characters}",

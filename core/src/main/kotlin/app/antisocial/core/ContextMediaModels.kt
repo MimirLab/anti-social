@@ -86,7 +86,7 @@ class ContextMediaStore(private val root: File,private val gateway: NetworkGatew
         pack.assets.forEach {asset->if(hash(File(dir,asset.filename))!=asset.sha256){File(dir,".complete").delete();error("The media model changed. Remove it and download a verified copy.")}}
         dir
     }
-    suspend fun install(pack: ContextMediaPack,progress: (ContextMediaProgress)->Unit={}): File=mutation.withLock {withContext(Dispatchers.IO) {
+    suspend fun install(pack: ContextMediaPack,openBundled:((String)->java.io.InputStream)?=null,progress: (ContextMediaProgress)->Unit={}): File=mutation.withLock {withContext(Dispatchers.IO) {
         require(catalog.packs.contains(pack));installed(pack)?.let {return@withContext verify(pack)}
         root.mkdirs();check(root.usableSpace>pack.downloadBytes+32L*1024*1024){"Free more storage before downloading this media tool."}
         val stage=File(root,"staging/${pack.id}-${pack.revision}").apply {mkdirs()}
@@ -94,7 +94,12 @@ class ContextMediaStore(private val root: File,private val gateway: NetworkGatew
         for(asset in pack.assets) {
             ensureActive();val file=File(stage,asset.filename)
             if(file.exists()&&file.length()>asset.bytes)file.delete()
-            gateway.downloadAiArtifact(asset.url,file,asset.bytes){progress(ContextMediaProgress(pack.id,completed+it,pack.downloadBytes))}
+            if(openBundled==null)gateway.downloadAiArtifact(asset.url,file,asset.bytes){progress(ContextMediaProgress(pack.id,completed+it,pack.downloadBytes))}
+            else openBundled(asset.filename).use {input->file.outputStream().use {out->
+                val bytes=ByteArray(65536);var count=0L
+                while(true){ensureActive();val size=input.read(bytes);if(size<0)break;count+=size;require(count<=asset.bytes){"Bundled image reader exceeds its signed size"};out.write(bytes,0,size)}
+                require(count==asset.bytes){"Bundled image reader is incomplete"}
+            }}
             progress(ContextMediaProgress(pack.id,completed+asset.bytes,pack.downloadBytes,true))
             if(hash(file)!=asset.sha256){file.delete();error("A media model failed its integrity check. Tap Download to retry.")}
             completed+=asset.bytes

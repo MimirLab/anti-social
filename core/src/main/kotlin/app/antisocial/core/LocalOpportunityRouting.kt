@@ -92,7 +92,7 @@ object LocalOpportunityRouting {
                     val day=runCatching {Instant.ofEpochSecond(stamp).atZone(ZoneId.of(query.area.zoneId ?: "UTC")).toLocalDate()}.getOrNull() ?: return@forEach
                     if(day<first||day>last)return@forEach
                 }
-                if(!LocalDiscoveryFilter.matches(LocalDiscoveryFilter.eventQuery(query.text),a.text()))return@forEach
+                if(!LocalEventIntent.parse(query.text).matchText(a.text(),linkOnly=true).matches)return@forEach
                 val target=LocalDiscoveryIdentity.url(a.absUrl("href"),url) ?: return@forEach
                 if(target.toHttpUrlOrNull()?.host==root.host)found+=LocalPublisherSource(target,label=a.text().take(120),discoveredFrom=url)
             }

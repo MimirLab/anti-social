@@ -122,12 +122,13 @@ fun main() = runBlocking {
             File(out,"runtime.json").writeText(gson.toJson(caps))
             val requestedStyle=ContextProcessingStyle.valueOf(System.getProperty("antisocial.pipeline.style","AUTO"))
             model=object:ContextModel {
+                override val generationProfile=if(caps.vllmChatTemplate)"vllm-utility-direct-json-v2"else "default"
                 override val contextTokens=caps.contextTokens
                 override val maxOutputTokens=outputBudget(caps,false,requestedStyle)
                 override val processingPlan=scoped(ContextProcessingRouter.select(caps,false,maxOutputTokens,requestedStyle))
                 override suspend fun count(system:String,user:String):Int {countRequests++;return system.toByteArray().size+user.toByteArray().size+128}
                 override suspend fun generate(system:String,user:String,maxTokens:Int):String=generation(system,user,maxTokens) {
-                    val begin=System.nanoTime();val text=provider.text(system,user,maxTokens)
+                    val begin=System.nanoTime();val text=provider.text(system,user,maxTokens,vllmUtility=caps.vllmChatTemplate)
                     val call=mapOf("system" to system,"input" to JsonParser.parseString(user),"maxTokens" to maxTokens,"text" to text,"elapsedMs" to (System.nanoTime()-begin)/1_000_000)
                     calls+=call;File(out,"calls.jsonl").appendText(gson.toJson(call)+"\n");text
                 }
@@ -171,7 +172,7 @@ fun main() = runBlocking {
                         }
                         val engine=ContextEngine(model,profile,sourceLabel={authors[it].orEmpty()},
                             sourcePublications={id->sourceDocuments[id]?.let(ContextSourcePublication::from).orEmpty()},
-                            sourceEvidenceScope={id->if(observationScope!="disabled")sourceDocuments[id]?.let(ContextEvidenceScope::from)else null},scopeGuidance=observationScope=="enabled")
+                            sourceEvidenceScope={id->if(observationScope!="disabled")sourceDocuments[id]?.let(ContextEvidenceScope::from)else null},scopeGuidance=observationScope=="enabled",readerBrief=System.getProperty("antisocial.pipeline.readerBrief","false").toBooleanStrict(),readerSubject={initial.first().text})
                         val priorFindings=findings
                         val priorDocuments=if(checkpoint.exists())gson.fromJson(checkpoint.readText(),PipelineCheckpoint::class.java).documents.orEmpty() else emptyList()
                         val from=completedGenerations;val attemptsFrom=generationAttempts;val countsFrom=countRequests;val stageStart=System.nanoTime()
@@ -205,7 +206,7 @@ fun main() = runBlocking {
                         checkpoint.writeText(gson.toJson(PipelineCheckpoint(findings,units,brief,compacted,documents)))
                         val count=generationAttempts-attemptsFrom
                         val evidence=mapOf("stage" to stage,"newModelCalls" to count,"completedModelCalls" to completedGenerations-from,"countRequests" to countRequests-countsFrom,"elapsedMs" to (System.nanoTime()-stageStart)/1_000_000,
-                            "brief" to brief,"findings" to findings,"units" to units,"compactions" to compacted,"levels" to summary.levels,"publicationReused" to reuse)
+                            "brief" to brief,"selectedFindings" to summary.selectedFindings.orEmpty(),"findings" to findings,"units" to units,"compactions" to compacted,"levels" to summary.levels,"publicationReused" to reuse)
                         stages+=evidence
                         File(out,"$name-$stage.json").writeText(gson.toJson(evidence))
                         if(stage in setOf("resume","noise","updated_resume","duplicate")) check(count==0) { "Unchanged/noise/duplicate-only stage woke the model" }

@@ -135,6 +135,7 @@ class ExpandedPlatformsTest {
         }
         assertEquals(target,vm.screen.value.sourceTarget)
         ui.onNodeWithTag("Source pathways").assertIsDisplayed()
+        ui.onNodeWithTag("Source pathways").performScrollToNode(hasText("native-route.example.org"))
         ui.onAllNodesWithText("native-route.example.org").onFirst().assertIsDisplayed()
         ui.onAllNodesWithText("Not yet content-tested").onFirst().assertExists()
         evidence("selected-server-pathways")
