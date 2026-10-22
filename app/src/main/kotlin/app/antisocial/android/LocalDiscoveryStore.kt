@@ -10,7 +10,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Instant
 
-internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,6) {
+internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,7) {
     private val gson=Gson()
     val revision=MutableStateFlow(0L)
     override fun onConfigure(db:SQLiteDatabase){db.enableWriteAheadLogging();db.rawQuery("PRAGMA journal_size_limit=1048576",null).use {it.moveToFirst()}}
@@ -25,9 +25,9 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     }
     override fun onUpgrade(db:SQLiteDatabase,oldVersion:Int,newVersion:Int){
         if(oldVersion<2)db.execSQL("ALTER TABLE sources ADD COLUMN expires INTEGER NOT NULL DEFAULT 0")
-        if(oldVersion<6) {
+        if(oldVersion<7) {
             // Re-read formerly successful pages with the corrected ownership
-            // and visit/calendar projections on the next explicit search. Keep failure backoffs.
+            // and visit/calendar/opportunity projections on the next explicit search. Keep failure backoffs.
             val updates=mutableListOf<Triple<String,String,String>>()
             db.rawQuery("SELECT url,area,payload FROM sources",null).use {c->while(c.moveToNext()) {
                 val source=runCatching {gson.fromJson(c.getString(2),LocalPublisherSource::class.java)}.getOrNull() ?: continue
@@ -149,6 +149,10 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
             for(incoming in extraction.events.take(512)) {
                 val candidates=(listOf(incoming.id)+incoming.sourceIds.mapNotNull {eventAliases[it]}+LocalEventIdentity.keys(incoming).flatMap {eventKeys[it].orEmpty()}).distinct()
                 val matches=candidates.mapNotNull(existing::get).filter {LocalDiscoveryMerge.sameEvent(it,incoming)}
+                // Regional feeds can contain distant events. Retain only local
+                // occurrences, but allow a known event's move/cancellation to
+                // update its existing row even when the new venue is outside.
+                if(matches.isEmpty()&&!LocalDiscoveryFilter.geographic(area,incoming))continue
                 val result=matches.fold(incoming){acc,old->LocalDiscoveryMerge.event(old,acc)}
                 matches.filter {it.id!=result.id}.forEach {old->existing.remove(old.id);db.delete("records","id=?",arrayOf(old.id));db.delete("search","id=?",arrayOf(old.id))}
                 val expires=maxOf(now()+7L*86400000,(result.end ?: result.start).instant()?.toEpochMilli()?.plus(7L*86400000) ?: now()+37L*86400000).coerceAtMost(now()+90L*86400000)

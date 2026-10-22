@@ -21,10 +21,12 @@ internal interface LocalDiscoveryBackend {
     suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend (List<LocalWebHit>)->Unit){onHits(discover(query))}
     suspend fun account(url:String):Boolean=false
     suspend fun refine(query:LocalDiscoveryQuery,business:LocalBusiness):List<LocalWebHit> = emptyList()
+    suspend fun venue(query:LocalDiscoveryQuery,event:LocalEvent):LocalEvent?=null
     suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit) {}
     suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction
 }
 internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDiscoveryBackend {
+    private data class Venue(val point:LocalPoint,val locality:String,val sourceUrl:String,val checkedAt:Long)
     private suspend fun protected() {
         repo.awaitReady();repo.localSearchConnection(true)
         try {withTimeout(60_000){repo.tor.state.first {it.enabled&&it.ready}}}
@@ -92,6 +94,21 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
         catch(e:SourceFailure){if(e.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED))repo.localDiscovery.cache("local-index-rest:${repo.prefs.searchProvider.id}","paused",30*60000);throw e}
     }
     private val gson=Gson()
+    override suspend fun venue(query:LocalDiscoveryQuery,event:LocalEvent):LocalEvent? {
+        if(!LocalVenueResolution.eligible(query,event))return null
+        val key="local-venue:v1:"+LocalDiscoveryIdentity.hash(query.area.cacheKey+"|"+event.address)
+        fun apply(v:Venue)=event.copy(point=v.point,locality=v.locality,evidence=event.evidence+LocalDiscoveryIdentity.evidence("location","${v.point.latitude},${v.point.longitude}",v.sourceUrl,v.checkedAt,LocalEvidenceKind.DIRECTORY,"© OpenStreetMap contributors · ODbL (via Photon)"))
+        repo.localDiscovery.cache(key)?.let {raw->return if(raw=="unavailable")null else runCatching {gson.fromJson(raw,Venue::class.java).takeIf {it.point.valid()&&query.area.point.distanceKm(it.point)<=query.area.radiusKm}?.let(::apply)}.getOrNull()}
+        protected()
+        return try {
+            val url=LocalVenueResolution.request(query,event)
+            val data=repo.gateway.text(url,maxBytes=256*1024,route=NetworkRoute.TOR)
+            if(data.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"Venue directory unavailable")
+            val at=System.currentTimeMillis();val result=LocalVenueResolution.parse(data.text,data.finalUrl,at,query.area,event)
+            repo.localDiscovery.cache(key,if(result==null)"unavailable"else gson.toJson(Venue(result.point!!,result.locality,data.finalUrl,at)),if(result==null)30*60000 else 7L*86400000)
+            result
+        }catch(e:CancellationException){throw e}catch(_:Exception){repo.localDiscovery.cache(key,"unavailable",15*60000);null}
+    }
     override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit) {
         if(businesses.isEmpty()||repo.localDiscovery.cache("atp-rest:v1")!=null)return
         protected()
@@ -115,7 +132,9 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
         catch(e:Exception){repo.localDiscovery.cache("atp-rest:v1","resting",30*60000);throw e}
     }
     override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+        if(!LocalOpportunityRouting.allowed(source,query))throw SourceFailure(HealthStatus.UNSUPPORTED,"This source covers a different region")
         repo.awaitConnection()
+        if(source.kind==LocalSourceKind.LINKED_EVENTS)protected()
         if(source.kind==LocalSourceKind.MENU)return LocalMenuReader(repo).read(source,query,business ?: throw SourceFailure(HealthStatus.EMPTY,"This menu has no matching restaurant location"))
         val target=repo.routes.recognize(source.url)
         if(target!=null&&target.platform!=Platform.RSS) {
@@ -135,21 +154,33 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
         // publishers return server errors when JSON is preferred to HTML.
         val accept=when(source.kind) {
             LocalSourceKind.CALENDAR->"text/calendar,*/*;q=0.5"
-            LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST->"application/json"
+            LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST,LocalSourceKind.LIVEWHALE,LocalSourceKind.SPACEAPI,LocalSourceKind.LINKED_EVENTS->"application/json"
             else->"text/html,application/xhtml+xml,application/ld+json;q=0.9,application/rss+xml;q=0.8,*/*;q=0.5"
         }
-        val raw=repo.gateway.extractorDocument(LocalCalendarPlatforms.request(source,query),maxBytes=LocalStructuredData.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to accept))
+        val raw=repo.gateway.extractorDocument(LocalCalendarPlatforms.request(source,query),maxBytes=LocalStructuredData.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to accept),route=if(source.kind==LocalSourceKind.LINKED_EVENTS)NetworkRoute.TOR else NetworkRoute.DEFAULT)
         val payload=Payload(raw.text,raw.finalUrl,raw.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),raw.status)
         if(payload.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"This publisher is temporarily unavailable",httpStatus=payload.status)
         val at=System.currentTimeMillis();val body=payload.text
-        return when {
+        val result=when {
             source.kind==LocalSourceKind.CALENDAR||payload.contentType.contains("text/calendar")||body.trimStart().startsWith("BEGIN:VCALENDAR")->LocalCalendars.parse(body,payload.finalUrl,at,query.area,business).copy(validEmpty=true)
             source.kind==LocalSourceKind.TRIBE->LocalStructuredData.tribe(body,payload.finalUrl,at,query.area,business)
             source.kind==LocalSourceKind.LOCALIST->LocalCalendarPlatforms.localist(body,payload.finalUrl,at,query.area)
+            source.kind==LocalSourceKind.LIVEWHALE->LocalOpportunityDocuments.livewhale(body,payload.finalUrl,at,query.area)
+            source.kind==LocalSourceKind.SPACEAPI->LocalOpportunityDocuments.space(body,payload.finalUrl,at,query.area)
+            source.kind==LocalSourceKind.LINKED_EVENTS->LocalOpportunityDocuments.linkedEvents(body,payload.finalUrl,at,query.area)
+            body.trimStart().startsWith("{")&&LocalOpportunityDocuments.isSpaceApi(body)->LocalOpportunityDocuments.space(body,payload.finalUrl,at,query.area)
             payload.contentType.substringBefore(';').trim() in setOf("application/ld+json","application/json")->LocalStructuredData.jsonld(body,payload.finalUrl,at,query.area,business)
-            payload.contentType.contains("html")||payload.contentType.contains("xml")||body.trimStart().startsWith("<")->LocalDocumentWashing.extract(payload,at,query.area,business)
+            payload.contentType.contains("html")||payload.contentType.contains("xml")||body.trimStart().startsWith("<")-> {
+                val data=LocalDocumentWashing.extract(payload,at,query.area,business)
+                if(query.mode!=LocalSearchMode.EVENTS)data else {
+                    val community=LocalCommunityPages.events(body,payload.finalUrl,at,query.area)
+                    val sources=if(community.isEmpty())data.sources else data.sources.filterNot {it.url.toHttpUrlOrNull()?.encodedPath?.contains("/icals.ical")==true}
+                    data.copy(events=(data.events+community).distinctBy {it.id},sources=(LocalOpportunityRouting.sources(body,payload.finalUrl,query,at)+sources).distinctBy {it.url}.filter {LocalOpportunityRouting.allowed(it,query)}.take(48))
+                }
+            }
             else->throw SourceFailure(HealthStatus.UNSUPPORTED,"This publisher did not provide a supported public page or calendar")
         }
+        return LocalOpportunityRouting.scoped(source,query,result)
     }
 }
 internal data class LocalDiscoveryState(val mode:LocalSearchMode=LocalSearchMode.POSTS,val text:String="",val area:LocalArea?=null,val areas:List<LocalArea> = emptyList(),val unit:LocalDistanceUnit=LocalDistanceUnit.KILOMETRES,
@@ -246,7 +277,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                 .sortedWith(compareBy<LocalBusiness> {LocalBusinessRouting.relevance(snapshot.text,it)}.thenBy {area?.point?.let {p->it.point?.let(p::distanceKm)} ?: Double.MAX_VALUE}.thenBy {it.name}).take(160)
                 .map {business->business.copy(socials=business.socials.filter {store.cache(accountKey(it))=="usable"},related=business.related?.map {it.copy(accounts=it.accounts.filter {url->store.cache(accountKey(url))=="usable"})})}
             val query=area?.let {LocalDiscoveryQuery(it,snapshot.text,snapshot.mode,snapshot.window,saved,snapshot.freeOnly)}
-            val events=store.events(saved).filter {(saved||query!=null&&LocalDiscoveryFilter.event(query,it))&&LocalDiscoveryFilter.matches(snapshot.text,it.title+" "+it.description+" "+it.venue+" "+it.organizer)}
+            val events=store.events(saved).filter {(saved||query!=null&&LocalDiscoveryFilter.event(query,it))&&LocalDiscoveryFilter.matches(LocalDiscoveryFilter.eventQuery(snapshot.text),it.title+" "+it.description+" "+it.venue+" "+it.organizer)}
                 .sortedBy {it.start.instant()?.toEpochMilli() ?: it.start.date()?.atStartOfDay(java.time.ZoneId.of(area?.zoneId ?: "UTC"))?.toInstant()?.toEpochMilli() ?: Long.MAX_VALUE}.take(160)
             Triple(businesses,events,store.savedIds())
         }
@@ -270,7 +301,8 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         val area=snapshot.area ?: run {state.value=snapshot.copy(message="Choose an area to find businesses and events.");return}
         if(snapshot.savedOnly){scope.launch {publish()};return}
         stop();val bound=generation
-        val query=LocalDiscoveryQuery(area,snapshot.text.trim(),snapshot.mode,snapshot.window)
+        val topic=if(snapshot.mode==LocalSearchMode.EVENTS)LocalDiscoveryFilter.eventQuery(snapshot.text)else snapshot.text.trim()
+        val query=LocalDiscoveryQuery(area,topic,snapshot.mode,snapshot.window,freeOnly=snapshot.freeOnly)
         state.value=state.value.copy(loading=true,enriching=false,message=null,coverage=emptyList(),checked=0,more=false)
         request=scope.launch {
             fun current()=generation==bound
@@ -293,6 +325,8 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                     val reads=java.util.concurrent.atomic.AtomicInteger();val attempts=java.util.concurrent.atomic.AtomicInteger()
                     val initialAttempts=java.util.concurrent.atomic.AtomicInteger();val deepAttempts=java.util.concurrent.atomic.AtomicInteger()
                     val accountAttempts=java.util.concurrent.atomic.AtomicInteger()
+                    val venueAttempts=java.util.concurrent.atomic.AtomicInteger()
+                    val venueChecks=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
                     fun relevant()=store.businesses(area).filter {query.text.isBlank()||LocalBusinessRouting.relevance(query.text,it)<9||query.mode==LocalSearchMode.EVENTS&&it.category in setOf("library","theatre","community centre","arts centre","museum")}
                         .sortedWith(compareBy<LocalBusiness> {LocalBusinessRouting.relevance(query.text,it)}.thenBy {it.point?.distanceKm(area.point) ?: 1e9})
                     fun queueRelevant() {
@@ -325,8 +359,8 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                     suspend fun readSources(limit:Int,deep:Boolean=false) {
                         val owners=store.businesses(area).associateBy {it.id}
                         val candidates=store.sources(area).filter {source->
-                            source.url !in visited&&(source.kind!=LocalSourceKind.MENU||deep&&query.mode==LocalSearchMode.BUSINESSES&&owners[source.businessId]?.let {b->LocalMenuRouting.known(b).any {it.url==source.url}}==true)&&(force||source.nextCheckAt<=System.currentTimeMillis()||source.failures==0&&LocalCalendarPlatforms.window(source,query)?.let {it!=source.window}==true)&&
-                                (source.url in currentSources||source.businessId?.let {owners[it]?.let {p->LocalBusinessRouting.relevance(query.text,p)<9}}==true||query.mode==LocalSearchMode.EVENTS&&source.kind in setOf(LocalSourceKind.CALENDAR,LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST))
+                            source.url !in visited&&LocalOpportunityRouting.allowed(source,query)&&(source.kind!=LocalSourceKind.MENU||deep&&query.mode==LocalSearchMode.BUSINESSES&&owners[source.businessId]?.let {b->LocalMenuRouting.known(b).any {it.url==source.url}}==true)&&(force||source.nextCheckAt<=System.currentTimeMillis()||source.failures==0&&LocalCalendarPlatforms.window(source,query)?.let {it!=source.window}==true)&&
+                                (source.url in currentSources||source.businessId?.let {owners[it]?.let {p->LocalBusinessRouting.relevance(query.text,p)<9}}==true||query.mode==LocalSearchMode.EVENTS&&LocalCalendarPlatforms.isCalendar(source))
                         }.sortedBy {LocalBusinessRouting.sourcePriority(it,query,owners[it.businessId],currentSources)+LocalBusinessEnrichment.priority(it,owners[it.businessId],history(it))-(if(deep&&it.url in detailSources)30 else 0)}.take(limit)
                         coroutineScope {candidates.map {source->launch {permits.withPermit {
                             if(!visited.add(source.url))return@withPermit
@@ -337,10 +371,29 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                     val data=withTimeout(18_000){backend.read(source,query,owners[source.businessId])}
                                     if(data.businesses.isEmpty()&&data.events.isEmpty()&&data.sources.isEmpty()&&!data.validEmpty)throw SourceFailure(HealthStatus.EMPTY,"No readable business or calendar data")
                                     ingest(data)
+                                    if(query.mode==LocalSearchMode.EVENTS) {
+                                        val places=store.businesses(area)
+                                        val resolved=mutableListOf<LocalEvent>()
+                                        for(event in data.events) {
+                                            if(!LocalVenueResolution.eligible(query,event))continue
+                                            val known=LocalVenueResolution.known(area,event,places)
+                                            if(known!=null){resolved+=known;continue}
+                                            // An already admitted town-only event does not
+                                            // need another lookup to appear. Resolve only
+                                            // uncertain neighboring-town addresses, twice
+                                            // per search, within the shared traffic cap.
+                                            if(LocalDiscoveryFilter.geographic(area,event)||!venueChecks.add(event.address)||venueAttempts.incrementAndGet()>2||attempts.incrementAndGet()>18)continue
+                                            try {withTimeout(8_000){backend.venue(query,event)}?.let {resolved+=it}}
+                                            catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive()}
+                                            catch(e:CancellationException){throw e}
+                                            catch(_:Exception){}
+                                        }
+                                        if(resolved.isNotEmpty())ingest(LocalExtraction(events=resolved))
+                                    }
                                     // Contact/calendars explicitly advertised by the page
                                     // can be read in this same bounded request.
                                     data.sources.forEach {currentSources.add(it.url)}
-                                    val observed=LocalBusinessEnrichment.observe(previous,data,System.currentTimeMillis()-before,System.currentTimeMillis())
+                                    val observed=LocalBusinessEnrichment.observe(previous,data,System.currentTimeMillis()-before,System.currentTimeMillis(),calendar=query.mode==LocalSearchMode.EVENTS)
                                     store.cache(LocalBusinessEnrichment.key(source),gson.toJson(observed),14L*86400000)
                                     store.source(area,source.copy(checkedAt=observed.checkedAt,nextCheckAt=observed.nextAt,failures=0,window=LocalCalendarPlatforms.window(source,query)))
                                 }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.cache(LocalBusinessEnrichment.key(source),gson.toJson(failed),14L*86400000);store.source(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures));throw SourceFailure(HealthStatus.UNAVAILABLE,"This source timed out")}
@@ -358,6 +411,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         }
                     }
                     queueRelevant()
+                    LocalOpportunityRouting.seeds(query).forEach {source->store.offerSource(area,source);currentSources.add(source.url)}
                     coroutineScope {
                       launch {try {coroutineScope {
                         launch {readSources(3)}
@@ -386,7 +440,8 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                     if(hosts.getOrDefault(host,0)>=3)return@forEach
                                     hosts[host]=hosts.getOrDefault(host,0)+1;currentSources.add(url)
                                     val target=repo.routes.recognize(url)
-                                    store.offerSource(area,LocalPublisherSource(url,if(target!=null)LocalSourceKind.SOCIAL else if(url.substringBefore('?').endsWith(".ics",true))LocalSourceKind.CALENDAR else LocalSourceKind.WEB,label=hit.title))
+                                    val source=LocalPublisherSource(url,if(target!=null)LocalSourceKind.SOCIAL else LocalCalendarPlatforms.kind(url) ?: LocalSourceKind.WEB,label=hit.title)
+                                    if(LocalOpportunityRouting.allowed(source,query))store.offerSource(area,source)
                                 }
                                 readSources(6)
                             }
@@ -418,7 +473,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                               if(query.mode==LocalSearchMode.BUSINESSES)launch {permits.withPermit {lane("Published business locations") {
                                 withTimeout(35_000){backend.enrich(query,owners){data->ingest(data);queueRelevant()}}
                               }}}
-                              if(query.text.isNotBlank())launch {
+                              if(query.mode==LocalSearchMode.BUSINESSES&&query.text.isNotBlank())launch {
                                 owners.filter {LocalBusinessEnrichment.query(it,area)!=null}.distinctBy {LocalDiscoveryMerge.businessName(it.name)}.take(2).forEach {owner->
                                   lane("Additional business details") {
                                     val hits=permits.withPermit {withTimeout(18_000){backend.refine(query,owner)}}

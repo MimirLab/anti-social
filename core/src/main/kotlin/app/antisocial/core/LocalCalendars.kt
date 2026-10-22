@@ -79,7 +79,7 @@ object LocalCalendars {
                         val rawGeo=e.geo ?: base?.geo
                         val point=rawGeo?.let {LocalPoint(it.latitude.toDouble(),it.longitude.toDouble()).takeIf(LocalPoint::valid)} ?: known?.point
                         val address=known?.address ?: location
-                        val locality=known?.locality.orEmpty().ifBlank {if(LocalDiscoveryIdentity.words(location).windowed(LocalDiscoveryIdentity.words(area.name).size.coerceAtLeast(1)).any {it==LocalDiscoveryIdentity.words(area.name)})area.name else ""}
+                        val locality=known?.locality.orEmpty().ifBlank {LocalDiscoveryFilter.addressLocality(area,"",location)}
                         val description=Jsoup.parseBodyFragment((e.description?.value ?: base?.description?.value).orEmpty().take(16000)).text().take(8000)
                         val links=listOfNotNull(LocalDiscoveryIdentity.url(e.url?.value ?: base?.url?.value,url),url).distinct()
                         val status=if(e.status?.isCancelled==true||base?.status?.isCancelled==true)"cancelled"else if(e.status?.isTentative==true)"tentative"else "scheduled"

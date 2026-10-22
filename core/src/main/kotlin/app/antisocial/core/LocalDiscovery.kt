@@ -50,7 +50,7 @@ data class LocalEvent(val id:String,val title:String,val start:LocalEventTime,va
     val urls:List<String> = emptyList(),val registrationUrl:String?=null,val price:String="",val age:String="",val status:String="scheduled",
     val online:Boolean=false,val sourceIds:List<String> = emptyList(),val evidence:List<LocalFieldEvidence> = emptyList(),
     val checkedAt:Long=0,val modifiedAt:Long?=null,val sequence:Int=0,val occurrence:String?=null,val image:String?=null)
-enum class LocalSourceKind { WEB, CALENDAR, TRIBE, SOCIAL, LOCALIST, MENU }
+enum class LocalSourceKind { WEB, CALENDAR, TRIBE, SOCIAL, LOCALIST, MENU, LIVEWHALE, SPACEAPI, LINKED_EVENTS }
 data class LocalPublisherSource(val url:String,val kind:LocalSourceKind=LocalSourceKind.WEB,val businessId:String?=null,val label:String="",
     val checkedAt:Long=0,val nextCheckAt:Long=0,val failures:Int=0,val etag:String?=null,val lastModified:String?=null,val window:String?=null,val discoveredFrom:String?=null,val menuBranch:Boolean?=null)
 data class LocalExtraction(val businesses:List<LocalBusiness> = emptyList(),val events:List<LocalEvent> = emptyList(),
@@ -77,7 +77,7 @@ object LocalDiscoveryIdentity {
     fun name(value:String)=words(value).joinToString(" ")
     fun url(value:String?,base:String?=null):String? {
         if(value.isNullOrBlank()||value.length>8192||value.any {it<' '||it=='\\'})return null
-        val literal=when {value.startsWith("//")->"https:$value";value.startsWith("http://",true)->"https://"+value.substring(7);else->value}
+        val literal=when {value.startsWith("//")->"https:$value";value.startsWith("webcal://",true)->"https://"+value.substring(9);value.startsWith("http://",true)->"https://"+value.substring(7);else->value}
         val parsed=literal.toHttpUrlOrNull() ?: base?.toHttpUrlOrNull()?.resolve(literal) ?: return null
         if(!parsed.isHttps||parsed.username.isNotEmpty()||parsed.password.isNotEmpty())return null
         return (SocialLinkHosts.canonical(parsed.toString()) ?: parsed.toString()).toHttpUrlOrNull()?.newBuilder()?.fragment(null)?.build()?.toString()?.takeIf {it.length<=8192}
@@ -94,8 +94,13 @@ object LocalDiscoveryFilter {
         "organic" to setOf("organic","organics"),"release" to setOf("release","releases"),
         "taco" to setOf("taco","tacos","taqueria","taquerias","mexican"),
         "burger" to setOf("burger","burgers","hamburger","hamburgers"),
-        "trampoline" to setOf("trampoline","trampolines"))
-    private val singular=mapOf("tacos" to "taco","burgers" to "burger","hamburgers" to "hamburger","restaurants" to "restaurant","cafes" to "cafe","trampolines" to "trampoline","parks" to "park","shops" to "shop","stores" to "store")
+        "trampoline" to setOf("trampoline","trampolines"),
+        "workshop" to setOf("workshop","workshops","class","classes","training"),
+        "class" to setOf("class","classes","workshop","workshops","lesson","lessons"),
+        "makerspace" to setOf("makerspace","makerspaces","hackerspace","hackerspaces","fab","fabrication"),
+        "astronomy" to setOf("astronomy","stargazing","telescope","observing"),
+        "volunteer" to setOf("volunteer","volunteers","volunteering"))
+    private val singular=mapOf("tacos" to "taco","burgers" to "burger","hamburgers" to "hamburger","restaurants" to "restaurant","cafes" to "cafe","trampolines" to "trampoline","parks" to "park","shops" to "shop","stores" to "store","workshops" to "workshop","classes" to "class","makerspaces" to "makerspace")
     private fun term(value:String)=singular[value] ?: value
     // Correct only a small, unambiguous public-category vocabulary. Never
     // rewrite an unfamiliar business name to a different business.
@@ -121,11 +126,11 @@ object LocalDiscoveryFilter {
         val available=LocalDiscoveryIdentity.words(content.take(32000)).map(::term).toSet()
         return terms.all {term->(alternatives[term] ?: setOf(term)).any {it in available}}
     }
-    fun business(query:LocalDiscoveryQuery,business:LocalBusiness)=business.point?.let {query.area.point.distanceKm(it)<=query.area.radiusKm} ?: locality(query.area,business.locality)
+    fun eventQuery(value:String)=LocalDiscoveryIdentity.words(normalizedQuery(value)).filterNot {it in stop||it in setOf("event","events","activity","activities","local","nearby")}.joinToString(" ")
+    fun business(query:LocalDiscoveryQuery,business:LocalBusiness)=LocalGeography.inside(query.area,business.point,business.locality,business.address,business.evidence)
+    fun geographic(area:LocalArea,event:LocalEvent)=!event.online&&LocalGeography.inside(area,event.point,event.locality,event.address,event.evidence)
     fun event(query:LocalDiscoveryQuery,event:LocalEvent,now:Long=System.currentTimeMillis()):Boolean {
-        if(event.online)return false
-        val inside=event.point?.let {query.area.point.distanceKm(it)<=query.area.radiusKm} ?: locality(query.area,event.locality)
-        if(!inside)return false
+        if(!geographic(query.area,event))return false
         fun date(time:LocalEventTime)=time.instant()?.let {instant->query.area.zoneId?.let {instant.atZone(ZoneId.of(it)).toLocalDate()}} ?: time.date()
         val (from,to)=query.dates(now);val start=date(event.start) ?: return false;val end=event.end?.let(::date) ?: start
         return start<=to&&end>=from&&(!query.freeOnly||event.price.equals("Free",true))
@@ -139,7 +144,10 @@ object LocalDiscoveryFilter {
      * of the event's own venue address may supply the chosen city. */
     fun addressLocality(area:LocalArea?,given:String,address:String):String {
         if(area==null||locality(area,given))return given
-        return if(address.split(Regex("[,;\\n]")).any {locality(area,it.trim())})area.name else given
+        return if(address.split(Regex("[,;\\n]")).any {component->
+            val words=LocalDiscoveryIdentity.words(component)
+            (listOf(area.name)+area.aliases).any {name->val city=LocalDiscoveryIdentity.words(name);city.isNotEmpty()&&words.takeLast(city.size)==city}
+        })area.name else given
     }
 }
 /** Explicit publisher corrections beat directory snapshots. A chain's branches and recurring sessions stay distinct. */

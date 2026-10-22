@@ -52,16 +52,17 @@ object LocalBusinessEnrichment {
         }
         return ("\""+business.name.replace('"',' ').take(160)+"\" "+area.label+" "+terms).take(512)
     }
-    fun observe(old:LocalRouteYield?,data:LocalExtraction,elapsed:Long,at:Long):LocalRouteYield {
+    fun observe(old:LocalRouteYield?,data:LocalExtraction,elapsed:Long,at:Long,calendar:Boolean=false):LocalRouteYield {
         val fields=data.businesses.flatMap {snapshot(it).filterValues(String::isNotBlank).keys}.map {it.key}.distinct().sorted()
         val content=data.businesses.sortedBy {it.id}.joinToString("\n") {it.id+snapshot(it).values.joinToString("|")}+
-            data.events.sortedBy {it.id}.joinToString("\n"){it.id+it.start.identity+it.status+it.description}+
+            data.events.sortedBy {it.id}.joinToString("\n"){listOf(it.id,it.title,it.start.identity,it.end?.identity,it.status,it.description,it.venue,it.address,it.locality,it.point,it.price,it.age,it.registrationUrl,it.organizer,it.organizerUrl).joinToString("|")}+
             data.sources.map {it.url}.sorted().joinToString("|")
         val fingerprint=LocalDiscoveryIdentity.hash(content)
         val stable=if(old?.fingerprint==fingerprint)old.stable+(if(at-old.checkedAt>=15*60000)1 else 0)else 0
         // Prices/specials can change faster than a stable identity/contact page.
         val menu=data.businesses.any {it.menus.orEmpty().isNotEmpty()}
-        val delay=(6L*3600000*(1L shl stable.coerceIn(0,5))).coerceAtMost(if(menu)86400000 else 7L*86400000)
+        val base=if(calendar)30L*60000 else 6L*3600000
+        val delay=(base*(1L shl stable.coerceIn(0,5))).coerceAtMost(if(calendar)6L*3600000 else if(menu)86400000 else 7L*86400000)
         return LocalRouteYield(fields,fingerprint,stable.coerceAtMost(12),0,elapsed.coerceIn(0,120000),at,at+delay)
     }
     fun failed(old:LocalRouteYield?,at:Long):LocalRouteYield {
@@ -82,7 +83,7 @@ object LocalBusinessDetails {
     fun websitePriority(b:LocalBusiness,url:String)=when {LocalMenuRouting.directory(url)->30;verifiedWebsite(b,url)->0;LocalBusinessOwnership.firstParty(b.name,url)->4;LocalBusinessOwnership.directoryLink(b,url)->20;else->8}
     fun directorySite(b:LocalBusiness,url:String)=LocalMenuRouting.directory(url)||LocalBusinessOwnership.directoryLink(b,url)&&!verifiedWebsite(b,url)
     val links=linkedMapOf("menu" to "Menu","branch menu" to "Menu","booking" to "Reservations","ordering" to "Order","services page" to "Services","calendar" to "Events")
-    val text=linkedMapOf("cuisine" to "Cuisine","price range" to "Price range","services" to "Services","accessibility" to "Accessibility","payment" to "Payment","special hours" to "Special hours")
+    val text=linkedMapOf("cuisine" to "Cuisine","price range" to "Price range","services" to "Services","visit notes" to "Visiting","accessibility" to "Accessibility","payment" to "Payment","special hours" to "Special hours")
     fun facts(b:LocalBusiness):List<LocalFieldEvidence> = b.evidence.filter {(it.field in links||it.field in text)&&(it.field !in setOf("menu","branch menu","ordering")||LocalMenuRouting.admissible(it,b))}.sortedWith(compareBy<LocalFieldEvidence>{it.kind.ordinal}.thenByDescending {it.checkedAt})
         .distinctBy {if(it.field in links)it.field+":"+it.value else it.field}.take(20)
     fun trustedHost(b:LocalBusiness,url:String):Boolean {

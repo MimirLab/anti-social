@@ -5,6 +5,10 @@ Darwin supplies the social routing donor; this remains a standalone native reade
 The business layer uses deterministic routing and extraction, without a model,
 website script execution, GPS, root, service account or paid key.
 
+The [local opportunities extension](LOCAL_OPPORTUNITIES.md) adds geographically
+gated publishers, LiveWhale/SpaceAPI/Linked Events readers, offered calendar exports
+and bounded address resolution while keeping this staged delivery model.
+
 ## Delivery and enrichment
 
 Cached records publish first. Independent place, identity and selected-index routes
@@ -198,6 +202,8 @@ cached per source. Independent unchanged observations double a six-hour rest tow
 seven days; changed content resets that stability. Failures back off from 15 minutes
 toward 24 hours. Explicit refresh can retry sooner. This learns from useful reads
 and does not add health pings.
+Event searches instead start with a 30-minute source rest, capped at six hours;
+changed venue, price, registration and occurrence details reset that stability.
 
 | Cache | Normal rest / expiry |
 | --- | --- |

@@ -20,8 +20,8 @@ object LocalBusinessRouting {
     /** Keep state/country context. A bare Melbourne must never become Melbourne, Australia. */
     fun queries(query:LocalDiscoveryQuery):List<String> {
         val area=query.area.label.replace(Regex(",?\\s*United States(?: of America)?$",RegexOption.IGNORE_CASE),"").trim()
-        val topic=LocalDiscoveryFilter.normalizedQuery(query.text).ifBlank {if(query.mode==LocalSearchMode.EVENTS)"community"else "local businesses"}
-        return if(query.mode==LocalSearchMode.EVENTS)listOf("$topic $area events ${query.dates().first} calendar","$topic $area public calendar")
+        val topic=(if(query.mode==LocalSearchMode.EVENTS)LocalDiscoveryFilter.eventQuery(query.text)else LocalDiscoveryFilter.normalizedQuery(query.text)).ifBlank {if(query.mode==LocalSearchMode.EVENTS)"community"else "local businesses"}
+        return if(query.mode==LocalSearchMode.EVENTS)listOf("$topic $area events ${query.dates().first} calendar",LocalOpportunityRouting.focus(query)?.let {"$area $it"} ?: "$topic $area public calendar")
         else when(topic) {
             "taco"->listOf("tacos $area","Mexican restaurants $area menus")
             "burger"->listOf("burgers $area","burger restaurants $area")
@@ -44,7 +44,7 @@ object LocalBusinessRouting {
     /** Favour the current query's known owners and indexed pages, not old searches' queues. */
     fun sourcePriority(source:LocalPublisherSource,query:LocalDiscoveryQuery,owner:LocalBusiness?,current:Set<String>):Int {
         val relevance=owner?.let {relevance(query.text,it)} ?: if(source.url in current)0 else 9
-        val kind=if(query.mode==LocalSearchMode.EVENTS&&source.kind in setOf(LocalSourceKind.CALENDAR,LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST))-2 else if(source.kind==LocalSourceKind.SOCIAL)2 else 0
+        val kind=if(query.mode==LocalSearchMode.EVENTS&&LocalCalendarPlatforms.isCalendar(source))-2 else if(source.kind==LocalSourceKind.SOCIAL)2 else 0
         return relevance*10+kind+if(source.url in current)-3 else 0
     }
 }

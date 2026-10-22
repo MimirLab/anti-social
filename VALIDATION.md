@@ -1,3 +1,67 @@
+## Geographic opportunity routing — 0.35.46 / code 94
+
+Local search keeps staged cards and its existing request limits. New regional
+seeds are gated by coverage intersection, country, mode and topic before being
+queued. Known foreign/sister-region routes, login/edit links and calendar views
+outside the requested dates are excluded before retrieval. Explicitly distant
+ordinary publisher records cannot grow a follow-up crawl. Regional publisher
+coverage never becomes an event venue. Structured country/state conflicts defeat
+same-named cities; new distant/online events stay out of the local graph, while
+an already known occurrence can accept a move or cancellation.
+
+The new passive readers cover LiveWhale v1/v2, declared local SpaceAPI venues,
+geographically clipped Helsinki Linked Events, explicit family-calendar fields
+and further offered calendar exports. Nearby-town addresses first reuse known
+places, then get at most two bounded, exact-address lookups through Tor. Unknown,
+ambiguous or wrong-house-number matches remain unresolved. Calendar stability
+backs off from 30 minutes to six hours and resets for meaningful field changes.
+No model, native dependency or bulk dataset was added. See
+[local opportunities](docs/LOCAL_OPPORTUNITIES.md) for exact source/scope limits.
+
+Qualification: **1,718 core tests passed, zero failures/errors/skips**, including
+the optional acquired SSE pack with its host JNI path configured. **85 distinct
+Android cases passed**, combining the final reader/search/settings regressions,
+focused store/UI checks and five live source/venue checks. One separately opted-in
+mixed-exit diagnostic was not run; bundled Tor connectivity and the new geographic
+requests were tested. Release lint has **zero errors/fatals**, 170 warnings and one
+hint. Native Search/Events screens and the installed non-debuggable main preview
+were visually inspected. The fast-card fixture delivers while its other discovery
+lanes are still delayed; no general physical-phone latency claim follows.
+
+Real Gateway observations on the API35 x86_64 test emulator:
+
+- LiveWhale: 50 dated records, 26 inside the selected Chicago area/window, about
+  2.2 seconds for the bounded read.
+- SpaceAPI: Binary Kitchen's local venue and offered calendar, about 1.0 second.
+  Sensor events and its transient closed flag do not become activities/closure.
+- Helsinki: 50 nearby occurrences over Tor, about 15.3 seconds including that
+  run's connection work. An initial non-success response failed closed; the later
+  explicit qualification succeeded. Source availability is not guaranteed.
+- Space Coast family calendar: one listing and three detail reads took about
+  20.3 seconds and produced three records with explicit date/location/cost fields.
+  Those sampled neighboring-town venues lacked coordinates and were not falsely
+  admitted as local cards merely because the publisher covers Brevard.
+- Exact public-library address at 751 Jamaica Boulevard, Satellite Beach:
+  about 2.0 seconds over Tor, inside Melbourne FL's 25 km circle. A repeated call
+  returned cached coordinates without another Gateway request. This is a venue
+  fixture, not a claim that the library announced the synthetic test event.
+
+The broader regression exposed an older recommendation fixture whose URL actually
+identified a Reddit comment on its current root. The fixture now uses a different
+post URL; production discussion handling was not changed. Its complete six-case
+subscription suite then passed. Earlier logs, the initial external-response
+failure and the optional-host JNI configuration failure remain under the external
+`local-opportunities` evidence directory; final checks have no unresolved failures.
+
+Non-debuggable APK: **190,672,967 bytes**, SHA256
+`3ace19bbabe1d5c81a2089dcb7d383b20b2ad371a54d4c15fd16553cb440c6de`.
+This is **26,564 bytes larger** than 0.35.45. The main API29 laptop preview was
+incrementally upgraded with the same signer and UID 10121; all **56 private files
+were byte-identical before first launch**. Its complete prior private state and
+APK were backed up externally. Database upgrade 7 preserves saved snapshots and
+failed-source rests while requeueing previously successful pages for the new
+projection. No physical phone/GPU qualification or signing-key change is claimed.
+
 ## Restaurant route scope and crowded pools — 0.35.44 / code 92
 
 The real cold Melbourne search exposed a case absent from the direct-publisher

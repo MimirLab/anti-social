@@ -1,6 +1,6 @@
 # anti social
 
-**Current release: 0.35.45.** A native, accountless reader with chronological
+**Current release: 0.35.46.** A native, accountless reader with chronological
 feeds, local subscriptions and saved copies, and optional AI. The ordinary
 reader works without a model, API key or root access.
 
@@ -8,7 +8,13 @@ reader works without a model, API key or root access.
 or read the [release notes and corresponding source](https://github.com/MimirLab/anti-social/releases/latest).
 Android 8.0 or newer is required.
 
-This preview makes the local text engine an on-demand install: choose a local
+Local search now checks publisher coverage and occurrence locations separately,
+adds public community/calendar readers, and resolves uncertain nearby addresses
+within bounded traffic limits. New cards still arrive independently and enrich in
+place. See [local opportunities](docs/LOCAL_OPPORTUNITIES.md) for the chosen sources,
+regional limits and deliberately excluded scope. No AI is required.
+
+The local text engine remains an on-demand install: choose a local
 text model in **Settings → AI models** to install it, or remove the engine there
 while keeping downloaded models. Remote AI and ordinary reading do not install
 it. See [runtime delivery](docs/LOCAL_RUNTIME_DELIVERY.md) for the implementation,

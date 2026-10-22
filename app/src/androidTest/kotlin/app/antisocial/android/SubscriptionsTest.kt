@@ -134,7 +134,10 @@ class SubscriptionsTest {
             calls+="${root.platform.id}:${order.name}"
             if(root.platform==Platform.BLUESKY)pending.await()
             val old=reply(root,"77002","Older popular reply",now-20_000);val new=reply(root,"77003","Newest public reply",now-10_000)
-            Page(listOf(root,old,new,root.copy(id="unrelated",canonicalUrl=root.canonicalUrl+"/unrelated",body="Recommendation must stay out")))
+            // A recommendation is a different post. Appending a Reddit path
+            // segment would instead construct a genuine permalink to a comment
+            // on this root, which may legitimately lack parent metadata.
+            Page(listOf(root,old,new,root.copy(id="unrelated",canonicalUrl=root.canonicalUrl.replace("77001","88001"),body="Recommendation must stay out")))
         }
         ui.runOnIdle {vm.discussions.open(roots,Platform.REDDIT.id)}
         ui.waitUntil(10_000){vm.discussions.state.value?.threads?.get("reddit")?.page!=null}

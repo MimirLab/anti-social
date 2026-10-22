@@ -313,4 +313,68 @@ class LocalDiscoveryTest {
         ui.waitUntil(10_000){count.get()>before&&!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching}
         assertTrue(model.localSearch.state.value.coverage.none {it.contains("unavailable")||it.contains("No readable")})
     }
+    @Test fun regionalEventsArriveBeforeSlowDiscoveryAndForeignRoutesAreNeverRead() {
+        val local=LocalArea("fixture-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+        val session=LocalEvent("fixture-regional-event","Nearby repair workshop",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),venue="Community workshop",locality="Satellite Beach",point=LocalPoint(28.175,-80.602),sourceIds=listOf("fixture-regional-event"))
+        val seen=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        runBlocking(Dispatchers.IO){repo.localDiscovery.offerSource(local,LocalPublisherSource("https://api.hel.fi/linkedevents/v1/event/",LocalSourceKind.LINKED_EVENTS))}
+        ui.runOnIdle {model.localSearch.area(local);model.localSearch.mode(LocalSearchMode.EVENTS);model.localSearch.backend=object:LocalDiscoveryBackend {
+            override suspend fun areas(text:String)=emptyList<LocalArea>()
+            override suspend fun directory(query:LocalDiscoveryQuery):LocalExtraction {delay(5000);return LocalExtraction()}
+            override suspend fun identities(point:LocalPoint)=LocalExtraction()
+            override suspend fun discover(query:LocalDiscoveryQuery):List<LocalWebHit> {delay(5000);return emptyList()}
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                seen.add(source.url)
+                return LocalExtraction(events=if(source.url.contains("fun4spacecoastkids"))listOf(session,session.copy(id="fixture-distant",point=LocalPoint(60.17,24.94),sourceIds=listOf("fixture-distant")))else emptyList(),validEmpty=true)
+            }
+        };model.localSearch.search(force=true)}
+        show();ui.waitUntil(3000){model.localSearch.state.value.events.any {it.id==session.id}&&!model.localSearch.state.value.loading&&model.localSearch.state.value.enriching}
+        ui.onNodeWithText(session.title).assertIsDisplayed();evidence("regional-events")
+        assertFalse(seen.any {it.contains("api.hel.fi")})
+        runBlocking(Dispatchers.IO){assertTrue(repo.localDiscovery.events().none {it.id=="fixture-distant"})}
+        ui.runOnIdle {model.localSearch.stop()}
+    }
+    @Test fun neighboringTownAddressesUseAtMostTwoVenueLookupsPerSearch() {
+        val local=LocalArea("fixture-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+        val count=java.util.concurrent.atomic.AtomicInteger()
+        val rows=(0..3).map {i->LocalEvent("fixture-venue-$i","Workshop $i",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),venue="Workshop",address="${750+i} Jamaica Blvd, Satellite Beach, FL 32937",sourceIds=listOf("fixture-venue-$i"))}
+        ui.runOnIdle {model.localSearch.area(local);model.localSearch.mode(LocalSearchMode.EVENTS);model.localSearch.backend=object:LocalDiscoveryBackend {
+            override suspend fun areas(text:String)=emptyList<LocalArea>()
+            override suspend fun directory(query:LocalDiscoveryQuery)=LocalExtraction()
+            override suspend fun identities(point:LocalPoint)=LocalExtraction()
+            override suspend fun discover(query:LocalDiscoveryQuery)=emptyList<LocalWebHit>()
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?)=LocalExtraction(events=if(source.url.contains("fun4spacecoastkids"))rows else emptyList(),validEmpty=true)
+            override suspend fun venue(query:LocalDiscoveryQuery,event:LocalEvent):LocalEvent {count.incrementAndGet();return event.copy(point=LocalPoint(28.175,-80.602),locality="Satellite Beach")}
+        };model.localSearch.search(force=true)}
+        ui.waitUntil(10000){!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching}
+        assertEquals(2,count.get());assertEquals(2,model.localSearch.state.value.events.size)
+    }
+    @Test fun geographicAdmissionKeepsDistantEventsOutButRetainsAKnownEventsMoveAndSavedCopy():Unit=runBlocking {
+        val local=LocalArea("fixture-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+        val name="opportunity-geo-${System.nanoTime()}.db";val store=LocalDiscoveryStore(ui.activity,databaseName=name)
+        val session=LocalEvent("fixture-known","Workshop",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),point=local.point,sourceIds=listOf("fixture-known"),checkedAt=1000)
+        try {withContext(Dispatchers.IO) {
+            val far=session.copy(id="fixture-far",point=LocalPoint(60.17,24.94),sourceIds=listOf("fixture-far"))
+            val foreign=session.copy(id="fixture-foreign",point=null,locality="Melbourne",address="Melbourne, Victoria, Australia",sourceIds=listOf("fixture-foreign"))
+            assertEquals(1,store.ingest(LocalExtraction(events=listOf(session,far,foreign)),local).second)
+            store.save(session)
+            store.ingest(LocalExtraction(events=listOf(session.copy(point=far.point,checkedAt=2000,modifiedAt=2000))),local)
+            assertFalse(LocalDiscoveryFilter.geographic(local,store.events().single()))
+            assertEquals(session,store.events(true).single())
+        }}finally {store.close();ui.activity.deleteDatabase(name)}
+    }
+    @Test fun opportunityMigrationRequeuesSuccessfulPagesButPreservesFailureRestsAndSavedSnapshots():Unit=runBlocking {
+        val name="opportunity-upgrade-${System.nanoTime()}.db"
+        val healthy=LocalPublisherSource("https://library.fixture.invalid/calendar",nextCheckAt=System.currentTimeMillis()+86400000)
+        val failed=healthy.copy(url="https://library.fixture.invalid/offline",failures=3)
+        try {withContext(Dispatchers.IO) {
+            LocalDiscoveryStore(ui.activity,databaseName=name).use {store->store.save(place);store.source(area,healthy);store.source(area,failed);store.writableDatabase.version=6}
+            LocalDiscoveryStore(ui.activity,databaseName=name).use {store->
+                assertEquals(7,store.readableDatabase.version)
+                assertEquals(0L,store.sources(area).single {it.url==healthy.url}.nextCheckAt)
+                assertEquals(failed,store.sources(area).single {it.url==failed.url})
+                assertEquals(place,store.businesses(null,true).single())
+            }
+        }}finally {ui.activity.deleteDatabase(name)}
+    }
 }

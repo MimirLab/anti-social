@@ -1,0 +1,18 @@
+{
+  "reviewed_at": "2026-10-22",
+  "implementation": "Independent GPL-3.0-or-later Kotlin adapters. No upstream calendar, directory, website, extension or server runtime is bundled.",
+  "collection": "Published HTML, JSON and offered calendar exports through NetworkGateway. No page-script execution, account login, form submissions, remote JSON-LD contexts or global directory traversal.",
+  "sources": [
+    {"name":"LiveWhale", "reference":"https://support.livewhale.com/live/blurbs/json-api", "role":"Published scoped public event JSON, v1 and v2; bounded dates, count and fields."},
+    {"name":"SpaceAPI", "reference":"https://www.spaceapi.io/docs/", "role":"Explicit local community-space declarations and offered calendar links. Sensors, keymasters and access events are not collected."},
+    {"name":"Helsinki Linked Events", "reference":"https://github.com/City-of-Helsinki/linkedevents", "role":"Geographic/date-scoped public event JSON; supplied field languages retained. No upstream server code is copied."},
+    {"name":"Fun 4 Space Coast Kids", "reference":"https://fun4spacecoastkids.com/calendar/", "role":"Published calendar links and explicit event-detail fields; publisher URLs retained. No website runtime, advertisements or images are bundled."},
+    {"name":"UF/IFAS Brevard", "reference":"https://sfyl.ifas.ufl.edu/brevard/", "role":"Regionally gated publisher lead and its actually published class links."},
+    {"name":"My Calendar", "reference":"https://docs.joedolson.com/my-calendar/my-calendar-api/", "role":"Recognize offered iCal export URLs; do not probe disabled APIs."},
+    {"name":"Modern Campus", "reference":"https://support.moderncampus.com/cms/technical-reference/calendar/feeds.html", "role":"Offered public calendar/feed compatibility through the existing passive readers."},
+    {"name":"TidyHQ", "reference":"https://support.tidyhq.com/en/articles/77213-calendar-feed-for-google-calendar-apple-calendar-etc", "role":"Offered public calendar subscriptions, including webcal-to-HTTPS transport."},
+    {"name":"Indico", "reference":"https://docs.getindico.io/en/stable/http-api/", "role":"Offered public ICS compatibility; no authenticated endpoint access or broad category crawl."},
+    {"name":"Photon / OpenStreetMap", "reference":"https://github.com/komoot/photon", "role":"Bounded exact venue-address matching, alongside the existing place directory. Cached coordinate evidence retains OpenStreetMap ODbL attribution."}
+  ],
+  "limits": "Published fields and external availability vary. Recognition of a format does not establish that every publisher is readable, local, current, public admission or independently verified. Preserve source URL, retrieval time, stated modification time and supplied restrictions on each retained record. No affiliation is claimed."
+}

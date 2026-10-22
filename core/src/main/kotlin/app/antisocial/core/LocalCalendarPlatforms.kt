@@ -8,6 +8,13 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 object LocalCalendarPlatforms {
+    fun kind(url:String):LocalSourceKind?=url.toHttpUrlOrNull()?.let {u->when {
+        Regex("/live/json/(?:v2/)?events(?:/|$)").containsMatchIn(u.encodedPath)->LocalSourceKind.LIVEWHALE
+        u.host=="api.hel.fi"&&u.encodedPath=="/linkedevents/v1/event/"->LocalSourceKind.LINKED_EVENTS
+        calendarUrl(url)->LocalSourceKind.CALENDAR
+        else->null
+    }}
+    fun isCalendar(source:LocalPublisherSource)=source.kind in setOf(LocalSourceKind.CALENDAR,LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST,LocalSourceKind.LIVEWHALE,LocalSourceKind.LINKED_EVENTS)
     fun sources(body:String,url:String,owner:String?):List<LocalPublisherSource> {
         val page=Jsoup.parse(body,url);val root=url.toHttpUrlOrNull() ?: return emptyList();val found=mutableListOf<LocalPublisherSource>()
         val scripts=page.select("script[src]").mapNotNull {LocalDiscoveryIdentity.url(it.absUrl("src"),url)}
@@ -25,18 +32,43 @@ object LocalCalendarPlatforms {
             val origin=script.substringBefore("/wp-content/")
             found+=LocalPublisherSource("$origin/events.ics",LocalSourceKind.CALENDAR,owner,"Public calendar")
         }
+        val offered=page.select("a[href],link[href]").take(1000)
+        offered.forEach {a->
+            val link=LocalDiscoveryIdentity.url(a.absUrl("href"),url) ?: return@forEach
+            val u=link.toHttpUrlOrNull() ?: return@forEach
+            if(Regex("/live/json/(?:v2/)?events(?:/|$)").containsMatchIn(u.encodedPath))found+=LocalPublisherSource(link,LocalSourceKind.LIVEWHALE,owner,"Public calendar",discoveredFrom=url)
+            if(a.attr("rel").split(' ').any {it.equals("space-api",true)}||a.text().trim().equals("SpaceAPI",true))found+=LocalPublisherSource(link,LocalSourceKind.SPACEAPI,owner,"Community space details",discoveredFrom=url)
+            if(calendarUrl(link))found+=LocalPublisherSource(link,LocalSourceKind.CALENDAR,owner,"Public calendar",discoveredFrom=url)
+        }
+        val livewhale=scripts.any {it.contains("/livewhale/")}||page.select("meta[name=generator]").any {it.attr("content").contains("LiveWhale",true)}
+        if(livewhale&&found.none {it.kind==LocalSourceKind.LIVEWHALE})found+=LocalPublisherSource(root.newBuilder().encodedPath("/live/json/events").query(null).fragment(null).build().toString(),LocalSourceKind.LIVEWHALE,owner,"Public calendar",discoveredFrom=url)
         return found.distinctBy {it.url}.take(8)
+    }
+    fun calendarUrl(value:String):Boolean {
+        val u=value.toHttpUrlOrNull() ?: return false
+        return u.encodedPath.endsWith(".ics",true)||u.encodedPath.contains("/icals.ical",true)||
+            u.queryParameter("my-calendar-api")=="ical"||u.queryParameter("format") in setOf("ical","ics")||
+            u.queryParameter("controller")=="ai1ec_exporter_controller"&&u.queryParameter("action")=="export_events"
     }
     fun request(source:LocalPublisherSource,query:LocalDiscoveryQuery):String {
         val u=source.url.toHttpUrlOrNull() ?: return source.url;val (first,last)=query.dates()
         val build=u.newBuilder()
+        if(source.kind==LocalSourceKind.LINKED_EVENTS)return LocalOpportunityRouting.linkedRequest(source,query)
+        if(source.kind==LocalSourceKind.LIVEWHALE) {
+            // Preserve the advertised group/tag scope, replacing only bounded
+            // reading controls. Never turn a department feed into a global one.
+            val pieces=u.pathSegments.filter(String::isNotBlank);val kept=mutableListOf<String>();var i=0
+            while(i<pieces.size) {if(pieces[i] in setOf("max","paginate","start_date","end_date","response_fields")){i+=2}else {kept+=pieces[i];i++}}
+            kept+=listOf("max","50","paginate","false","start_date",first.toString(),"end_date",last.plusDays(1).toString(),"response_fields","location,summary,description,last_modified,group_title,status")
+            return build.encodedPath("/").apply {kept.forEach(::addPathSegment)}.removeAllQueryParameters("page").build().toString()
+        }
         if(source.kind==LocalSourceKind.LOCALIST)return build.setQueryParameter("start",first.toString()).setQueryParameter("end",last.toString()).setQueryParameter("pp","50").setQueryParameter("page",u.queryParameter("page")?.takeIf {it in setOf("1","2")} ?: "1").build().toString()
         if(u.host in setOf("trumba.com","www.trumba.com","25livepub.collegenet.com")&&u.encodedPath.endsWith(".ics"))return build.setQueryParameter("startdate",first.format(DateTimeFormatter.BASIC_ISO_DATE)).setQueryParameter("enddate",last.format(DateTimeFormatter.BASIC_ISO_DATE)).setQueryParameter("previousweeks","0").build().toString()
         return source.url
     }
     fun window(source:LocalPublisherSource,query:LocalDiscoveryQuery):String? {
         val host=source.url.toHttpUrlOrNull()?.host
-        return if(source.kind==LocalSourceKind.LOCALIST||source.kind==LocalSourceKind.CALENDAR&&host in setOf("trumba.com","www.trumba.com","25livepub.collegenet.com"))query.dates().let {"${it.first}/${it.second}"}else null
+        return if(source.kind in setOf(LocalSourceKind.LOCALIST,LocalSourceKind.LIVEWHALE,LocalSourceKind.LINKED_EVENTS)||source.kind==LocalSourceKind.CALENDAR&&host in setOf("trumba.com","www.trumba.com","25livepub.collegenet.com"))query.dates().let {"${query.area.cacheKey}:${it.first}/${it.second}"}else null
     }
     fun localist(body:String,url:String,at:Long,area:LocalArea):LocalExtraction {
         require(body.length<=LocalStructuredData.MAX_DOCUMENT)

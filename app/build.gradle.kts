@@ -67,7 +67,7 @@ android {
     namespace = "app.antisocial.android"
     compileSdk = 37
     buildToolsVersion = "36.0.0"
-    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 93; versionName = "0.35.45"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 94; versionName = "0.35.46"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     defaultConfig { if(targetAbi!=null)ndk {abiFilters+=targetAbi} }
     sourceSets.getByName("main").assets.srcDir(aiAssets.get().asFile)
     sourceSets.getByName("main").assets.srcDir(runtimeAssets.get().asFile)

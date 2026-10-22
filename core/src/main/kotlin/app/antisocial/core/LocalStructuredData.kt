@@ -121,7 +121,7 @@ object LocalStructuredData {
                 val entity=resolve(value);val entityName=if(entity==null)text(value,300)else text(entity["name"],300)
                 if(entityName.isBlank())null else LocalRelatedEntity(entityName,role,if(entity==null)emptyList()else (arr(entity["url"])+arr(entity["sameAs"])).mapNotNull {LocalDiscoveryIdentity.url(str(it),url)}.filter(::accountLink).distinct().take(8),url)
             }}.take(16)
-            val fields=mapOf("name" to name,"category" to types(o).firstOrNull().orEmpty(),"address" to address,"locality" to locality,"hours" to hours,"description" to text(o["description"]),"phones" to phones.joinToString(" · "),"emails" to emails.joinToString(" · "))
+            val fields=mapOf("name" to name,"category" to types(o).firstOrNull().orEmpty(),"address" to address,"locality" to locality,"country" to declaredCountry,"region" to text(o["address"]?.takeIf(JsonElement::isJsonObject)?.asJsonObject?.get("addressRegion"),200),"hours" to hours,"description" to text(o["description"]),"phones" to phones.joinToString(" · "),"emails" to emails.joinToString(" · "))
             return LocalBusiness("place:"+LocalDiscoveryIdentity.hash(sourceId),name,types(o).firstOrNull {it!="Organization"&&it!="Place"}.orEmpty().take(400),text(o["description"]),address,locality,geo,
                 urls.filter {SocialLinkHosts.platform(it)==null}.take(12),urls.filter(::accountLink).take(24),phones,hours.take(8000),
                 sourceIds=listOf("web:$sourceId"),evidence=fields.filterValues(String::isNotBlank).map {(field,value)->LocalDiscoveryIdentity.evidence(field,value,url,at,evidenceKind)}+
@@ -146,7 +146,9 @@ object LocalStructuredData {
             val identity=recordId(o) ?: links.first()+"#"+LocalDiscoveryIdentity.hash(title+venueName)
             val sourceId="event:$identity|${(previous ?: start).identity}"
             val status=str(o["eventStatus"]).substringAfterLast('/').let {when(it){"EventCancelled"->"cancelled";"EventPostponed"->"postponed";"EventRescheduled"->"rescheduled";else->"scheduled"}}
-            val fields=mapOf("title" to title,"start" to start.value,"venue" to venueName,"address" to address,"locality" to locality,"price" to price,"status" to status,
+            val venueAddress=venue?.get("address")?.takeIf(JsonElement::isJsonObject)?.asJsonObject
+            val venueCountry=venueAddress?.get("addressCountry")?.let {if(it.isJsonObject)text(it.asJsonObject["name"],200)else text(it,200)}.orEmpty()
+            val fields=mapOf("title" to title,"start" to start.value,"venue" to venueName,"address" to address,"locality" to locality,"country" to venueCountry,"region" to text(venueAddress?.get("addressRegion"),200),"price" to price,"status" to status,
                 "organizer" to organizerName,"description" to text(o["description"]),"age" to text(o["typicalAgeRange"],100))
             val actualPoint=geo ?: matchedVenue?.point
             events+=LocalEvent("event:"+LocalDiscoveryIdentity.hash(sourceId),title,start,moment(o["endDate"],area?.zoneId),text(o["description"]),venueName,address,locality,actualPoint,
