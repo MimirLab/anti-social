@@ -25,3 +25,10 @@ Document source-dependent capabilities and unverified external behavior honestly
 Promote tested incremental improvements into the live laptop preview rather than
 leaving them only in an isolated candidate. Retain versioned APK/source archives
 and back up the preview's local state before replacement so progress is recoverable.
+
+Public releases must include the fixed-name `anti-social.apk` asset so the permanent
+`https://github.com/MimirLab/anti-social/releases/latest/download/anti-social.apk`
+link stays usable. Publish with `scripts/publish_release.py` after uploading the
+versioned APK and corresponding source. Preserve versioned assets and source tags;
+see `docs/PUBLISHING.md`. Keep Android application ID and signing identity compatible
+across updates. Never publish credentials, private reader state or build caches.

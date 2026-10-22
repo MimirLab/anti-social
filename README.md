@@ -1,10 +1,11 @@
 # anti social
 
-**Current preview: 0.35.45.** A native, accountless reader with chronological
+**Current release: 0.35.45.** A native, accountless reader with chronological
 feeds, local subscriptions and saved copies, and optional AI. The ordinary
 reader works without a model, API key or root access.
 
-[Download the preview APK and corresponding source](https://github.com/MimirLab/anti-social/releases/tag/v0.35.45).
+[Download the latest Android APK](https://github.com/MimirLab/anti-social/releases/latest/download/anti-social.apk)
+or read the [release notes and corresponding source](https://github.com/MimirLab/anti-social/releases/latest).
 Android 8.0 or newer is required.
 
 This preview makes the local text engine an on-demand install: choose a local
@@ -13,9 +14,11 @@ while keeping downloaded models. Remote AI and ordinary reading do not install
 it. See [runtime delivery](docs/LOCAL_RUNTIME_DELIVERY.md) for the implementation,
 storage requirements and tested limits.
 
-Preview APKs use the development signing key. They are for testing; production
-signing and physical-phone GPU qualification remain outstanding. See
-[validation](VALIDATION.md) and the build instructions below before contributing.
+The published APK retains the project's existing development signing key for
+update compatibility. Dedicated production signing and physical-phone GPU
+qualification remain outstanding. See [validation](VALIDATION.md) and the build
+instructions below before contributing. See [publishing](docs/PUBLISHING.md) for
+the permanent download URL and release procedure.
 
 The release identity is `app.antisocial.android`. The supplied break-free emblem and
 wordmark are native vector assets; see [branding and identity](branding/README.md).
