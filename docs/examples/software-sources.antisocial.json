@@ -1,0 +1,25 @@
+{
+  "format": "app.antisocial.reader",
+  "version": 1,
+  "kind": "sources",
+  "createdAt": 1792195200000,
+  "title": "Software sources",
+  "sources": [
+    {
+      "platform": "bluesky",
+      "kind": "profile",
+      "identity": "workshop.example",
+      "url": "https://bsky.app/profile/workshop.example",
+      "name": "Workshop",
+      "feedUrl": null
+    },
+    {
+      "platform": "rss",
+      "kind": "feed",
+      "identity": "https://blog.example/feed.xml",
+      "url": "https://blog.example/feed.xml",
+      "name": "Workshop blog",
+      "feedUrl": "https://blog.example/feed.xml"
+    }
+  ]
+}

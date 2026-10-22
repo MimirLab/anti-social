@@ -1,0 +1,37 @@
+{
+  "donor": "Darwin",
+  "routing_component": "3.4.0.1",
+  "curated_sources": 12,
+  "candidate_sources": 69,
+  "custom_filter_sources": 25,
+  "live_export_verified": false,
+  "files": {
+    "darwin-routes.json": "af6c4a5b4a705ec0333d478edfc8c45824eab74fb676b767b524fadf3b4dbc6b",
+    "filter-sources.json": "d15103011bc6b3fb418f9fe24185a89ffda9eab06507d9c1e87780faf40238dc",
+    "clean-links.json": "df97eb5c1aeeb9f96d0c28a6a60604f3cb2b1f9e7776eee228258e1b2bae1424",
+    "public-pathways.json": "c1441e95b12e399bf2b2efb4fedb45015555f0dfce3d24a6de78b455ae8dec30",
+    "source-discovery.json": "89e1a9ebf9d1d8e52aaa8a8ae85e4851456c9238761fdb5df31af213b84d5157"
+  },
+  "search_discovery_sources": 2,
+  "additional_search_providers": [
+    {
+      "frontend": "bing-rss",
+      "root": "https://www.bing.com",
+      "donor": false,
+      "enabled_by": "originalFallback and selected searchProvider",
+      "transport": "Tor required",
+      "purpose": "Public index link discovery; not an X search API"
+    },
+    {
+      "frontend": "duckduckgo",
+      "root": "https://html.duckduckgo.com",
+      "donor": false,
+      "enabled_by": "originalFallback and selected searchProvider",
+      "transport": "Tor required",
+      "purpose": "Public index link discovery; not an X search API"
+    }
+  ],
+  "independent_public_pathway_sources": 171,
+  "independent_source_inventory_records": 268,
+  "public_pathway_review": "2026-10-17; candidate health is unknown until matching readable content is extracted"
+}

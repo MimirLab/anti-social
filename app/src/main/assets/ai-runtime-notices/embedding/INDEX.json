@@ -1,0 +1,2016 @@
+{
+  "schema": "antisocial-embedding-native-notices-v1",
+  "source_lock": "native/embedding/Cargo.lock",
+  "lock_sha256": "bbc24293d54ce7068d39c9ccc6756f928270d419c8cc5f1d4c2db61be062ae98",
+  "scope": "Conservative superset of downloaded Android/host/build source dependencies; not a claim every listed package is linked into every ABI.",
+  "packages": [
+    {
+      "name": "ahash",
+      "version": "0.8.12",
+      "crate_sha256": "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Tom Kaitchuck <Tom.Kaitchuck@gmail.com>"
+      ],
+      "repository": "https://github.com/tkaitchuck/ahash",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/ahash-0.8.12/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/ahash-0.8.12/LICENSE-MIT",
+          "bytes": 1057,
+          "sha256": "0444c6991eead6822f7b9102e654448d51624431119546492e8b231db42c48bb"
+        }
+      ]
+    },
+    {
+      "name": "aho-corasick",
+      "version": "1.1.5",
+      "crate_sha256": "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba",
+      "license": "Unlicense OR MIT",
+      "authors": [
+        "Andrew Gallant <jamslam@gmail.com>"
+      ],
+      "repository": "https://github.com/BurntSushi/aho-corasick",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/aho-corasick-1.1.5/COPYING",
+          "bytes": 126,
+          "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/aho-corasick-1.1.5/LICENSE-MIT",
+          "bytes": 1081,
+          "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/aho-corasick-1.1.5/UNLICENSE",
+          "bytes": 1211,
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+        }
+      ]
+    },
+    {
+      "name": "base64",
+      "version": "0.13.1",
+      "crate_sha256": "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Alice Maz <alice@alicemaz.com>",
+        "Marshall Pierce <marshall@mpierce.org>"
+      ],
+      "repository": "https://github.com/marshallpierce/rust-base64",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/base64-0.13.1/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/base64-0.13.1/LICENSE-MIT",
+          "bytes": 1076,
+          "sha256": "0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7"
+        }
+      ]
+    },
+    {
+      "name": "bit-set",
+      "version": "0.8.0",
+      "crate_sha256": "08807e080ed7f9d5433fa9b275196cfc35414f66a0c79d864dc51a0d825231a3",
+      "license": "Apache-2.0 OR MIT",
+      "authors": [
+        "Alexis Beingessner <a.beingessner@gmail.com>"
+      ],
+      "repository": "https://github.com/contain-rs/bit-set",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/bit-set-0.8.0/LICENSE-APACHE",
+          "bytes": 10850,
+          "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/bit-set-0.8.0/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7"
+        }
+      ]
+    },
+    {
+      "name": "bit-vec",
+      "version": "0.8.0",
+      "crate_sha256": "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7",
+      "license": "Apache-2.0 OR MIT",
+      "authors": [
+        "Alexis Beingessner <a.beingessner@gmail.com>"
+      ],
+      "repository": "https://github.com/contain-rs/bit-vec",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/bit-vec-0.8.0/LICENSE-APACHE",
+          "bytes": 10850,
+          "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/bit-vec-0.8.0/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7"
+        }
+      ]
+    },
+    {
+      "name": "block-buffer",
+      "version": "0.10.4",
+      "crate_sha256": "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "RustCrypto Developers"
+      ],
+      "repository": "https://github.com/RustCrypto/utils",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/block-buffer-0.10.4/LICENSE-APACHE",
+          "bytes": 10849,
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/block-buffer-0.10.4/LICENSE-MIT",
+          "bytes": 1082,
+          "sha256": "d5c22aa3118d240e877ad41c5d9fa232f9c77d757d4aac0c2f943afc0a95e0ef"
+        }
+      ]
+    },
+    {
+      "name": "bytes",
+      "version": "1.12.1",
+      "crate_sha256": "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04",
+      "license": "MIT",
+      "authors": [
+        "Carl Lerche <me@carllerche.com>",
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/tokio-rs/bytes",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/bytes-1.12.1/LICENSE",
+          "bytes": 1055,
+          "sha256": "45f522cacecb1023856e46df79ca625dfc550c94910078bd8aec6e02880b3d42"
+        }
+      ]
+    },
+    {
+      "name": "castaway",
+      "version": "0.2.4",
+      "crate_sha256": "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a",
+      "license": "MIT",
+      "authors": [
+        "Stephen M. Coakley <me@stephencoakley.com>"
+      ],
+      "repository": "https://github.com/sagebind/castaway",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/castaway-0.2.4/LICENSE",
+          "bytes": 1075,
+          "sha256": "f98e09091d5ae02b2f2ec1ead4f7f28c4c44d1cb98b078739ba67091637e170c"
+        }
+      ]
+    },
+    {
+      "name": "cesu8",
+      "version": "1.1.0",
+      "crate_sha256": "6d43a04d8753f35258c91f8ec639f792891f748a1edbd759cf1dcea3382ad83c",
+      "license": "Apache-2.0/MIT",
+      "authors": [
+        "Eric Kidd <git@randomhacks.net>"
+      ],
+      "repository": "https://github.com/emk/cesu8-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/cesu8-1.1.0/COPYRIGHT-RUST.txt",
+          "bytes": 17426,
+          "sha256": "5ca77347e58205d3b543c04a9c5bdd11d20a9f3108a7b246640edffa999b5f35"
+        }
+      ]
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "crate_sha256": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Alex Crichton <alex@alexcrichton.com>"
+      ],
+      "repository": "https://github.com/rust-lang/cfg-if",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/cfg-if-1.0.5/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/cfg-if-1.0.5/LICENSE-MIT",
+          "bytes": 1057,
+          "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+        }
+      ]
+    },
+    {
+      "name": "combine",
+      "version": "4.6.9",
+      "crate_sha256": "4356eba6976435498d05a311ee9fc486da3bc81c200d3f0d7dd9703b41913f92",
+      "license": "MIT",
+      "authors": [
+        "Markus Westerlind <marwes91@gmail.com>"
+      ],
+      "repository": "https://github.com/Marwes/combine",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/combine-4.6.9/LICENSE",
+          "bytes": 1085,
+          "sha256": "9bbc1b3dc4674a9ebb12c2a62f54fe3c08672539717f8d05828f684b6cc419a3"
+        }
+      ]
+    },
+    {
+      "name": "compact_str",
+      "version": "0.9.1",
+      "crate_sha256": "9dfdd1c2274d9aa354115b09dc9a901d6c5576818cdf70d14cae2bdb47df00ab",
+      "license": "MIT",
+      "authors": [
+        "Parker Timmerman <parker@parkertimmerman.com>"
+      ],
+      "repository": "https://github.com/ParkMyCar/compact_str",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/compact_str-0.9.1/LICENSE",
+          "bytes": 1073,
+          "sha256": "0d52feec79589df30138dad3800323fe5686b764b73347330a2dfef8ac83efe8"
+        }
+      ]
+    },
+    {
+      "name": "cpufeatures",
+      "version": "0.2.17",
+      "crate_sha256": "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "RustCrypto Developers"
+      ],
+      "repository": "https://github.com/RustCrypto/utils",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/cpufeatures-0.2.17/LICENSE-APACHE",
+          "bytes": 10849,
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/cpufeatures-0.2.17/LICENSE-MIT",
+          "bytes": 1082,
+          "sha256": "ae9baa7beea910273c2f384c2a6b721fb7bd02bda3436074a1072e4ee689f985"
+        }
+      ]
+    },
+    {
+      "name": "crossbeam-deque",
+      "version": "0.8.8",
+      "crate_sha256": "622f3fc73690be383c7214310406f28a90e6edeadc3cea882f9d71e495b9711a",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/crossbeam-rs/crossbeam",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/crossbeam-deque-0.8.8/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/crossbeam-deque-0.8.8/LICENSE-MIT",
+          "bytes": 1099,
+          "sha256": "5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab"
+        }
+      ]
+    },
+    {
+      "name": "crossbeam-epoch",
+      "version": "0.9.21",
+      "crate_sha256": "dc74980687109a3b14c72fd458107bf0baa1da1a1a805e178d15501ba9b86d9d",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/crossbeam-rs/crossbeam",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/crossbeam-epoch-0.9.21/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/crossbeam-epoch-0.9.21/LICENSE-MIT",
+          "bytes": 1099,
+          "sha256": "5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab"
+        }
+      ]
+    },
+    {
+      "name": "crossbeam-utils",
+      "version": "0.8.23",
+      "crate_sha256": "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/crossbeam-rs/crossbeam",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/crossbeam-utils-0.8.23/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/crossbeam-utils-0.8.23/LICENSE-MIT",
+          "bytes": 1099,
+          "sha256": "5734ed989dfca1f625b40281ee9f4530f91b2411ec01cb748223e7eb87e201ab"
+        }
+      ]
+    },
+    {
+      "name": "crypto-common",
+      "version": "0.1.7",
+      "crate_sha256": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "RustCrypto Developers"
+      ],
+      "repository": "https://github.com/RustCrypto/traits",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/crypto-common-0.1.7/LICENSE-APACHE",
+          "bytes": 10849,
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/crypto-common-0.1.7/LICENSE-MIT",
+          "bytes": 1065,
+          "sha256": "3521672491a3479422d5fe1aca6645dd2984090f85da6e5205abfb18fb7a6897"
+        }
+      ]
+    },
+    {
+      "name": "darling",
+      "version": "0.20.11",
+      "crate_sha256": "fc7f46116c46ff9ab3eb1597a45688b6715c6e628b5c133e288e709a29bcb4ee",
+      "license": "MIT",
+      "authors": [
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/TedDriggs/darling",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/darling-0.20.11/LICENSE",
+          "bytes": 1067,
+          "sha256": "8ea93490d74a5a1b1af3ff71d786271b3f1e5f0bea79ac16e02ec533cef040d6"
+        }
+      ]
+    },
+    {
+      "name": "darling_core",
+      "version": "0.20.11",
+      "crate_sha256": "0d00b9596d185e565c2207a0b01f8bd1a135483d02d9b7b0a54b11da8d53412e",
+      "license": "MIT",
+      "authors": [
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/TedDriggs/darling",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/darling_core-0.20.11/LICENSE",
+          "bytes": 1067,
+          "sha256": "8ea93490d74a5a1b1af3ff71d786271b3f1e5f0bea79ac16e02ec533cef040d6"
+        }
+      ]
+    },
+    {
+      "name": "darling_macro",
+      "version": "0.20.11",
+      "crate_sha256": "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead",
+      "license": "MIT",
+      "authors": [
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/TedDriggs/darling",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/darling_macro-0.20.11/LICENSE",
+          "bytes": 1067,
+          "sha256": "8ea93490d74a5a1b1af3ff71d786271b3f1e5f0bea79ac16e02ec533cef040d6"
+        }
+      ]
+    },
+    {
+      "name": "dary_heap",
+      "version": "0.3.9",
+      "crate_sha256": "8b1e3a325bc115f096c8b77bbf027a7c2592230e70be2d985be950d3d5e60ebe",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Han Mertens <hanmertens@outlook.com>"
+      ],
+      "repository": "https://github.com/hanmertens/dary_heap",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/dary_heap-0.3.9/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/dary_heap-0.3.9/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "derive_builder",
+      "version": "0.20.2",
+      "crate_sha256": "507dfb09ea8b7fa618fcf76e953f4f5e192547945816d5358edffe39f6f94947",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Colin Kiegel <kiegel@gmx.de>",
+        "Pascal Hertleif <killercup@gmail.com>",
+        "Jan-Erik Rediger <janerik@fnordig.de>",
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/colin-kiegel/rust-derive-builder",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/derive_builder-0.20.2/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/derive_builder-0.20.2/LICENSE-MIT",
+          "bytes": 1099,
+          "sha256": "8c9612877aacfa1b42f5e80b679e6c3c93a7ba2bb99dfaf6e87e200dca4b4e6c"
+        }
+      ]
+    },
+    {
+      "name": "derive_builder_core",
+      "version": "0.20.2",
+      "crate_sha256": "2d5bcf7b024d6835cfb3d473887cd966994907effbe9227e8c8219824d06c4e8",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Colin Kiegel <kiegel@gmx.de>",
+        "Pascal Hertleif <killercup@gmail.com>",
+        "Jan-Erik Rediger <janerik@fnordig.de>",
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/colin-kiegel/rust-derive-builder",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/derive_builder_core-0.20.2/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/derive_builder_core-0.20.2/LICENSE-MIT",
+          "bytes": 1099,
+          "sha256": "8c9612877aacfa1b42f5e80b679e6c3c93a7ba2bb99dfaf6e87e200dca4b4e6c"
+        }
+      ]
+    },
+    {
+      "name": "derive_builder_macro",
+      "version": "0.20.2",
+      "crate_sha256": "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Colin Kiegel <kiegel@gmx.de>",
+        "Pascal Hertleif <killercup@gmail.com>",
+        "Jan-Erik Rediger <janerik@fnordig.de>",
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/colin-kiegel/rust-derive-builder",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/derive_builder_macro-0.20.2/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/derive_builder_macro-0.20.2/LICENSE-MIT",
+          "bytes": 1099,
+          "sha256": "8c9612877aacfa1b42f5e80b679e6c3c93a7ba2bb99dfaf6e87e200dca4b4e6c"
+        }
+      ]
+    },
+    {
+      "name": "digest",
+      "version": "0.10.7",
+      "crate_sha256": "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "RustCrypto Developers"
+      ],
+      "repository": "https://github.com/RustCrypto/traits",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/digest-0.10.7/LICENSE-APACHE",
+          "bytes": 10849,
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/digest-0.10.7/LICENSE-MIT",
+          "bytes": 1057,
+          "sha256": "9e0dfd2dd4173a530e238cb6adb37aa78c34c6bc7444e0e10c1ab5d8881f63ba"
+        }
+      ]
+    },
+    {
+      "name": "either",
+      "version": "1.19.0",
+      "crate_sha256": "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/rayon-rs/either",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/either-1.19.0/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/either-1.19.0/LICENSE-MIT",
+          "bytes": 1043,
+          "sha256": "7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545"
+        }
+      ]
+    },
+    {
+      "name": "esaxx-rs",
+      "version": "0.1.10",
+      "crate_sha256": "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6",
+      "license": "Apache-2.0",
+      "authors": [
+        "Nicolas Patry <patry.nicolas@protonmail.com>"
+      ],
+      "repository": "https://github.com/Narsil/esaxx-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/esaxx-rs-0.1.10/LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "name": "fancy-regex",
+      "version": "0.14.0",
+      "crate_sha256": "6e24cb5a94bcae1e5408b0effca5cd7172ea3c5755049c5f3af4cd283a165298",
+      "license": "MIT",
+      "authors": [
+        "Raph Levien <raph@google.com>",
+        "Robin Stocker <robin@nibor.org>"
+      ],
+      "repository": "https://github.com/fancy-regex/fancy-regex",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/fancy-regex-0.14.0/LICENSE",
+          "bytes": 1081,
+          "sha256": "3bc70e239e91272782006c638fc0452a714d384224f11f0923036b7be07cf9b5"
+        }
+      ]
+    },
+    {
+      "name": "fnv",
+      "version": "1.0.7",
+      "crate_sha256": "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1",
+      "license": "Apache-2.0 / MIT",
+      "authors": [
+        "Alex Crichton <alex@alexcrichton.com>"
+      ],
+      "repository": "https://github.com/servo/rust-fnv",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/fnv-1.0.7/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/fnv-1.0.7/LICENSE-MIT",
+          "bytes": 1056,
+          "sha256": "65fdb6c76cd61612070c066eec9ecdb30ee74fb27859d0d9af58b9f499fd0c3e"
+        }
+      ]
+    },
+    {
+      "name": "generic-array",
+      "version": "0.14.7",
+      "crate_sha256": "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a",
+      "license": "MIT",
+      "authors": [
+        "Bart\u0142omiej Kami\u0144ski <fizyk20@gmail.com>",
+        "Aaron Trent <novacrazy@gmail.com>"
+      ],
+      "repository": "https://github.com/fizyk20/generic-array.git",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/generic-array-0.14.7/LICENSE",
+          "bytes": 1107,
+          "sha256": "c09aae9d3c77b531f56351a9947bc7446511d6b025b3255312d3e3442a9a7583"
+        }
+      ]
+    },
+    {
+      "name": "getrandom",
+      "version": "0.3.4",
+      "crate_sha256": "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rand Project Developers"
+      ],
+      "repository": "https://github.com/rust-random/getrandom",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/getrandom-0.3.4/LICENSE-APACHE",
+          "bytes": 10849,
+          "sha256": "aaff376532ea30a0cd5330b9502ad4a4c8bf769c539c87ffe78819d188a18ebf"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/getrandom-0.3.4/LICENSE-MIT",
+          "bytes": 1130,
+          "sha256": "29e9fe5074bd27e0e5d5d110394fbbcd841baee2651a3c4b4560a632702cede4"
+        }
+      ]
+    },
+    {
+      "name": "ident_case",
+      "version": "1.0.1",
+      "crate_sha256": "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Ted Driggs <ted.driggs@outlook.com>"
+      ],
+      "repository": "https://github.com/TedDriggs/ident_case",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/ident_case-1.0.1/LICENSE",
+          "bytes": 1036,
+          "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1"
+        }
+      ]
+    },
+    {
+      "name": "itertools",
+      "version": "0.14.0",
+      "crate_sha256": "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "bluss"
+      ],
+      "repository": "https://github.com/rust-itertools/itertools",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/itertools-0.14.0/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/itertools-0.14.0/LICENSE-MIT",
+          "bytes": 1043,
+          "sha256": "7576269ea71f767b99297934c0b2367532690f8c4badc695edf8e04ab6a1e545"
+        }
+      ]
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.18",
+      "crate_sha256": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/itoa",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/itoa-1.0.18/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/itoa-1.0.18/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "jni",
+      "version": "0.21.1",
+      "crate_sha256": "1a87aa2bb7d2af34197c04845522473242e1aa17c12f4935d5856491a7fb8c97",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Josh Chase <josh@prevoty.com>"
+      ],
+      "repository": "https://github.com/jni-rs/jni-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/jni-0.21.1/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/jni-0.21.1/LICENSE-MIT",
+          "bytes": 1104,
+          "sha256": "fea1d5bf3dd71605ce5d7d2ff695c1837e914c77195e523a86b5391716477960"
+        }
+      ]
+    },
+    {
+      "name": "jni-sys",
+      "version": "0.3.1",
+      "crate_sha256": "41a652e1f9b6e0275df1f15b32661cf0d4b78d4d87ddec5e0c3c20f097433258",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Steven Fackler <sfackler@gmail.com>"
+      ],
+      "repository": "https://github.com/jni-rs/jni-sys",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/jni-sys-0.3.1/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/jni-sys-0.3.1/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "1d85bd754b04ceec93e98e890edd1fa3c6a22e81bcb32135806beeccefa51cd1"
+        }
+      ]
+    },
+    {
+      "name": "jni-sys",
+      "version": "0.4.1",
+      "crate_sha256": "c6377a88cb3910bee9b0fa88d4f42e1d2da8e79915598f65fb0c7ee14c878af2",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Steven Fackler <sfackler@gmail.com>",
+        "Robert Bragg <robert@sixbynine.org>"
+      ],
+      "repository": "https://github.com/jni-rs/jni-sys",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/jni-sys-0.4.1/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/jni-sys-0.4.1/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "1d85bd754b04ceec93e98e890edd1fa3c6a22e81bcb32135806beeccefa51cd1"
+        }
+      ]
+    },
+    {
+      "name": "jni-sys-macros",
+      "version": "0.4.1",
+      "crate_sha256": "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Robert Bragg <robert@sixbynine.org>"
+      ],
+      "repository": "https://github.com/jni-rs/jni-sys",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/jni-sys-macros-0.4.1/UPSTREAM-DECLARATION.txt",
+          "bytes": 202,
+          "sha256": "918ec1bda22e6eddbd562e95fe60fcf530a779707b57f63a520cf7096e00f1d9",
+          "note": "Source crate contains no standalone license file; public package declaration/source copyright preserved."
+        }
+      ]
+    },
+    {
+      "name": "libc",
+      "version": "0.2.191",
+      "crate_sha256": "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/rust-lang/libc",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/libc-0.2.191/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/libc-0.2.191/LICENSE-MIT",
+          "bytes": 1066,
+          "sha256": "123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e"
+        }
+      ]
+    },
+    {
+      "name": "log",
+      "version": "0.4.34",
+      "crate_sha256": "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rust Project Developers"
+      ],
+      "repository": "https://github.com/rust-lang/log",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/log-0.4.34/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/log-0.4.34/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+        }
+      ]
+    },
+    {
+      "name": "macro_rules_attribute",
+      "version": "0.2.3",
+      "crate_sha256": "b3ae8f6d608c795738406608304d30a2dfbdc8e58e44f7ba43236da5208ded3c",
+      "license": "Apache-2.0 OR MIT OR Zlib",
+      "authors": [
+        "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"
+      ],
+      "repository": "https://github.com/danielhenrymantilla/macro_rules_attribute-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/macro_rules_attribute-0.2.3/LICENSE-APACHE",
+          "bytes": 11385,
+          "sha256": "388e98b08de12ba8a9d4575883c8b0386c747cea188ed459380fc58d60da15c9"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/macro_rules_attribute-0.2.3/LICENSE-MIT",
+          "bytes": 1112,
+          "sha256": "603fb27ef3266ea516872eefd9ae587746b8c34614a35c0fb24e4e9e0c17e137"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/macro_rules_attribute-0.2.3/LICENSE-ZLIB",
+          "bytes": 899,
+          "sha256": "1c41c0e19caa2c20b0adfeb8219b606b21b7c63914aa3ae74ae3e091d7ce09ca"
+        }
+      ]
+    },
+    {
+      "name": "macro_rules_attribute-proc_macro",
+      "version": "0.2.3",
+      "crate_sha256": "fc04a4c58212d57930a24bf47d3fa87485264a3a054e9c10e042eb373573ad3c",
+      "license": "Apache-2.0 OR MIT OR Zlib",
+      "authors": [
+        "Daniel Henry-Mantilla <daniel.henry.mantilla@gmail.com>"
+      ],
+      "repository": "https://github.com/danielhenrymantilla/macro_rules_attribute-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/macro_rules_attribute-proc_macro-0.2.3/LICENSE-APACHE",
+          "bytes": 11385,
+          "sha256": "388e98b08de12ba8a9d4575883c8b0386c747cea188ed459380fc58d60da15c9"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/macro_rules_attribute-proc_macro-0.2.3/LICENSE-MIT",
+          "bytes": 1112,
+          "sha256": "603fb27ef3266ea516872eefd9ae587746b8c34614a35c0fb24e4e9e0c17e137"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/macro_rules_attribute-proc_macro-0.2.3/LICENSE-ZLIB",
+          "bytes": 899,
+          "sha256": "1c41c0e19caa2c20b0adfeb8219b606b21b7c63914aa3ae74ae3e091d7ce09ca"
+        }
+      ]
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "crate_sha256": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+      "license": "Unlicense OR MIT",
+      "authors": [
+        "Andrew Gallant <jamslam@gmail.com>",
+        "bluss"
+      ],
+      "repository": "https://github.com/BurntSushi/memchr",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/memchr-2.8.3/COPYING",
+          "bytes": 126,
+          "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/memchr-2.8.3/LICENSE-MIT",
+          "bytes": 1081,
+          "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/memchr-2.8.3/UNLICENSE",
+          "bytes": 1211,
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+        }
+      ]
+    },
+    {
+      "name": "memmap2",
+      "version": "0.9.9",
+      "crate_sha256": "744133e4a0e0a658e1374cf3bf8e415c4052a15a111acd372764c55b4177d490",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Dan Burkert <dan@danburkert.com>",
+        "Yevhenii Reizner <razrfalcon@gmail.com>"
+      ],
+      "repository": "https://github.com/RazrFalcon/memmap2-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/memmap2-0.9.9/LICENSE-APACHE",
+          "bytes": 10835,
+          "sha256": "04ea4849dba9dcae07113850c6f1b1a69052c625210639914eee352023f750ad"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/memmap2-0.9.9/LICENSE-MIT",
+          "bytes": 1091,
+          "sha256": "0d25d03b5ab49576178ad0cae7a2648d12c17ad0452fe49c07e55e4b59aa5257"
+        }
+      ]
+    },
+    {
+      "name": "minimal-lexical",
+      "version": "0.2.1",
+      "crate_sha256": "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Alex Huszagh <ahuszagh@gmail.com>"
+      ],
+      "repository": "https://github.com/Alexhuszagh/minimal-lexical",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/minimal-lexical-0.2.1/LICENSE-APACHE",
+          "bytes": 10850,
+          "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/minimal-lexical-0.2.1/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/minimal-lexical-0.2.1/LICENSE.md",
+          "bytes": 2003,
+          "sha256": "dbe1fff0fb1314b6af94f161511406275cf01c5a32441fbf24528a57a051d599"
+        }
+      ]
+    },
+    {
+      "name": "monostate",
+      "version": "0.1.18",
+      "crate_sha256": "3341a273f6c9d5bef1908f17b7267bbab0e95c9bf69a0d4dcf8e9e1b2c76ef67",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/monostate",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/monostate-0.1.18/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/monostate-0.1.18/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "monostate-impl",
+      "version": "0.1.18",
+      "crate_sha256": "e4db6d5580af57bf992f59068d4ea26fd518574ff48d7639b255a36f9de6e7e9",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/monostate",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/monostate-impl-0.1.18/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/monostate-impl-0.1.18/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "nom",
+      "version": "7.1.3",
+      "crate_sha256": "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a",
+      "license": "MIT",
+      "authors": [
+        "contact@geoffroycouprie.com"
+      ],
+      "repository": "https://github.com/Geal/nom",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/nom-7.1.3/LICENSE",
+          "bytes": 1065,
+          "sha256": "4dbda04344456f09a7a588140455413a9ac59b6b26a1ef7cdf9c800c012d87f0"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "1.21.4",
+      "crate_sha256": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Aleksey Kladov <aleksey.kladov@gmail.com>"
+      ],
+      "repository": "https://github.com/matklad/once_cell",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/once_cell-1.21.4/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/once_cell-1.21.4/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "paste",
+      "version": "1.0.15",
+      "crate_sha256": "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/paste",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/paste-1.0.15/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/paste-1.0.15/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "pastey",
+      "version": "0.2.3",
+      "crate_sha256": "2ee67f1008b1ba2321834326597b8e186293b049a023cdef258527550b9935b4",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Aditya Kumar <git@adityais.dev>",
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/as1100k/pastey",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/pastey-0.2.3/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/pastey-0.2.3/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "ppv-lite86",
+      "version": "0.2.21",
+      "crate_sha256": "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The CryptoCorrosion Contributors"
+      ],
+      "repository": "https://github.com/cryptocorrosion/cryptocorrosion",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/ppv-lite86-0.2.21/LICENSE-APACHE",
+          "bytes": 10854,
+          "sha256": "0218327e7a480793ffdd4eb792379a9709e5c135c7ba267f709d6f6d4d70af0a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/ppv-lite86-0.2.21/LICENSE-MIT",
+          "bytes": 1076,
+          "sha256": "4cada0bd02ea3692eee6f16400d86c6508bbd3bafb2b65fed0419f36d4f83e8f"
+        }
+      ]
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "crate_sha256": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>",
+        "Alex Crichton <alex@alexcrichton.com>"
+      ],
+      "repository": "https://github.com/dtolnay/proc-macro2",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/proc-macro2-1.0.107/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/proc-macro2-1.0.107/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "quote",
+      "version": "1.0.47",
+      "crate_sha256": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/quote",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/quote-1.0.47/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/quote-1.0.47/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "rand",
+      "version": "0.9.5",
+      "crate_sha256": "b9ef1d0d795eb7d84685bca4f72f3649f064e6641543d3a8c415898726a57b41",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rand Project Developers",
+        "The Rust Project Developers"
+      ],
+      "repository": "https://github.com/rust-random/rand",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rand-0.9.5/COPYRIGHT",
+          "bytes": 569,
+          "sha256": "90eb64f0279b0d9432accfa6023ff803bc4965212383697eee27a0f426d5f8d5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rand-0.9.5/LICENSE-APACHE",
+          "bytes": 9724,
+          "sha256": "35242e7a83f69875e6edeff02291e688c97caafe2f8902e4e19b49d3e78b4cab"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rand-0.9.5/LICENSE-MIT",
+          "bytes": 1117,
+          "sha256": "209fbbe0ad52d9235e37badf9cadfe4dbdc87203179c0899e738b39ade42177b"
+        }
+      ]
+    },
+    {
+      "name": "rand_chacha",
+      "version": "0.9.0",
+      "crate_sha256": "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rand Project Developers",
+        "The Rust Project Developers",
+        "The CryptoCorrosion Contributors"
+      ],
+      "repository": "https://github.com/rust-random/rand",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rand_chacha-0.9.0/COPYRIGHT",
+          "bytes": 569,
+          "sha256": "90eb64f0279b0d9432accfa6023ff803bc4965212383697eee27a0f426d5f8d5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rand_chacha-0.9.0/LICENSE-APACHE",
+          "bytes": 9724,
+          "sha256": "35242e7a83f69875e6edeff02291e688c97caafe2f8902e4e19b49d3e78b4cab"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rand_chacha-0.9.0/LICENSE-MIT",
+          "bytes": 1117,
+          "sha256": "209fbbe0ad52d9235e37badf9cadfe4dbdc87203179c0899e738b39ade42177b"
+        }
+      ]
+    },
+    {
+      "name": "rand_core",
+      "version": "0.9.5",
+      "crate_sha256": "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rand Project Developers",
+        "The Rust Project Developers"
+      ],
+      "repository": "https://github.com/rust-random/rand",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rand_core-0.9.5/COPYRIGHT",
+          "bytes": 569,
+          "sha256": "90eb64f0279b0d9432accfa6023ff803bc4965212383697eee27a0f426d5f8d5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rand_core-0.9.5/LICENSE-APACHE",
+          "bytes": 10282,
+          "sha256": "6df43f6f4b5d4587f3d8d71e45532c688fd168afa5fe89d571cb32fa09c4ef51"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rand_core-0.9.5/LICENSE-MIT",
+          "bytes": 1117,
+          "sha256": "209fbbe0ad52d9235e37badf9cadfe4dbdc87203179c0899e738b39ade42177b"
+        }
+      ]
+    },
+    {
+      "name": "rayon",
+      "version": "1.12.0",
+      "crate_sha256": "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/rayon-rs/rayon",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rayon-1.12.0/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rayon-1.12.0/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720"
+        }
+      ]
+    },
+    {
+      "name": "rayon-cond",
+      "version": "0.4.0",
+      "crate_sha256": "2964d0cf57a3e7a06e8183d14a8b527195c706b7983549cd5462d5aa3747438f",
+      "license": "Apache-2.0/MIT",
+      "authors": [
+        "Josh Stone <cuviper@gmail.com>"
+      ],
+      "repository": "https://github.com/cuviper/rayon-cond",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rayon-cond-0.4.0/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rayon-cond-0.4.0/LICENSE-MIT",
+          "bytes": 1054,
+          "sha256": "27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac"
+        }
+      ]
+    },
+    {
+      "name": "rayon-core",
+      "version": "1.13.0",
+      "crate_sha256": "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/rayon-rs/rayon",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rayon-core-1.13.0/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rayon-core-1.13.0/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720"
+        }
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "1.13.1",
+      "crate_sha256": "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rust Project Developers",
+        "Andrew Gallant <jamslam@gmail.com>"
+      ],
+      "repository": "https://github.com/rust-lang/regex",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/regex-1.13.1/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/regex-1.13.1/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+        }
+      ]
+    },
+    {
+      "name": "regex-automata",
+      "version": "0.4.18",
+      "crate_sha256": "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rust Project Developers",
+        "Andrew Gallant <jamslam@gmail.com>"
+      ],
+      "repository": "https://github.com/rust-lang/regex",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/regex-automata-0.4.18/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/regex-automata-0.4.18/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+        }
+      ]
+    },
+    {
+      "name": "regex-syntax",
+      "version": "0.8.11",
+      "crate_sha256": "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Rust Project Developers",
+        "Andrew Gallant <jamslam@gmail.com>"
+      ],
+      "repository": "https://github.com/rust-lang/regex",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/regex-syntax-0.8.11/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/regex-syntax-0.8.11/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/regex-syntax-0.8.11/src/unicode_tables/LICENSE-UNICODE",
+          "bytes": 2847,
+          "sha256": "74db5baf44a41b1000312c673544b3374e4198af5605c7f9080a402cec42cfa3"
+        }
+      ]
+    },
+    {
+      "name": "rustversion",
+      "version": "1.0.23",
+      "crate_sha256": "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/rustversion",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/rustversion-1.0.23/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/rustversion-1.0.23/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "ryu",
+      "version": "1.0.23",
+      "crate_sha256": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f",
+      "license": "Apache-2.0 OR BSL-1.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/ryu",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/ryu-1.0.23/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/ryu-1.0.23/LICENSE-BOOST",
+          "bytes": 1338,
+          "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+        }
+      ]
+    },
+    {
+      "name": "same-file",
+      "version": "1.0.6",
+      "crate_sha256": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
+      "license": "Unlicense/MIT",
+      "authors": [
+        "Andrew Gallant <jamslam@gmail.com>"
+      ],
+      "repository": "https://github.com/BurntSushi/same-file",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/same-file-1.0.6/COPYING",
+          "bytes": 126,
+          "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/same-file-1.0.6/LICENSE-MIT",
+          "bytes": 1081,
+          "sha256": "cb3c929a05e6cbc9de9ab06a4c57eeb60ca8c724bef6c138c87d3a577e27aa14"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/same-file-1.0.6/UNLICENSE",
+          "bytes": 1211,
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "crate_sha256": "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Erick Tryzelaar <erick.tryzelaar@gmail.com>",
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/serde-rs/serde",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/serde-1.0.229/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/serde-1.0.229/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.229",
+      "crate_sha256": "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Erick Tryzelaar <erick.tryzelaar@gmail.com>",
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/serde-rs/serde",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/serde_core-1.0.229/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/serde_core-1.0.229/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "crate_sha256": "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Erick Tryzelaar <erick.tryzelaar@gmail.com>",
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/serde-rs/serde",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/serde_derive-1.0.229/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/serde_derive-1.0.229/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.145",
+      "crate_sha256": "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Erick Tryzelaar <erick.tryzelaar@gmail.com>",
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/serde-rs/json",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/serde_json-1.0.145/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/serde_json-1.0.145/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "sha2",
+      "version": "0.10.9",
+      "crate_sha256": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "RustCrypto Developers"
+      ],
+      "repository": "https://github.com/RustCrypto/hashes",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/sha2-0.10.9/LICENSE-APACHE",
+          "bytes": 10849,
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/sha2-0.10.9/LICENSE-MIT",
+          "bytes": 1138,
+          "sha256": "b4eb00df6e2a4d22518fcaa6a2b4646f249b3a3c9814509b22bd2091f1392ff1"
+        }
+      ]
+    },
+    {
+      "name": "smallvec",
+      "version": "1.16.3",
+      "crate_sha256": "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "The Servo Project Developers"
+      ],
+      "repository": "https://github.com/servo/rust-smallvec",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/smallvec-1.16.3/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/smallvec-1.16.3/LICENSE-MIT",
+          "bytes": 1072,
+          "sha256": "0b28172679e0009b655da42797c03fd163a3379d5cfa67ba1f1655e974a2a1a9"
+        }
+      ]
+    },
+    {
+      "name": "spm_precompiled",
+      "version": "0.1.4",
+      "crate_sha256": "5851699c4033c63636f7ea4cf7b7c1f1bf06d0cc03cfb42e711de5a5c46cf326",
+      "license": "Apache-2.0",
+      "authors": [
+        "Nicolas Patry <patry.nicolas@protonmail.com>"
+      ],
+      "repository": "https://github.com/huggingface/spm_precompiled",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/spm_precompiled-0.1.4/LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "name": "static_assertions",
+      "version": "1.1.0",
+      "crate_sha256": "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Nikolai Vazquez"
+      ],
+      "repository": "https://github.com/nvzqz/static-assertions-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/static_assertions-1.1.0/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/static_assertions-1.1.0/LICENSE-MIT",
+          "bytes": 1072,
+          "sha256": "ea084a2373ebc1f0902c09266e7bf25a05ab3814c1805bb017ffa7308f90c061"
+        }
+      ]
+    },
+    {
+      "name": "strsim",
+      "version": "0.11.1",
+      "crate_sha256": "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f",
+      "license": "MIT",
+      "authors": [
+        "Danny Guo <danny@dannyguo.com>",
+        "maxbachmann <oss@maxbachmann.de>"
+      ],
+      "repository": "https://github.com/rapidfuzz/strsim-rs",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/strsim-0.11.1/LICENSE",
+          "bytes": 1166,
+          "sha256": "1e697ce8d21401fbf1bddd9b5c3fd4c4c79ae1e3bdf51f81761c85e11d5a89cd"
+        }
+      ]
+    },
+    {
+      "name": "syn",
+      "version": "2.0.119",
+      "crate_sha256": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/syn",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/syn-2.0.119/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/syn-2.0.119/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "syn",
+      "version": "3.0.9",
+      "crate_sha256": "d78c8dee4c7bf0e14673097256fed6142ce9d3b85a408189d07482442145823b",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/syn",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/syn-3.0.9/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/syn-3.0.9/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "thiserror",
+      "version": "1.0.69",
+      "crate_sha256": "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/thiserror",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-1.0.69/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-1.0.69/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "thiserror",
+      "version": "2.0.21",
+      "crate_sha256": "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/thiserror",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-2.0.21/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-2.0.21/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "1.0.69",
+      "crate_sha256": "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/thiserror",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-impl-1.0.69/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-impl-1.0.69/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "2.0.21",
+      "crate_sha256": "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/thiserror",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-impl-2.0.21/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/thiserror-impl-2.0.21/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        }
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.22.1",
+      "crate_sha256": "6475a27088c98ea96d00b39a9ddfb63780d1ad4cceb6f48374349a96ab2b7842",
+      "license": "Apache-2.0",
+      "authors": [
+        "Anthony MOI <m.anthony.moi@gmail.com>",
+        "Nicolas Patry <patry.nicolas@protonmail.com>"
+      ],
+      "repository": "https://github.com/huggingface/tokenizers",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/tokenizers-0.22.1/LICENSE",
+          "bytes": 11357,
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+        }
+      ]
+    },
+    {
+      "name": "typenum",
+      "version": "1.20.1",
+      "crate_sha256": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/paholg/typenum",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/typenum-1.20.1/LICENSE",
+          "bytes": 17,
+          "sha256": "db11fec9946737df39ca3898d9cd8c10ec6f6c3a884a6802b0ad0b81b4e8f23a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/typenum-1.20.1/LICENSE-APACHE",
+          "bytes": 10835,
+          "sha256": "516b24e051bf5630880ebbd55c40a25ce9552ebaf8970a53e8976eb70e522406"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/typenum-1.20.1/LICENSE-MIT",
+          "bytes": 1083,
+          "sha256": "a825bd853ab71619a4923d7b4311221427848070ff44d990da39b0b274c1683f"
+        }
+      ]
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.27",
+      "crate_sha256": "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "authors": [
+        "David Tolnay <dtolnay@gmail.com>"
+      ],
+      "repository": "https://github.com/dtolnay/unicode-ident",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/unicode-ident-1.0.27/LICENSE-APACHE",
+          "bytes": 9723,
+          "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode-ident-1.0.27/LICENSE-MIT",
+          "bytes": 1023,
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode-ident-1.0.27/LICENSE-UNICODE",
+          "bytes": 1995,
+          "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1"
+        }
+      ]
+    },
+    {
+      "name": "unicode-normalization-alignments",
+      "version": "0.1.12",
+      "crate_sha256": "43f613e4fa046e69818dd287fdc4bc78175ff20331479dab6e1b0f98d57062de",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Anthony MOI <m.anthony.moi@gmail.com>"
+      ],
+      "repository": "https://github.com/n1t0/unicode-normalization",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/unicode-normalization-alignments-0.1.12/COPYRIGHT",
+          "bytes": 321,
+          "sha256": "23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode-normalization-alignments-0.1.12/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode-normalization-alignments-0.1.12/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0"
+        }
+      ]
+    },
+    {
+      "name": "unicode-segmentation",
+      "version": "1.13.3",
+      "crate_sha256": "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "kwantam <kwantam@gmail.com>",
+        "Manish Goregaokar <manishsmail@gmail.com>"
+      ],
+      "repository": "https://github.com/unicode-rs/unicode-segmentation",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/unicode-segmentation-1.13.3/COPYRIGHT",
+          "bytes": 321,
+          "sha256": "23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode-segmentation-1.13.3/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode-segmentation-1.13.3/LICENSE-MIT",
+          "bytes": 1071,
+          "sha256": "7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0"
+        }
+      ]
+    },
+    {
+      "name": "unicode_categories",
+      "version": "0.1.1",
+      "crate_sha256": "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Sean Gillespie <sean@swgillespie.me>"
+      ],
+      "repository": "https://github.com/swgillespie/unicode-categories",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/unicode_categories-0.1.1/LICENSE-APACHE",
+          "bytes": 11358,
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/unicode_categories-0.1.1/LICENSE-MIT",
+          "bytes": 1077,
+          "sha256": "98a817e7b85e5fe4e79d165c656a4a139793b8b643d0f3d9cbcc3538ef82ec82"
+        }
+      ]
+    },
+    {
+      "name": "version_check",
+      "version": "0.9.5",
+      "crate_sha256": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Sergio Benitez <sb@sergio.bz>"
+      ],
+      "repository": "https://github.com/SergioBenitez/version_check",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/version_check-0.9.5/LICENSE-APACHE",
+          "bytes": 10847,
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/version_check-0.9.5/LICENSE-MIT",
+          "bytes": 1085,
+          "sha256": "b7e650f3fce5c53249d1cdc608b54df156a97edd636cf9d23498d0cfe7aec63e"
+        }
+      ]
+    },
+    {
+      "name": "walkdir",
+      "version": "2.5.0",
+      "crate_sha256": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b",
+      "license": "Unlicense/MIT",
+      "authors": [
+        "Andrew Gallant <jamslam@gmail.com>"
+      ],
+      "repository": "https://github.com/BurntSushi/walkdir",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/walkdir-2.5.0/COPYING",
+          "bytes": 126,
+          "sha256": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/walkdir-2.5.0/LICENSE-MIT",
+          "bytes": 1081,
+          "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/walkdir-2.5.0/UNLICENSE",
+          "bytes": 1211,
+          "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+        }
+      ]
+    },
+    {
+      "name": "zerocopy",
+      "version": "0.8.63",
+      "crate_sha256": "e5fe1f8f1b06191a00962174c61aa5005e0bb391a6d80d07e24d115c01a92ed8",
+      "license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+      "authors": [],
+      "repository": "https://github.com/google/zerocopy",
+      "notice_files": [
+        {
+          "path": "ai-runtime-notices/embedding/zerocopy-0.8.63/LICENSE-APACHE",
+          "bytes": 11350,
+          "sha256": "9d185ac6703c4b0453974c0d85e9eee43e6941009296bb1f5eb0b54e2329e9f3"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/zerocopy-0.8.63/LICENSE-BSD",
+          "bytes": 1275,
+          "sha256": "83c1763356e822adde0a2cae748d938a73fdc263849ccff6b27776dff213bd32"
+        },
+        {
+          "path": "ai-runtime-notices/embedding/zerocopy-0.8.63/LICENSE-MIT",
+          "bytes": 1060,
+          "sha256": "1a2f5c12ddc934d58956aa5dbdd3255fe55fd957633ab7d0d39e4f0daa73f7df"
+        }
+      ]
+    }
+  ],
+  "undownloaded_other_target_lock_entries": [
+    "r-efi-5.3.0",
+    "wasip2-1.0.4+wasi-0.2.12",
+    "winapi-util-0.1.11",
+    "windows-link-0.2.1",
+    "windows-sys-0.45.0",
+    "windows-sys-0.61.2",
+    "windows-targets-0.42.2",
+    "windows_aarch64_gnullvm-0.42.2",
+    "windows_aarch64_msvc-0.42.2",
+    "windows_i686_gnu-0.42.2",
+    "windows_i686_msvc-0.42.2",
+    "windows_x86_64_gnu-0.42.2",
+    "windows_x86_64_gnullvm-0.42.2",
+    "windows_x86_64_msvc-0.42.2",
+    "wit-bindgen-0.57.1",
+    "zerocopy-derive-0.8.63"
+  ]
+}

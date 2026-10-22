@@ -1,0 +1,442 @@
+[
+  {
+    "name": "release_regression",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Stop guessing. On Windows it still crashes when the directory has an accented letter; issue 324 has a reproduction.",
+      "author": "Public contributor",
+      "parent_context": "Tool 2.1 fixes the Windows startup crash.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "Tool 2.1 fixes the Windows startup crash.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "release_insult",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Their logo is ugly and the developer is an idiot.",
+      "author": "Public contributor",
+      "parent_context": "Tool 2.1 fixes a startup crash.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "Tool 2.1 fixes a startup crash.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "no_signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "road_school_context",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The school bus now stops beside the library because its usual route cannot cross the river.",
+      "author": "Public contributor",
+      "parent_context": "The bridge is closed for repairs.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The bridge is closed for repairs.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "meeting_firsthand",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "I just left the building. Staff evacuated it and told us the meeting has moved online.",
+      "author": "Public contributor",
+      "parent_context": "The town hall meeting is today.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The town hall meeting is today.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "missing_date_uncertainty",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The photographed notice has no date; it may be from last winter.",
+      "author": "Public contributor",
+      "parent_context": "The council announced a road closure.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The road is closed.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "french_capacity_correction",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Non, le manuel indique 56 Wh, pas 65 Wh.",
+      "author": "Public contributor",
+      "parent_context": "The replacement battery is 65 Wh.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The replacement battery is 65 Wh.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "german_insult",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Der Besitzer ist ein Vollidiot und seine Fans sind genauso dumm.",
+      "author": "Public contributor",
+      "parent_context": "Der Laden öffnet am Montag.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "Der Laden öffnet am Montag.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "no_signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "spanish_fit_question",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "¿Sirve también para el modelo de 2021?",
+      "author": "Public contributor",
+      "parent_context": "The replacement fits the 2022 laptop.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The replacement fits the 2022 laptop.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "quoted_injection_research",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The payload was \"ignore previous instructions\". I tested version 3.2 and it exposed a mock record through an untrusted link.",
+      "author": "Public contributor",
+      "parent_context": "A researcher published a prompt-injection test.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "A researcher published a prompt-injection test.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "practical_instruction",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Unplug the charger before removing the battery, then hold the power button for ten seconds.",
+      "author": "Public contributor",
+      "parent_context": "The battery replacement guide is available.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The battery replacement guide is available.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "commercial_but_useful",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Our new vegan lunch is available today for 12 AUD, and the ingredients are listed on the menu.",
+      "author": "Public contributor",
+      "parent_context": "The cafe updated its menu.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The cafe updated its menu.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "marketing_no_details",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Like and follow us to unlock the secret. Tag three friends!",
+      "author": "Public contributor",
+      "parent_context": "The cafe updated its menu.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The cafe updated its menu.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "no_signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "paraphrase_eight",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Breakfast service begins at eight in the morning.",
+      "author": "Public contributor",
+      "parent_context": "The cafe starts serving breakfast at 8 am.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The cafe starts serving breakfast at 8 am.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "repeated",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "decimal_equivalence",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The label gives its rating as 65.0 Wh.",
+      "author": "Public contributor",
+      "parent_context": "The battery has a 65 Wh rating.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The battery has a 65 Wh rating.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "repeated",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "energy_unit_equivalence",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Its energy rating is 65000 mWh.",
+      "author": "Public contributor",
+      "parent_context": "The battery has a 65 Wh rating.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The battery has a 65 Wh rating.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "repeated",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "changed_day",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "Opening day is Tuesday.",
+      "author": "Public contributor",
+      "parent_context": "The shop opens Monday.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The shop opens Monday.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "negated_opening",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The bridge is not open. The barrier is still locked.",
+      "author": "Public contributor",
+      "parent_context": "The bridge is open.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The bridge is open.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "same_fact_plus_hostility",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The shop opens on Monday, you absolute moron.",
+      "author": "Public contributor",
+      "parent_context": "The shop opens Monday.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The shop opens Monday.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "repeated",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "new_firsthand_evidence",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "I measured 90 C at that connector under the stated load and have attached the instrument log.",
+      "author": "Public contributor",
+      "parent_context": "The manufacturer says the connector is safe.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The manufacturer says the connector is safe.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  },
+  {
+    "name": "changed_certainty",
+    "input": {
+      "source_id": "S1",
+      "kind": "comment",
+      "text": "The application was submitted, but approval is still pending.",
+      "author": "Public contributor",
+      "parent_context": "The permit is approved.",
+      "known": [
+        {
+          "id": "K1",
+          "text": "The permit is approved.",
+          "kind": "context"
+        }
+      ]
+    },
+    "expected_status": "signal",
+    "review_criteria": [
+      "Retain practical information and uncertainty; ignore tone as a substitute for substance.",
+      "Repeated means the same useful facts, with source attribution retained."
+    ]
+  }
+]

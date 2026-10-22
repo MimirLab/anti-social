@@ -1,0 +1,132 @@
+AntiSocial public social data interface provenance
+Reviewed: 2026-10-16
+
+Darwin is AntiSocial's rebuilt and expanded routing donor. Existing GPL notices and
+source provenance remain in force. PublicSocialAdapters.kt is new AntiSocial code,
+GPL-3.0-or-later. These readers independently implement public data interfaces;
+no complete frontend, browser runtime, login credentials or upstream source files
+are bundled by this addition. API paths and data field names describe observed
+interoperable interfaces. Recheck upstream licenses before adopting source code.
+
+Protocol documentation:
+Mastodon: https://docs.joinmastodon.org/client/public/
+Lemmy: https://join-lemmy.org/docs/contributors/04-api.html
+Lemmy v4: https://join-lemmy.org/docs/contributors/09-api-v4.html
+Misskey: https://misskey-hub.net/en/docs/for-developers/api/
+Telegram embed: https://core.telegram.org/widgets/post
+Pixelfed public feed controller:
+https://github.com/pixelfed/pixelfed/blob/dev/app/Http/Controllers/ProfileController.php
+
+Discovery references (ideas/interface descriptions, no runtime incorporation):
+RSS-Bridge GettrBridge, maintainer dvikan:
+https://github.com/RSS-Bridge/rss-bridge/blob/master/bridges/GettrBridge.php
+Upstream dedication: Unlicense, https://github.com/RSS-Bridge/rss-bridge/blob/master/UNLICENSE
+RSSHub Gab public account and compact status interface:
+https://github.com/DIYgod/RSSHub/blob/master/lib/routes/gab/user.ts
+RSSHub Telegram public channel preview interface:
+https://github.com/DIYgod/RSSHub/blob/master/lib/routes/telegram/channel.ts
+RSSHub Misskey public user/notes interface:
+https://github.com/DIYgod/RSSHub/blob/master/lib/routes/misskey/user-timeline.ts
+Current RSSHub LICENSE is GNU AGPL version 3, verified from:
+https://github.com/DIYgod/RSSHub/blob/master/LICENSE
+The observed field mappings and endpoint paths were reimplemented in Kotlin;
+RSSHub source code and its server runtime are not included in AntiSocial.
+
+Research snapshots (external build/evidence directory, SHA-256):
+rsshub-gab-user.ts: 409637db265353b0603d431ccae72498c0acebee46372691714601bc3dae1c54
+rsshub-telegram-channel.ts: ecdf745dc3bf98942e78c084d7cef0894fab30f39b458a1fa65b990ba26cdfe2
+rsshub-misskey-user-timeline.ts: 946eb00ce8c318e733854a58a90a443b3a71d6399f97e74a3f3e57f01da56042
+pixelfed-profile-controller.php: 5645778e5f2a66075ca25e835a4d40252dd95809c6f8904167183c9b28d4c5ee
+
+Enabled capability boundaries:
+- Mastodon-compatible public account lookup, profile statuses, selected status and
+  descendant context. Login-only APIs and empty shells fail. No platform-provided
+  comment popularity order; the reader says so. Federation servers may have
+  incomplete data or different access policies; they are not complete mirrors.
+- Mastodon public profile RSS is an independent format backup at the selected
+  original server. Strict channel/profile and entry ownership checks; no arbitrary
+  post, comment or older-page capability is claimed for the RSS path.
+- Lemmy v3 community/person posts and selected-post comments. IDs stay qualified
+  by the selected read instance. No claimed v4 compatibility before live testing.
+- GETTR public post feed and selected public post. Comments/search are not enabled.
+- Gab compact public status feed and verified v1 selected-status JSON.
+  Comments/search are not enabled.
+- Pixelfed public Atom profile feed. No arbitrary-post or comment capability.
+- Telegram public channel previews and public message embeds with bounded older
+  pages. No private chats, groups or discussion-thread comment capability.
+- Misskey public user/note JSON reads. Notes have instance-local IDs; remote uri
+  values are not treated as interchangeable API IDs. No comment capability or
+  blanket Sharkey/fork compatibility claim.
+
+All reads, redirects, media and optional diagnostics use NetworkGateway. Ordinary
+traffic has no response log. PublicSocialAudit is an explicit developer diagnostic
+which writes bounded public responses only to its external evidence directory.
+Direct-network diagnostics do not establish Tor availability. Server/provider
+access rules and returned data can change independently of an app release.
+
+Search directory research (2026-10-18):
+- Reddit's public subreddit listing/about response fields and Redlib's directory
+  card markup were independently read into native entity records. No Redlib Rust
+  implementation or templates are bundled. Redlib's upstream is GNU AGPL v3:
+  https://github.com/redlib-org/redlib/blob/main/src/search.rs
+  https://github.com/redlib-org/redlib/blob/main/templates/search.html
+  https://github.com/redlib-org/redlib/blob/main/LICENSE
+  https://www.reddit.com/dev/api/#GET_subreddits_search
+- Bluesky's existing public actor-search operation is used separately from post
+  pagination. Lemmy community/person metadata retains the selected actor identity;
+  a post author is not treated as an account-directory match.
+
+Facebook, LinkedIn, Snapchat and Truth Social interface research:
+- FacebookAdapter.kt independently implements anonymous public HTML identity
+  resolution, read-only GraphQL requests and native data extraction. Protocol
+  references are Phice (Willie169/phice, GNU AGPL v3):
+  https://github.com/Willie169/phice/blob/main/src/lib/api.py
+  https://github.com/Willie169/phice/blob/main/src/lib/parsers.py
+  https://github.com/Willie169/phice/blob/main/src/lib/extractor.py
+  https://github.com/Willie169/phice/blob/main/src/lib/data/doc_ids.json
+  https://github.com/Willie169/phice/blob/main/src/routes/search.py
+  https://github.com/Willie169/phice/blob/main/LICENSE
+  and RSSHub Facebook interface descriptions (GNU AGPL v3):
+  https://github.com/DIYgod/RSSHub/blob/master/lib/routes/facebook/page.ts
+  https://github.com/DIYgod/RSSHub/blob/master/lib/routes/facebook/utils.ts
+  Query identifiers, endpoint paths and response field names are fallible
+  protocol facts; no Phice/RSSHub runtime or implementation functions are bundled.
+  Optional Phice sources are parsed at their selected origin, without silently
+  redirecting native reads to Facebook. Public feed and comment continuations
+  stay bound to the source, target and comment ordering. Anonymous public post
+  search was researched against Phice tree
+  fffdd09e0e1d2d8f08f9204707953d579b4e268c on 2026-10-17 and one successful
+  NetworkGateway request. Search continuations remain bound to their query and
+  selected source; only explicit public-post result edges become native cards.
+  Empty results and login/challenge responses do not establish a working search
+  source. No account cookie or browser state is copied.
+  Page/person directory tabs and their explicit ENTITY_PAGES/ENTITY_USER record
+  shapes were separately observed through NetworkGateway on 2026-10-18. They do
+  not consume post cursors or establish a healthy post-search capability.
+  No post author is substituted for a matching directory result. Newest and ranked public
+  comments, numeric post links and external pfbid links were separately verified
+  on a public NASA Page. This does not establish all account/group coverage.
+- LinkedIn public company/school JSON-LD and selected-post VideoObject/article
+  data. Discovery reference (GNU AGPL v3, independently reimplemented):
+  https://github.com/DIYgod/RSSHub/blob/master/lib/routes/linkedin/posts.ts
+  https://github.com/DIYgod/RSSHub/blob/master/lib/routes/linkedin/utils.ts
+  Embedded comments without stable public identifiers are not promoted into a
+  full discussion capability. Snapshot-only; no personal-profile or pagination
+  capability is claimed.
+- Snapchat public __NEXT_DATA__ profile highlights and individually selected
+  spotlight records were inspected from public https://www.snapchat.com pages.
+  Page schemas differ; selected story IDs and creator identities are checked so
+  recommendations do not masquerade as the selected post. Private snaps,
+  comments and further-page reads are not enabled. No application scripts run.
+- Truth Social's source acknowledgement:
+  https://help.truthsocial.com/legal/open-source/
+  Public-mode research reference:
+  https://github.com/w2rc/truthbrush/blob/main/README.md
+  The reader uses the shared Mastodon-shaped anonymous read protocol. A forked
+  codebase does not guarantee public API access or federation. Current direct
+  requests returned HTTP 403; no working Truth timeline or Tor access is claimed.
+
+The above AntiSocial parser/request assembly code is new GPL-3.0-or-later code. Before
+incorporating any upstream expressive implementation code, preserve its actual
+license and applicable source-offer obligations; current research excerpts and
+runtime diagnostics remain in the external build/evidence directory.

@@ -1,0 +1,32 @@
+AntiSocial local text runtime
+
+QVAC Fabric LLM / llama.cpp / ggml
+Source: https://github.com/tetherto/qvac-fabric-llm.cpp
+Revision: bc47470138d892a45fedb037c2615cc12c54cded
+License: MIT (upstream LICENSE preserved by the acquisition/build script).
+Contains PrismML Bonsai transforms and packed ternary kernels from
+https://github.com/PrismML-Eng/llama.cpp (MIT).
+The included qvac-bonsai-v2.patch ports the tied-embedding/output Hadamard v2
+contract from Prism revision 11809184898113482c2f510fd13da669aaba1052,
+src/llama-model.cpp and src/llama-model.h. The unmodified QVAC pin rejects
+the published model's Hadamard version 2. The patch retains QVAC's backend
+allocation and graph implementation, adding Prism's validation and binding.
+
+AntiSocial's additional runtime patches are qvac-android-vulkan-dispatch.patch
+(instance-dispatched Vulkan 1.1 queries for stock Android API 26/27 loaders),
+qvac-pq2-ssse3.patch (exact packed CPU dot product on the Android x86_64
+SSSE3 baseline), and qvac-bounded-shader-build.patch (build scheduling only).
+The SSSE3 path is compared with QVAC's independent scalar decoder over 5,000
+randomized coefficient/scale cases by kernel_reference.cpp.
+
+The Bonsai 2 model files are separately published by PrismML under Apache 2.0.
+Model weights are optional downloaded data and are never bundled in this code.
+Selected runtime/backend support is reported separately from phone qualification.
+
+qvac-online-kv-v2.patch adds AntiSocial's protected online cache, direct mixed
+attention, immutable recipe state and independently implemented cache rotations.
+Planar/Iso mathematics was researched from RotorQuant and compared with the MIT
+llama-cpp-turboquant donor at 08e025c06ab521e4fa9e5c08b80af57614543e53:
+https://github.com/johndpope/llama-cpp-turboquant
+https://github.com/scrya-com/rotorquant/tree/fcd76768650659cad2f40a45a330612a7af8f928
+No unlicensed RotorQuant implementation source is redistributed by this patch.

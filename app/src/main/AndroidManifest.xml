@@ -1,0 +1,310 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- Only the optional offline credential validator needs API 28. AntiSocial keeps API 26 support. -->
+    <uses-sdk tools:overrideLibrary="org.contentauth.c2pa" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <queries><intent><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https"/></intent></queries>
+    <!-- NetworkGateway rejects HTTP globally except an explicitly configured
+         numeric local AI server; Android must allow that narrow user choice. -->
+    <application android:name=".AntiSocialApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:usesCleartextTraffic="true" android:theme="@style/Theme.AntiSocial" android:supportsRtl="true">
+        <service android:name=".LocalAiService" android:process=":local_ai" android:exported="false" />
+        <service android:name=".ContextMediaService" android:process=":context_media" android:exported="false" />
+        <service android:name=".LanguageService" android:process=":languages" android:exported="false" />
+        <service android:name=".ContextJobService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync" tools:node="merge" />
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:windowSoftInputMode="adjustResize">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+            <intent-filter><action android:name="android.intent.action.SEND"/><category android:name="android.intent.category.DEFAULT"/><data android:mimeType="text/plain"/></intent-filter>
+        </activity>
+        <!-- Android domain approval is user-controlled. These aliases never claim site ownership. -->
+        <activity-alias android:name=".links.YOUTUBE" android:targetActivity=".MainActivity" android:exported="true" android:enabled="true">
+            <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="youtube.com"/><data android:host="www.youtube.com"/><data android:host="m.youtube.com"/>
+                <data android:host="music.youtube.com"/>
+                <data android:host="youtube-nocookie.com"/><data android:host="www.youtube-nocookie.com"/>
+                <data android:path="/watch"/><data android:pathPrefix="/shorts/"/><data android:pathPrefix="/embed/"/>
+                <data android:pathPrefix="/live/"/><data android:pathPrefix="/v/"/>
+            </intent-filter>
+            <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="youtu.be"/><data android:host="www.youtu.be"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.X" android:targetActivity=".MainActivity" android:exported="true" android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="x.com"/>
+                <data android:host="www.x.com"/>
+                <data android:host="m.x.com"/>
+                <data android:host="twitter.com"/>
+                <data android:host="www.twitter.com"/>
+                <data android:host="m.twitter.com"/>
+                <data android:host="mobile.twitter.com"/>
+                <data android:host="t.co"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.BLUESKY" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="bsky.app"/>
+                <data android:host="www.bsky.app"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.REDDIT" android:targetActivity=".MainActivity" android:exported="true" android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="reddit.com"/>
+                <data android:host="www.reddit.com"/>
+                <data android:host="old.reddit.com"/>
+                <data android:host="np.reddit.com"/>
+                <data android:host="m.reddit.com"/>
+                <data android:host="redd.it"/>
+                <data android:host="reddit.app.link"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.TUMBLR" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="tumblr.com"/>
+                <data android:host="www.tumblr.com"/>
+                <data android:host="*.tumblr.com"/>
+                <data android:host="t.umblr.com"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.TIKTOK" android:targetActivity=".MainActivity" android:exported="true" android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="tiktok.com"/>
+                <data android:host="www.tiktok.com"/>
+                <data android:host="m.tiktok.com"/>
+                <data android:host="vm.tiktok.com"/>
+                <data android:host="vt.tiktok.com"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.INSTAGRAM" android:targetActivity=".MainActivity" android:exported="true" android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="instagram.com"/>
+                <data android:host="www.instagram.com"/>
+                <data android:host="m.instagram.com"/>
+                <data android:host="instagr.am"/>
+                <data android:host="www.instagr.am"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.PINTEREST" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="pinterest.com"/>
+                <data android:host="www.pinterest.com"/>
+                <data android:host="pin.it"/>
+                <data android:host="pinterest.co.uk"/>
+                <data android:host="www.pinterest.co.uk"/>
+                <data android:host="pinterest.ca"/>
+                <data android:host="www.pinterest.ca"/>
+                <data android:host="pinterest.com.au"/>
+                <data android:host="www.pinterest.com.au"/>
+                <data android:host="pinterest.de"/>
+                <data android:host="www.pinterest.de"/>
+                <data android:host="pinterest.fr"/>
+                <data android:host="www.pinterest.fr"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.IFUNNY" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="ifunny.co"/>
+                <data android:host="www.ifunny.co"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.TIEBA" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="tieba.baidu.com"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.THREADS" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="threads.com"/>
+                <data android:host="www.threads.com"/>
+                <data android:host="threads.net"/>
+                <data android:host="www.threads.net"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.FACEBOOK" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="facebook.com"/>
+                <data android:host="www.facebook.com"/>
+                <data android:host="m.facebook.com"/>
+                <data android:host="mbasic.facebook.com"/>
+                <data android:host="web.facebook.com"/>
+                <data android:host="touch.facebook.com"/>
+                <data android:host="fb.com"/>
+                <data android:host="www.fb.com"/>
+                <data android:host="fb.me"/>
+                <data android:host="www.fb.me"/>
+                <data android:host="fb.watch"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.TRUTH_SOCIAL" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="truthsocial.com"/>
+                <data android:host="www.truthsocial.com"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.MASTODON" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="mastodon.social"/>
+                <data android:host="mstdn.social"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.LEMMY" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="lemmy.world"/>
+                <data android:host="lemmy.ml"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.PIXELFED" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="pixelfed.social"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.MISSKEY" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="misskey.io"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.GETTR" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="gettr.com"/>
+                <data android:host="www.gettr.com"/>
+                <data android:host="m.gettr.com"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.GAB" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="gab.com"/>
+                <data android:host="www.gab.com"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.TELEGRAM" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="t.me"/>
+                <data android:host="www.t.me"/>
+                <data android:host="telegram.me"/>
+                <data android:host="www.telegram.me"/>
+                <data android:host="telegram.dog"/>
+                <data android:host="www.telegram.dog"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.LINKEDIN" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="linkedin.com"/>
+                <data android:host="www.linkedin.com"/>
+                <data android:host="m.linkedin.com"/>
+                <data android:host="uk.linkedin.com"/>
+                <data android:host="us.linkedin.com"/>
+                <data android:host="in.linkedin.com"/>
+                <data android:host="au.linkedin.com"/>
+                <data android:host="ca.linkedin.com"/>
+                <data android:host="de.linkedin.com"/>
+                <data android:host="fr.linkedin.com"/>
+                <data android:host="br.linkedin.com"/>
+                <data android:host="it.linkedin.com"/>
+                <data android:host="es.linkedin.com"/>
+                <data android:host="nl.linkedin.com"/>
+                <data android:host="lnkd.in"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".links.SNAPCHAT" android:targetActivity=".MainActivity" android:exported="true" android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/><data android:scheme="http"/>
+                <data android:host="snapchat.com"/>
+                <data android:host="www.snapchat.com"/>
+                <data android:host="m.snapchat.com"/>
+                <data android:host="story.snapchat.com"/>
+                <data android:host="t.snapchat.com"/>
+            </intent-filter>
+        </activity-alias>
+        <service android:name=".AntiSocialTorService" android:process=":tor" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled Tor transport for a private social reader and subscription refresh" /></service>
+    </application>
+</manifest>

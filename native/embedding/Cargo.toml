@@ -1,0 +1,22 @@
+[package]
+name = "antisocial-embedding"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "antisocial_embedding"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+jni = "=0.21.1"
+memmap2 = "=0.9.9"
+serde_json = "=1.0.145"
+sha2 = "=0.10.9"
+# No HTTP/hub downloads, Python, regex C library, or tokenizer training in the app.
+tokenizers = { version = "=0.22.1", default-features = false, features = ["fancy-regex"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,828 @@
+{
+  "schema": 1,
+  "donor": "Darwin Alternative Routes 3.4.0.1",
+  "services": {
+    "twitter": {
+      "frontends": {
+        "nitter": {
+          "name": "Nitter",
+          "embeddable": true,
+          "instanceList": true,
+          "url": "https://github.com/zedeus/nitter",
+          "localhost": true
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(www\\.|mobile\\.)?twitter\\.com\\/",
+        "^https?:\\/{2}(www\\.|mobile\\.)?x\\.com\\/",
+        "^https?:\\/{2}(pbs\\.|video\\.)twimg\\.com\\/",
+        "^https?:\\/{2}platform\\.x\\.com/embed\\/",
+        "^https?:\\/{2}platform\\.twitter\\.com/embed\\/",
+        "^https?:\\/{2}t\\.co\\/"
+      ],
+      "name": "Twitter",
+      "options": {
+        "enabled": false,
+        "redirectType": "main_frame",
+        "unsupportedUrls": "bypass",
+        "frontend": "nitter",
+        "instance": "public",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "embeddable": true,
+      "url": "https://twitter.com"
+    },
+    "bluesky": {
+      "frontends": {
+        "skyview": {
+          "name": "Skyview",
+          "instanceList": true,
+          "url": "https://github.com/badlogic/skyview"
+        },
+        "skylib": {
+          "name": "Skylib",
+          "instanceList": true,
+          "url": "https://codeberg.org/bg443/skylib-backend"
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}bsky\\.app\\/"
+      ],
+      "name": "Bluesky",
+      "options": {
+        "enabled": false,
+        "unsupportedUrls": "bypass",
+        "frontend": "skyview",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "url": "https://bsky.app/"
+    },
+    "reddit": {
+      "frontends": {
+        "libreddit": {
+          "name": "Libreddit",
+          "instanceList": true,
+          "url": "https://github.com/spikecodes/libreddit",
+          "localhost": true
+        },
+        "redlib": {
+          "name": "Redlib",
+          "instanceList": true,
+          "url": "https://github.com/redlib-org/redlib",
+          "localhost": false
+        },
+        "teddit": {
+          "name": "Teddit",
+          "instanceList": true,
+          "url": "https://codeberg.org/teddit/teddit",
+          "localhost": false
+        },
+        "eddrit": {
+          "name": "Eddrit",
+          "instanceList": true,
+          "url": "https://github.com/corenting/eddrit",
+          "localhost": false
+        },
+        "troddit": {
+          "name": "Troddit",
+          "instanceList": false,
+          "url": "https://github.com/burhan-syed/troddit",
+          "localhost": false
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(www\\.|old\\.|np\\.|new\\.|amp\\.)?(reddit|reddittorjg6rue252oqsxryoxengawnmo46qy4kyii5wtqnwfj4ooad)\\.(com|onion)(?=\\/u(ser)?\\/|\\/r\\/|\\/search|\\/new|\\/comments|\\/?$)",
+        "^https?:\\/{2}((i|(external-)?preview)\\.)?redd\\.it"
+      ],
+      "name": "Reddit",
+      "options": {
+        "enabled": false,
+        "frontend": "redlib",
+        "unsupportedUrls": "bypass",
+        "instance": "public",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "url": "https://reddit.com"
+    },
+    "tumblr": {
+      "frontends": {
+        "priviblur": {
+          "name": "Priviblur",
+          "embeddable": true,
+          "instanceList": true,
+          "url": "https://github.com/syeopite/priviblur",
+          "localhost": true
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(media\\.|assets\\.|static\\.)?tumblr\\.com\\/",
+        "^https?:\\/{2}[0-9]+\\.media\\.tumblr\\.com\\/",
+        "^https?:\\/{2}(www\\.)?(.*)\\.tumblr.com\\/"
+      ],
+      "name": "Tumblr",
+      "options": {
+        "enabled": false,
+        "redirectType": "main_frame",
+        "unsupportedUrls": "bypass",
+        "frontend": "priviblur",
+        "instance": "public",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "embeddable": true,
+      "url": "https://tumblr.com"
+    },
+    "tiktok": {
+      "frontends": {
+        "proxiTok": {
+          "name": "ProxiTok",
+          "instanceList": true,
+          "url": "https://github.com/pablouser1/ProxiTok",
+          "localhost": true
+        },
+        "offtiktok": {
+          "name": "Offtiktok",
+          "instanceList": true,
+          "url": "https://github.com/MarsHeer/offtiktok",
+          "localhost": false
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(www\\.)?tiktok\\.com\\/"
+      ],
+      "name": "TikTok",
+      "options": {
+        "enabled": false,
+        "unsupportedUrls": "bypass",
+        "frontend": "proxiTok",
+        "instance": "public",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "url": "https://tiktok.com"
+    },
+    "instagram": {
+      "frontends": {
+        "kittygram": {
+          "name": "kittygram",
+          "instanceList": true,
+          "url": "https://codeberg.org/irelephant/kittygram",
+          "localhost": true
+        },
+        "proxigram": {
+          "name": "Proxigram",
+          "instanceList": true,
+          "url": "https://codeberg.org/ThePenguinDev/Proxigram",
+          "localhost": false
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(www\\.)?instagram\\.com"
+      ],
+      "name": "Instagram",
+      "options": {
+        "enabled": false,
+        "frontend": "kittygram",
+        "embedFrontend": "kittygram",
+        "unsupportedUrls": "bypass",
+        "instance": "public",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "url": "https://www.instagram.com"
+    },
+    "pinterest": {
+      "name": "Pinterest",
+      "frontends": {
+        "binternet": {
+          "name": "Binternet",
+          "instanceList": true,
+          "url": "https://github.com/Ahwxorg/Binternet",
+          "embeddable": true
+        },
+        "painterest": {
+          "name": "Painterest",
+          "instanceList": true,
+          "url": "https://codeberg.org/thirtysix/painterest",
+          "embeddable": true
+        },
+        "pinless": {
+          "name": "Pinless",
+          "instanceList": true,
+          "url": "https://github.com/bunk-im/pinless",
+          "embeddable": true
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}i\\.pinimg\\.com",
+        "^https?:\\/{2}((?!api\\.)[a-zA-Z]+\\.)?pinterest\\.com"
+      ],
+      "options": {
+        "enabled": false,
+        "unsupportedUrls": "bypass",
+        "redirectType": "main_frame",
+        "frontend": "binternet",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "embeddable": true,
+      "url": "https://pinterest.com"
+    },
+    "ifunny": {
+      "frontends": {
+        "unfunny": {
+          "name": "UNfunny",
+          "instanceList": true,
+          "url": "https://git.vern.cc/cobra/UNfunny"
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(www\\.)?ifunny\\.co\\/"
+      ],
+      "name": "iFunny",
+      "options": {
+        "enabled": false,
+        "unsupportedUrls": "bypass",
+        "frontend": "unfunny",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "url": "https://ifunny.co"
+    },
+    "baiduTieba": {
+      "frontends": {
+        "ratAintTieba": {
+          "name": "Rat Aint Tieba",
+          "instanceList": true,
+          "url": "https://0xacab.org/johnxina/rat"
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}tieba\\.baidu\\.com"
+      ],
+      "name": "Baidu Tieba",
+      "options": {
+        "enabled": false,
+        "unsupportedUrls": "bypass",
+        "frontend": "ratAintTieba",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svg",
+      "url": "https://tieba.baidu.com"
+    },
+    "threads": {
+      "frontends": {
+        "shoelace": {
+          "name": "Shoelace",
+          "instanceList": true,
+          "url": "https://git.sr.ht/~nixgoat/shoelace"
+        }
+      },
+      "targets": [
+        "^https?:\\/{2}(www\\.)?threads\\.(net|com)"
+      ],
+      "name": "Threads",
+      "options": {
+        "enabled": false,
+        "unsupportedUrls": "bypass",
+        "frontend": "shoelace",
+        "redirectOnlyInIncognito": false
+      },
+      "imageType": "svgMono",
+      "url": "https://threads.net"
+    },
+    "youtube": {
+      "targets": [
+        "^https?://(?:(?:www\\.|m\\.|music\\.)?youtube\\.com|youtu\\.be|(?:www\\.)?youtube-nocookie\\.com)/"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.netbub.com",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://xcancel.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.poast.org",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.privacyredirect.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.tiekoetter.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nuku.trabun.org",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.catsarch.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.kareem.one",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "skyview",
+      "root": "https://skyview.social",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "skylib",
+      "root": "https://skylib.coffee",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://safereddit.com",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "reddit",
+      "frontend": "eddrit",
+      "root": "https://eddrit.com",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "reddit",
+      "frontend": "troddit",
+      "root": "https://www.troddit.com",
+      "fallbackOnly": true,
+      "curated": true
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.catsarch.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.r4fo.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://red.artemislena.eu",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.privacyredirect.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.nadeko.net",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.privadency.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://pb.bloat.cat",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://tb.opnxng.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://priviblur.pussthecat.org",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://priviblur.thebunny.zone",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://priviblur.canine.tools",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://pb.cleberg.net",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://tumblr.nerdvpn.de",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://pb.proxik.cloud",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "priviblur",
+      "root": "https://priviblur.privadency.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.pabloferreiro.es",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.pussthecat.org",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://tok.habedieeh.re",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.privacydev.net",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://tok.artemislena.eu",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://tok.adminforge.de",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://cringe.whatever.social",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.lunar.icu",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.privacy.com.de",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://cringe.seitan-ayoub.lol",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://tt.opnxng.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://tiktok.wpme.pl",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.r4fo.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "proxiTok",
+      "root": "https://proxitok.belloworld.it",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "offtiktok",
+      "root": "https://www.offtiktok.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kittygram.pussthecat.org",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kittygr.am",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kittygram.irelephant.net",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kittygram.nexussfan.cz",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kittygram.kareem.one",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kg.lus.lu",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kg.meowing.de",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://kittygram.nadeko.net",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "proxigram",
+      "root": "https://ig.opnxng.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "proxigram",
+      "root": "https://proxigram.lunar.icu",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "proxigram",
+      "root": "https://gram.whatever.social",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "proxigram",
+      "root": "https://ig.snine.nl",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "instagram",
+      "frontend": "proxigram",
+      "root": "https://proxigram.privacyredirect.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://bn.bloat.cat",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "pinless",
+      "root": "https://pinterest.bunk.im",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://curate.liv.town",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://binternet.nadeko.net",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://bn.opnxng.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://binternet.ducks.party",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://binternet.4o1x5.dev",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://binternet.canine.tools",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "binternet",
+      "root": "https://binternet.privadency.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "painterest",
+      "root": "https://pt.bloat.cat",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "ifunny",
+      "frontend": "unfunny",
+      "root": "https://uf.vern.cc",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "ratAintTieba",
+      "root": "https://ti.opnxng.com",
+      "fallbackOnly": false,
+      "curated": false
+    },
+    {
+      "platform": "threads",
+      "frontend": "shoelace",
+      "root": "https://shoelace.mint.lgbt",
+      "fallbackOnly": false,
+      "curated": true
+    },
+    {
+      "platform": "youtube",
+      "frontend": "invidious",
+      "root": "https://inv.nadeko.net",
+      "fallbackOnly": false
+    },
+    {
+      "platform": "youtube",
+      "frontend": "invidious",
+      "root": "https://yewtu.be",
+      "fallbackOnly": false
+    },
+    {
+      "platform": "youtube",
+      "frontend": "invidious",
+      "root": "https://invidious.nerdvpn.de",
+      "fallbackOnly": false
+    },
+    {
+      "platform": "youtube",
+      "frontend": "piped",
+      "root": "https://pipedapi.kavin.rocks",
+      "fallbackOnly": true
+    }
+  ],
+  "searchSources": [
+    {
+      "platform": "twitter",
+      "frontend": "librey",
+      "root": "https://librey.private.coffee",
+      "fallbackOnly": true,
+      "curated": true
+    },
+    {
+      "platform": "twitter",
+      "frontend": "librey",
+      "root": "https://librey.garudalinux.org",
+      "fallbackOnly": true,
+      "curated": true
+    }
+  ]
+}

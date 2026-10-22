@@ -1,0 +1,6 @@
+"""
+coding = utf-8
+Copyright 2026 Rikka Botan. All rights reserved
+Licensed under "MIT License"
+Stable Static Embedding official PyTorch implementation
+"""

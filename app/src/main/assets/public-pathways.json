@@ -1,0 +1,2720 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-17",
+  "donor": "Darwin",
+  "policy": "Alternate live paths, optional accountless originals, then independent historical recovery. All networking through NetworkGateway; health is learned from content, never bundled.",
+  "sourceInventory": "source-discovery.json",
+  "sources": [
+    {
+      "platform": "twitter",
+      "frontend": "fxembed-api",
+      "root": "https://api.fxtwitter.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -8,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.fxembed.com/api/",
+        "https://github.com/FxEmbed/FxEmbed"
+      ],
+      "limitations": ""
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "fxembed-api",
+      "root": "https://api.fxbsky.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -8,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.fxembed.com/api/",
+        "https://github.com/FxEmbed/FxEmbed"
+      ],
+      "limitations": ""
+    },
+    {
+      "platform": "twitter",
+      "frontend": "fxembed-api",
+      "root": "https://api.fixupx.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 8,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.fxembed.com/api/",
+        "https://github.com/FxEmbed/FxEmbed"
+      ],
+      "limitations": "Documented FxEmbed alias; shares its backend and is not an independent copy. Separate connection health remains unknown."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "fxembed-rss",
+      "root": "https://fxtwitter.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.fxembed.com/api/",
+        "https://github.com/FxEmbed/FxEmbed"
+      ],
+      "limitations": "Public profile feeds; shared FxEmbed upstream, not independent data."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "fxembed-rss",
+      "root": "https://fixupx.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.fxembed.com/api/",
+        "https://github.com/FxEmbed/FxEmbed"
+      ],
+      "limitations": "Public profile feeds; shared FxEmbed upstream, not independent data."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "fxembed-rss",
+      "root": "https://fxbsky.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.fxembed.com/api/",
+        "https://github.com/FxEmbed/FxEmbed"
+      ],
+      "limitations": "Public profile feeds; shared FxEmbed upstream, not independent data."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "vxembed-api",
+      "root": "https://api.vxtwitter.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/dylanpdx/BetterTwitFix"
+      ],
+      "limitations": "Individual posts only."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "sotwe-api",
+      "root": "https://www.sotwe.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -4,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://www.sotwe.com/NASA",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes/sotwe"
+      ],
+      "limitations": "Public user JSON; undocumented and source dependent."
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "tumblr-legacy",
+      "root": "https://www.tumblr.com",
+      "role": "ORIGINAL",
+      "scope": "static",
+      "priority": -6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://www.tumblr.com/docs/api/v1"
+      ],
+      "limitations": "No-key public blog read API; actual selected blog subdomain."
+    },
+    {
+      "platform": "lemmy",
+      "frontend": "lemmy-rss",
+      "root": "https://lemmy.world",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/LemmyNet/lemmy"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "misskey-rss",
+      "root": "https://misskey.io",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/misskey-dev/misskey"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "misskey-atom",
+      "root": "https://misskey.io",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/misskey-dev/misskey"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "misskey-discussion",
+      "root": "https://misskey.io",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/misskey-dev/misskey"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "pixelfed",
+      "frontend": "pixelfed-public-api",
+      "root": "https://pixelfed.social",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/pixelfed/pixelfed"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "pixelfed",
+      "frontend": "pixelfed-activitypub",
+      "root": "https://pixelfed.social",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/pixelfed/pixelfed"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "pixelfed",
+      "frontend": "pixelfed-public-comments",
+      "root": "https://pixelfed.social",
+      "role": "ORIGINAL",
+      "scope": "selected-origin",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/pixelfed/pixelfed"
+      ],
+      "limitations": "Uses only the selected federated server. Instance IDs are never interchangeable mirrors."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "pinterest-widgets",
+      "root": "https://widgets.pinterest.com",
+      "role": "ORIGINAL",
+      "scope": "static",
+      "priority": -7,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://gist.github.com/kentbrew/8744482",
+        "https://help.pinterest.com/en/business/article/build-a-website-widget"
+      ],
+      "limitations": "Profiles, boards and selected pins; no publication dates, so no chronological subscription refresh."
+    },
+    {
+      "platform": "threads",
+      "frontend": "fxthreads-json",
+      "root": "https://fx.akitsuki.me",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/AkitsukiNagi/FxThreads"
+      ],
+      "limitations": "Individual posts only; instance-dependent, example returned 404."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "oginstagram-activity",
+      "root": "https://oginstagram.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -6,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/seirenkr/OGInstagram"
+      ],
+      "limitations": "Selected HTML identity plus advertised same-origin ActivityStreams Note; two requests at most."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "tiktok-creator-embed",
+      "root": "https://www.tiktok.com",
+      "role": "ORIGINAL",
+      "scope": "static",
+      "priority": -5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://developers.tiktok.com/doc/embed-creator-profiles/"
+      ],
+      "limitations": "One public creator document; undated cards are on-demand only, never feed refresh proof."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "tikwm",
+      "root": "https://www.tikwm.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -6,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://www.tikwm.com/"
+      ],
+      "limitations": "Individual public posts only; profile API returned 403. Honors quota backoff."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "tikwm-comments",
+      "root": "https://www.tikwm.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -6,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/AndreyQq/Tiktok-Video-No-Watermark"
+      ],
+      "limitations": "On-demand public comments for an exact post; separate from the post reader. No unverified nested-reply or popularity-order claim."
+    },
+    {
+      "platform": "snapchat",
+      "frontend": "snapchat-embed",
+      "root": "https://www.snapchat.com",
+      "role": "ORIGINAL",
+      "scope": "static",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://developers.snap.com/embed"
+      ],
+      "limitations": "Exact public Spotlight post embed; not private snaps or accounts."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "telegram-rss",
+      "root": "https://tg.i-c-a.su",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/xtrime-ru/TelegramRSS"
+      ],
+      "limitations": "Independent public channel relay; observed 429, normal Retry-After/backoff applies."
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "tieba-client",
+      "root": "https://tieba.baidu.com",
+      "role": "ORIGINAL",
+      "scope": "static",
+      "priority": -4,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/n0099/tbclient.protobuf",
+        "https://github.com/Starry-OvO/aiotieba"
+      ],
+      "limitations": "Public client endpoints only; no user session, BDUSS or persistent device identifier."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "arctic-shift",
+      "root": "https://arctic-shift.photon-reddit.com",
+      "role": "CACHE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/ArthurHeitmann/arctic_shift"
+      ],
+      "limitations": "Historical recovery only, after live routes. Never confirms subscription freshness or trains heartbeat winners."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "arctic-shift-comments",
+      "root": "https://arctic-shift.photon-reddit.com",
+      "role": "CACHE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/ArthurHeitmann/arctic_shift"
+      ],
+      "limitations": "On-demand historical thread recovery, separate from the one-request post reader. No original popularity-order claim."
+    },
+    {
+      "platform": "truthsocial",
+      "frontend": "truth-archive-rss",
+      "root": "https://www.trumpstruth.org",
+      "role": "CACHE",
+      "scope": "static",
+      "priority": 0,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://www.trumpstruth.org/"
+      ],
+      "limitations": "Only realDonaldTrump, the archive's public recent 100-item RSS snapshot. No invented capture date or feed freshness."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "kittygram",
+      "root": "https://gram.utilibre.org",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 9,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://raw.githubusercontent.com/libredirect/instances/main/data.json"
+      ],
+      "limitations": "Maintainer-listed public deployment of an existing Darwin reader format. Sample was unavailable, blocked, timed out or target-missing on the audit connection. Candidate only; normal failure backoff and TLS checks apply."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "painterest",
+      "root": "https://pain.thirtysix.pw",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 9,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://raw.githubusercontent.com/libredirect/instances/main/data.json"
+      ],
+      "limitations": "Maintainer-listed public deployment of an existing Darwin reader format. Sample was unavailable, blocked, timed out or target-missing on the audit connection. Candidate only; normal failure backoff and TLS checks apply."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "painterest",
+      "root": "https://pin.dc09.ru",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 9,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://raw.githubusercontent.com/libredirect/instances/main/data.json"
+      ],
+      "limitations": "Maintainer-listed public deployment of an existing Darwin reader format. Sample was unavailable, blocked, timed out or target-missing on the audit connection. Candidate only; normal failure backoff and TLS checks apply."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "painterest",
+      "root": "https://painterest.franklyflawless.org",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 9,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://raw.githubusercontent.com/libredirect/instances/main/data.json"
+      ],
+      "limitations": "Maintainer-listed public deployment of an existing Darwin reader format. Sample was unavailable, blocked, timed out or target-missing on the audit connection. Candidate only; normal failure backoff and TLS checks apply."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.cow.rip",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 9,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://raw.githubusercontent.com/libredirect/instances/main/data.json"
+      ],
+      "limitations": "Maintainer-listed public deployment of an existing Darwin reader format. Sample was unavailable, blocked, timed out or target-missing on the audit connection. Candidate only; normal failure backoff and TLS checks apply."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "redlib",
+      "root": "https://redlib.reallyaweso.me",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 9,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://raw.githubusercontent.com/libredirect/instances/main/data.json"
+      ],
+      "limitations": "Maintainer-listed public deployment of an existing Darwin reader format. Sample was unavailable, blocked, timed out or target-missing on the audit connection. Candidate only; normal failure backoff and TLS checks apply."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "facebook",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.org/bridge01",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "facebook",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.lewd.tech",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "facebook",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rss-bridge",
+      "root": "https://wtf.roflcopter.fr/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "facebook",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rss-bridge",
+      "root": "https://rss-bridge.ggc-project.de",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "facebook",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rss-bridge",
+      "root": "https://rss.bloat.cat",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rss-bridge",
+      "root": "https://ololbu.ru/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "reddit",
+      "frontend": "rss-bridge",
+      "root": "https://ololbu.ru/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://ololbu.ru/rss-bridge",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rss-bridge",
+      "root": "https://feed.eugene2molotov.ru",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://feed.eugene2molotov.ru",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rss-bridge",
+      "root": "https://rb.ash.fail",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rss-bridge",
+      "root": "https://rb.ash.fail",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html",
+        "https://github.com/RSS-Bridge/rss-bridge/tree/master/bridges"
+      ],
+      "limitations": "Public feed renderer; operator may require upstream credentials or disable a bridge. No user credential or fee. Host availability does not prove this platform works."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "threads",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "linkedin",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "lemmy",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "rsshub",
+      "root": "https://rsshub.rssforever.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "threads",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "linkedin",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "lemmy",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "rsshub",
+      "root": "https://rsshub.woodland.cafe",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "threads",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -3,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "linkedin",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "lemmy",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "rsshub",
+      "root": "https://rsshub.ktachibana.party",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "threads",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "linkedin",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "lemmy",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "rsshub",
+      "root": "https://rss.noleron.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "bluesky",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tumblr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "instagram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "pinterest",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "threads",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "linkedin",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gettr",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "gab",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "telegram",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "mastodon",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "lemmy",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "misskey",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    },
+    {
+      "platform": "baiduTieba",
+      "frontend": "rsshub",
+      "root": "https://rsshub.app",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 6,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://docs.rsshub.app/guide/instances",
+        "https://github.com/DIYgod/RSSHub/tree/master/lib/routes"
+      ],
+      "limitations": "Public renderer, target/route scoped, no pagination claim. Operator configuration, rate limits and upstream authentication determine availability. No client secrets or account."
+    }
+  ]
+}

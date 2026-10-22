@@ -1,0 +1,12 @@
+{
+  "seedSha256": "7bc61d1fe78c45ff18577bc6d3a00213ceaa2396eb618a9178bd98d205e0ef79",
+  "sha256": "d66c7949aef67f29c82d470840abd1af71fdd77640412592d62bd5679adabc33",
+  "entries": 753390,
+  "compiledBytes": 63766920,
+  "cosmeticRules": 0,
+  "networkRules": 733172,
+  "parseErrors": 20217,
+  "previousSeedSha256": [
+    "e9cbf19596093d24f423fee5931531b2eb68024cfe898a94d4c71ace2fdab181"
+  ]
+}

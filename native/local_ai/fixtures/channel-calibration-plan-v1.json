@@ -1,0 +1,8 @@
+{
+  "corpus_sha256": "7ba36f36887bd5e3f45e6ef206286d40f68112d8a4cab535eeaad1a708e71427",
+  "method": "post-RoPE pre-cache-basis key variance; one fixed positive diagonal shared across layers/heads; no means discarded, no weights modified",
+  "not": "the complete KVarN tile codec",
+  "token_limit": 1024,
+  "held_out_evaluation_corpus": "cache-fidelity-corpus-v1.txt",
+  "gate_reference": "predeclared-gates-v1.json"
+}

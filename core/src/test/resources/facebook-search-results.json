@@ -1,0 +1,207 @@
+{
+  "__fixture": "Public anonymous search shape observed 2026-10-17. Captions, account identities, asset URLs, dates and cursors replaced with synthetic values; unrelated tracking/bootstrap omitted. Raw response retained in external evidence only.",
+  "data": {
+    "serpResponse": {
+      "results": {
+        "edges": [
+          {
+            "node": {
+              "role": "TOP_PUBLIC_POSTS"
+            },
+            "rendering_strategy": {
+              "view_model": {
+                "__typename": "CometSearchPostResultViewModel",
+                "click_model": {
+                  "story": {
+                    "__typename": "Story",
+                    "id": "story-500",
+                    "post_id": "500",
+                    "sponsored_data": null,
+                    "permalink_url": "https://www.facebook.com/OrganicMarket/posts/pfbid500",
+                    "actors": [
+                      {
+                        "id": "100",
+                        "name": "Organic Market"
+                      }
+                    ],
+                    "comet_sections": {
+                      "content": {
+                        "story": {
+                          "actors": [
+                            {
+                              "id": "100",
+                              "name": "Organic Market",
+                              "profile_picture": {
+                                "uri": "https://images.example/avatar.jpg"
+                              }
+                            }
+                          ],
+                          "comet_sections": {
+                            "message": {
+                              "__typename": "CometFeedStoryDefaultMessageRenderingStrategy",
+                              "story": {
+                                "message": {
+                                  "text": "Synthetic organic food update 500"
+                                }
+                              }
+                            }
+                          },
+                          "attachments": [
+                            {
+                              "styles": {
+                                "attachment": {
+                                  "media": {
+                                    "__typename": "Photo",
+                                    "photo_image": {
+                                      "uri": "https://images.example/produce-500.jpg"
+                                    },
+                                    "accessibility_caption": "Produce basket"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "timestamp": {
+                        "__typename": "CometFeedStoryMinimizedTimestampStrategy",
+                        "story": {
+                          "creation_time": 1700000000
+                        }
+                      },
+                      "feedback": {
+                        "story": {
+                          "story_ufi_container": {
+                            "story": {
+                              "feedback_context": {
+                                "feedback_target_with_context": {
+                                  "comet_ufi_summary_and_actions_renderer": {
+                                    "feedback": {
+                                      "id": "feedback-500",
+                                      "reaction_count": {
+                                        "count": 7
+                                      },
+                                      "comment_rendering_instance": {
+                                        "comments": {
+                                          "total_count": 3
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "node": {
+              "role": "TOP_PUBLIC_POSTS"
+            },
+            "rendering_strategy": {
+              "view_model": {
+                "__typename": "CometSearchPostResultViewModel",
+                "click_model": {
+                  "story": {
+                    "__typename": "Story",
+                    "id": "story-501",
+                    "post_id": "501",
+                    "sponsored_data": null,
+                    "permalink_url": "https://www.facebook.com/OrganicMarket/posts/pfbid501",
+                    "actors": [
+                      {
+                        "id": "100",
+                        "name": "Organic Market"
+                      }
+                    ],
+                    "comet_sections": {
+                      "content": {
+                        "story": {
+                          "actors": [
+                            {
+                              "id": "100",
+                              "name": "Organic Market",
+                              "profile_picture": {
+                                "uri": "https://images.example/avatar.jpg"
+                              }
+                            }
+                          ],
+                          "comet_sections": {
+                            "message": {
+                              "__typename": "CometFeedStoryDefaultMessageRenderingStrategy",
+                              "story": {
+                                "message": {
+                                  "text": "Synthetic organic food update 501"
+                                }
+                              }
+                            }
+                          },
+                          "attachments": [
+                            {
+                              "styles": {
+                                "attachment": {
+                                  "media": {
+                                    "__typename": "Photo",
+                                    "photo_image": {
+                                      "uri": "https://images.example/produce-501.jpg"
+                                    },
+                                    "accessibility_caption": "Produce basket"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "timestamp": {
+                        "__typename": "CometFeedStoryMinimizedTimestampStrategy",
+                        "story": {
+                          "creation_time": 1700000100
+                        }
+                      },
+                      "feedback": {
+                        "story": {
+                          "story_ufi_container": {
+                            "story": {
+                              "feedback_context": {
+                                "feedback_target_with_context": {
+                                  "comet_ufi_summary_and_actions_renderer": {
+                                    "feedback": {
+                                      "id": "feedback-501",
+                                      "reaction_count": {
+                                        "count": 7
+                                      },
+                                      "comment_rendering_instance": {
+                                        "comments": {
+                                          "total_count": 3
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "page_info": {
+          "has_next_page": true,
+          "end_cursor": "next-search-block"
+        }
+      }
+    }
+  }
+}

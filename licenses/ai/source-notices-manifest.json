@@ -1,0 +1,55 @@
+{
+  "schema": "antisocial-ai-notices-v1",
+  "primary_sources": [
+    {
+      "file": "licenses/ai/Bonsai-model-APACHE-2.0.txt",
+      "source": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-2B-gguf/blob/683f7be2629342a50987627b40881e54761a2430/LICENSE",
+      "bytes": 10174,
+      "sha256": "69849221bfb90053de2134ef5e6d540287b4b98062326492f1f96f5da685524b"
+    },
+    {
+      "file": "licenses/ai/Bonsai-2-2B-NOTICE.txt",
+      "source": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-2B-gguf/blob/683f7be2629342a50987627b40881e54761a2430/NOTICE.txt",
+      "bytes": 409,
+      "sha256": "316012fa6094c03c7b0600bec258bffb675a9261d86f37bc86e15763a1fabc99"
+    },
+    {
+      "file": "licenses/ai/Bonsai-2-4B-NOTICE.txt",
+      "source": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf/blob/8d6557168168f91ea6697a4a49ed2ef622b53adb/NOTICE.txt",
+      "bytes": 599,
+      "sha256": "30ad69da3cb0186f8d88c700db6e50fba78fa2632487884596e2bbfb8468b3d3"
+    },
+    {
+      "file": "licenses/ai/Bonsai-2-9B-NOTICE.txt",
+      "source": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf/blob/5b2abb02362efbed46bbe204014b02837778b2c2/NOTICE.txt",
+      "bytes": 599,
+      "sha256": "faeae3bdec6f2b0188734dcb7ddd06f60635625718ce30b0a6233370282776c6"
+    },
+    {
+      "file": "licenses/ai/tokenizers-0.22.1-APACHE-2.0.txt",
+      "source": "https://crates.io/api/v1/crates/tokenizers/0.22.1/download",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "licenses/ai/QVAC-Prism-MIT.txt",
+      "source": "https://github.com/tetherto/qvac-fabric-llm.cpp/blob/bc47470138d892a45fedb037c2615cc12c54cded/LICENSE",
+      "bytes": 1078,
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+    },
+    {
+      "file": "licenses/ai/SSE-published-model-card.md",
+      "source": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/blob/48de1fc899574177a7c2d0d4ae90bb902190935c/README.md",
+      "bytes": 30603,
+      "sha256": "a902c16dda0287d387889a2a16afa1deb60b9ba8506044750d2499f211dd93ae"
+    },
+    {
+      "file": "licenses/ai/SSE-reference-header.txt",
+      "source": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/blob/48de1fc899574177a7c2d0d4ae90bb902190935c/SSE_quantize.py",
+      "bytes": 156,
+      "sha256": "aa44edcae5b53ce0d0adbf2e687e4b91201072ddaaeb79505202f0f6f75f055e",
+      "extraction": "exact initial source docstring, including MIT/copyright declaration"
+    }
+  ],
+  "embedding_notices_index": "app/src/main/assets/ai-runtime-notices/embedding/INDEX.json"
+}

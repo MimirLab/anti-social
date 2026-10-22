@@ -1,0 +1,14 @@
+anti social public image-search interface references
+
+anti social is GPL-3.0-or-later. Darwin remains its routing donor.
+Image-search fetching and native result extraction are anti social Kotlin code.
+
+Public website upload fields were researched using the public sites and
+Search by Image, copyright Armin Sebastian and contributors, GPL-3.0:
+https://github.com/dessant/search-by-image
+https://github.com/dessant/search-by-image/blob/main/LICENSE
+No browser extension or browser runtime is bundled or required.
+
+Search provider names and trademarks remain with their respective owners.
+Public interfaces and indexing coverage may change. Search sources receive the
+selected, reencoded image; Tor does not hide its visible contents from them.

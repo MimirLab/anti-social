@@ -1,0 +1,100 @@
+--- a/src/whisper.cpp
++++ b/src/whisper.cpp
+@@ -197,7 +197,9 @@
+       ggml_backend_sched_t   sched,
+         struct ggml_cgraph * graph,
+                        int   n_threads,
+-                      bool   sched_reset = true) {
++                      bool   sched_reset = true,
++         ggml_abort_callback   abort_callback = nullptr,
++                        void * abort_callback_data = nullptr) {
+     for (int i = 0; i < ggml_backend_sched_get_n_backends(sched); ++i) {
+         ggml_backend_t backend = ggml_backend_sched_get_backend(sched, i);
+         ggml_backend_dev_t dev = ggml_backend_get_device(backend);
+@@ -207,9 +209,18 @@
+         if (fn_set_n_threads) {
+             fn_set_n_threads(backend, n_threads);
+         }
++        auto * set_abort = (ggml_backend_set_abort_callback_t) ggml_backend_reg_get_proc_address(reg, "ggml_backend_set_abort_callback");
++        if (set_abort) { set_abort(backend, abort_callback, abort_callback_data); }
+     }
+ 
+     const bool t = (ggml_backend_sched_graph_compute(sched, graph) == GGML_STATUS_SUCCESS);
++    // Do not retain a caller-owned cancellation pointer after synchronous work.
++    for (int i = 0; i < ggml_backend_sched_get_n_backends(sched); ++i) {
++        auto backend = ggml_backend_sched_get_backend(sched, i);
++        auto * reg = ggml_backend_dev_backend_reg(ggml_backend_get_device(backend));
++        auto * clear_abort = (ggml_backend_set_abort_callback_t) ggml_backend_reg_get_proc_address(reg, "ggml_backend_set_abort_callback");
++        if (clear_abort) { clear_abort(backend, nullptr, nullptr); }
++    }
+ 
+     if (!t || sched_reset) {
+         ggml_backend_sched_reset(sched);
+@@ -2447,7 +2458,7 @@
+         }
+ 
+         if (!whisper_encode_external(wstate)) {
+-            if (!ggml_graph_compute_helper(sched, gf, n_threads)) {
++            if (!ggml_graph_compute_helper(sched, gf, n_threads, true, abort_callback, abort_callback_data)) {
+                 return false;
+             }
+         } else {
+@@ -2491,7 +2502,7 @@
+             return false;
+         }
+ 
+-        if (!ggml_graph_compute_helper(sched, gf, n_threads)) {
++        if (!ggml_graph_compute_helper(sched, gf, n_threads, true, abort_callback, abort_callback_data)) {
+             return false;
+         }
+     }
+@@ -2507,7 +2518,7 @@
+             return false;
+         }
+ 
+-        if (!ggml_graph_compute_helper(sched, gf, n_threads)) {
++        if (!ggml_graph_compute_helper(sched, gf, n_threads, true, abort_callback, abort_callback_data)) {
+             return false;
+         }
+     }
+@@ -3004,7 +3015,7 @@
+ 
+         logits = ggml_graph_node(gf, -1);
+ 
+-        if (!ggml_graph_compute_helper(sched, gf, n_threads)) {
++        if (!ggml_graph_compute_helper(sched, gf, n_threads, true, abort_callback, abort_callback_data)) {
+             return false;
+         }
+     }
+@@ -4566,6 +4577,8 @@
+ };
+ 
+ struct whisper_vad_context {
++    ggml_abort_callback antisocial_abort = nullptr;
++    void * antisocial_abort_data = nullptr;
+     int64_t t_vad_us = 0;
+ 
+     int     n_window;
+@@ -5294,6 +5307,10 @@
+     const int64_t t_start_vad_us = ggml_time_us();
+ 
+     for (int i = 0; i < n_chunks; i++) {
++        if (vctx->antisocial_abort && vctx->antisocial_abort(vctx->antisocial_abort_data)) {
++            ggml_backend_sched_reset(sched);
++            return false;
++        }
+         const int idx_start = i * vctx->n_window;
+         const int idx_end = std::min(idx_start + vctx->n_window, n_samples);
+ 
+@@ -6835,7 +6852,11 @@
+ 
+     const whisper_vad_params & vad_params = params.vad_params;
+ 
++    vctx->antisocial_abort = params.abort_callback;
++    vctx->antisocial_abort_data = params.abort_callback_user_data;
+     whisper_vad_segments * vad_segments = whisper_vad_segments_from_samples(vctx, vad_params, samples, n_samples);
++    vctx->antisocial_abort = nullptr;
++    vctx->antisocial_abort_data = nullptr;
+ 
+     if (!vad_segments) {
+         return false;

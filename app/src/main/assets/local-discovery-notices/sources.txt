@@ -1,0 +1,53 @@
+AntiSocial local discovery — GPL-3.0-or-later. Darwin is the rebuilt and expanded routing donor.
+
+biweekly 0.6.8: https://github.com/mangstadt/biweekly (BSD-2-Clause).
+Includes adapted Google RFC2445 recurrence and Apache Commons Codec (Apache-2.0).
+vinnie 2.0.2: https://github.com/mangstadt/vinnie (BSD-2-Clause; bundled Apache notices).
+Jackson Core 2.16.1: https://github.com/FasterXML/jackson-core (Apache-2.0).
+Full upstream texts are included alongside this notice and in Maven artifacts.
+
+OpenStreetMap: © OpenStreetMap contributors, Open Database Licence (ODbL).
+https://www.openstreetmap.org/copyright
+Overpass providers: https://overpass.private.coffee/ (privacy/terms) and
+https://dev.overpass-api.de/overpass-doc/en/preface/commons.html
+Manual bounded searches, cache reuse and source backoff; no whole-world scraping.
+
+Overture Maps places: per-source CDLA-Permissive-2.0, Apache-2.0 or CC0 data.
+https://docs.overturemaps.org/attribution/
+https://docs.overturemaps.org/guides/places/
+GERS IDs, record source licences and retrieval URLs are retained. Public Fused
+example route: https://github.com/fusedio/udfs/tree/main/public/Overture_Maps_Example
+No Fused code, DuckDB, PMTiles inspection service or global data dump is bundled.
+The public example has no production service guarantee. Regional GeoJSON import
+can provide the same identity graph without depending on that query route.
+
+City lookup: GeoNames location data via Open-Meteo Geocoding API (CC BY 4.0).
+https://open-meteo.com/en/docs/geocoding-api
+https://www.geonames.org/
+Hosted Open-Meteo free access has non-commercial usage terms; commercial-scale
+releases must arrange appropriate hosting/licensing. No GPS permission is used.
+
+Publisher facts remain source assertions. Their material retains its own rights.
+Structured extraction follows schema.org and iCalendar. No extruct, Python,
+browser extension, page JavaScript or downloaded website code is executed.
+
+Photon (OSM name and geographic matching): https://photon.komoot.io/
+Protocol documentation: https://github.com/komoot/photon
+No Photon server code or database is bundled. OSM attribution/ODbL above applies.
+The public service permits fair usage, throttles extensive use, and offers no
+availability guarantee. Explicit submitted searches only; bounded results,
+Tor transport, per-query cache reuse and no background autocomplete requests.
+AllThePlaces published brand slices and regional packs: https://alltheplaces.xyz/
+Data format: https://github.com/alltheplaces/alltheplaces/blob/master/DATA_FORMAT.md
+Published data is CC0: https://creativecommons.org/publicdomain/zero/1.0/
+AntiSocial reads bounded existing outputs, not the global archive or upstream spiders.
+Spider and upstream source URI are retained in field evidence. Overture may contain
+the same upstream data; these are not treated as independent confirmation.
+
+Public calendar adapter documentation (no upstream executable code is included):
+Localist: https://developer.localist.com/doc/api
+Trumba: https://www.trumba.com/help/api/customfeedurls
+25Live Publisher: https://25livepub.collegenet.com/help/api/customfeedurls
+Events Manager: https://wp-events-plugin.com/documentation/event-ical-feeds/
+Calendar records retain the originating publisher and source URL.
+

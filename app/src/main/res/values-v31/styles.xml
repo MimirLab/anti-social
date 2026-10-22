@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.AntiSocial" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#111315</item>
+        <item name="android:navigationBarColor">#111315</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#8DE5BA</item>
+        <item name="android:windowSplashScreenBackground">#111315</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_antisocial</item>
+    </style>
+</resources>

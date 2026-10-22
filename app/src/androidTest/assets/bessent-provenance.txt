@@ -1,0 +1,16 @@
+Bessent collection regression fixtures, retrieved 2026-10-18.
+
+Public post records:
+https://x.com/USTreasury/status/2111840260455866725
+https://x.com/RapidResponse47/status/2111822855583277259
+RSS provenance: https://nitter.netbub.com/WhiteHouse/rss
+
+Original public thumbnail bytes, in fixture order:
+https://pbs.twimg.com/media/HU7D4THWwAAhXMn.jpg
+https://pbs.twimg.com/amplify_video_thumb/2111822729640804352/img/eeIxUPj4LSR7nc-r.jpg
+https://pbs.twimg.com/amplify_video_thumb/2111821133150339072/img/6xf0NfsgyKmmFyx6.jpg
+
+The images retain their visible source and broadcast marks. The code's GPL
+license does not relicense these source images. They are test inputs for native
+decoding, image comparison and collection presentation, not app runtime assets.
+The JSON's optional visualFingerprint values are local Android image observations.

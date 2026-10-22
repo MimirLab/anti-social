@@ -1,0 +1,62 @@
+{
+  "format": "app.antisocial.reader",
+  "version": 1,
+  "kind": "state",
+  "createdAt": 1792195200000,
+  "title": "Reader configuration example",
+  "sources": [
+    {
+      "platform": "bluesky",
+      "kind": "profile",
+      "identity": "workshop.example",
+      "url": "https://bsky.app/profile/workshop.example",
+      "name": "Workshop",
+      "feedUrl": null,
+      "id": "workshop-bluesky",
+      "folder": "Software",
+      "enabled": true,
+      "creatorId": "workshop",
+      "creatorName": "Workshop"
+    },
+    {
+      "platform": "rss",
+      "kind": "feed",
+      "identity": "https://blog.example/feed.xml",
+      "url": "https://blog.example/feed.xml",
+      "name": "Workshop blog",
+      "feedUrl": "https://blog.example/feed.xml",
+      "id": "workshop-blog",
+      "folder": "Software",
+      "enabled": true,
+      "creatorId": "workshop",
+      "creatorName": "Workshop"
+    }
+  ],
+  "channels": [
+    {
+      "id": "software-releases",
+      "name": "Software releases",
+      "revision": 1,
+      "subscriptionIds": ["workshop"],
+      "keywords": ["release", "new version"],
+      "hashtags": [],
+      "contentTypes": [],
+      "excludeKeywords": ["giveaway"],
+      "excludeHashtags": [],
+      "excludeSubscriptionIds": [],
+      "minVideoSeconds": null,
+      "excludeContentTypes": []
+    }
+  ],
+  "statePayload": {
+    "settings": {},
+    "filters": {
+      "disabledLists": [],
+      "customLists": []
+    },
+    "library": {
+      "collections": [],
+      "saved": []
+    }
+  }
+}

@@ -1,0 +1,43 @@
+anti social public pathway research and native adapters — 2026-10-17
+
+anti social is GPL-3.0-or-later. Darwin remains the rebuilt routing donor; existing donor
+assets, provenance hashes and GPL notices remain intact. New Kotlin data readers
+are independently implemented contracts. No third-party server runtime, remote
+JavaScript, account sessions, API secrets or executable JSON-LD contexts are bundled.
+
+The complete platform-by-platform primary source atlas is bundled as
+app/src/main/assets/source-discovery.json. Runtime candidates are separately
+reviewed in public-pathways.json. Source-list inclusion is not proof of health.
+
+Source contracts and formats consulted include:
+- FxEmbed/FxEmbed and docs.fxembed.com: public JSON and feed contracts, MIT.
+- dylanpdx/BetterTwitFix: Vx public selected-post JSON, WTFPL.
+- Tumblr's public legacy API documentation: https://www.tumblr.com/docs/api/v1
+- RSS-Bridge/rss-bridge, revision 9001d87b797f6605b111f622f2e0d11a63dde744,
+  Unlicense; primary bridge request parameters and maintainer public host list.
+- DIYgod/RSSHub, revision 5d47d3a1e801075c47c45e492d98ec93b0d9eb99,
+  AGPL-3.0; public renderer routes and source-specific limitations.
+- AkitsukiNagi/FxThreads, AGPL-3.0; selected-post JSON field contracts.
+- seirenkr/OGInstagram, MIT; advertised ActivityStreams Note and media format.
+- facebook/meta-embeds-for-wordpress, GPL-2.0-or-later; tokenless endpoint
+  documentation only. The observed script shells are not active content routes.
+- Pinterest widget protocol, official help and kentbrew/8744482 maintainer example.
+- TikTok creator embed documentation and TikWM's public service/documentation.
+- pixelfed/pixelfed, AGPL-3.0; anonymous public API and ActivityPub contracts.
+- LemmyNet/lemmy and misskey-dev/misskey, AGPL-3.0; native feeds and replies.
+- xtrime-ru/TelegramRSS, MIT; public relay protocol only, no server session copied.
+- n0099/tbclient.protobuf and Starry-OvO/aiotieba; Tieba request/field contracts.
+- ArthurHeitmann/arctic_shift; public historical query schema and data limitations.
+- trumpstruth.org; its narrowly scoped public archive feed and attribution.
+- zedeus/nitter maintainer wiki, AGPL-3.0; project/instance research. The official
+  hostname's status page is excluded from the active pool as non-content.
+- Additional existing-reader candidate host metadata researched from
+  https://raw.githubusercontent.com/libredirect/instances/main/data.json
+  SHA-256 c9b2e07210180c5069944f5b29014464baf0048b84e05800f7ab5eda5796b5a3.
+  This is a research source; product language and routing provenance call the
+  rebuilt donor Darwin. No upstream browser extension runtime is imported.
+
+External research snapshots and raw public payloads live only under LiberBuild
+storage. The APK contains curated route metadata and notices, not those payloads.
+Source owners retain their respective copyrights and licenses. No reviewed API,
+project name or metadata record grants access to private or gated material.

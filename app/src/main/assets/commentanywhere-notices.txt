@@ -1,0 +1,13 @@
+CommentAnywhere.app — independent native interoperability in AntiSocial
+Website: https://commentanywhere.app/
+Privacy: https://commentanywhere.app/privacy/
+Protocol inspected: published Chrome extension 0.14.0, 2026-10-17
+Package ID: giekeccmneacnddaemhafmnlcmjioihm
+CRX SHA-256: 84fff1135aee7c132a5e028f59d90965e12239db438c64c3722f8d37d842edeb
+
+anti social’s Kotlin/Compose implementation is GPL-3.0-or-later. No extension source,
+remote script, Firebase SDK or browser runtime is bundled. A reusable upstream
+source license was not identified; do not assume the extension is GPL licensed.
+The native client uses the observed HTTPS protocol without forging Chrome's
+extension origin. CommentAnywhere operates its own service independently.
+Darwin remains anti social’s rebuilt and expanded routing donor.

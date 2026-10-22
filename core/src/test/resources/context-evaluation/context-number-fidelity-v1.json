@@ -1,0 +1,470 @@
+[
+  {
+    "name": "actual_bare_13",
+    "group": "development",
+    "expected_status": "uncertain",
+    "requirements": "May retain exact source or leave pending. Do not assign a unit or a scale to 13.",
+    "forbidden_meaning": "A size rating, scale score, percentage, count of people or ballots is not stated.",
+    "input": {
+      "text": "NOT HUGE. 13",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": true,
+      "background": {
+        "post": {
+          "text": "A post links to a report describing an alleged voter fraud ring.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "known_ballot_count",
+    "group": "development",
+    "expected_status": "signal",
+    "requirements": "Keep 13 as the answer to the supplied question; a ballot count is supported by its parent.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "13.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "A post discusses alleged voter fraud.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "How many fraudulent ballots were found?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  },
+  {
+    "name": "known_scale_rating",
+    "group": "development",
+    "expected_status": "signal",
+    "requirements": "Keep 13. A scale rating is supported here; do not globally ban that interpretation.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "13.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "Readers are describing the size of an exhibit.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "On a scale from 0 to 20, how would you rate its size?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  },
+  {
+    "name": "short_correction_missing_parent",
+    "group": "development",
+    "expected_status": "signal",
+    "requirements": "Retain 56 Wh, denied 65 Wh, and the correction. Do not invent a battery model or test result.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "Wrong. It is 56 Wh, not 65 Wh.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "An account announced a laptop repair session.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "bare_three_missing_parent",
+    "group": "holdout",
+    "expected_status": "uncertain",
+    "requirements": "Retain original or leave pending;3 has no stated unit.",
+    "forbidden_meaning": "Do not label 3 as bugs, engineers, days or percent.",
+    "input": {
+      "text": "Only 3.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post discusses software bugs and staffing.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "known_bug_count",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Retain 3 as the supplied bug-count answer, not staffing.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "Only 3.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post discusses software bugs and staffing.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "How many bugs remain open?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  },
+  {
+    "name": "missing_subject_twice",
+    "group": "holdout",
+    "expected_status": "uncertain",
+    "requirements": "Preserve two failures or literal source, without choosing the object.",
+    "forbidden_meaning": "Do not decide charger versus updater from the root alone.",
+    "input": {
+      "text": "It failed twice.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post mentions a charger and an update.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "known_updater_failure",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Two updater failures are supported by the supplied parent.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "It failed twice.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post mentions a charger and an update.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "Did the updater fail during installation?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  },
+  {
+    "name": "short_explicit_capacity",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Keep explicit 56 Wh battery attribution to manual. Missing parent does not erase self-contained information.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "The manual specifies a 56 Wh battery.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "A new laptop is being discussed.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "short_hedged_experience",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Keep firsthand single overheating event and uncertainty; do not claim charger caused it.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "My unit overheated once, but I am not sure why.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post describes a new charger.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "short_price_missing_parent",
+    "group": "holdout",
+    "expected_status": "uncertain",
+    "requirements": "Preserve quoted 49 or leave pending.",
+    "forbidden_meaning": "Do not invent a currency, unit, purchased item or savings percentage.",
+    "input": {
+      "text": "Paid 49.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "A sale post mentions multiple products and countries.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "known_price",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "A 49-euro cable purchase is supported by this parent.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "Paid 49.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "A local shop posted a sale.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "What did the replacement cable cost in euros?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  },
+  {
+    "name": "terse_open_question",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Keep as unresolved question. Never say fuse caused the failure.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "Was it the fuse?",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "Readers discuss a repair with several replaced components.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "terse_firsthand_rude",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Preserve fuse-intact observation despite rude wording. Do not claim a replaced fuse fixed it.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "Your advice is crap. The fuse was intact.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "A thread discusses a failed charger.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "long_independent_correction",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Retain correction, manual/page 7 attribution and compatibility limitation; missing immediate parent does not prevent independent evidence.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "The service manual specifies a 56 Wh pack, not the 65 Wh figure in the announcement. I checked page 7 this morning. That does not establish whether a third-party 65 Wh pack is electrically compatible.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "A laptop battery replacement announcement was shared.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "long_firsthand_condition",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Keep firsthand repair condition and untested newer-controller scope. Do not claim universal fix.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "I installed the update yesterday on the older controller. Charging works again, but only after I unplug the second monitor. I have not tested the newer controller and cannot say whether the same workaround applies there.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "An account announced a charger firmware update.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "",
+          "label": "Earlier reply",
+          "sourceId": "",
+          "unavailable": true
+        }
+      }
+    }
+  },
+  {
+    "name": "literal_code",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Retain code or equivalent return 13. Do not label 13 as an HTTP status, rating or price.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "return 13;",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post contains a code example.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "What is the final statement in the example?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  },
+  {
+    "name": "short_date_with_limit",
+    "group": "holdout",
+    "expected_status": "signal",
+    "requirements": "Retain Friday contingent on permit; no guaranteed opening.",
+    "forbidden_meaning": "",
+    "input": {
+      "text": "Friday, if the permit arrives.",
+      "author": "Reader",
+      "parent_context": "",
+      "languageUnconfirmed": false,
+      "background": {
+        "post": {
+          "text": "The post discusses a community workshop.",
+          "label": "Post",
+          "sourceId": "post"
+        },
+        "reply": {
+          "text": "When will the repair workshop open?",
+          "label": "Earlier reply",
+          "sourceId": "parent",
+          "unavailable": false
+        }
+      }
+    }
+  }
+]

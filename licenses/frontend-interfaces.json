@@ -1,0 +1,32 @@
+{
+  "purpose": "Reviewed public data and HTML interfaces; upstream software is not bundled or executed. Darwin remains the routing donor.",
+  "reviewed": "2026-10-14",
+  "interfaces": [
+    {
+      "name": "ProxiTok",
+      "url": "https://github.com/pablouser1/ProxiTok",
+      "revision": "ca9fcf6192b018fe0199e9e32e080fa6f8556594"
+    },
+    {
+      "name": "Kittygram",
+      "url": "https://codeberg.org/irelephant/kittygram",
+      "revision": "303694ac68cba2ea04162d55d40cbe81f3765d71"
+    },
+    {
+      "name": "Pinless",
+      "url": "https://github.com/bunk-im/pinless",
+      "revision": "87b560c911186b64b6337baa2e64658977891c7e"
+    },
+    {
+      "name": "Shoelace",
+      "url": "https://git.sr.ht/~nixgoat/shoelace",
+      "revision": "5c369cc9e12c9ebc9ef0f6dfd4853bd1ddbb938f"
+    },
+    {
+      "name": "Binternet",
+      "url": "https://github.com/Ahwxorg/Binternet",
+      "revision": "9bb70ef26c8b79a315e77b79bfd346433d55cbb6"
+    }
+  ],
+  "tiktok_oembed": "https://developers.tiktok.com/docs/en/embed-videos"
+}

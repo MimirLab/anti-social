@@ -1,0 +1,11 @@
+NewPipe Extractor v0.26.5
+Copyright Team NewPipe and contributors.
+License: GNU General Public License version 3 or later.
+Source: https://github.com/TeamNewPipe/NewPipeExtractor/tree/v0.26.5
+Artifact: com.github.teamnewpipe:NewPipeExtractor:v0.26.5 (JitPack)
+AntiSocial uses the library through a gateway-only downloader. It may evaluate
+YouTube player signature-decoding code in the extractor; no website UI,
+login session, ad player, analytics or recommendation feed is embedded.
+See LICENSE.GPL-3.txt for the GPL text.
+Transitive dependencies retain their published licenses; see DEPENDENCIES.md.
+The YouTube navigation mark is original geometric AntiSocial vector artwork.

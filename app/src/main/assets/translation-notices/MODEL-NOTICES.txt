@@ -1,0 +1,21 @@
+AntiSocial offline language tools
+
+fastText lid.176.ftz, unchanged compressed language identification model.
+SHA-256: 8f3472cfe8738a7b6099e8e999c3cbfae0dcd15696aac7d7738a8039db603e83
+Model author/distributor: Facebook AI Research / fastText contributors.
+License: Creative Commons Attribution-ShareAlike 3.0 Unported.
+License: https://creativecommons.org/licenses/by-sa/3.0/
+Model origin and language coverage: https://fasttext.cc/docs/en/language-identification.html
+Training data credits: Wikipedia, Tatoeba, and SETimes.
+References: Armand Joulin, Edouard Grave, Piotr Bojanowski, Tomas Mikolov,
+Bag of Tricks for Efficient Text Classification (2016); and Armand Joulin,
+Edouard Grave, Piotr Bojanowski, Matthijs Douze, Herve Jegou, Tomas Mikolov,
+FastText.zip: Compressing text classification models (2016).
+
+Mozilla Firefox translation models, downloaded individually from the signed
+AntiSocial catalog: Mozilla Public License 2.0. The catalog preserves exact source
+URLs and SHA-256 hashes. Model training and inference sources:
+https://github.com/mozilla/translations
+
+Bergamot, Marian and their dependencies retain their upstream notices in the
+subdirectories beside this file. AntiSocial integration is GPL-3.0-or-later.

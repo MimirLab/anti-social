@@ -1,0 +1,21 @@
+{
+  "service": "CommentAnywhere.app",
+  "reviewed_at": "2026-10-17",
+  "website": "https://commentanywhere.app/",
+  "privacy": "https://commentanywhere.app/privacy/",
+  "store": "https://chromewebstore.google.com/detail/commentanywhere/giekeccmneacnddaemhafmnlcmjioihm",
+  "package_version": "0.14.0",
+  "package_sha256": "84fff1135aee7c132a5e028f59d90965e12239db438c64c3722f8d37d842edeb",
+  "package_bytes": 102613,
+  "method": "Publicly distributed extension package downloaded for static protocol inspection. No installed browser/profile/runtime state accessed or changed. No upstream extension code or runtime is bundled in AntiSocial. Kotlin service models, transport and Compose UI independently implemented.",
+  "upstream_license": "No explicit reusable source license identified in the inspected package; do not assume GPL or redistribute extension code.",
+  "antisocial_implementation_license": "GPL-3.0-or-later",
+  "observed_reference_files": ["manifest.json", "background.js", "contentScript.js", "pca-backend.js", "privacy.md"],
+  "server": "https://us-central1-page-comments.cloudfunctions.net/api",
+  "reads": ["GET list?pageUrl=...&sort=New|Top&limit=30&depth=2", "GET subtree?pageUrl=...&parentId=...&sort=...&limit=...&depth=5"],
+  "writes": ["POST postComment", "POST replyComment", "POST vote", "POST editComment", "POST deleteComment"],
+  "identity": "Observed public anonymous Firebase client flow, created lazily for explicit writes only. Distributed client project identifier is not a server secret. Refresh preserves existing UID. No paid developer key, social login, cookies or extension-origin impersonation.",
+  "url_caution": "Extension's generic normalizer discards all queries. anti social rejects identity-bearing queries before and after Darwin cleaning rather than joining unrelated pages. Host/path aliases are not proven to share server-side rooms.",
+  "validation_limit": "Production read checks returned HTTP 500 and 503. No public test writes, votes, signup or credential refresh were performed. Live native identity/write compatibility remains unverified; local MockWebServer fixtures check exact request shapes and privacy boundaries.",
+  "affiliation": "Independent interoperability; no claim of partnership, endorsement or control over the service."
+}

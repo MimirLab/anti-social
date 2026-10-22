@@ -1,0 +1,15 @@
+{
+  "corpus_sha256": "637e1ae070249f4412487cee14ae38c880b323e23e0918b20d827bc0fa81ac46",
+  "source": "synthetic source-bound fixture, not a factual news source",
+  "cache_only_numerical_gates": {
+    "absolute_mean_nll_delta_max": 0.1,
+    "mean_kl_max": 0.03,
+    "top1_agreement_min": 0.85,
+    "snapshot_replay_max_absolute_logit_error": 1e-05
+  },
+  "attention_kernel_gates": {
+    "relative_l2_max": 0.012,
+    "max_absolute_max": 0.006
+  },
+  "semantic_checks": "separate same-template same-request comparisons required; numerical gates alone do not qualify product adoption"
+}

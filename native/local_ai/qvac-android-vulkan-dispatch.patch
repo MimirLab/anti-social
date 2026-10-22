@@ -1,0 +1,46 @@
+--- a/ggml/src/ggml-vulkan/ggml-vulkan.cpp
++++ b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+@@ -79,6 +79,16 @@
+ #include <future>
+ #include <condition_variable>
+ #include <thread>
++
++// Android API 26/27 loaders need instance dispatch for Vulkan 1.1 queries;
++// linking the global entry point would require Android API 28 at load time.
++static void ggml_vk_query_physical_features(VkPhysicalDevice device, VkPhysicalDeviceFeatures2 * features) {
++    auto query = ggml_vk_default_dispatcher().vkGetPhysicalDeviceFeatures2;
++    if (!query) {
++        throw std::runtime_error("Vulkan 1.1 physical-device queries are unavailable");
++    }
++    query(device, features);
++}
+ 
+ #ifdef __APPLE__
+ #include <pthread.h>
+@@ -8288,7 +8298,7 @@
+             device_extensions.push_back("VK_EXT_device_fault");
+         }
+ 
+-        vkGetPhysicalDeviceFeatures2(device->physical_device, &device_features2);
++        ggml_vk_query_physical_features(device->physical_device, &device_features2);
+ 
+         device->device_fault = device->device_fault && fault_features.deviceFault;
+ 
+@@ -9063,7 +9073,7 @@
+     }
+ #endif
+ 
+-    vkGetPhysicalDeviceFeatures2(physical_device, &device_features2);
++    ggml_vk_query_physical_features(physical_device, &device_features2);
+ 
+     fp16 = fp16 && vk12_features.shaderFloat16;
+ 
+@@ -23804,7 +23814,7 @@
+     vk11_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+     device_features2.pNext = &vk11_features;
+ 
+-    vkGetPhysicalDeviceFeatures2(vkdev, &device_features2);
++    ggml_vk_query_physical_features(vkdev, &device_features2);
+ 
+     return vk11_features.storageBuffer16BitAccess;
+ }

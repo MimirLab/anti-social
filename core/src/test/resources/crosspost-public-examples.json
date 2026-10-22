@@ -1,0 +1,184 @@
+{
+  "fixtureKind": "originally-authored synthetic regressions modeled on independently observed public patterns",
+  "license": "AntiSocial-authored fixture text: GPL-3.0-or-later. No public social caption text or third-party quotations are reproduced.",
+  "notice": "All test captions, source identities, post identifiers, canonical test URLs and article destinations are fictional. Reserved example domains identify data that must never be fetched. Provenance URLs describe external research only and are not test inputs.",
+  "observedIdentityEvidence": {
+    "url": "https://www.eff.org/about/contact",
+    "description": "The observed EFF accounts are linked by its official website. This evidence does not describe the fictional test accounts."
+  },
+  "syntheticAccounts": {
+    "description": "Two fictional accounts are explicitly linked into the same local subscription identity for deterministic tests.",
+    "profiles": {
+      "BLUESKY": "https://bsky.app/profile/merger-fixture.example",
+      "MASTODON": "https://social.example.org/@merger_fixture"
+    }
+  },
+  "cases": [
+    {
+      "id": "interior-attribution",
+      "classification": "same-cross-post",
+      "purpose": "Originally authored quotation blocks separated by platform-specific handle/name attributions model an observed public cross-post pattern. No EFF caption wording is reproduced.",
+      "posts": [
+        {
+          "id": "post:synthetic-quote",
+          "platform": "BLUESKY",
+          "canonicalUrl": "https://bsky.app/profile/merger-fixture.example/post/synthetic-quote",
+          "author": "merger-fixture.example",
+          "body": "“A practical repair guide should help people identify a worn battery, choose compatible parts, and work through each step confidently,” Coordinator @repairguide.example told @localpaper.example. “Keeping clear notes also lets the next person understand which screws were removed, which connectors need care, and when the machine is ready to use again.”",
+          "title": "",
+          "publishedAt": 1792152060000,
+          "links": [
+            "https://example.org/projects/laptop-battery-repair"
+          ],
+          "synthetic": true
+        },
+        {
+          "id": "post:1002",
+          "platform": "MASTODON",
+          "canonicalUrl": "https://social.example.org/@merger_fixture/1002",
+          "author": "merger_fixture",
+          "body": "“A practical repair guide should help people identify a worn battery, choose compatible parts, and work through each step confidently,” Coordinator Alex Rowan told @LocalPaper. “Keeping clear notes also lets the next person understand which screws were removed, which connectors need care, and when the machine is ready to use again.” https://example.org/projects/laptop-battery-repair",
+          "title": "",
+          "publishedAt": 1792152120000,
+          "links": [
+            "https://example.org/projects/laptop-battery-repair"
+          ],
+          "synthetic": true
+        }
+      ],
+      "sharedPassages": [
+        "“A practical repair guide should help people identify a worn battery, choose compatible parts, and work through each step confidently,”",
+        "“Keeping clear notes also lets the next person understand which screws were removed, which connectors need care, and when the machine is ready to use again.”"
+      ],
+      "uniquePassages": {
+        "BLUESKY": [
+          "@repairguide.example",
+          "@localpaper.example"
+        ],
+        "MASTODON": [
+          "Alex Rowan",
+          "@LocalPaper"
+        ]
+      },
+      "observedPatternProvenance": {
+        "date": "2026-10-15",
+        "sources": [
+          {
+            "url": "https://bsky.app/profile/eff.org/post/3mxwqirylqk2u",
+            "publicDataSource": "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2Feff.org%2Fapp.bsky.feed.post%2F3mxwqirylqk2u&depth=0",
+            "publishedAt": "2026-10-15T18:57:11.520Z"
+          },
+          {
+            "url": "https://mastodon.social/@eff/117446455323214942",
+            "publicDataSource": "https://mastodon.social/api/v1/statuses/117446455323214942",
+            "publishedAt": "2026-10-15T18:58:07.920Z"
+          }
+        ],
+        "observation": "Shared quotations surround source-specific attribution formatting."
+      }
+    },
+    {
+      "id": "shortened-link-label",
+      "classification": "same-cross-post",
+      "purpose": "Originally authored matching sentences followed by a truncated display label versus full href. Actual destination is explicit on both synthetic posts.",
+      "posts": [
+        {
+          "id": "post:synthetic-label",
+          "platform": "BLUESKY",
+          "canonicalUrl": "https://bsky.app/profile/merger-fixture.example/post/synthetic-label",
+          "author": "merger-fixture.example",
+          "body": "Our repair team will visit the community workshop this Saturday. Stop by the shared table to inspect replacement batteries, review the illustrated checklist, and pick up details about the next volunteer session. example.org/workshops/battery...",
+          "title": "",
+          "publishedAt": 1792152180000,
+          "links": [
+            "https://example.org/workshops/battery-replacement"
+          ],
+          "synthetic": true
+        },
+        {
+          "id": "post:1004",
+          "platform": "MASTODON",
+          "canonicalUrl": "https://social.example.org/@merger_fixture/1004",
+          "author": "merger_fixture",
+          "body": "Our repair team will visit the community workshop this Saturday. Stop by the shared table to inspect replacement batteries, review the illustrated checklist, and pick up details about the next volunteer session. https://example.org/workshops/battery-replacement",
+          "title": "",
+          "publishedAt": 1792152240000,
+          "links": [
+            "https://example.org/workshops/battery-replacement"
+          ],
+          "synthetic": true
+        }
+      ],
+      "sharedPassages": [
+        "Our repair team will visit the community workshop this Saturday.",
+        "Stop by the shared table to inspect replacement batteries, review the illustrated checklist, and pick up details about the next volunteer session."
+      ],
+      "preferredDestination": "https://example.org/workshops/battery-replacement",
+      "observedPatternProvenance": {
+        "date": "2026-10-16",
+        "sources": [
+          {
+            "url": "https://bsky.app/profile/eff.org/post/3mxzecpu2vr2w",
+            "publicDataSource": "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2Feff.org%2Fapp.bsky.feed.post%2F3mxzecpu2vr2w&depth=0",
+            "publishedAt": "2026-10-16T19:57:02.218260+00:00"
+          },
+          {
+            "url": "https://mastodon.social/@eff/117452349187929568",
+            "publicDataSource": "https://mastodon.social/api/v1/statuses/117452349187929568",
+            "publishedAt": "2026-10-16T19:57:01.154Z"
+          }
+        ],
+        "observation": "Matching caption sentences use a shortened label or full URL for one destination."
+      }
+    },
+    {
+      "id": "same-article-distinct-captions",
+      "classification": "different-posts",
+      "purpose": "Originally authored different announcements share an article and explicitly linked local source identity. Common destination cannot establish duplication.",
+      "posts": [
+        {
+          "id": "post:synthetic-different",
+          "platform": "BLUESKY",
+          "canonicalUrl": "https://bsky.app/profile/merger-fixture.example/post/synthetic-different",
+          "author": "merger-fixture.example",
+          "body": "The workshop has opened a new demonstration station for replacing laptop batteries. The equipment is ready. Read how volunteers prepared the shared bench: example.org/community/workshop...",
+          "title": "",
+          "publishedAt": 1792152300000,
+          "links": [
+            "https://example.org/community/workshop-update"
+          ],
+          "synthetic": true
+        },
+        {
+          "id": "post:1006",
+          "platform": "MASTODON",
+          "canonicalUrl": "https://social.example.org/@merger_fixture/1006",
+          "author": "merger_fixture",
+          "body": "The workshop has postponed battery collection while volunteers finish inspecting damaged storage cases. Please keep old cells at home for now. Here is the updated collection guidance: https://example.org/community/workshop-update",
+          "title": "",
+          "publishedAt": 1792152360000,
+          "links": [
+            "https://example.org/community/workshop-update"
+          ],
+          "synthetic": true
+        }
+      ],
+      "observedPatternProvenance": {
+        "date": "2026-10-17",
+        "sources": [
+          {
+            "url": "https://bsky.app/profile/eff.org/post/3my3heikoyj2c",
+            "publicDataSource": "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=at%3A%2F%2Feff.org%2Fapp.bsky.feed.post%2F3my3heikoyj2c&depth=0",
+            "publishedAt": "2026-10-17T15:57:02.373559+00:00"
+          },
+          {
+            "url": "https://mastodon.social/@eff/117456424636030945",
+            "publicDataSource": "https://mastodon.social/api/v1/statuses/117456424636030945",
+            "publishedAt": "2026-10-17T13:13:27.558Z"
+          }
+        ],
+        "observation": "One author publishes different captions for the same article on the same day."
+      }
+    }
+  ]
+}

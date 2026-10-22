@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Blogs and releases</title></head>
+  <body>
+    <outline text="Software">
+      <outline type="rss" text="Workshop blog" title="Workshop blog" xmlUrl="https://blog.example/feed.xml"/>
+      <outline type="rss" text="Release notes" title="Release notes" xmlUrl="https://releases.example/atom.xml"/>
+    </outline>
+  </body>
+</opml>

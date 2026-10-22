@@ -1,0 +1,135 @@
+{
+  "schema": "antisocial-ai-catalog-v1",
+  "release": "0.32.0",
+  "sourceSnapshot": "2026-10-18",
+  "packs": [
+    {
+      "id": "bonsai2-2b",
+      "label": "Bonsai 2 2B",
+      "revision": "683f7be2629342a50987627b40881e54761a2430",
+      "kind": "TEXT",
+      "assets": [
+        {
+          "filename": "Ternary-Bonsai-2-2B-PQ2_0.gguf",
+          "url": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-2B-gguf/resolve/683f7be2629342a50987627b40881e54761a2430/Ternary-Bonsai-2-2B-PQ2_0.gguf",
+          "bytes": 517312992,
+          "sha256": "d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928"
+        }
+      ],
+      "minimumAppCode": 43,
+      "abis": [
+        "arm64-v8a",
+        "x86_64"
+      ],
+      "tensorSchema": "gguf-v3-bonsai2-pq2_0",
+      "runtimeProfile": "bonsai2-pq2_0",
+      "tokenizerIdentity": "embedded-gguf:d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+      "headIdentity": "embedded-gguf:d5f01a4ecaf49239653308ee732ad1a0c5f802c0ddb997549fc7b694c8b45928",
+      "templateIdentity": "embedded-gguf-chat-template",
+      "language": "model-declared",
+      "default": false
+    },
+    {
+      "id": "bonsai2-4b",
+      "label": "Bonsai 2 4B",
+      "revision": "8d6557168168f91ea6697a4a49ed2ef622b53adb",
+      "kind": "TEXT",
+      "assets": [
+        {
+          "filename": "Ternary-Bonsai-2-4B-PQ2_0.gguf",
+          "url": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf/resolve/8d6557168168f91ea6697a4a49ed2ef622b53adb/Ternary-Bonsai-2-4B-PQ2_0.gguf",
+          "bytes": 1146465120,
+          "sha256": "d406b1e912c0d2a4c124ad10bf38a76ae662fdc4d24b176451403dc7b7f30409"
+        }
+      ],
+      "minimumAppCode": 43,
+      "abis": [
+        "arm64-v8a",
+        "x86_64"
+      ],
+      "tensorSchema": "gguf-v3-bonsai2-pq2_0",
+      "runtimeProfile": "bonsai2-pq2_0",
+      "tokenizerIdentity": "embedded-gguf:d406b1e912c0d2a4c124ad10bf38a76ae662fdc4d24b176451403dc7b7f30409",
+      "headIdentity": "embedded-gguf:d406b1e912c0d2a4c124ad10bf38a76ae662fdc4d24b176451403dc7b7f30409",
+      "templateIdentity": "embedded-gguf-chat-template",
+      "language": "model-declared",
+      "default": true
+    },
+    {
+      "id": "bonsai2-9b",
+      "label": "Bonsai 2 9B",
+      "revision": "5b2abb02362efbed46bbe204014b02837778b2c2",
+      "kind": "TEXT",
+      "assets": [
+        {
+          "filename": "Ternary-Bonsai-2-9B-PQ2_0.gguf",
+          "url": "https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf/resolve/5b2abb02362efbed46bbe204014b02837778b2c2/Ternary-Bonsai-2-9B-PQ2_0.gguf",
+          "bytes": 2416851840,
+          "sha256": "7a89ab48f5038c704480f60781f9b8d4035351f5f6beb7d11fad80001fde23f9"
+        }
+      ],
+      "minimumAppCode": 43,
+      "abis": [
+        "arm64-v8a",
+        "x86_64"
+      ],
+      "tensorSchema": "gguf-v3-bonsai2-pq2_0",
+      "runtimeProfile": "bonsai2-pq2_0",
+      "tokenizerIdentity": "embedded-gguf:7a89ab48f5038c704480f60781f9b8d4035351f5f6beb7d11fad80001fde23f9",
+      "headIdentity": "embedded-gguf:7a89ab48f5038c704480f60781f9b8d4035351f5f6beb7d11fad80001fde23f9",
+      "templateIdentity": "embedded-gguf-chat-template",
+      "language": "model-declared",
+      "default": false
+    },
+    {
+      "id": "sse-q4-en",
+      "label": "SSE English",
+      "revision": "48de1fc899574177a7c2d0d4ae90bb902190935c",
+      "kind": "EMBEDDING",
+      "assets": [
+        {
+          "filename": "embedding.q4_k_m.bin",
+          "url": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/resolve/48de1fc899574177a7c2d0d4ae90bb902190935c/embedding.q4_k_m.bin",
+          "bytes": 7935720,
+          "sha256": "af7f5fa63246dbf4b73aef4d6d28b8e3cae82f7476edaf7417f0219061158447"
+        },
+        {
+          "filename": "model_rest.safetensors",
+          "url": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/resolve/48de1fc899574177a7c2d0d4ae90bb902190935c/model_rest.safetensors",
+          "bytes": 6360,
+          "sha256": "67f1caf874ce4621b8ed58e74b154623d83b6642a3bb958fcfaa83967182034b"
+        },
+        {
+          "filename": "tokenizer.json",
+          "url": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/resolve/48de1fc899574177a7c2d0d4ae90bb902190935c/tokenizer.json",
+          "bytes": 711396,
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+        },
+        {
+          "filename": "config_sentence_transformers.json",
+          "url": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/resolve/48de1fc899574177a7c2d0d4ae90bb902190935c/config_sentence_transformers.json",
+          "bytes": 296,
+          "sha256": "a2c4f9036851e1800f7586652019ebb3ee614c1e970f887d7b2bdc26fa60bdad"
+        },
+        {
+          "filename": "modules.json",
+          "url": "https://huggingface.co/RikkaBotan/quantized-stable-static-embedding-fast-retrieval-mrl-en/resolve/48de1fc899574177a7c2d0d4ae90bb902190935c/modules.json",
+          "bytes": 97,
+          "sha256": "ae26f0648b6560f6b91a7445962504d88bfd090ffc3b822ce9dfaac4bbf44c4f"
+        }
+      ],
+      "minimumAppCode": 43,
+      "abis": [
+        "arm64-v8a",
+        "x86_64"
+      ],
+      "tensorSchema": "sse-uniform-q4-30522x512-v1",
+      "runtimeProfile": "sse-cpu-512-v1",
+      "tokenizerIdentity": "sha256:d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "headIdentity": "sse-mean-occurrences-dyt-l2-v1:67f1caf874ce4621b8ed58e74b154623d83b6642a3bb958fcfaa83967182034b",
+      "templateIdentity": "no-special-tokens-no-prefix-v1",
+      "language": "en",
+      "default": true
+    }
+  ]
+}

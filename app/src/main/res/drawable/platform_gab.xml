@@ -1,0 +1,6 @@
+<!-- AntiSocial original vector interpretation, GPL-3.0-or-later. Unofficial identity mark.
+     Rounded conversation-g, drawn locally. Not supplied by Gab; trademarks remain with owners.
+     See licenses/platform-icons.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd" android:pathData="M12,1.5c-6,0 -10.5,4 -10.5,9.3c0,3.4 1.7,6.1 4.8,7.9v4.1l4.7,-2.8H12c6,0 10.5,-4 10.5,-9.2S18,1.5 12,1.5zM12,5.2c2,0 3.1,.8 3.7,1.8V5.6h2.8v10c0,4 -2.5,5.1 -6.1,5.1c-1.9,0 -3.4,-.4 -4.8,-1.2l1.1,-2.4c1,.6 2.1,1 3.6,1c2.3,0 3.3,-.8 3.3,-2.6v-.6c-.8,.9 -1.9,1.4 -3.6,1.4c-3,0 -5.2,-2.2 -5.2,-5.4s2.2,-5.7 5.2,-5.7zM12.7,8c-1.7,0 -2.8,1.2 -2.8,2.8c0,1.7 1.1,2.9 2.8,2.9s2.9,-1.2 2.9,-2.9S14.4,8 12.7,8z"/>
+</vector>

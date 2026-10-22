@@ -1,0 +1,14 @@
+--- a/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp
++++ b/ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp
+@@ -383,8 +383,9 @@
+ 
+ compile_count_guard acquire_compile_slot() {
+     // wait until fewer than N compiles are in progress.
+-    // 16 is an arbitrary limit, the goal is to avoid "failed to create pipe" errors.
+-    uint32_t N = std::max(1u, std::min(16u, std::thread::hardware_concurrency()));
++    // AntiSocial bounds the outer build to four jobs. Avoid multiplying that
++    // by an independent pool in each shader generator process.
++    uint32_t N = 1;
+     std::unique_lock<std::mutex> guard(compile_count_mutex);
+     compile_count_cond.wait(guard, [N] { return compile_count < N; });
+     compile_count++;

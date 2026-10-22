@@ -1,0 +1,206 @@
+{
+  "schema": "antisocial-context-media-v1",
+  "packs": [
+    {
+      "id": "ocr-eng",
+      "label": "Text in images \u00b7 eng",
+      "kind": "OCR",
+      "language": "eng",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "eng.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088,
+          "sha256": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2"
+        }
+      ]
+    },
+    {
+      "id": "ocr-spa",
+      "label": "Text in images \u00b7 spa",
+      "kind": "OCR",
+      "language": "spa",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "spa.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/spa.traineddata",
+          "bytes": 2294433,
+          "sha256": "6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464"
+        }
+      ]
+    },
+    {
+      "id": "ocr-fra",
+      "label": "Text in images \u00b7 fra",
+      "kind": "OCR",
+      "language": "fra",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "fra.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/fra.traineddata",
+          "bytes": 1130365,
+          "sha256": "ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca"
+        }
+      ]
+    },
+    {
+      "id": "ocr-deu",
+      "label": "Text in images \u00b7 deu",
+      "kind": "OCR",
+      "language": "deu",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "deu.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/deu.traineddata",
+          "bytes": 1525436,
+          "sha256": "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d"
+        }
+      ]
+    },
+    {
+      "id": "ocr-por",
+      "label": "Text in images \u00b7 por",
+      "kind": "OCR",
+      "language": "por",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "por.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/por.traineddata",
+          "bytes": 1982756,
+          "sha256": "c4932b937207a9514b7514d518b931a99938c02a28a5a5a553f8599ed58b7deb"
+        }
+      ]
+    },
+    {
+      "id": "ocr-ita",
+      "label": "Text in images \u00b7 ita",
+      "kind": "OCR",
+      "language": "ita",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "ita.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/ita.traineddata",
+          "bytes": 2701314,
+          "sha256": "b8f89e1e785118dac4d51ae042c029a64edb5c3ee42ef73027a6d412748d8827"
+        }
+      ]
+    },
+    {
+      "id": "ocr-ara",
+      "label": "Text in images \u00b7 ara",
+      "kind": "OCR",
+      "language": "ara",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "ara.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/ara.traineddata",
+          "bytes": 1432056,
+          "sha256": "e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729"
+        }
+      ]
+    },
+    {
+      "id": "ocr-rus",
+      "label": "Text in images \u00b7 rus",
+      "kind": "OCR",
+      "language": "rus",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "rus.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/rus.traineddata",
+          "bytes": 3861738,
+          "sha256": "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225"
+        }
+      ]
+    },
+    {
+      "id": "ocr-hin",
+      "label": "Text in images \u00b7 hin",
+      "kind": "OCR",
+      "language": "hin",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "hin.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/hin.traineddata",
+          "bytes": 1122751,
+          "sha256": "4c73ffc59d497c186b19d1e90f5d721d678ea6b2e277b719bee4e2af12271825"
+        }
+      ]
+    },
+    {
+      "id": "ocr-jpn",
+      "label": "Text in images \u00b7 jpn",
+      "kind": "OCR",
+      "language": "jpn",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "jpn.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260,
+          "sha256": "1f5de9236d2e85f5fdf4b3c500f2d4926f8d9449f28f5394472d9e8d83b91b4d"
+        }
+      ]
+    },
+    {
+      "id": "ocr-kor",
+      "label": "Text in images \u00b7 kor",
+      "kind": "OCR",
+      "language": "kor",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "kor.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/kor.traineddata",
+          "bytes": 1677415,
+          "sha256": "6b85e11d9bbf07863b97b3523b1b112844c43e713df8b66418a081fd1060b3b2"
+        }
+      ]
+    },
+    {
+      "id": "ocr-chi-sim",
+      "label": "Text in images \u00b7 chi_sim",
+      "kind": "OCR",
+      "language": "chi_sim",
+      "revision": "87416418657359cb625c412a48b6e1d6d41c29bd",
+      "assets": [
+        {
+          "filename": "chi_sim.traineddata",
+          "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/chi_sim.traineddata",
+          "bytes": 2469156,
+          "sha256": "a5fcb6f0db1e1d6d8522f39db4e848f05984669172e584e8d76b6b3141e1f730"
+        }
+      ]
+    },
+    {
+      "id": "speech-base-multilingual",
+      "label": "Speech \u00b7 multilingual",
+      "kind": "SPEECH",
+      "language": "multilingual",
+      "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+      "assets": [
+        {
+          "filename": "ggml-base-q5_1.bin",
+          "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin",
+          "bytes": 59707625,
+          "sha256": "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898"
+        },
+        {
+          "filename": "ggml-silero-v6.2.0.bin",
+          "url": "https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v6.2.0.bin",
+          "bytes": 885098,
+          "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987"
+        }
+      ]
+    }
+  ]
+}

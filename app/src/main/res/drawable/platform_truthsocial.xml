@@ -1,0 +1,6 @@
+<!-- AntiSocial original vector interpretation, GPL-3.0-or-later. Unofficial identity mark.
+     Geometric T and separated terminal reflect the service identity; not supplied by the service.
+     Brand trademark remains with its owner. See licenses/platform-icons.md. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M2,3h20v5h-7.5v13h-5V8H2zM18,16h4v5h-4z"/>
+</vector>

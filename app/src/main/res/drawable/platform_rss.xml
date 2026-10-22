@@ -1,0 +1,4 @@
+<!-- AntiSocial, GPL-3.0-or-later. Original geometric RSS artwork; tinted by the native theme. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M3,3 L3,6 C11.284,6 18,12.716 18,21 L21,21 C21,11.059 12.941,3 3,3 Z M3,9 L3,12 C7.971,12 12,16.029 12,21 L15,21 C15,14.373 9.627,9 3,9 Z M5,17 C3.895,17 3,17.895 3,19 C3,20.105 3.895,21 5,21 C6.105,21 7,20.105 7,19 C7,17.895 6.105,17 5,17 Z"/>
+</vector>

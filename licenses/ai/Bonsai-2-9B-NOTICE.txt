@@ -1,0 +1,5 @@
+This software is copyright 2026-present Prism ML, Inc. It is available under the Apache 2.0 license.
+If you publicly deploy or redistribute this software, we would appreciate attribution such as: "Created using Bonsai by Prism ML."
+
+This software is built from Qwen3.5-9B, Copyright 2026 Alibaba Cloud, which is available under the Apache 2.0 License: https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/LICENSE
+The DFlash draft model is built from z-lab/Qwen3.5-9B-DFlash, Copyright 2026 Z Lab and Modal, which is available under the Apache 2.0 License: https://huggingface.co/z-lab/Qwen3.5-9B-DFlash

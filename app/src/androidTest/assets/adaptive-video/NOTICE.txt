@@ -1,0 +1,22 @@
+AntiSocial synthetic native-video test fixtures, GPL-3.0-or-later.
+
+No footage, audio, post, or personal data was downloaded from a service. FFmpeg
+generated eight seconds of solid green 160x90 H.264 baseline video and silent
+mono AAC audio. The HLS fixture uses MPEG-TS segments with 44.1kHz audio. The
+static DASH fixture uses 48kHz audio and separate fragmented-MP4 audio/video
+segments with relative URLs.
+
+These fixture files test the packaged native playback modules with FileDataSource
+while Tor is unavailable. They do not implement HLS/DASH offline downloads and
+do not verify any external service's stream availability or codec compatibility.
+
+DASH generation recipe (FFmpeg):
+  -f lavfi -i color=c=green:s=160x90:r=15
+  -f lavfi -i anullsrc=r=48000:cl=mono -t 8
+  -c:v libx264 -preset ultrafast -profile:v baseline -pix_fmt yuv420p
+  -g 30 -keyint_min 30 -sc_threshold 0 -threads 1
+  -c:a aac -b:a 32k -ar 48000 -ac 1
+  -f dash -seg_duration 2 -use_timeline 1 -use_template 1
+  -adaptation_sets "id=0,streams=v id=1,streams=a"
+  -init_seg_name 'init-$RepresentationID$.m4s'
+  -media_seg_name 'chunk-$RepresentationID$-$Number%05d$.m4s' local.mpd

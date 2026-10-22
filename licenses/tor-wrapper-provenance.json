@@ -1,0 +1,6 @@
+{
+  "artifact": "info.guardianproject:tor-android:0.4.9.14",
+  "source_jar_sha256": "095118a41782a91b9002038461c4c6a65f5c41bc6f5a37323362eceaf0088a2b",
+  "modification": "Bounded prepareFileDescriptor retries; publishes the control connection only after authentication and listener discovery; declares its native IOException; embeds the matching version constant for JDK 21 compilation",
+  "native_libraries": "Unchanged upstream AAR binaries"
+}

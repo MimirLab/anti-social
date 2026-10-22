@@ -1,0 +1,93 @@
+{
+  "__fixture": "Directory shape observed via public PAGES_TAB on 2026-10-18. Identities, captions, asset URLs and cursor are synthetic. PEOPLE_TAB also verified anonymously; these entity identities remain synthetic.",
+  "data": {
+    "serpResponse": {
+      "results": {
+        "edges": [
+          {
+            "node": {
+              "role": "ENTITY_PAGES"
+            },
+            "rendering_strategy": {
+              "view_model": {
+                "__typename": "SearchEntityViewModel",
+                "profile": {
+                  "__typename": "User",
+                  "id": "100",
+                  "url": "https://www.facebook.com/people/Local-Growers/100/",
+                  "name": "Local Growers",
+                  "profile_picture": {
+                    "uri": "https://images.example/account-100.jpg"
+                  },
+                  "is_verified": false
+                },
+                "description_snippets_text_with_entities": [
+                  {
+                    "text": "Community produce"
+                  },
+                  {
+                    "text": "Melbourne"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "node": {
+              "role": "ENTITY_PAGES"
+            },
+            "rendering_strategy": {
+              "view_model": {
+                "__typename": "SearchEntityViewModel",
+                "profile": {
+                  "__typename": "User",
+                  "id": "101",
+                  "url": "https://www.facebook.com/OrganicMarket?utm_source=fixture",
+                  "name": "Organic Market",
+                  "profile_picture": {
+                    "uri": "https://images.example/account-101.jpg"
+                  },
+                  "is_verified": false
+                },
+                "description_snippets_text_with_entities": [
+                  {
+                    "text": "Seasonal food"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "node": {
+              "role": "ENTITY_USER"
+            },
+            "rendering_strategy": {
+              "view_model": {
+                "__typename": "SearchEntityViewModel",
+                "profile": {
+                  "__typename": "User",
+                  "id": "200",
+                  "url": "https://www.facebook.com/profile.php?id=200",
+                  "name": "Example Person",
+                  "profile_picture": {
+                    "uri": "https://images.example/account-200.jpg"
+                  },
+                  "is_verified": false
+                },
+                "description_snippets_text_with_entities": [
+                  {
+                    "text": "Public profile"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "page_info": {
+          "has_next_page": true,
+          "end_cursor": "directory-only-next"
+        }
+      }
+    }
+  }
+}

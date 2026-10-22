@@ -1,0 +1,18 @@
+AntiSocial uses SponsorBlock data from https://sponsor.ajay.app/.
+
+SponsorBlock's API and database are licensed by their contributors under
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International:
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+https://github.com/ajayyy/SponsorBlock/wiki/Database-and-API-License
+
+AntiSocial's implementation is independently written GPL-3.0-or-later code. No
+SponsorBlock extension implementation is copied. Downloaded public segment
+annotations are separate cached data and retain the above data license.
+
+Primary API reference: https://wiki.sponsor.ajay.app/w/API_Docs
+Category reference: https://wiki.sponsor.ajay.app/w/Types
+Attribution template:
+https://gist.github.com/ajayyy/4b27dfc66e33941a45aeaadccb51de71
+
+AntiSocial uses only read-only, four-character hash-prefix lookups. It makes no
+automated submissions, votes, viewing reports or user-identity registrations.

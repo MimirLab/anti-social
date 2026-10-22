@@ -1,0 +1,141 @@
+diff --git a/include/llama.h b/include/llama.h
+--- a/include/llama.h
++++ b/include/llama.h
+@@ -43,10 +43,10 @@
+ #define LLAMA_FILE_MAGIC_GGSQ 0x67677371u // 'ggsq'
+ 
+ #define LLAMA_SESSION_MAGIC   LLAMA_FILE_MAGIC_GGSN
+-#define LLAMA_SESSION_VERSION 11
++#define LLAMA_SESSION_VERSION 12
+ 
+ #define LLAMA_STATE_SEQ_MAGIC   LLAMA_FILE_MAGIC_GGSQ
+-#define LLAMA_STATE_SEQ_VERSION 4
++#define LLAMA_STATE_SEQ_VERSION 5
+ 
+ #ifdef __cplusplus
+ extern "C" {
+diff --git a/src/llama-context.h b/src/llama-context.h
+--- a/src/llama-context.h
++++ b/src/llama-context.h
+@@ -315,6 +315,7 @@
+     const llama_model & model;
+ 
+     llama_cparams cparams;
++    std::vector<uint32_t> state_cache_recipe;
+ 
+     llama_adapter_cvec_ptr  cvec;
+     llama_adapter_loras_ptr loras;
+diff --git a/src/llama-context.cpp b/src/llama-context.cpp
+--- a/src/llama-context.cpp
++++ b/src/llama-context.cpp
+@@ -169,6 +169,15 @@
+     if (!params.kv_protected_recent && (params.kv_protected_initial || params.kv_rotation || params.kv_channel_scale || params.kv_channel_scale_count)) {
+         throw std::runtime_error("Cache basis/calibration requires a protected cache profile");
+     }
++    if (params.kv_channel_scale_count > 256 || (params.kv_channel_scale_count && !params.kv_channel_scale)) {
++        throw std::runtime_error("Invalid cache calibration descriptor");
++    }
++    state_cache_recipe = {uint32_t(params.type_k), uint32_t(params.type_v), params.kv_protected_initial,
++        params.kv_protected_recent, params.n_ubatch, params.kv_rotation, params.kv_channel_scale_count};
++    for (uint32_t i = 0; i < params.kv_channel_scale_count; ++i) {
++        uint32_t bits; std::memcpy(&bits, params.kv_channel_scale + i, sizeof(bits));
++        state_cache_recipe.push_back(bits);
++    }
+ 
+     cparams.n_seq_max = std::max(1u, params.n_seq_max);
+     if (cparams.n_seq_max > LLAMA_MAX_SEQ) {
+@@ -3573,6 +3582,46 @@
+     return res;
+ }
+ 
++// Check resolved positional settings before touching attention or recurrent state.
++static std::vector<uint32_t> llama_position_state_recipe(const llama_model & model, const llama_cparams & cp, const std::vector<uint32_t> & cache) {
++    const auto & hp = model.hparams;
++    std::vector<uint32_t> words = {
++        0x4c535233, 1, uint32_t(model.arch), hp.n_embd, hp.n_layer_all, hp.n_layer_nextn,
++        cp.n_ctx, cp.n_ctx_seq, cp.n_seq_max, cp.n_rs_seq, uint32_t(cp.ctx_type),
++        uint32_t(cp.causal_attn), uint32_t(hp.rope_type), uint32_t(cp.rope_scaling_type), cp.n_ctx_orig_yarn,
++    };
++    auto floating = [&](float value) {
++        static_assert(sizeof(float) == sizeof(uint32_t), "Unexpected float representation");
++        uint32_t bits; std::memcpy(&bits, &value, sizeof(bits)); words.push_back(bits);
++    };
++    floating(cp.rope_freq_base); floating(cp.rope_freq_scale);
++    floating(cp.yarn_ext_factor); floating(cp.yarn_attn_factor);
++    floating(cp.yarn_beta_fast); floating(cp.yarn_beta_slow);
++    for (int section : hp.rope_sections) words.push_back(uint32_t(section));
++    for (uint32_t il = 0; il < hp.n_layer(); ++il) {
++        words.push_back(hp.n_rot(il)); words.push_back(hp.n_head(il)); words.push_back(hp.n_head_kv(il));
++        words.push_back(hp.n_embd_head_k(il)); words.push_back(hp.n_embd_head_v(il));
++        floating(model.get_rope_freq_base(cp, il)); floating(model.get_rope_freq_scale(cp, il));
++    }
++    words.insert(words.end(), cache.begin(), cache.end());
++    return words;
++}
++
++static void llama_write_position_state(llama_io_write_i & io, const llama_model & model, const llama_cparams & cp, const std::vector<uint32_t> & cache) {
++    const auto recipe = llama_position_state_recipe(model, cp, cache);
++    const uint32_t count = recipe.size();
++    io.write(&count, sizeof(count)); io.write(recipe.data(), recipe.size()*sizeof(uint32_t));
++}
++
++static void llama_read_position_state(llama_io_read_i & io, const llama_model & model, const llama_cparams & cp, const std::vector<uint32_t> & cache) {
++    const auto expected = llama_position_state_recipe(model, cp, cache);
++    uint32_t count; io.read(&count, sizeof(count));
++    if (count != expected.size()) throw std::runtime_error("Hybrid state positional recipe size mismatch");
++    std::vector<uint32_t> saved(expected.size());
++    io.read(saved.data(), saved.size()*sizeof(uint32_t));
++    if (saved != expected) throw std::runtime_error("Hybrid state positional recipe mismatch");
++}
++
+ size_t llama_context::state_write_data(llama_io_write_i & io) {
+     LLAMA_LOG_DEBUG("%s: writing state\n", __func__);
+ 
+@@ -3585,6 +3634,7 @@
+         // TODO: add more model-specific info which should prevent loading the session file if not identical
+     }
+ 
++    llama_write_position_state(io, model, cparams, state_cache_recipe);
+     if (memory != nullptr) {
+         LLAMA_LOG_DEBUG("%s: - writing memory module\n", __func__);
+         memory->state_write(io);
+@@ -3610,6 +3660,7 @@
+         // TODO: add more info which needs to be identical but which is not verified otherwise
+     }
+ 
++    llama_read_position_state(io, model, cparams, state_cache_recipe);
+     if (memory) {
+         LLAMA_LOG_DEBUG("%s: - reading memory module\n", __func__);
+ 
+@@ -3620,6 +3671,7 @@
+ }
+ 
+ size_t llama_context::state_seq_write_data(llama_io_write_i & io, llama_seq_id seq_id, llama_state_seq_flags flags) {
++    llama_write_position_state(io, model, cparams, state_cache_recipe);
+     if (memory) {
+         memory->state_write(io, seq_id, flags);
+     }
+@@ -3628,6 +3680,7 @@
+ }
+ 
+ size_t llama_context::state_seq_read_data(llama_io_read_i & io, llama_seq_id seq_id, llama_state_seq_flags flags) {
++    llama_read_position_state(io, model, cparams, state_cache_recipe);
+     if (memory) {
+         memory->state_read(io, seq_id, flags);
+     }
+@@ -4277,14 +4330,7 @@
+ 
+     try {
+         auto * ctx = new llama_context(*model, params);
+-        const auto & cparams = ctx->get_cparams();
+-
+-        if (cparams.rope_scaling_type == LLAMA_ROPE_SCALING_TYPE_YARN && cparams.rope_freq_scale != model->hparams.rope_freq_scale_train) {
+-            LLAMA_LOG_INFO("%s: custom YaRN scaling detected, re-adjusting n_ctx_train(%u)...\n", __func__, model->hparams.n_ctx_train);
+-            model->hparams.n_ctx_train = cparams.n_ctx_orig_yarn / cparams.rope_freq_scale;
+-            LLAMA_LOG_INFO("%s: n_ctx_train adjusted to %u\n", __func__, model->hparams.n_ctx_train);
+-        }
+-
++        // A context override must not change the defaults of another context.
+         return ctx;
+     } catch (const std::exception & err) {
+         LLAMA_LOG_ERROR("%s: failed to initialize the context: %s\n", __func__, err.what());

@@ -1,0 +1,6 @@
+<!-- Simple Icons / contributors, CC0-1.0; revision 4d29a35c954699b389a834aacc97dd6e7e74143c.
+     Converted from SVG to an Android vector; theme tint is applied locally.
+     See licenses/simple-icons-LICENSE.txt and licenses/simple-icons-DISCLAIMER.txt. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12 24C5.3726 24 0 18.6274 0 12S5.3726 0 12 0s12 5.3726 12 12-5.3726 12-12 12m-.9526-9.3802h2.2014c2.0738 0 3.7549-1.6366 3.7549-3.6554S15.3226 7.309 13.2488 7.309h-3.1772c-1.1964 0-2.1663.9442-2.1663 2.1089v8.208z"/>
+</vector>

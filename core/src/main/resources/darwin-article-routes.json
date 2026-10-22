@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "donor": "Darwin",
+  "mediumTargets": [
+    "^https:\\/{2}([a-zA-Z0-9-]+\\.)?medium\\.com",
+    "^https?:\\/{2}towardsdatascience\\.com\\/",
+    "^https?:\\/{2}uxdesign\\.cc\\/",
+    "^https?:\\/{2}uxplanet\\.org\\/",
+    "^https?:\\/{2}betterprogramming\\.pub\\/",
+    "^https?:\\/{2}aninjusticemag\\.com\\/",
+    "^https?:\\/{2}betterhumans\\.pub\\/",
+    "^https?:\\/{2}psiloveyou\\.xyz\\/",
+    "^https?:\\/{2}entrepreneurshandbook\\.co\\/",
+    "^https?:\\/{2}blog\\.coinbase\\.com\\/",
+    "^https?:\\/{2}levelup\\.gitconnected\\.com\\/",
+    "^https?:\\/{2}javascript\\.plainenglish\\.io\\/",
+    "^https?:\\/{2}blog\\.bitsrc\\.io\\/",
+    "^https?:\\/{2}itnext\\.io\\/",
+    "^https?:\\/{2}codeburst\\.io\\/",
+    "^https?:\\/{2}infosecwriteups\\.com\\/",
+    "^https?:\\/{2}blog\\.devgenius\\.io\\/",
+    "^https?:\\/{2}writingcooperative\\.com\\/",
+    "^https?:\\/{2}proandroiddev\\.com\\/",
+    "^https?:\\/{2}redfin\\.engineering\\/"
+  ],
+  "mediumSources": [
+    {
+      "frontend": "scribe",
+      "root": "https://scribe.rip"
+    },
+    {
+      "frontend": "scribe",
+      "root": "https://scribe.nixnet.services"
+    },
+    {
+      "frontend": "scribe",
+      "root": "https://scribe.rawbit.ninja"
+    },
+    {
+      "frontend": "scribe",
+      "root": "https://sc.vern.cc"
+    },
+    {
+      "frontend": "scribe",
+      "root": "https://m.opnxng.com"
+    },
+    {
+      "frontend": "scribe",
+      "root": "https://scribe.r4fo.com"
+    },
+    {
+      "frontend": "scribe",
+      "root": "https://scribe.privacyredirect.com"
+    },
+    {
+      "frontend": "libMedium",
+      "root": "https://md.vern.cc"
+    },
+    {
+      "frontend": "libMedium",
+      "root": "https://libmedium.batsense.net"
+    },
+    {
+      "frontend": "libMedium",
+      "root": "https://medium.hostux.net"
+    },
+    {
+      "frontend": "libMedium",
+      "root": "https://r.sudovanilla.org"
+    },
+    {
+      "frontend": "libMedium",
+      "root": "https://libmedium.ducks.party"
+    },
+    {
+      "frontend": "small",
+      "root": "https://small.bloat.cat"
+    },
+    {
+      "frontend": "freedium",
+      "root": "https://freedium.cfd"
+    }
+  ],
+  "sourceHashes": {
+    "config.json": "e6a8eb5dcb3a446715a4fc4c2991bdcde8d01b8ad8738dbbe11a30c2df374d1f",
+    "assets/javascripts/news-archive-routes.js": "bcd8d68f933c53e16e95c76af62f6a2ada10677fde77c41673f10f65eb877de2",
+    "assets/javascripts/news-archive-content.js": "4a693e7bbf3f17edbc932d0a854dda07b11b9e00586d3ad468f52387344f7e9f",
+    "assets/javascripts/publisher-lite-routes.js": "ae03d6512c7c7fbc3f565861797c398d38d299fd694e7deb8c4cc7ef03f508df",
+    "assets/javascripts/scientific-routes.js": "d9ab135010c40f70fafef76d5b092cd5cbbd022e992ae8fd1648f4e02535af02",
+    "assets/javascripts/scientific-discovery.js": "c19c893306835c8a453c567c08a1bce2e684944654ff38a594eda2f308cf36c2"
+  },
+  "protocolCorrection": "Freedium uses its documented encoded full original URL; other Medium readers use Darwin path translation.",
+  "protocolReference": "https://github.com/Freedium-cfd"
+}

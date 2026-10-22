@@ -1,0 +1,940 @@
+--- a/ggml/include/ggml.h
++++ b/ggml/include/ggml.h
+@@ -2903,6 +2903,8 @@
+             struct ggml_tensor * a,
+             int32_t              n_kv_max);
+ 
++    GGML_API void ggml_flash_attn_ext_add_protected(struct ggml_tensor * a, struct ggml_tensor * k, struct ggml_tensor * v, struct ggml_tensor * map);
++
+     GGML_API void ggml_flash_attn_ext_add_sinks(
+             struct ggml_tensor * a,
+             struct ggml_tensor * sinks);
+--- a/ggml/src/ggml-cpu/ops.cpp
++++ b/ggml/src/ggml-cpu/ops.cpp
+@@ -10235,6 +10235,11 @@
+     const ggml_tensor * v     = dst->src[2];
+     const ggml_tensor * mask  = dst->src[3];
+     const ggml_tensor * sinks = dst->src[4];
++    const ggml_tensor * exact_k = dst->src[5];
++    const ggml_tensor * exact_v = dst->src[6];
++    const int32_t * exact_map = dst->src[7] ? static_cast<const int32_t *>(dst->src[7]->data) : nullptr;
++
++    const bool half_accumulator = v->type == GGML_TYPE_F16 && dst->op_params[3] != GGML_PREC_F32;
+ 
+     GGML_TENSOR_LOCALS(int64_t, neq, q,   ne)
+     GGML_TENSOR_LOCALS(size_t,  nbq, q,   nb)
+@@ -10323,7 +10328,7 @@
+         ggml_fp16_t * VKQ16 = (ggml_fp16_t *) (VKQ32 + 1*DV); // (temporary) FP16 VKQ accumulator
+         ggml_fp16_t * Q_q   = (ggml_fp16_t *) (VKQ32 + 2*DV); // (temporary) buffer for Q converted to quantized/FP16
+ 
+-        if (v->type == GGML_TYPE_F16) {
++        if (half_accumulator) {
+             memset(VKQ16, 0, DV*sizeof(ggml_fp16_t));
+         } else {
+             memset(VKQ32, 0, DV*sizeof(float));
+@@ -10355,7 +10360,15 @@
+             float s; // KQ value
+ 
+             const char * k_data = (const char *) k->data + ( ic*nbk1 + ik2*nbk2 + ik3*nbk3);
+-            kq_vec_dot(DK, &s, 0, k_data, 0, Q_q, 0, 1);
++            const int32_t exact = exact_map ? exact_map[ic] : -1;
++            if (exact >= 0) {
++                GGML_ASSERT(exact < exact_k->ne[1]);
++                const auto * row = reinterpret_cast<const ggml_fp16_t *>(static_cast<const char *>(exact_k->data) + exact*exact_k->nb[1] + ik2*exact_k->nb[2]);
++                s = 0.0f;
++                for (int64_t d = 0; d < DK; ++d) s += pq[d]*GGML_CPU_FP16_TO_FP32(row[d]);
++            } else {
++                kq_vec_dot(DK, &s, 0, k_data, 0, Q_q, 0, 1);
++            }
+ 
+             s = s*scale; // scale KQ value
+ 
+@@ -10372,7 +10385,7 @@
+ 
+             const char * v_data = ((const char *) v->data + (ic*nbv1 + iv2*nbv2 + iv3*nbv3));
+ 
+-            if (v->type == GGML_TYPE_F16) {
++            if (half_accumulator) {
+                 if (s > M) {
+                     // s is new maximum, ms < 1.0f, vs == expf(s - s) == 1.0f
+                     M = s;
+@@ -10401,7 +10414,11 @@
+                 }
+ 
+                 // V += v*expf(s - M)
+-                if (v_to_float) {
++                if (exact >= 0) {
++                    const auto * row = reinterpret_cast<const ggml_fp16_t *>(static_cast<const char *>(exact_v->data) + exact*exact_v->nb[1] + iv2*exact_v->nb[2]);
++                    for (int64_t d = 0; d < DV; ++d) V32[d] = GGML_CPU_FP16_TO_FP32(row[d]);
++                    ggml_vec_mad_f32(DV, VKQ32, V32, vs);
++                } else if (v_to_float) {
+                     v_to_float(v_data, V32, DV);
+                     ggml_vec_mad_f32(DV, VKQ32, V32, vs);
+                 } else {
+@@ -10413,7 +10430,7 @@
+             S = S*ms + vs; // scale and increment sum with partial sum
+         }
+ 
+-        if (v->type == GGML_TYPE_F16) {
++        if (half_accumulator) {
+             for (int64_t d = 0; d < DV; ++d) {
+                 VKQ32[d] = GGML_CPU_FP16_TO_FP32(VKQ16[d]);
+             }
+--- a/ggml/src/ggml-vulkan/CMakeLists.txt
++++ b/ggml/src/ggml-vulkan/CMakeLists.txt
+@@ -129,6 +129,9 @@
+     )
+ 
+     target_link_libraries(ggml-vulkan PRIVATE Vulkan::Vulkan)
++    if(TARGET SPIRV-Headers::SPIRV-Headers)
++        target_link_libraries(ggml-vulkan PRIVATE SPIRV-Headers::SPIRV-Headers)
++    endif()
+     target_include_directories(ggml-vulkan
+         PRIVATE
+             ${CMAKE_CURRENT_BINARY_DIR}
+--- a/ggml/src/ggml-vulkan/ggml-vulkan.cpp
++++ b/ggml/src/ggml-vulkan/ggml-vulkan.cpp
+@@ -5510,7 +5510,7 @@
+             }
+             name = aligned ? "flash_attn_f32_f16_aligned" : "flash_attn_f32_f16";
+         }
+-        ggml_vk_create_pipeline(device, fa.second, name, spv_size, spv_data, "main", 8,
++        ggml_vk_create_pipeline(device, fa.second, name, spv_size, spv_data, "main", 11,
+                                 sizeof(vk_flash_attn_push_constants), {Br, 1, 1},
+                                 get_fa_spec_constants(fa.first), aligned ? Bc : 1, true,
+                                 !fa_ds, !fa_ds ? fa_sgs : 0);
+@@ -5547,7 +5547,7 @@
+                 else        { spv_data = flash_attn_f32_f16_f16acc_cm1_data; spv_size = flash_attn_f32_f16_f16acc_cm1_len; }
+                 name = aligned ? "flash_attn_f32_f16_aligned_cm1" : "flash_attn_f32_f16_cm1";
+             }
+-            ggml_vk_create_pipeline(device, fa.second, name, spv_size, spv_data, "main", 8,
++            ggml_vk_create_pipeline(device, fa.second, name, spv_size, spv_data, "main", 11,
+                                     sizeof(vk_flash_attn_push_constants), {Br, 1, 1},
+                                     get_fa_spec_constants(fa.first), aligned ? Bc : 1, true,
+                                     !fa_ds, !fa_ds ? fa_sgs : 0);
+@@ -5585,7 +5585,7 @@
+                 if (f32acc) { spv_data = flash_attn_f32_f16_cm2_data;        spv_size = flash_attn_f32_f16_cm2_len;        name = "flash_attn_f32_f16_f32acc_cm2"; }
+                 else        { spv_data = flash_attn_f32_f16_f16acc_cm2_data; spv_size = flash_attn_f32_f16_f16acc_cm2_len; name = "flash_attn_f32_f16_f16acc_cm2"; }
+             }
+-            ggml_vk_create_pipeline(device, fa.second, name, spv_size, spv_data, "main", 8,
++            ggml_vk_create_pipeline(device, fa.second, name, spv_size, spv_data, "main", 11,
+                                     sizeof(vk_flash_attn_push_constants), {Br, 1, 1},
+                                     get_fa_spec_constants(fa.first), aligned ? Bc : 1, true, false, 0);
+         }
+@@ -5607,11 +5607,11 @@
+             const uint32_t fa_sgs = fa.first.subgroup_size; \
+             const bool fa_ds = fa.first.subgroup_size == 0; \
+             if (aligned) { \
+-                if (f32acc) { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_aligned_f32acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _data, "main", 8, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), Bc, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
+-                else        { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_aligned_f16acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _data, "main", 8, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), Bc, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
++                if (f32acc) { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_aligned_f32acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _data, "main", 11, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), Bc, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
++                else        { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_aligned_f16acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _data, "main", 11, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), Bc, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
+             } else { \
+-                if (f32acc) { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_f32acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _data, "main", 8, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), 1, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
+-                else        { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_f16acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _data, "main", 8, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), 1, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
++                if (f32acc) { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_f32acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ##            SUFFIX ## _data, "main", 11, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), 1, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
++                else        { ggml_vk_create_pipeline(device, fa.second, "flash_attn_f32_f16_f16acc" #NAMELC, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _len, flash_attn_f32_f16_ ## NAMELC ## _f16acc ## SUFFIX ## _data, "main", 11, sizeof(vk_flash_attn_push_constants), {Br, 1, 1}, get_fa_spec_constants(fa.first), 1, true, (!fa_ds && (FAPATH!=FA_COOPMAT2)), ((!fa_ds && (FAPATH!=FA_COOPMAT2)) ? fa_sgs : 0)); } \
+             } \
+         }
+ 
+@@ -13394,6 +13394,7 @@
+     uint32_t workgroups_y = (uint32_t)neq2;
+     uint32_t workgroups_z = (uint32_t)neq3;
+ 
++    const bool protected_kv = dst->src[5] != nullptr;
+     bool f32acc = !ctx->device->fp16 || dst->op_params[3] == GGML_PREC_F32 || k->type == GGML_TYPE_BF16;
+ 
+     // qvac: allow forcing f16 accumulation for FA tuning experiments. Halves
+@@ -13415,6 +13416,9 @@
+                     ctx->device->properties.limits.maxComputeSharedMemorySize, (int) f32acc);
+         }
+     }
++
++    // Protected profiles prohibit a full-length F16 prefill/decode mirror.
++    if (protected_kv) f32acc = true;
+ 
+     // dequant K/V once into an f16 scratch, reordered KV layout so FA can read without a stride
+     auto is_dense_kv_cache = [](const ggml_tensor * t) {
+@@ -13425,7 +13429,7 @@
+     };
+     const bool k_quant = k->type != GGML_TYPE_F16 && k->type != GGML_TYPE_BF16 && k->type != GGML_TYPE_F32;
+     const bool v_quant = v->type != GGML_TYPE_F16 && v->type != GGML_TYPE_BF16 && v->type != GGML_TYPE_F32;
+-    const bool use_dequant_kv = k_quant && v_quant && neq1 >= 64 &&
++    const bool use_dequant_kv = !protected_kv && k_quant && v_quant && neq1 >= 64 &&
+                                 is_dense_kv_cache(k) && is_dense_kv_cache(v) &&
+                                 (uint64_t)ggml_nelements(k) * sizeof(ggml_fp16_t) <= ctx->device->properties.limits.maxStorageBufferRange &&
+                                 (uint64_t)ggml_nelements(v) * sizeof(ggml_fp16_t) <= ctx->device->properties.limits.maxStorageBufferRange &&
+@@ -13441,7 +13445,7 @@
+ 
+     // For scalar/coopmat1 FA, we can use the "large" size to accommodate qga.
+     // For coopmat2 FA, we always use the small size (which is still pretty large for gqa).
+-    vk_fa_tuning_params tuning_params = get_fa_tuning_params(ctx->device, HSK, HSV, 512, KV, k_type_eff, v_type_eff, f32acc);
++    vk_fa_tuning_params tuning_params = (protected_kv ? get_fa_tuning_params_scalar : get_fa_tuning_params)(ctx->device, HSK, HSV, 512, KV, k_type_eff, v_type_eff, f32acc);
+     const uint32_t max_gqa = std::min(tuning_params.block_rows, 32u);
+ 
+     if (N <= 8 && qk_ratio > 1 && qk_ratio <= max_gqa &&
+@@ -13454,7 +13458,7 @@
+         workgroups_y /= gqa_ratio;
+     }
+ 
+-    tuning_params = get_fa_tuning_params(ctx->device, HSK, HSV, N, KV, k_type_eff, v_type_eff, f32acc);
++    tuning_params = (protected_kv ? get_fa_tuning_params_scalar : get_fa_tuning_params)(ctx->device, HSK, HSV, N, KV, k_type_eff, v_type_eff, f32acc);
+ 
+     float scale         = 1.0f;
+     float max_bias      = 0.0f;
+@@ -13517,6 +13521,7 @@
+                         && (ctx->device->architecture != vk_device_architecture::AMD_GCN || HSK > 256 || HSV > 256);
+     vk_fa_pipeline_state fa_pipeline_state = get_fa_pipeline_state(ctx->device, tuning_params, HSK, HSV, aligned, f32acc,
+                                                                    mask != nullptr, use_mask_opt, logit_softcap != 0, use_sparse, k_type_eff, v_type_eff);
++    if (protected_kv) fa_pipeline_state.flags |= 64;
+ 
+     vk_pipeline pipeline = nullptr;
+ 
+@@ -13650,6 +13655,9 @@
+     vk_subbuffer sinks_buf = sinks ? ggml_vk_tensor_subbuffer(ctx, sinks) : q_buf;
+     vk_subbuffer mask_opt_buf = use_mask_opt ? ggml_vk_subbuffer(ctx, ctx->prealloc_y, 0) : q_buf;
+     vk_subbuffer sparse_buf = use_sparse ? ggml_vk_subbuffer(ctx, ctx->prealloc_y, 0) : q_buf;
++    vk_subbuffer exact_k_buf = protected_kv ? ggml_vk_tensor_subbuffer(ctx, dst->src[5]) : q_buf;
++    vk_subbuffer exact_v_buf = protected_kv ? ggml_vk_tensor_subbuffer(ctx, dst->src[6]) : q_buf;
++    vk_subbuffer exact_map_buf = protected_kv ? ggml_vk_tensor_subbuffer(ctx, dst->src[7]) : q_buf;
+ 
+     if (use_dequant_kv) {
+         const uint64_t fp = sizeof(ggml_fp16_t);
+@@ -13751,7 +13759,7 @@
+ 
+         vk_subbuffer split_k_buf = ggml_vk_subbuffer(ctx, ctx->prealloc_split_k, 0);
+         ggml_vk_dispatch_pipeline(ctx, subctx, pipeline,
+-                                    {q_buf, k_buf, v_buf, mask_buf, sinks_buf, split_k_buf, mask_opt_buf, sparse_buf},
++                                    {q_buf, k_buf, v_buf, mask_buf, sinks_buf, split_k_buf, mask_opt_buf, sparse_buf, exact_k_buf, exact_v_buf, exact_map_buf},
+                                     pc, { dispatch_x, workgroups_y, workgroups_z });
+ 
+         ggml_vk_sync_buffers(ctx, subctx);
+@@ -13766,7 +13774,7 @@
+             workgroups_x *= pipeline->wg_denoms[0];
+         }
+         ggml_vk_dispatch_pipeline(ctx, subctx, pipeline,
+-                                    {q_buf, k_buf, v_buf, mask_buf, sinks_buf, dst_buf, mask_opt_buf, sparse_buf},
++                                    {q_buf, k_buf, v_buf, mask_buf, sinks_buf, dst_buf, mask_opt_buf, sparse_buf, exact_k_buf, exact_v_buf, exact_map_buf},
+                                     pc, { workgroups_x, workgroups_y, workgroups_z });
+     }
+ 
+@@ -22852,6 +22860,15 @@
+                 bool coopmat2 = device->coopmat2;
+                 uint32_t HSK = op->src[1]->ne[0];
+                 uint32_t HSV = op->src[2]->ne[0];
++                if (op->src[5]) {
++                    if (HSK != 256 || HSV != 256 || op->src[0]->ne[3] != 1 ||
++                        device->properties.limits.maxPerStageDescriptorStorageBuffers < 11 ||
++                        !device->subgroup_shuffle || !device->subgroup_vote ||
++                        (op->src[1]->type != GGML_TYPE_PQ4_0 && op->src[1]->type != GGML_TYPE_PQ3_0) ||
++                        (op->src[2]->type != GGML_TYPE_PQ4_0 && op->src[2]->type != GGML_TYPE_PQ3_0)) return false;
++                    coopmat2 = false; // protected exception loads are scalar-FA kernels
++                }
++
+                 if ((HSK % 8) != 0 || (HSV % 8) != 0) {
+                     return false;
+                 }
+@@ -24085,6 +24102,7 @@
+         if (tensor->op == GGML_OP_FLASH_ATTN_EXT) {
+             const float * params = (const float *)tensor->op_params;
+             tensor_clone = ggml_flash_attn_ext(ggml_ctx, src_clone[0], src_clone[1], src_clone[2], src_clone[3], params[0], params[1], params[2]);
++            if (src_clone[5]) ggml_flash_attn_ext_add_protected(tensor_clone, src_clone[5], src_clone[6], src_clone[7]);
+             if (src_clone[4]) {
+                 ggml_flash_attn_ext_add_sinks(tensor_clone, src_clone[4]);
+             }
+--- a/ggml/src/ggml-vulkan/vulkan-shaders/flash_attn.comp
++++ b/ggml/src/ggml-vulkan/vulkan-shaders/flash_attn.comp
+@@ -81,6 +81,23 @@
+ #endif
+ 
+ #include "turbo-quant/flash_attn.glsl"
++
++// Packed history and rotated F16 exceptions share one online-softmax state.
++// Exact tensors are interleaved [slot, KV head, D]; no historical F16 scratch.
++FLOAT_TYPEV4 antisocial_load_k4(uint row, uint dimension, uint ib, uint iqs, uint offset) {
++    if (ANTISOCIAL_PROTECTED && antisocial_exact_map[row] >= 0) {
++        uint base = (uint(antisocial_exact_map[row])*p.nek2 + ik2)*HSK + dimension;
++        return FLOAT_TYPEV4(antisocial_exact_k[base], antisocial_exact_k[base+1], antisocial_exact_k[base+2], antisocial_exact_k[base+3]);
++    }
++    return dequantize4(ib, iqs, offset, BINDING_IDX_K);
++}
++FLOAT_TYPEV4 antisocial_load_v4(uint row, uint dimension, uint ib, uint iqs, uint offset) {
++    if (ANTISOCIAL_PROTECTED && antisocial_exact_map[row] >= 0) {
++        uint base = (uint(antisocial_exact_map[row])*p.nev2 + iv2)*HSV + dimension;
++        return FLOAT_TYPEV4(antisocial_exact_v[base], antisocial_exact_v[base+1], antisocial_exact_v[base+2], antisocial_exact_v[base+3]);
++    }
++    return dequantize4(ib, iqs, offset, BINDING_IDX_V);
++}
+ 
+ void main() {
+ #ifdef NEEDS_INIT_IQ_SHMEM
+@@ -278,7 +295,7 @@
+                             uint coord = kcol * k_stride * BLOCK_SIZE_K + 4 * d;
+                             uint ib = coord / BLOCK_SIZE_K;
+                             uint iqs = (coord % BLOCK_SIZE_K);
+-                            K_Tf = dequantize4(ib, iqs, k_offset, BINDING_IDX_K);
++                            K_Tf = antisocial_load_k4(kcol, coord % HSK, ib, iqs, k_offset);
+                         } else {
+                             K_Tf = FLOAT_TYPEV4(data_kv4[k_offset / 4 + kcol * k_stride / 4 + d]);
+                         }
+@@ -312,7 +329,7 @@
+ #ifndef MMQ
+         // More d iterations means Q register caching becomes relevant
+         // Few iterations means the additional registers needed are worse than the speed-up from caching
+-        if (HSK_per_thread / 4 > 4) {
++        if (HSK_per_thread / 4 > 4 || ANTISOCIAL_PROTECTED) {
+             [[unroll]] for (uint32_t d = 0; d < HSK_per_thread / 4; ++d) {
+                 FLOAT_TYPEV4 Q_cache[rows_per_thread];
+                 [[unroll]] for (uint32_t r = 0; r < rows_per_thread; ++r) {
+@@ -333,7 +350,7 @@
+                         uint coord = kcol * k_stride * BLOCK_SIZE_K + 4 * (d * D_split + d_tid);
+                         uint ib = coord / BLOCK_SIZE_K;
+                         uint iqs = (coord % BLOCK_SIZE_K);
+-                        K_Tf = dequantize4(ib, iqs, k_offset, BINDING_IDX_K);
++                        K_Tf = antisocial_load_k4(kcol, coord % HSK, ib, iqs, k_offset);
+                     } else {
+                         K_Tf = FLOAT_TYPEV4(data_kv4[k_offset / 4 + kcol * k_stride / 4 + d * D_split + d_tid]);
+                     }
+@@ -397,7 +414,7 @@
+                         uint coord = kcol * k_stride * BLOCK_SIZE_K + 4 * (d * D_split + d_tid);
+                         uint ib = coord / BLOCK_SIZE_K;
+                         uint iqs = (coord % BLOCK_SIZE_K);
+-                        K_Tf = dequantize4(ib, iqs, k_offset, BINDING_IDX_K);
++                        K_Tf = antisocial_load_k4(kcol, coord % HSK, ib, iqs, k_offset);
+                     } else {
+                         K_Tf = FLOAT_TYPEV4(data_kv4[k_offset / 4 + kcol * k_stride / 4 + d * D_split + d_tid]);
+                     }
+@@ -605,7 +622,7 @@
+                             uint coord = vcol * v_stride * BLOCK_SIZE_V + 4 * d;
+                             uint ib = coord / BLOCK_SIZE_V;
+                             uint iqs = (coord % BLOCK_SIZE_V);
+-                            V_Tf = dequantize4(ib, iqs, v_offset, BINDING_IDX_V);
++                            V_Tf = antisocial_load_v4(vcol, coord % HSV, ib, iqs, v_offset);
+                         } else {
+                             V_Tf = FLOAT_TYPEV4(data_vv4[v_offset / 4 + vcol * v_stride / 4 + d]);
+                         }
+@@ -638,7 +655,7 @@
+                     uint coord = vcol * v_stride * BLOCK_SIZE_V + 4 * (d * D_split + d_tid);
+                     uint ib = coord / BLOCK_SIZE_V;
+                     uint iqs = (coord % BLOCK_SIZE_V);
+-                    Vf = dequantize4(ib, iqs, v_offset, BINDING_IDX_V);
++                    Vf = antisocial_load_v4(vcol, coord % HSV, ib, iqs, v_offset);
+                 } else {
+                     Vf = FLOAT_TYPEV4(data_vv4[v_offset / 4 + vcol * v_stride / 4 + d * D_split + d_tid]);
+                 }
+--- a/ggml/src/ggml-vulkan/vulkan-shaders/flash_attn_base.glsl
++++ b/ggml/src/ggml-vulkan/vulkan-shaders/flash_attn_base.glsl
+@@ -27,6 +27,11 @@
+ const bool OLD_AMD_WINDOWS = (Flags & 8) != 0;
+ // Sparse: gather binding-7 indices instead of scanning [0,KV); p.split_kv = n_kv_max.
+ const bool USE_SPARSE      = (Flags & 16) != 0;
++// Bit 32 is QVAC's QJL full projection; protection has a distinct identity.
++const bool ANTISOCIAL_PROTECTED = (Flags & 64) != 0;
++layout (binding = 8) readonly buffer EK { float16_t antisocial_exact_k[]; };
++layout (binding = 9) readonly buffer EV { float16_t antisocial_exact_v[]; };
++layout (binding = 10) readonly buffer EM { int32_t antisocial_exact_map[]; };
+ 
+ // Round up head sizes to a multiple of 16, for coopmat1/coopmat2 paths
+ const uint32_t HSK_pad = (HSK + 15) & ~15;
+--- a/ggml/src/ggml.c
++++ b/ggml/src/ggml.c
+@@ -6430,6 +6430,15 @@
+     ggml_set_op_params_i32(a, 4, n_kv_max);
+ }
+ 
++void ggml_flash_attn_ext_add_protected(struct ggml_tensor * a, struct ggml_tensor * k, struct ggml_tensor * v, struct ggml_tensor * map) {
++    GGML_ASSERT(a->op == GGML_OP_FLASH_ATTN_EXT && k && v && map);
++    GGML_ASSERT(k->type == GGML_TYPE_F16 && v->type == GGML_TYPE_F16 && map->type == GGML_TYPE_I32);
++    GGML_ASSERT(k->ne[0] == a->src[1]->ne[0] && v->ne[0] == a->src[2]->ne[0]);
++    GGML_ASSERT(k->ne[2] == a->src[1]->ne[2] && v->ne[2] == a->src[2]->ne[2]);
++    GGML_ASSERT(map->ne[0] == a->src[1]->ne[1] && k->ne[3] == 1 && v->ne[3] == 1);
++    a->src[5] = k; a->src[6] = v; a->src[7] = map;
++}
++
+ void ggml_flash_attn_ext_add_sinks(
+         struct ggml_tensor * a,
+         struct ggml_tensor * sinks) {
+--- a/include/llama.h
++++ b/include/llama.h
+@@ -43,10 +43,10 @@
+ #define LLAMA_FILE_MAGIC_GGSQ 0x67677371u // 'ggsq'
+ 
+ #define LLAMA_SESSION_MAGIC   LLAMA_FILE_MAGIC_GGSN
+-#define LLAMA_SESSION_VERSION 10
++#define LLAMA_SESSION_VERSION 11
+ 
+ #define LLAMA_STATE_SEQ_MAGIC   LLAMA_FILE_MAGIC_GGSQ
+-#define LLAMA_STATE_SEQ_VERSION 3
++#define LLAMA_STATE_SEQ_VERSION 4
+ 
+ #ifdef __cplusplus
+ extern "C" {
+@@ -428,6 +428,14 @@
+         // Synchronize the previous context before decoding, reserving, or changing another context.
+         bool ctx_other_share_compute;
+         bool training;    // if true, we're in training mode (affects LoRA K/V gradient flow)
++
++        // AntiSocial online packed KV v1. Zero preserves upstream reference behavior.
++        // Protected storage is bounded by recent + n_ubatch + initial, not n_ctx.
++        uint32_t kv_protected_recent;
++        uint32_t kv_protected_initial;
++        uint32_t kv_rotation; // 0 PQ/Hadamard, 1 signed Hadamard, 2 Planar, 3 Iso
++        const float * kv_channel_scale; // borrowed only during initialization
++        uint32_t kv_channel_scale_count;
+     };
+ 
+     struct llama_model_tensor_override {
+--- a/src/llama-context.cpp
++++ b/src/llama-context.cpp
+@@ -166,6 +166,10 @@
+ 
+     const auto & hparams = model.hparams;
+ 
++    if (!params.kv_protected_recent && (params.kv_protected_initial || params.kv_rotation || params.kv_channel_scale || params.kv_channel_scale_count)) {
++        throw std::runtime_error("Cache basis/calibration requires a protected cache profile");
++    }
++
+     cparams.n_seq_max = std::max(1u, params.n_seq_max);
+     if (cparams.n_seq_max > LLAMA_MAX_SEQ) {
+         throw std::runtime_error("n_seq_max must be <= " + std::to_string(LLAMA_MAX_SEQ));
+@@ -485,6 +489,11 @@
+             /*.swa_full  =*/ params.swa_full,
+             /*.ctx_type  =*/ cparams.ctx_type,
+             /*.mem_other =*/ llama_get_memory(cparams.ctx_other),
++            /*.protected_recent =*/ params.kv_protected_recent,
++            /*.protected_initial =*/ params.kv_protected_initial,
++            /*.rotation =*/ params.kv_rotation,
++            /*.channel_scale =*/ params.kv_channel_scale,
++            /*.channel_scale_count =*/ params.kv_channel_scale_count,
+         };
+ 
+         memory.reset(model.create_memory(params_mem, cparams));
+@@ -4145,6 +4154,11 @@
+         /*.ctx_other                   =*/ nullptr,
+         /*.ctx_other_share_compute     =*/ false,
+         /*.training                    =*/ false,
++        /*.kv_protected_recent         =*/ 0,
++        /*.kv_protected_initial        =*/ 0,
++        /*.kv_rotation                 =*/ 0,
++        /*.kv_channel_scale            =*/ nullptr,
++        /*.kv_channel_scale_count      =*/ 0,
+     };
+ 
+     return result;
+--- a/src/llama-graph.cpp
++++ b/src/llama-graph.cpp
+@@ -470,6 +470,9 @@
+ void llm_graph_input_attn_kv::set_input(const llama_ubatch * ubatch) {
+     mctx->set_input_k_idxs(self_k_idxs, ubatch);
+     mctx->set_input_v_idxs(self_v_idxs, ubatch);
++    if (protected_indices) mctx->protected_set(protected_indices, protected_map, *ubatch);
++    if (codec_scale) mctx->codec_scale_set(codec_scale);
++    if (inverse_v) mctx->inverse_v_set(inverse_v);
+ 
+     // the mask is left unallocated when the graph only stores K/V without attending
+     // (e.g. DFlash's KV-injection pass)
+@@ -1089,6 +1092,9 @@
+ void llm_graph_input_mem_hybrid::set_input(const llama_ubatch * ubatch) {
+     mctx->get_attn()->set_input_k_idxs(inp_attn->self_k_idxs, ubatch);
+     mctx->get_attn()->set_input_v_idxs(inp_attn->self_v_idxs, ubatch);
++    if (inp_attn->protected_indices) mctx->get_attn()->protected_set(inp_attn->protected_indices, inp_attn->protected_map, *ubatch);
++    if (inp_attn->codec_scale) mctx->get_attn()->codec_scale_set(inp_attn->codec_scale);
++    if (inp_attn->inverse_v) mctx->get_attn()->inverse_v_set(inp_attn->inverse_v);
+ 
+     mctx->get_attn()->set_input_kq_mask(inp_attn->self_kq_mask, ubatch, cparams.causal_attn);
+ 
+@@ -2692,7 +2698,10 @@
+          ggml_tensor * v_mla,
+              int64_t   n_kv_max,
+                float   kq_scale,
+-                 int   il) const {
++                 int   il,
++         ggml_tensor * protected_k,
++         ggml_tensor * protected_v,
++         ggml_tensor * protected_map) const {
+     const bool v_trans = v->nb[1] > v->nb[2];
+ 
+     // split the batch into streams if needed
+@@ -2728,6 +2737,7 @@
+         res->add_fused_node({LLM_FUSED_OP_FLASH_ATTN, cur, il});
+ 
+         ggml_flash_attn_ext_add_sinks(cur, sinks);
++        if (protected_k) ggml_flash_attn_ext_add_protected(cur, protected_k, protected_v, protected_map);
+         GGML_ASSERT(n_kv_max >= 0 && n_kv_max <= INT32_MAX);
+         ggml_flash_attn_ext_set_n_kv_max(cur, static_cast<int32_t>(n_kv_max));
+         ggml_prec_set_acc(cur, GGML_PREC_F32);
+@@ -2918,6 +2928,11 @@
+ 
+     inp->self_k_rot = mctx_cur->build_input_k_rot(ctx0);
+     inp->self_v_rot = mctx_cur->build_input_v_rot(ctx0);
++    inp->protected_indices = mctx_cur->protected_input(ctx0, ubatch.n_tokens, true);
++    inp->protected_map = mctx_cur->protected_input(ctx0, mctx_cur->get_n_kv(), false);
++    inp->codec_scale = mctx_cur->codec_scale_input(ctx0);
++    inp->inverse_v = mctx_cur->inverse_v_input(ctx0);
++    inp->cache_plain_hadamard = mctx_cur->plain_hadamard();
+ 
+     return inp;
+ }
+@@ -2948,13 +2963,17 @@
+     // path is actually active; otherwise this overload must still support MLA.
+     GGML_ASSERT(!(inp->self_k_rot || inp->self_v_rot) || v_mla == nullptr);
+ 
++    if (inp->codec_scale) {
++        q_cur = ggml_mul(ctx0, q_cur, inp->codec_scale);
++        k_cur = ggml_div(ctx0, k_cur, inp->codec_scale);
++    }
+     if (inp->self_k_rot) {
+-        q_cur = llama_mul_mat_hadamard(ctx0, q_cur, inp->self_k_rot);
+-        k_cur = llama_mul_mat_hadamard(ctx0, k_cur, inp->self_k_rot);
++        q_cur = llama_mul_mat_cache_rotation(ctx0, q_cur, inp->self_k_rot, inp->cache_plain_hadamard);
++        k_cur = llama_mul_mat_cache_rotation(ctx0, k_cur, inp->self_k_rot, inp->cache_plain_hadamard);
+     }
+ 
+     if (inp->self_v_rot) {
+-        v_cur = llama_mul_mat_hadamard(ctx0, v_cur, inp->self_v_rot);
++        v_cur = llama_mul_mat_cache_rotation(ctx0, v_cur, inp->self_v_rot, inp->cache_plain_hadamard);
+     }
+ 
+     // these nodes are added to the graph together so that they are not reordered
+@@ -2973,6 +2992,10 @@
+ 
+         ggml_build_forward_expand(gf, mctx_cur->cpy_k(ctx0, k_cur, k_idxs, il));
+         ggml_build_forward_expand(gf, mctx_cur->cpy_v(ctx0, v_cur, v_idxs, il));
++        if (inp->protected_indices) {
++            ggml_build_forward_expand(gf, mctx_cur->protected_store(ctx0, k_cur, inp->protected_indices, il, false));
++            ggml_build_forward_expand(gf, mctx_cur->protected_store(ctx0, v_cur, inp->protected_indices, il, true));
++        }
+     }
+ 
+     ggml_tensor * kq_mask = inp->get_kq_mask();
+@@ -2996,11 +3019,12 @@
+         kq_mask = ggml_cont(ctx0, kq_mask);
+     }
+ 
+-    ggml_tensor * cur = build_attn_mha(q, k, v, kq_b, kq_mask, sinks, v_mla, 0, kq_scale, il);
++    ggml_tensor * cur = build_attn_mha(q, k, v, kq_b, kq_mask, sinks, v_mla, 0, kq_scale, il,
++        mctx_cur->protected_get(ctx0, il, false), mctx_cur->protected_get(ctx0, il, true), inp->protected_map);
+     cb(cur, "kqv_out", il);
+ 
+     if (inp->self_v_rot) {
+-        cur = llama_mul_mat_hadamard(ctx0, cur, inp->self_v_rot);
++        cur = llama_mul_mat_cache_rotation(ctx0, cur, inp->inverse_v ? inp->inverse_v : inp->self_v_rot, inp->cache_plain_hadamard);
+     }
+ 
+     if (wo) {
+--- a/src/llama-graph.h
++++ b/src/llama-graph.h
+@@ -355,6 +355,11 @@
+ 
+     ggml_tensor * self_k_idxs = nullptr; // I64 [n_batch]
+     ggml_tensor * self_v_idxs = nullptr; // I64 [n_batch] or [n_batch*n_embd_v_gqa]
++    ggml_tensor * protected_indices = nullptr;
++    ggml_tensor * protected_map = nullptr;
++    ggml_tensor * codec_scale = nullptr;
++    ggml_tensor * inverse_v = nullptr;
++    bool cache_plain_hadamard = true;
+ 
+     ggml_tensor * self_kq_mask     = nullptr; // F32/F16 [n_kv, n_batch/n_stream, 1, n_stream]
+     ggml_tensor * self_kq_mask_cnv = nullptr; //         [n_kv, n_batch/n_stream, 1, n_stream]
+@@ -1222,7 +1227,10 @@
+             ggml_tensor * v_mla,   // [n_embd_head_v_mla, n_embd_head_v, n_head_v]
+                 int64_t   n_kv_max,
+                   float   kq_scale,
+-                    int   il) const;
++                    int   il,
++            ggml_tensor * protected_k = nullptr,
++            ggml_tensor * protected_v = nullptr,
++            ggml_tensor * protected_map = nullptr) const;
+ 
+     llm_graph_input_attn_no_cache * build_attn_inp_no_cache() const;
+ 
+--- a/src/llama-impl.h
++++ b/src/llama-impl.h
+@@ -81,6 +81,15 @@
+     return res;
+ }
+ 
++static inline ggml_tensor * llama_mul_mat_cache_rotation(ggml_context * ctx, ggml_tensor * current, ggml_tensor * rotation, bool plain_hadamard) {
++    if (plain_hadamard) return llama_mul_mat_hadamard(ctx, current, rotation);
++    auto n = rotation->ne[0];
++    auto * input = ggml_is_contiguous(current) ? ggml_reshape_2d(ctx, current, n, ggml_nelements(current)/n) : ggml_cont_2d(ctx, current, n, ggml_nelements(current)/n);
++    auto * output = ggml_mul_mat(ctx, rotation, input);
++    ggml_mul_mat_set_prec(output, GGML_PREC_F32);
++    return ggml_reshape_4d(ctx, output, current->ne[0], current->ne[1], current->ne[2], current->ne[3]);
++}
++
+ // Prefetch the host pages needed to gather these rows.
+ void llama_prefetch_rows(const ggml_tensor * tensor, const int32_t * rows, size_t n_rows);
+ 
+--- /dev/null
++++ b/src/llama-kv-basis.h
+@@ -0,0 +1,54 @@
++// AntiSocial's cache-coordinate contract. Bonsai WEIGHT transforms are separate.
++// Planar/Iso mathematics follows the published RotorQuant family; this code is
++// independently implemented. Upstream comparison donor: johndpope/llama-cpp-
++// turboquant 08e025c06ab521e4fa9e5c08b80af57614543e53 (MIT).
++#pragma once
++#include <algorithm>
++#include <cmath>
++#include <cstdint>
++#include <stdexcept>
++#include <vector>
++
++enum class llama_kv_rotation : uint32_t { pq_hadamard=0, signed_hadamard=1, planar=2, iso=3 };
++
++// Rows are output coordinates; columns are input coordinates, matching ggml's
++// mul_mat matrix storage. There is exactly ONE rotation in a cache recipe.
++inline std::vector<float> llama_kv_make_rotation(uint32_t n, llama_kv_rotation kind, uint64_t seed) {
++    if(!n || (n&(n-1)) || n>256)throw std::runtime_error("Unsupported KV basis dimension");
++    std::vector<float> matrix(size_t(n)*n,0.f);
++    auto random=[&]() {seed+=0x9e3779b97f4a7c15ULL;uint64_t z=seed;z=(z^(z>>30))*0xbf58476d1ce4e5b9ULL;z=(z^(z>>27))*0x94d049bb133111ebULL;return z^(z>>31);};
++    auto uniform=[&]() {return (double(random()>>11)+0.5)/9007199254740992.0;};
++    if(kind==llama_kv_rotation::pq_hadamard || kind==llama_kv_rotation::signed_hadamard){
++        const float scale=1/std::sqrt(float(n));
++        std::vector<float> signs(n,1.f);
++        if(kind==llama_kv_rotation::signed_hadamard)for(auto &x:signs)x=(random()&1)?1.f:-1.f;
++        for(uint32_t row=0;row<n;++row)for(uint32_t col=0;col<n;++col){uint32_t x=row&col, parity=0;while(x){parity^=1;x&=x-1;}matrix[size_t(row)*n+col]=(parity?-scale:scale)*signs[col];}
++    }else if(kind==llama_kv_rotation::planar){
++        if(n%2)throw std::runtime_error("Planar KV requires pairs");
++        for(uint32_t base=0;base<n;base+=2){double angle=uniform()*6.2831853071795864769;float c=std::cos(angle),s=std::sin(angle);matrix[size_t(base)*n+base]=c;matrix[size_t(base)*n+base+1]=-s;matrix[size_t(base+1)*n+base]=s;matrix[size_t(base+1)*n+base+1]=c;}
++    }else if(kind==llama_kv_rotation::iso){
++        if(n%4)throw std::runtime_error("Iso KV requires quaternion blocks");
++        for(uint32_t base=0;base<n;base+=4){
++            double q[4],norm=0;for(int j=0;j<4;++j){const double u1=uniform(),u2=uniform();q[j]=std::sqrt(-2*std::log(u1))*std::cos(6.2831853071795864769*u2);norm+=q[j]*q[j];}
++            norm=std::sqrt(norm);for(auto &x:q)x/=norm;float w=q[0],x=q[1],y=q[2],z=q[3];
++            const float block[16]={w,-x,-y,-z, x,w,-z,y, y,z,w,-x, z,-y,x,w};
++            for(int r=0;r<4;++r)for(int c=0;c<4;++c)matrix[size_t(base+r)*n+base+c]=block[r*4+c];
++        }
++    }else throw std::runtime_error("Unknown KV rotation");
++    return matrix;
++}
++inline std::vector<float> llama_kv_inverse_rotation(const std::vector<float>&matrix,uint32_t n){
++    if(matrix.size()!=size_t(n)*n)throw std::runtime_error("Invalid KV basis shape");std::vector<float> result(matrix.size());for(uint32_t r=0;r<n;++r)for(uint32_t c=0;c<n;++c)result[size_t(r)*n+c]=matrix[size_t(c)*n+r];return result;
++}
++inline std::vector<float> llama_kv_apply_rotation(const std::vector<float>&matrix,const std::vector<float>&input){
++    size_t n=input.size();if(matrix.size()!=n*n)throw std::runtime_error("Invalid KV coordinate shape");std::vector<float> result(n,0);for(size_t r=0;r<n;++r)for(size_t c=0;c<n;++c)result[r]+=matrix[r*n+c]*input[c];return result;
++}
++
++// Fixed positive diagonal D is part of immutable model/calibration identity.
++// Query: R D Q. Key: R D^-1 K. Value reconstruction: D R^T (R D^-1 V).
++// Never substitute a new D/basis while interpreting an older tile.
++inline std::vector<float> llama_kv_precondition(const std::vector<float>&input,const std::vector<float>&diagonal,bool query){
++    if(input.size()!=diagonal.size())throw std::runtime_error("Invalid KV calibration shape");std::vector<float> output(input.size());
++    for(size_t i=0;i<input.size();++i){float d=diagonal[i];if(!std::isfinite(d)||d<=0||!std::isfinite(input[i]))throw std::runtime_error("Invalid KV calibration value");output[i]=query?input[i]*d:input[i]/d;}
++    return output;
++}
+--- a/src/llama-kv-cache.cpp
++++ b/src/llama-kv-cache.cpp
+@@ -1,4 +1,5 @@
+ #include "llama-kv-cache.h"
++#include "llama-kv-basis.h"
+ 
+ #include "llama-impl.h"
+ #include "llama-io.h"
+@@ -466,6 +467,8 @@
+ }
+ 
+ void llama_kv_cache::clear(bool data) {
++    std::fill(protected_positions.begin(), protected_positions.end(), -1);
++    std::fill(protected_cells.begin(), protected_cells.end(), -1);
+     for (uint32_t s = 0; s < n_stream; ++s) {
+         v_cells[s].reset();
+         v_heads[s] = 0;
+@@ -1304,6 +1307,7 @@
+ }
+ 
+ bool llama_kv_cache::get_can_shift() const {
++    if (has_protected()) return false;
+     // Step35 uses per-layer RoPE dims; K-shift assumes a single global n_rot.
+     const int n_pos_per_embd = hparams.n_pos_per_embd();
+ 
+@@ -2325,6 +2329,7 @@
+         state_write_meta(io, cr, seq_id);
+         state_write_data(io, cr);
+     }
++    protected_write(io);
+ }
+ 
+ void llama_kv_cache::state_read(llama_io_read_i & io, llama_seq_id seq_id, llama_state_seq_flags flags) {
+@@ -2405,6 +2410,7 @@
+             (*sinfos_out)[s] = sinfo;
+         }
+     }
++    protected_read(io);
+ }
+ 
+ void llama_kv_cache::state_write_meta(llama_io_write_i & io, const cell_ranges_t & cr, llama_seq_id seq_id) const {
+@@ -3031,3 +3037,182 @@
+ void llama_kv_cache_context::get_prev_tokens(const llama_ubatch & ubatch, uint32_t n, std::vector<llama_token> & res) const {
+     kv->get_prev_tokens(ubatch, n, res);
+ }
++
++
++// AntiSocial protected KV v1: all history is packed online; only the small exact
++// initial/ring region is duplicated. The rotated-domain F16 values are read in
++// the SAME online softmax as compressed rows, with FP32 accumulators.
++void llama_kv_cache::enable_protected(uint32_t recent, uint32_t initial, uint32_t ubatch, uint32_t rotation, const float * scales, uint32_t scale_count) {
++    if (has_protected() || n_seq_max != 1 || n_stream != 1 || v_trans || other || n_swa || !attn_rot_k || !attn_rot_v ||
++        recent == 0 || recent > 4096 || initial > 256 || ubatch == 0 || ubatch > 512) {
++        throw std::runtime_error("Unsupported protected KV layout");
++    }
++    for (const auto & l : layers) {
++        if ((l.k->type != GGML_TYPE_PQ4_0 && l.k->type != GGML_TYPE_PQ3_0) ||
++            (l.v->type != GGML_TYPE_PQ4_0 && l.v->type != GGML_TYPE_PQ3_0) ||
++            hparams.n_embd_head_k(l.il) != 256 || hparams.n_embd_head_v(l.il) != 256) {
++            throw std::runtime_error("Protected KV requires qualified D=256 PQ kernels");
++        }
++    }
++    if (rotation > 3 || (scale_count && (!scales || scale_count != 256)) || (!scale_count && scales))
++        throw std::runtime_error("Invalid cache basis/calibration descriptor");
++    rotation_kind = rotation;
++    if (scale_count) {
++        channel_scales.assign(scales, scales + scale_count);
++        calibration_id = 14695981039346656037ULL;
++        for (float scale : channel_scales) {
++            if (!std::isfinite(scale) || scale < 0.03125f || scale > 32.0f) throw std::runtime_error("Invalid cache channel scale");
++            uint32_t bits; memcpy(&bits, &scale, sizeof(bits));
++            for (int i = 0; i < 4; ++i) { calibration_id ^= uint8_t(bits >> (8*i)); calibration_id *= 1099511628211ULL; }
++        }
++    }
++    if (rotation) for (auto & entry : attn_rot_hadamard)
++        entry.second = llama_kv_make_rotation(entry.first, static_cast<llama_kv_rotation>(rotation), 0x4c49424552ULL);
++    basis_id = 14695981039346656037ULL;
++    // Hash the actual used F32 bases in a fixed order, including dimension.
++    // This is a cache identity, not the model-pack authenticity signature.
++    for (int dimension : {64, 256}) {
++        basis_id ^= uint64_t(dimension); basis_id *= 1099511628211ULL;
++        const auto & matrix = attn_rot_hadamard.at(dimension);
++        for (float value : matrix) {
++            uint32_t bits; memcpy(&bits, &value, sizeof(bits));
++            for (int i = 0; i < 4; ++i) { basis_id ^= uint8_t(bits >> (8*i)); basis_id *= 1099511628211ULL; }
++        }
++    }
++    protected_initial = initial;
++    protected_ring = recent + ubatch; // retains the first query's recent window throughout a batch
++    protected_ubatch = ubatch;
++    protected_positions.assign(initial + protected_ring, -1);
++    protected_cells.assign(initial + protected_ring, -1);
++    for (auto & l : layers) {
++        ggml_init_params params = { 4*ggml_tensor_overhead(), nullptr, true };
++        ggml_context_ptr ctx {ggml_init(params)};
++        l.exact_k = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F16, l.k->ne[0], initial + protected_ring);
++        l.exact_v = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F16, l.v->ne[0], initial + protected_ring);
++        ggml_format_name(l.exact_k, "antisocial_exact_k_%d", l.il);
++        ggml_format_name(l.exact_v, "antisocial_exact_v_%d", l.il);
++        auto * buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx.get(), ggml_backend_buffer_get_type(l.k->buffer));
++        if (!buf) throw std::runtime_error("Unable to allocate protected KV ring");
++        ggml_backend_buffer_clear(buf, 0);
++        LLAMA_LOG_INFO("%s: layer %u exact KV %zu bytes (%u initial + %u ring)\n", __func__, l.il,
++            ggml_backend_buffer_get_size(buf), initial, protected_ring);
++        ctxs_bufs.emplace_back(std::move(ctx), buf);
++    }
++}
++
++ggml_tensor * llama_kv_cache::protected_input(ggml_context * ctx, uint32_t count, bool indices) const {
++    if (!has_protected()) return nullptr;
++    auto * t = ggml_new_tensor_1d(ctx, indices ? GGML_TYPE_I64 : GGML_TYPE_I32, count);
++    ggml_set_input(t);
++    return t;
++}
++
++void llama_kv_cache::protected_set(ggml_tensor * indices, ggml_tensor * map, const llama_ubatch & ubatch, const slot_info & sinfo) const {
++    if (!has_protected()) return;
++    GGML_ASSERT(ubatch.n_tokens <= protected_ubatch && sinfo.n_stream() == 1);
++    auto * ids = static_cast<int64_t *>(indices->data);
++    const auto & cells = v_cells[0];
++    std::vector<bool> used(protected_positions.size(), false);
++    for (uint32_t i = 0; i < ubatch.n_tokens; ++i) {
++        if (ubatch.n_seq_id[i] != 1 || ubatch.seq_id[i][0] != 0 || ubatch.pos[i] < 0)
++            throw std::runtime_error("Protected KV supports one explicit sequence");
++        const auto pos = ubatch.pos[i];
++        const auto cell = sinfo.idxs[0][i];
++        const uint32_t slot = uint32_t(pos) < protected_initial ? uint32_t(pos) : protected_initial + (uint32_t(pos) - protected_initial) % protected_ring;
++        if (used[slot]) throw std::runtime_error("Protected KV batch overwrites its own exact state");
++        used[slot] = true;
++        // Reuse of a physical cell must not leave an alias to old exact values.
++        for (size_t j = 0; j < protected_cells.size(); ++j)
++            if (protected_cells[j] == int32_t(cell)) protected_cells[j] = protected_positions[j] = -1;
++        protected_cells[slot] = int32_t(cell);
++        protected_positions[slot] = pos;
++        ids[i] = slot;
++    }
++    auto * lookup = static_cast<int32_t *>(map->data);
++    std::fill(lookup, lookup + map->ne[0], -1);
++    for (size_t j = 0; j < protected_cells.size(); ++j) {
++        const auto cell = protected_cells[j];
++        if (cell >= 0 && cell < map->ne[0] && !cells.is_empty(cell) && cells.pos_get(cell) == protected_positions[j])
++            lookup[cell] = int32_t(j);
++    }
++}
++
++ggml_tensor * llama_kv_cache::protected_get(ggml_context * ctx, int32_t il, bool value) const {
++    if (!has_protected()) return nullptr;
++    const auto & l = layers.at(map_layer_ids.at(il));
++    auto * t = value ? l.exact_v : l.exact_k;
++    const auto d = value ? hparams.n_embd_head_v(il) : hparams.n_embd_head_k(il);
++    const auto heads = hparams.n_head_kv(il);
++    // Same logical axes as flash attention: [D, slots, KV heads, streams].
++    return ggml_view_4d(ctx, t, d, t->ne[1], heads, 1, t->nb[1], d*sizeof(ggml_fp16_t), ggml_nbytes(t), 0);
++}
++
++ggml_tensor * llama_kv_cache::protected_store(ggml_context * ctx, ggml_tensor * current, ggml_tensor * indices, int32_t il, bool value) const {
++    const auto & l = layers.at(map_layer_ids.at(il));
++    auto * t = value ? l.exact_v : l.exact_k;
++    auto * rows = ggml_view_2d(ctx, current, current->ne[0]*current->ne[1], current->ne[2], current->nb[2], 0);
++    return ggml_set_rows(ctx, t, rows, indices);
++}
++
++void llama_kv_cache_context::protected_set(ggml_tensor * indices, ggml_tensor * map, const llama_ubatch & ubatch) const {
++    kv->protected_set(indices, map, ubatch, sinfos[i_cur]);
++}
++
++// The exact ring and its logical-position ownership are part of hybrid state,
++// never reconstructed by dequantizing history. A mismatched cache recipe fails.
++void llama_kv_cache::protected_write(llama_io_write_i & io) const {
++    const uint32_t header[] = {0x4c4b5632, protected_initial, protected_ring, protected_ubatch, rotation_kind};
++    io.write(header, sizeof(header));
++    io.write(&calibration_id, sizeof(calibration_id));
++    io.write(&basis_id, sizeof(basis_id));
++    if (!has_protected()) return;
++    io.write(protected_positions.data(), protected_positions.size()*sizeof(int32_t));
++    for (const auto & l : layers) {
++        io.write_tensor(l.exact_k, 0, ggml_nbytes(l.exact_k));
++        io.write_tensor(l.exact_v, 0, ggml_nbytes(l.exact_v));
++    }
++}
++
++void llama_kv_cache::protected_read(llama_io_read_i & io) {
++    uint32_t header[5]; io.read(header, sizeof(header));
++    uint64_t saved_calibration; io.read(&saved_calibration, sizeof(saved_calibration));
++    uint64_t saved_basis; io.read(&saved_basis, sizeof(saved_basis));
++    if (header[0] != 0x4c4b5632 || header[1] != protected_initial || header[2] != protected_ring || header[3] != protected_ubatch || header[4] != rotation_kind || saved_calibration != calibration_id || saved_basis != basis_id)
++        throw std::runtime_error("Protected KV state recipe mismatch");
++    if (!has_protected()) return;
++    io.read(protected_positions.data(), protected_positions.size()*sizeof(int32_t));
++    std::fill(protected_cells.begin(), protected_cells.end(), -1);
++    const auto & cells = v_cells[0];
++    for (size_t slot = 0; slot < protected_positions.size(); ++slot) {
++        const auto pos = protected_positions[slot];
++        if (pos < 0) continue;
++        const auto expected = uint32_t(pos) < protected_initial ? uint32_t(pos) : protected_initial + (uint32_t(pos) - protected_initial) % protected_ring;
++        if (expected != slot) throw std::runtime_error("Invalid protected KV position record");
++        for (uint32_t cell = 0; cell < cells.size(); ++cell)
++            if (!cells.is_empty(cell) && cells.pos_get(cell) == pos && cells.seq_has(cell, 0)) { protected_cells[slot] = cell; break; }
++    }
++    for (const auto & l : layers) {
++        io.read_tensor(l.exact_k, 0, ggml_nbytes(l.exact_k));
++        io.read_tensor(l.exact_v, 0, ggml_nbytes(l.exact_v));
++    }
++}
++
++ggml_tensor * llama_kv_cache::codec_scale_input(ggml_context * ctx) const {
++    if (channel_scales.empty()) return nullptr;
++    auto * t = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, channel_scales.size());
++    ggml_set_input(t); ggml_set_name(t, "antisocial_kv_channel_scale"); return t;
++}
++void llama_kv_cache::codec_scale_set(ggml_tensor * t) const {
++    GGML_ASSERT(ggml_backend_buffer_is_host(t->buffer) && t->ne[0] == int64_t(channel_scales.size()));
++    memcpy(t->data, channel_scales.data(), ggml_nbytes(t));
++}
++ggml_tensor * llama_kv_cache::inverse_v_input(ggml_context * ctx) const {
++    if (!rotation_kind) return nullptr;
++    auto * t = build_input_v_rot(ctx); ggml_set_name(t, "antisocial_kv_inverse_v"); return t;
++}
++void llama_kv_cache::inverse_v_set(ggml_tensor * t) const {
++    GGML_ASSERT(ggml_backend_buffer_is_host(t->buffer));
++    const auto & matrix = attn_rot_hadamard.at(t->ne[0]);
++    const auto inverse = llama_kv_inverse_rotation(matrix, t->ne[0]);
++    memcpy(t->data, inverse.data(), ggml_nbytes(t));
++}
+--- a/src/llama-kv-cache.h
++++ b/src/llama-kv-cache.h
+@@ -117,6 +117,17 @@
+                  const char *   name_tag = "");
+ 
+     ~llama_kv_cache() = default;
++    void enable_protected(uint32_t recent, uint32_t initial, uint32_t ubatch, uint32_t rotation, const float * scales, uint32_t scale_count);
++    bool plain_hadamard() const { return rotation_kind == 0; }
++    ggml_tensor * codec_scale_input(ggml_context * ctx) const;
++    void codec_scale_set(ggml_tensor * tensor) const;
++    ggml_tensor * inverse_v_input(ggml_context * ctx) const;
++    void inverse_v_set(ggml_tensor * tensor) const;
++    bool has_protected() const { return protected_ring > 0; }
++    ggml_tensor * protected_input(ggml_context * ctx, uint32_t count, bool indices) const;
++    void protected_set(ggml_tensor * indices, ggml_tensor * map, const llama_ubatch & ubatch, const slot_info & sinfo) const;
++    ggml_tensor * protected_get(ggml_context * ctx, int32_t il, bool value) const;
++    ggml_tensor * protected_store(ggml_context * ctx, ggml_tensor * current, ggml_tensor * indices, int32_t il, bool value) const;
+ 
+     //
+     // llama_memory_i
+@@ -270,7 +281,21 @@
+ 
+         std::vector<ggml_tensor *> k_stream;
+         std::vector<ggml_tensor *> v_stream;
++        ggml_tensor * exact_k = nullptr;
++        ggml_tensor * exact_v = nullptr;
+     };
++
++    uint32_t rotation_kind = 0;
++    uint64_t calibration_id = 0;
++    uint64_t basis_id = 0;
++    std::vector<float> channel_scales;
++    uint32_t protected_initial = 0;
++    uint32_t protected_ring = 0;
++    uint32_t protected_ubatch = 0;
++    mutable std::vector<int32_t> protected_positions;
++    mutable std::vector<int32_t> protected_cells;
++    void protected_write(llama_io_write_i & io) const;
++    void protected_read(llama_io_read_i & io);
+ 
+     bool v_trans = true;  // the value tensor is transposed
+ 
+@@ -402,6 +427,17 @@
+     // llama_kv_cache_context specific API
+     //
+ 
++    bool has_protected() const { return kv->has_protected(); }
++    bool plain_hadamard() const { return kv->plain_hadamard(); }
++    ggml_tensor * codec_scale_input(ggml_context * ctx) const { return kv->codec_scale_input(ctx); }
++    void codec_scale_set(ggml_tensor * tensor) const { kv->codec_scale_set(tensor); }
++    ggml_tensor * inverse_v_input(ggml_context * ctx) const { return kv->inverse_v_input(ctx); }
++    void inverse_v_set(ggml_tensor * tensor) const { kv->inverse_v_set(tensor); }
++    ggml_tensor * protected_input(ggml_context * ctx, uint32_t count, bool indices) const { return kv->protected_input(ctx, count, indices); }
++    void protected_set(ggml_tensor * indices, ggml_tensor * map, const llama_ubatch & ubatch) const;
++    ggml_tensor * protected_get(ggml_context * ctx, int32_t il, bool value) const { return kv->protected_get(ctx, il, value); }
++    ggml_tensor * protected_store(ggml_context * ctx, ggml_tensor * current, ggml_tensor * indices, int32_t il, bool value) const { return kv->protected_store(ctx, current, indices, il, value); }
++
+     uint32_t get_n_kv() const;
+ 
+     ggml_type type_k() const;
+--- a/src/llama-memory.h
++++ b/src/llama-memory.h
+@@ -25,6 +25,11 @@
+     llama_context_type ctx_type;
+ 
+     llama_memory_t mem_other;
++    uint32_t protected_recent = 0;
++    uint32_t protected_initial = 0;
++    uint32_t rotation = 0;
++    const float * channel_scale = nullptr;
++    uint32_t channel_scale_count = 0;
+ };
+ 
+ enum llama_memory_status {
+--- a/src/llama-model.cpp
++++ b/src/llama-model.cpp
+@@ -3417,6 +3417,14 @@
+             }
+     }
+ 
++    if (params.protected_recent) {
++        std::unique_ptr<llama_memory_i> protected_owner(res);
++        auto * cache = dynamic_cast<llama_kv_cache *>(res);
++        if (auto * hybrid = dynamic_cast<llama_memory_hybrid *>(res)) cache = hybrid->get_mem_attn();
++        if (!cache) throw std::runtime_error("Protected KV requires a standard attention cache");
++        cache->enable_protected(params.protected_recent, params.protected_initial, cparams.n_ubatch, params.rotation, params.channel_scale, params.channel_scale_count);
++        protected_owner.release();
++    }
+     return res;
+ }
+ 
