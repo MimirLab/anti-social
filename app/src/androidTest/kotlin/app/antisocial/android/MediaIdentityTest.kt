@@ -30,6 +30,33 @@ class MediaIdentityTest {
     private val b="https://two.invalid/independently-encoded.webp"
     private fun post(url: String,platform: Platform=Platform.X)=Post("fixture",platform,"https://fixture.invalid/post","Fixture author","A substantial shared caption",media=listOf(Media(url)))
 
+    @Test fun reportedWhiteHouseImagesMatchAcrossResizingWithoutCollapsingDifferentPictures() {
+        val assets=InstrumentationRegistry.getInstrumentation().context.assets
+        val names=listOf("whitehouse-image-copy-0.jpg","whitehouse-clemson.jpg","whitehouse-migrant-children.jpg")
+        val store=MediaIdentityStore()
+        val originals=names.map {name->assets.open(name).use(BitmapFactory::decodeStream)}
+        try {
+            originals.forEachIndexed {index,source->
+                val first=post("https://first.invalid/$index.jpg")
+                val second=post("https://other.invalid/$index.webp",Platform.FACEBOOK)
+                val resized=Bitmap.createScaledBitmap(source,320,(source.height*320.0/source.width).toInt(),true)
+                val encoded=ByteArrayOutputStream().use {out->resized.compress(Bitmap.CompressFormat.JPEG,78,out);out.toByteArray()}
+                val decoded=BitmapFactory.decodeByteArray(encoded,0,encoded.size)
+                try {
+                    store.observe(first.media.single().url,source);store.observe(second.media.single().url,decoded)
+                    val fp=store.captured(first).media.single().visualFingerprint!!;val sp=store.captured(second).media.single().visualFingerprint!!
+                    val x=java.util.Base64.getDecoder().decode(fp.substringAfterLast('|'));val y=java.util.Base64.getDecoder().decode(sp.substringAfterLast('|'))
+                    val differences=x.indices.map {k->kotlin.math.abs((x[k].toInt() and 255)-(y[k].toInt() and 255))}
+                    val tiles=(0 until 8).flatMap {ty->(0 until 8).map {tx->(0 until 8).sumOf {dy->(0 until 8).sumOf {dx->differences[(ty*8+dy)*64+tx*8+dx]}}/64.0}}
+                    assertEquals("Picture $index: valid=${VisualFrames.valid(fp)}/${VisualFrames.valid(sp)}, mean=${differences.average()}, max=${differences.max()}, patch=${tiles.max()}",1,collectedMedia(listOf(first,second),store).size)
+                }finally {resized.recycle();decoded.recycle()}
+            }
+            val different=originals.indices.map {post("https://first.invalid/$it.jpg")}
+            assertEquals("The three reported posts contain three distinct pictures",3,collectedMedia(different,store).size)
+            for(i in different.indices)for(j in i+1 until different.size)assertFalse(store.same(different[i],different[j]))
+        }finally {originals.forEach {it.recycle()}}
+    }
+
     @Test fun actualInterviewFramesSupportContextCollectionsWithoutBecomingIdenticalPictures() {
         val assets=InstrumentationRegistry.getInstrumentation().context.assets
         val first=assets.open("bessent-0.jpg").use {BitmapFactory.decodeStream(it)}
@@ -44,6 +71,23 @@ class MediaIdentityTest {
             store.clear()
             assertTrue("Captured evidence survives the disposable in-memory bank",VisualFrames.same(left.media.single().visualFingerprint,right.media.single().visualFingerprint,nearbyFrame=true))
         }finally {first.recycle();second.recycle()}
+    }
+
+    @Test fun correctedInfographicFiguresAndCropsKeepTheirOwnImages() {
+        val assets=InstrumentationRegistry.getInstrumentation().context.assets
+        val source=assets.open("whitehouse-migrant-children.jpg").use(BitmapFactory::decodeStream)
+        val corrected=source.copy(Bitmap.Config.ARGB_8888,true)
+        val paint=Paint().apply {isAntiAlias=true;color=Color.rgb(8,10,11)}
+        val canvas=Canvas(corrected);canvas.drawRect(870f,340f,920f,400f,paint)
+        paint.color=Color.WHITE;paint.textSize=46f;paint.typeface=android.graphics.Typeface.DEFAULT_BOLD
+        canvas.drawText("9",870f,386f,paint)
+        val cropped=Bitmap.createBitmap(source,50,32,source.width-100,source.height-64)
+        try {
+            for(other in listOf(corrected,cropped)) {
+                val store=MediaIdentityStore();store.observe(a,source);store.observe(b,other)
+                assertEquals("An edited number or a crop is retained even inside an already merged post",2,collectedMedia(listOf(post(a),post(b)),store).size)
+            }
+        }finally {source.recycle();corrected.recycle();cropped.recycle()}
     }
 
     @Test fun resizedReencodedPicturesMatchWithoutMutatingTheSharedBitmap() {

@@ -1,6 +1,6 @@
 # anti social
 
-**Current release: 0.35.46.** A native, accountless reader with chronological
+**Current release: 0.35.47.** A native, accountless reader with chronological
 feeds, local subscriptions and saved copies, and optional AI. The ordinary
 reader works without a model, API key or root access.
 
@@ -1030,6 +1030,14 @@ reader has already decoded; matching adds no image requests or remote classifier
 Fingerprints can support resized or re-encoded copies, but do not reliably identify
 crops, watermarks or substantially edited images. Unseen images cannot supply
 fingerprint evidence, and matching pictures never establish account ownership.
+
+Collected galleries apply newly available local image observations even when the
+reading card's captions and source editions are frozen. Reencoded photos and text
+graphics can appear once across platform URLs. A fine area-averaged luminance grid
+checks local differences so a changed chart region or crop can remain separate;
+uncertain matches stay visible. Saved editions retain these versioned observations,
+and an already-open image viewer keeps the chosen gallery until it is closed.
+See [media collection matching](docs/MEDIA_COLLECTIONS.md).
 
 Saving a fused card preserves its source editions together. The local reader can
 switch between **Combined** and each original platform's text and link, while

@@ -1,3 +1,48 @@
+## Collected image matching — 0.35.47 / code 95
+
+The reported White House images exposed two different problems. Frozen feed
+bodies retained raw media even after the image loader learned that platform
+copies matched. Separately, thumbnail resize chains changed coarse photo hashes
+for the text-heavy unaccompanied-children graphic. Galleries now observe fresh
+local evidence without changing their captions, original URLs or discussion roots.
+A versioned area-averaged 64-by-64 luminance grid adds local-change checks for
+presentation; post/account grouping thresholds are unchanged. New saved editions
+retain those observations, the offline reader uses its captured data, and an open
+viewer keeps its selected gallery while the underlying card removes repetitions.
+
+Qualification: **1,723 core tests passed**, zero failures/errors/skips. **54 distinct
+Android cases passed**, zero failures/skips: 12 focused image/gallery cases and 42
+complementary feed, fusion, saved-media, migration and image-search regressions.
+Release lint has zero errors/fatals, 170 warnings and one hint. Debug, release and
+instrumentation builds passed; native gallery screens were inspected.
+
+The new three-platform test first failed against the prior implementation: the
+local bank recognized the actual retained X/Instagram picture but the visible
+frozen card still displayed three copies. It now reduces to one without refresh,
+keeps an open viewer's selected page, retains all three source records and saves
+an offline collection that still renders one picture after the bank is cleared.
+An additional synthetic Facebook edition exercises platform-independent behavior;
+it is not a claim of retrieving that particular live Facebook post. Public-source
+fixture provenance accompanies the test assets. The original X pictures for all
+three reported captions pass resize/JPEG comparisons; an edited graphic figure,
+a crop and the three distinct pictures remain separate. Malformed/oversized
+observations and legacy f1 compatibility are tested. Conservative perceptual
+matching does not establish arbitrary image transformations or factual accuracy.
+
+Earlier intermediate runs remain in external evidence: they caught the infographic
+coarse-hash failure and aliasing in chained bilinear samples. True area averages
+fixed that failure without weakening post-grouping thresholds. The viewer fixture
+also needed the outer image action explicitly: a physical center tap on its
+unloaded placeholder presses Retry instead. Final runs have no unresolved failures.
+
+No AI, dependency, permission or matching-specific network request was added.
+Release APK: **190,675,015 bytes**, just **2,048 bytes larger** than 0.35.46;
+SHA256 `c626f287833b7cb4e9861eecaff50d88ac0434b225f2f5d35cb5257063a9802a`.
+Evidence is under the external `image-dedup` directory. The derived comparison bank
+keeps its 2,048-entry/seven-day bounds; each new observation is about 5.6 KB of
+encoded samples. Physical-phone performance and universal duplicate recognition
+are not claimed. See [media collections](docs/MEDIA_COLLECTIONS.md).
+
 ## Geographic opportunity routing — 0.35.46 / code 94
 
 Local search keeps staged cards and its existing request limits. New regional

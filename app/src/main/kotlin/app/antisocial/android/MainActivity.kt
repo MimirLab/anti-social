@@ -383,7 +383,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     var showSourceDetails by remember(repo.key(post)){mutableStateOf(false)}
     val savedKeys=LocalSavedPostKeys.current
     val isSaved=saved||threads.any {repo.key(it) in savedKeys}
-    var fullImage by remember(post.id){mutableStateOf<Int?>(null)}
+    var fullImage by remember(post.id){mutableStateOf<Pair<List<Media>,Int>?>(null)}
     var saveCopy by remember(repo.key(post)){mutableStateOf(false)}
     var capturedReplies by remember {mutableStateOf<List<CapturedThread>>(emptyList())}
     val archive=rememberArchivePresentation(post,repo,active=fullImage==null&&!showOriginals&&!showOptions)
@@ -402,13 +402,15 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
             runCatching {repo.library.normalizedFusionRoots(post,threads)}.getOrDefault(emptyList())else emptyList()
         extended.ifEmpty {body}
     }
-    val shownMedia=remember(displayed,fusion,contentRoots){if(fusion!=null)collectedMedia(contentRoots)else displayed.media}
+    val shownMedia=rememberCollectedMedia(repo,if(fusion!=null)contentRoots else listOf(displayed))
     val mediaSources=remember(displayed,fusion,contentRoots){if(fusion==null)emptyMap()else contentRoots.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
     val images=shownMedia.filter {it.type=="image"}
     val aiEntries=rememberAiProvenance(repo,if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads)
     var aiExpanded by remember(repo.key(post),archive.showingArchive){mutableStateOf(false)}
     LaunchedEffect(archive.showingArchive){fullImage=null}
-    fullImage?.let {MediaViewer(images,it,displayed.contentSourceUrl,repo,sources=mediaSources){fullImage=null}}
+    // Keep an open viewer on the picture the reader chose if later local
+    // evidence removes another copy from the card underneath it.
+    fullImage?.let {(opened,index)->MediaViewer(opened,index,displayed.contentSourceUrl,repo,sources=mediaSources){fullImage=null}}
     val reading=rememberArchiveDwellModifier("history:${repo.key(post)}",enabled=fullImage==null&&!showOriginals&&archiveViewportAllows(repo.key(post))&&!LocalArchiveChecksPaused.current,dwellMs=600){repo.viewed(post)}
     DisposableEffect(repo.key(post)){repo.lease(repo.key(post),true);onDispose {repo.lease(repo.key(post),false)}}
     val shape=when(post.platform){Platform.X,Platform.BLUESKY,Platform.THREADS,Platform.MASTODON,Platform.LINKEDIN->RoundedCornerShape(4.dp);Platform.REDDIT,Platform.LEMMY->RoundedCornerShape(14.dp);Platform.INSTAGRAM,Platform.PIXELFED,Platform.FACEBOOK->RoundedCornerShape(8.dp);Platform.PINTEREST,Platform.TIKTOK->RoundedCornerShape(22.dp);else->RoundedCornerShape(18.dp)}
@@ -441,7 +443,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
             if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
             shownMedia.forEach {m->
                 val owner=if(fusion==null)displayed else contentRoots.firstOrNull {root->root.media.any {it.url==m.url}} ?: displayed
-                if(m.type=="image")RemoteImage(m.url,owner.contentSourceUrl,repo,Modifier.fillMaxWidth().aspectRatio(when(post.platform){Platform.TIKTOK,Platform.SNAPCHAT->.75f;Platform.INSTAGRAM,Platform.PIXELFED->1f;Platform.PINTEREST->.8f;else->1.25f}).padding(top=12.dp).clickable {fullImage=images.indexOf(m)},m.description) else VideoCard(m,owner,repo)
+                if(m.type=="image")RemoteImage(m.url,owner.contentSourceUrl,repo,Modifier.fillMaxWidth().testTag("Post image ${repo.key(post)} ${m.url}").aspectRatio(when(post.platform){Platform.TIKTOK,Platform.SNAPCHAT->.75f;Platform.INSTAGRAM,Platform.PIXELFED->1f;Platform.PINTEREST->.8f;else->1.25f}).padding(top=12.dp).clickable {fullImage=images.toList() to images.indexOf(m)},m.description) else VideoCard(m,owner,repo)
             }
             if(post.platform==Platform.TIKTOK&&displayed.media.any {it.description.startsWith("Video preview;")})Text("Video preview · playback unavailable from this source",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(16.dp))
             if(linkedVideo&&(caption.body.isNotBlank()||fusion!=null)) {

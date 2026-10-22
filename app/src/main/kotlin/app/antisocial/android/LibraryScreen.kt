@@ -137,7 +137,8 @@ import kotlinx.coroutines.launch
     val version=sourceEdition.archivedVersion
     val displayed=if(showingArchive&&version!=null)version.displayPost(sourceEdition)else sourceEdition
     val fusion=remember(fusionRoots,selectedEdition,showingArchive){if(selectedEdition=="all"&&!showingArchive)collectedPostFusion(fusionRoots)else null}
-    val shownMedia=remember(displayed,fusion,fusionRoots){if(fusion!=null)collectedMedia(fusionRoots)else displayed.media}
+    // Offline editions use their captured observations, never a newer live URL's bytes.
+    val shownMedia=remember(displayed,fusion,fusionRoots){collectedMedia(if(fusion!=null)fusionRoots else listOf(displayed))}
     val aiEntries=rememberAiProvenance(repo,if(fusion!=null)fusionRoots else listOf(displayed),localOnly=true)
     val caption=if(selectedEdition=="all"&&!showingArchive&&fusion==null)collectedCaptionPost(fusionRoots) ?: displayed else displayed
     val body=remember(caption){PostPresentation.text(caption)}

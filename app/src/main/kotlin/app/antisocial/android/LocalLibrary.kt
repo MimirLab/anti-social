@@ -180,11 +180,11 @@ class LocalLibrary(private val repo: Repository) {
         val owner=repo.key(post);val token=UUID.randomUUID().toString();val now=System.currentTimeMillis()
         repo.archiveStore.mutations.withLock {
             val old=dao.bookmarksByKeys(listOf(owner)).firstOrNull()
-            val root=old?.let {parse(it.payload)} ?: repo.captureAiMetadata(repo.archiveStore.marry(post))
+            val root=old?.let {parse(it.payload)} ?: repo.captureAiMetadata(repo.images.identities.captured(repo.archiveStore.marry(post)))
             val previous=details(owner)
             // A later save can add a newly discovered platform, but cannot edit
             // the first local capture of any already-preserved source edition.
-            val editions=capturedEditions(listOf(root)+previous?.fusionRoots.orEmpty()+fusionRoots.map {repo.captureAiMetadata(repo.archiveStore.marry(it))})
+            val editions=capturedEditions(listOf(root)+previous?.fusionRoots.orEmpty()+fusionRoots.map {repo.captureAiMetadata(repo.images.identities.captured(repo.archiveStore.marry(it)))})
             val fusion=if(previous?.fusionRoots.orEmpty().isNotEmpty()||fusionRoots.isNotEmpty())normalizedFusionRoots(root,editions)else emptyList()
             val captured=mergeThreads(previous?.threads.orEmpty(),threads)
             require(captured.sumOf {it.count+1}<=4096){"This captured thread is too large; save fewer replies"}

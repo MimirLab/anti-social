@@ -431,6 +431,67 @@ class CrossPostFeedTest {
         }finally {repo.gateway.configure(oldPolicy)}
     }
 
+    @Test fun lateImageEvidenceDeduplicatesAFrozenThreePlatformCardWithoutRefreshingItsBody() {
+        val old=repo.gateway.currentPolicy();repo.gateway.configure(NetworkPolicy(tor=true))
+        val assets=InstrumentationRegistry.getInstrumentation().context.assets
+        val a=assets.open("whitehouse-image-copy-0.jpg").use(android.graphics.BitmapFactory::decodeStream)
+        val b=assets.open("whitehouse-image-copy-1.jpg").use(android.graphics.BitmapFactory::decodeStream)
+        val local=mutableListOf<Pair<String,File>>()
+        repo.images.identities.clear()
+        try {
+            val urls=(0..2).map {"https://gallery-$suffix.invalid/$it.jpg"}
+            val first=post(Platform.X,index=71).copy(media=listOf(Media(urls[0])))
+            val second=post(Platform.BLUESKY,index=72).copy(media=listOf(Media(urls[1])))
+            val third=Post("$suffix-73",Platform.FACEBOOK,"https://www.facebook.com/$handle/posts/987${suffix}73",handle,caption,publishedAt=now-60_000,media=listOf(Media(urls[2])))
+            records+=third
+            val originals=listOf(first,second,third)
+            originals.forEach {store(it,follow(it.platform))}
+            val primary=orderedCollectedOriginals(originals).first()
+            seed("all",orderedCollectedOriginals(originals));val vm=model();show(vm,all=true);waitRow(primary)
+            fun photos()=ui.onAllNodes(SemanticsMatcher("photos on the frozen card") {it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(primary)} ")==true})
+            photos().assertCountEquals(3)
+            val last=collectedMedia(orderedCollectedOriginals(originals)).last()
+            ui.onNodeWithTag("Post image ${repo.key(primary)} ${last.url}").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick){it()}
+            try {ui.waitUntil(5000){ui.onAllNodesWithContentDescription("Close image").fetchSemanticsNodes().isNotEmpty()}}
+            catch(t:Throwable) {evidence("late-gallery-viewer-failure");File(ui.activity.filesDir,"gallery-viewer-failure.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString());throw t}
+            val selectedPage=(1..3).map {"$it / 3"}.single {ui.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty()}
+            ui.onNodeWithText(selectedPage).assertIsDisplayed()
+            val before=originals.map {it.body to it.canonicalUrl}
+            runBlocking {urls.forEachIndexed {index,url->
+                val file=File(ui.activity.cacheDir,"merged-image-$suffix-$index.jpg")
+                assets.open("whitehouse-image-copy-${if(index==1)1 else 0}.jpg").use {input->file.outputStream().use {input.copyTo(it)}}
+                val key=Repository.hash(url);local+=key to file
+                repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))
+            }}
+            runBlocking {urls.forEach {repo.images.load(it,primary.contentSourceUrl,1600)}}
+            assertTrue("Actual retained X and Instagram encodings are the same image",repo.images.identities.same(first,second))
+            assertEquals(1,collectedMedia(originals.map(repo.images.identities::captured)).size)
+            ui.waitForIdle()
+            ui.onNodeWithText(selectedPage).assertIsDisplayed()
+            ui.onNodeWithContentDescription("Close image").performClick()
+            ui.waitUntil(10_000){photos().fetchSemanticsNodes().size==1}
+            rowCount(originals,1);photos().assertCountEquals(1)
+            ui.onAllNodesWithContentDescription("Retry image").fetchSemanticsNodes().takeIf {it.size==1}?.let {ui.onNodeWithContentDescription("Retry image").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick){it()}}
+            ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Retry image").fetchSemanticsNodes().isEmpty()}
+            photos().onFirst().performScrollTo()
+            ui.waitUntil(10_000){photos().fetchSemanticsNodes().single().config.getOrNull(SemanticsProperties.ContentDescription)?.contains("")==true}
+            assertEquals(before,originals.map {it.body to it.canonicalUrl})
+            for(original in originals)assertNotNull(runBlocking {repo.dao.post(repo.key(original))})
+            evidence("three-platform-image-once-native")
+            runBlocking {repo.library.save(primary,emptyList(),fusionRoots=originals);repo.library.cancel(repo.key(primary))}
+            repo.images.identities.clear()
+            val saved=runBlocking {repo.library.copy(repo.key(primary))}!!
+            val offline=repo.library.normalizedFusionRoots(saved.post,saved.details!!.fusionRoots!!)
+            assertEquals(3,offline.size)
+            assertEquals("Saving raw frozen editions retains image evidence for offline deduplication",1,collectedMedia(offline).size)
+            assertEquals(originals.map {it.canonicalUrl}.toSet(),offline.map {it.canonicalUrl}.toSet())
+            assertTrue("Source records are never rewritten",originals.all {it.media.single().visualFingerprint==null})
+        }finally {
+            a.recycle();b.recycle();repo.images.identities.clear();repo.gateway.configure(old)
+            runBlocking {local.forEach {(key,file)->repo.dao.removeMedia(listOf(key));file.delete()}}
+        }
+    }
+
     @Test fun actualBessentVariantsCollectCaptionsPicturesCommentsAndAnOfflineCopy() {
         val oldPolicy=repo.gateway.currentPolicy();repo.gateway.configure(NetworkPolicy(tor=true))
         val fixtureMedia=mutableListOf<Pair<String,File>>()
@@ -453,6 +514,7 @@ class CrossPostFeedTest {
             rowCount(originals,1)
             for(phrase in listOf("Core inflation is down.","No one has been tougher on Russian sanctions than President Trump."))ui.onAllNodesWithText(phrase,substring=true).assertCountEquals(1)
             assertEquals("The same interview frame should appear once; the different second scene remains",2,collectedMedia(originals.map(repo.images.identities::captured)).size)
+            assertEquals("A frozen collection uses fresh observations for its related-frame guard too",2,collectedMedia(originals,repo.images.identities).size)
             evidence("bessent-collected-coverage-native")
             revealCombinedControl(hasTestTag("Read discussions ${repo.key(primary)}"))
             ui.onNodeWithTag("Read discussions ${repo.key(primary)}").performClick()

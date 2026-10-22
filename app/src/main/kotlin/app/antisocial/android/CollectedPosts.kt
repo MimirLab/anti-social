@@ -2,6 +2,8 @@
 package app.antisocial.android
 
 import app.antisocial.core.*
+import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /** These lists have already passed the grouping or saved-manifest checks. */
 internal fun hasRepeatedOriginals(posts: List<Post>): Boolean = posts.size>posts.map {it.platform}.distinct().size
@@ -28,9 +30,17 @@ internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusi
 internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedPostFusion(posts)?.segments?.map {it.text}
     ?: listOf(collectedCaptionPost(posts)?.let(PostPresentation::content).orEmpty())
 
-internal fun collectedMedia(posts: List<Post>): List<Media> {
-    val near=CrossPosts.relatedVisualUpdates(posts)
-    val media=posts.flatMap {it.media}
+/** Reading freezes captions and editions, not local evidence that two already
+ * included attachments are the same picture. Never fetches or changes a source. */
+@Composable internal fun rememberCollectedMedia(repo: Repository,posts: List<Post>): List<Media> {
+    val revision by repo.images.identities.revision.collectAsStateWithLifecycle()
+    return remember(posts,revision){collectedMedia(posts,repo.images.identities)}
+}
+
+internal fun collectedMedia(posts: List<Post>,identities: MediaIdentityStore?=null): List<Media> {
+    val observed=if(identities==null)posts else posts.map(identities::captured)
+    val near=CrossPosts.relatedVisualUpdates(observed)
+    val media=observed.flatMap {it.media}
     val posters=media.filter {it.type=="video"}.mapNotNull {it.preview}.toSet()
     val out=mutableListOf<Media>()
     for(item in media) {
@@ -38,7 +48,7 @@ internal fun collectedMedia(posts: List<Post>): List<Media> {
         // video. Its source record remains available in Collected originals.
         if(item.type=="image"&&item.url in posters)continue
         if(out.none {previous->previous.type==item.type&&
-            (previous.url==item.url||item.type=="image"&&VisualFrames.same(previous.visualFingerprint,item.visualFingerprint,nearbyFrame=near))})out+=item
+            (previous.url==item.url||item.type=="image"&&(VisualFrames.sameImage(previous.visualFingerprint,item.visualFingerprint)||near&&VisualFrames.same(previous.visualFingerprint,item.visualFingerprint,nearbyFrame=true)))})out+=item
     }
     return out
 }

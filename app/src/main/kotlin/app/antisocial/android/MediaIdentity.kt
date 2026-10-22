@@ -10,12 +10,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.sqrt
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /** Local evidence from images the reader has already decoded. This never fetches an image.
  *
  * A close match is supporting evidence for cross-post text matching, not an account identity.
  * Fingerprints cover resize/reencoding, not cropping, watermarks or substantially edited art.
- * No bitmap or image bytes are retained, and exact source URLs are never rewritten.
+ * Only bounded derived samples are retained; original bitmaps, files and source URLs are unchanged.
  */
 class MediaIdentityStore(
     private val maxEntries: Int=2048,
@@ -25,7 +28,7 @@ class MediaIdentityStore(
     init {require(maxEntries>0);require(ttlMs>0)}
     private data class Fingerprint(
         val aspect: Double,val horizontal: Long,val vertical: Long,
-        val cells: List<Int>,val contrast: Double
+        val cells: List<Int>,val contrast: Double,val encoded: String
     )
     private data class Observation(val fingerprint: Fingerprint,val observedAt: Long)
     private val observations=LinkedHashMap<String,Observation>()
@@ -45,7 +48,7 @@ class MediaIdentityStore(
         val media=post.media.map {item->
             val url=when(item.type){"image"->item.url;"video"->item.preview;else->null}
             val f=observations[url]?.fingerprint
-            if(f==null)item else item.copy(visualFingerprint=VisualFrames.encode(f.aspect,f.contrast,f.horizontal,f.vertical,f.cells))
+            if(f==null)item else item.copy(visualFingerprint=f.encoded)
         }
         if(media==post.media)post else post.copy(media=media)
     }
@@ -171,7 +174,10 @@ class MediaIdentityStore(
             if(luma(horizontal[y*9+x])>luma(horizontal[y*9+x+1]))hashX=hashX or bit
             if(luma(vertical[y*8+x])>luma(vertical[(y+1)*8+x]))hashY=hashY or bit
         }
-        return Fingerprint(bitmap.width.toDouble()/bitmap.height,hashX,hashY,cells,contrast)
+        val aspect=bitmap.width.toDouble()/bitmap.height
+        val detail=areaLuma(bitmap)
+        val encoded=VisualFrames.encode(aspect,contrast,hashX,hashY,cells,detail) ?: return null
+        return Fingerprint(aspect,hashX,hashY,cells,contrast,encoded)
     }
 
     private fun sample(bitmap: Bitmap,width: Int,height: Int): IntArray {
@@ -191,6 +197,28 @@ class MediaIdentityStore(
             }
             return IntArray(width*height).also {scaled.getPixels(it,0,width,0,0,width,height)}
         }finally {if(scaled!==bitmap)scaled.recycle()}
+    }
+    /** True area averages keep thin lettering stable across unrelated resize
+     * chains. Read one source row at a time; no second full-size raster exists. */
+    private fun areaLuma(bitmap: Bitmap): ByteArray {
+        val out=ByteArray(4096);val row=IntArray(bitmap.width)
+        val scaleX=bitmap.width/64.0;val scaleY=bitmap.height/64.0
+        for(y in 0 until 64) {
+            val sums=DoubleArray(64);val top=y*scaleY;val bottom=(y+1)*scaleY
+            for(sy in floor(top).toInt() until minOf(bitmap.height,ceil(bottom).toInt())) {
+                bitmap.getPixels(row,0,bitmap.width,0,sy,bitmap.width,1)
+                val wy=minOf(bottom,sy+1.0)-maxOf(top,sy.toDouble())
+                for(x in 0 until 64) {
+                    val left=x*scaleX;val right=(x+1)*scaleX
+                    for(sx in floor(left).toInt() until minOf(bitmap.width,ceil(right).toInt())) {
+                        val wx=minOf(right,sx+1.0)-maxOf(left,sx.toDouble())
+                        sums[x]+=luma(row[sx])*wx*wy
+                    }
+                }
+            }
+            for(x in 0 until 64)out[y*64+x]=(sums[x]/(scaleX*scaleY)).roundToInt().coerceIn(0,255).toByte()
+        }
+        return out
     }
     private fun luma(color: Int): Int=((color shr 16 and 255)*77+(color shr 8 and 255)*150+(color and 255)*29) shr 8
 }

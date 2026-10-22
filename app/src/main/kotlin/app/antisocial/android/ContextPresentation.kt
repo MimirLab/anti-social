@@ -28,5 +28,5 @@ internal fun contextSnapshot(repo: Repository,displayed: Post,roots: List<Post>,
     val links=bodies.flatMap(PostLinks::urls).map {repo.publicUrl(it)}.distinct().take(PostLinks.MAX_LINKS)
     val variant=if(archived)"archive:${ContentRevisions.signature(displayed)}"else "current"
     val revision=Repository.hash("reader-presentation-v3-sources|"+variant+"|"+bodies.joinToString("|"){CrossPosts.originalKey(it)+":"+ContentRevisions.signature(it)}+"|members:"+originals.map(CrossPosts::originalKey).sorted().joinToString("|")+"|reading:"+text+"|links:"+links.joinToString("\n")+"|annotations:"+repo.gson.toJson(originals.map {it.contextNotes}))
-    return ContextSnapshot(originals,text,contextReadable(PostPresentation.text(displayed).title,displayed,repo),revision,variant,links,if(fusion==null)displayed.media else collectedMedia(bodyRoots))
+    return ContextSnapshot(originals,text,contextReadable(PostPresentation.text(displayed).title,displayed,repo),revision,variant,links,collectedMedia(if(fusion==null)listOf(displayed)else bodyRoots,repo.images.identities))
 }
