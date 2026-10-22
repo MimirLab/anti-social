@@ -5,6 +5,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RssCrossPostsTest {
+    @Test fun exactRssSelfLinksRemainAttributionWhileOtherArticleDestinationsStayDistinct() {
+        val text="Our workshop has published the complete battery replacement instructions for everyone to read. The guide describes the tools, preparation, removal, installation, and safety checks for this repair. Visit RepairFixture.test for details."
+        val x=Post("123",Platform.X,"https://x.com/repairworkshop/status/123","Repair workshop",text,publishedAt=1_792_152_000_000L,links=listOf("https://RepairFixture.test"))
+        val rss=Post("blog-one",Platform.RSS,"https://blog.example/repair-notes","Repair workshop",text,publishedAt=x.publishedAt!!+1_000,links=listOf("https://blog.example/repair-notes"))
+        assertEquals(1,CrossPosts.group(listOf(rss,x),emptyList()).size)
+        assertEquals(2,CrossPosts.group(listOf(rss.copy(links=listOf("https://blog.example/other-notes")),x),emptyList()).size)
+    }
+
     @Test fun datedCopiesAndUndatedCopiesWithAnExactOriginalReferenceCanMergeWithoutInventingDates() {
         val caption="At our public repair workshop, neighbors learned how to replace a laptop battery, organize the screws, disconnect the old pack, and safely fit the replacement before closing the cover. Everyone can inspect the detailed repair notes and follow the next community session."
         val time=1_792_152_000_000L

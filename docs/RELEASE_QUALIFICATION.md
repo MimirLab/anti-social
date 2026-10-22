@@ -89,3 +89,28 @@ Back up and update the laptop preview after tested increments. Publish the
 official APK and corresponding source through `scripts/publish_release.py` only
 after physical-phone qualification. Preserve signing identity, app ID and the
 fixed-name download asset. No credentials or personal reader state are release artifacts.
+
+## 0.36.0-rc3: self-permalink cross-post repair
+
+The “Fighting for Rural America” X and Instagram editions were independently
+retrieved from public feeds on October 22, 2026. Their extracted full captions
+agree and their publication times differ by 161 seconds. Instagram's RSS-Bridge
+entry also links to its own post with a trailing slash, whereas its stored
+canonical URL has no trailing slash. That link incorrectly entered the set of
+competing destinations and prevented collection with the X edition.
+
+Self references now use the existing platform content identity, with original
+platform/federated-origin checks. The same rule removes canonical aliases of
+both collected originals when checking copied material. Exact ordinary RSS URL
+handling remains in place; article paths are not generally slash-normalized.
+Other post IDs, case-sensitive IDs, changed claims and actual destination
+conflicts remain distinct. Raw source text, attribution, URLs and discussion
+roots are retained. This adds no lookup, model call or dependency.
+
+The captured X/Instagram pair changes from two cards to one. The new synthetic
+three-platform regression first failed on the prior code, then passed with the
+repair. It also checks raw-record preservation and saved-edition validation.
+Native Android shows one card with all three platform controls and loads all
+three fixture discussion roots. This does not claim that Instagram's public
+comment service is available. Physical-phone qualification and the official
+Latest release gate above remain open.

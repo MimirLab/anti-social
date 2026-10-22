@@ -352,6 +352,15 @@ object CrossPosts {
         if(platform!=null&&!ContentIdentity.key(platform,value).startsWith("post:"))return false
         return parsed.encodedPath!="/"||parsed.querySize>0
     }
+    /** Feed enclosures often link back to their own post using another canonical
+     * spelling. A trailing slash, social hostname alias or share parameter does
+     * not turn that attribution into a competing article destination. Compare
+     * platform identities, keeping other posts and federated origins distinct. */
+    private fun linksToOriginal(value: String,post: Post): Boolean {
+        val source=uri(value) ?: return false;val actual=uri(post.canonicalUrl) ?: return false
+        val same=if(post.platform in ExpandedRoutes.federated)origin(source)==origin(actual)else SocialLinkHosts.platform(value)==post.platform
+        return same&&ContentIdentity.key(post.platform,value)==ContentIdentity.key(post.platform,post.canonicalUrl)
+    }
     private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
         val eligible=accounts[post.platform].orEmpty()
         val pathOwner=eligible.firstOrNull {own(post,it.second)}?.first
@@ -385,15 +394,10 @@ object CrossPosts {
             // A literal non-social site address can itself be the announced
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
-            urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain))
+            urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain))
     }
     private fun explicit(a: Features,b: Features): Boolean {
-        fun linked(url: String,target: Features): Boolean {
-            val source=uri(url) ?: return false;val actual=uri(target.post.canonicalUrl) ?: return false
-            val same=if(target.post.platform in ExpandedRoutes.federated)origin(source)==origin(actual)else SocialLinkHosts.platform(url)==target.post.platform
-            return same&&ContentIdentity.key(target.post.platform,url)==ContentIdentity.key(target.post.platform,target.post.canonicalUrl)
-        }
-        return a.urls.any {linked(it,b)}||b.urls.any {linked(it,a)}
+        return a.urls.any {linksToOriginal(it,b.post)}||b.urls.any {linksToOriginal(it,a.post)}
     }
     private fun matches(a: Features,b: Features,sameMedia: (Post,Post)->Boolean,repeated: Boolean=false): Boolean {
         if(a.post.platform==b.post.platform&&!repeated||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||!realOriginal(a.post)||!realOriginal(b.post))return false
@@ -470,7 +474,8 @@ object CrossPosts {
         if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!realOriginal(a.post)||!realOriginal(b.post))return false
         val reference=explicit(a,b)
         val ownUrls=listOfNotNull(normalizedUrl(a.post.canonicalUrl),normalizedUrl(b.post.canonicalUrl)).toSet()
-        val left=a.destinations-ownUrls;val right=b.destinations-ownUrls
+        fun external(urls: Set<String>)=urls.filterNot {it in ownUrls||linksToOriginal(it,a.post)||linksToOriginal(it,b.post)}.toSet()
+        val left=external(a.destinations);val right=external(b.destinations)
         if(left.isNotEmpty()&&right.isNotEmpty()&&left!=right)return false
         val images=copyImages(a.post,b.post,sameMedia)
         val clips=clipIds(a.post).intersect(clipIds(b.post)).isNotEmpty()

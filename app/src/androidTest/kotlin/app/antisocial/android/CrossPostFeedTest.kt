@@ -220,6 +220,33 @@ class CrossPostFeedTest {
             evidence("short-caption-every-original-comment-stream")
         }finally {repo.gateway.configure(oldPolicy)}
     }
+    @Test fun selfPermalinkAliasesDoNotSplitTheInstagramEditionFromAnExistingCollection() {
+        val text="Restoring our Community Workshop. Putting our Makers & Repairers FIRST. Catch each step of the rebuild on WorkshopFixture.test TODAY! 🛠"
+        val x=post(Platform.X,19,body=text,title=text.replace("WorkshopFixture.test","https://WorkshopFixture.test"))
+        val facebook=Post("fb$suffix",Platform.FACEBOOK,"https://www.facebook.com/$handle/posts/fb$suffix",handle,text,publishedAt=x.publishedAt!!+1_000).also {records+=it}
+        val instagram=Post("OwnLink$suffix",Platform.INSTAGRAM,"https://www.instagram.com/p/OwnLink$suffix",handle,text,
+            title="Restoring our Community Workshop....",publishedAt=x.publishedAt!!+2_000,
+            links=listOf("https://www.instagram.com/p/OwnLink$suffix/"),
+            provenance=Provenance(Source(Platform.INSTAGRAM,"rss-bridge","https://fixture.invalid"),now,"https://fixture.invalid/")).also {records+=it}
+        val originals=listOf(x,facebook,instagram)
+        originals.forEach {store(it,follow(it.platform))};seed("all",originals,read=true,offset=12)
+        val vm=model();show(vm,all=true);waitRow(x)
+        rowCount(originals,1);row(facebook).assertDoesNotExist();row(instagram).assertDoesNotExist()
+        ui.onAllNodesWithText(text).assertCountEquals(1)
+        assertEquals(3,repo.library.normalizedFusionRoots(x,originals).size)
+        val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(hasContentDescription("Read Instagram comments") and fixtureCard)
+        evidence("self-permalink-three-platform-one-card-native")
+        revealCombinedControl(hasTestTag("Read discussions ${repo.key(x)}"))
+        ui.onNodeWithTag("Read discussions ${repo.key(x)}").performClick()
+        ui.waitUntil(10_000){calls.size==3&&vm.discussions.state.value?.threads?.size==3}
+        assertEquals(setOf("twitter:CHRONOLOGICAL","facebook:CHRONOLOGICAL","instagram:CHRONOLOGICAL"),calls.toSet())
+        evidence("self-permalink-all-three-discussion-roots-native")
+        for(original in originals) {
+            val retained=runBlocking {repo.dao.post(repo.key(original))}!!
+            assertEquals(original,repo.gson.fromJson(retained.payload,Post::class.java))
+        }
+    }
     @Test fun allFeedMergesUrlExpandedAndAttributedTruncatedCaptionTitlesWithoutLosingCommentStreams() {
         // Preserve the two cached-source shapes behind the reported border miss:
         // X expands a bare domain in its echoed title, while Instagram prefixes

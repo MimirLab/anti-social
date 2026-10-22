@@ -31,6 +31,36 @@ class CrossPostsTest {
     }
     private val linked=listOf(account(Platform.X),account(Platform.BLUESKY),account(Platform.THREADS))
 
+    @Test fun aFeedEnclosureLinkToItsOwnPostCannotSplitThreePlatformEditions() {
+        // RSS-Bridge includes a slash-suffixed self permalink; the stored
+        // canonical Instagram URL has no slash. The caption also names a site.
+        val body="Restoring our Community Workshop. Putting our Makers & Repairers FIRST. Catch each step of the rebuild on WorkshopFixture.test TODAY! 🛠"
+        val x=post(Platform.X,body,title=body.replace("WorkshopFixture.test","https://WorkshopFixture.test"))
+            .copy(links=listOf("https://WorkshopFixture.test"))
+        val facebook=x.copy(id="fb",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/fixture/posts/fb",title="",publishedAt=time+60_000)
+        val instagram=post(Platform.INSTAGRAM,body,id="OwnLink",at=time+161_000,title="Restoring our Community Workshop....")
+            .copy(canonicalUrl="https://www.instagram.com/p/OwnLink",links=listOf("https://www.instagram.com/p/OwnLink/"),
+                provenance=Provenance(Source(Platform.INSTAGRAM,"rss-bridge","https://bridge.example.test"),time,"https://bridge.example.test/"))
+        val accounts=listOf(account(Platform.X),account(Platform.INSTAGRAM),
+            Follow("facebook",Target(Platform.FACEBOOK,TargetKind.PROFILE,"fixture","https://www.facebook.com/fixture"),"Fixture",personId="person"))
+        val membership=mapOf(CrossPosts.originalKey(instagram) to setOf(Platform.INSTAGRAM.id))
+        val originals=listOf(x,facebook,instagram);val raw=originals.map {Gson().toJson(it)}
+        for(editions in listOf(originals,originals.reversed())) {
+            val groups=CrossPosts.group(editions,accounts,membership)
+            assertEquals("The self permalink is attribution, not a conflicting destination",1,groups.size)
+            assertEquals(originals.toSet(),groups.single().posts.toSet())
+            assertNotNull(CrossPostFusion.compose(groups.single().posts))
+        }
+        assertEquals(raw,originals.map {Gson().toJson(it)})
+        for(link in listOf("https://www.instagram.com/reel/OwnLink/?utm_source=share", "https://instagram.com/p/OwnLink/#caption"))
+            assertEquals(1,CrossPosts.group(listOf(x,instagram.copy(links=listOf(link))),accounts,membership).size)
+        // Other posts, case-sensitive IDs and real destination changes remain
+        // evidence. Do not fix this by trimming all URLs or discarding socials.
+        for(link in listOf("https://www.instagram.com/p/Another/", "https://www.instagram.com/p/ownlink/", "https://another.example.test/story"))
+            assertEquals(2,CrossPosts.group(listOf(x,instagram.copy(links=listOf(link))),accounts,membership).size)
+        assertEquals(2,CrossPosts.group(listOf(x,instagram.copy(body=body.replace("FIRST","not FIRST"))),accounts,membership).size)
+    }
+
     @Test fun aSpecificShortCaptionNeedsIndependentImageEvidenceWithoutClaimingLinkedAccounts() {
         val text="We really got flying cars before GTA 6"
         val x=post(Platform.X,text).copy(media=listOf(Media("https://x-images.example.org/flying.jpg")))
