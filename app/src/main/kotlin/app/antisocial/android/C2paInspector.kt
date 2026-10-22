@@ -40,6 +40,9 @@ internal object C2paInspector {
             limitations=listOf(AiMetadataLimit.SIZE_LIMIT),inspectedAt=System.currentTimeMillis()) else null
         if(bytes.isEmpty() || mime.substringBefore(';').lowercase() !in mimeTypes)return if(hint)
             metadata(bytes,AiCredentialState.UNAVAILABLE,listOf(AiMetadataLimit.PARTIAL_CONTENT)) else null
+        // Ordinary raster files need no native context or certificate machinery. Preserve remote
+        // references and use the SDK for other containers whose credential carrier differs.
+        if(!hint&&mime in setOf("image/png","image/jpeg","image/webp")&&EmbeddedAiMetadata.inspect(bytes).credentialReferences.isEmpty())return null
         if(Build.VERSION.SDK_INT<28)return if(hint)
             metadata(bytes,AiCredentialState.UNAVAILABLE,listOf(AiMetadataLimit.UNSUPPORTED_DEVICE)) else null
         return try {
@@ -57,6 +60,14 @@ internal object C2paInspector {
                 metadata(bytes,AiCredentialState.UNCHECKED,listOf(if(remote)AiMetadataLimit.REMOTE_NOT_FETCHED else AiMetadataLimit.MALFORMED))
             }
         }
+    }
+
+    /** The caller fetched these bounded bytes through NetworkGateway. The SDK still has no network. */
+    @Synchronized fun inspectDetached(bytes:ByteArray,mime:String,manifest:ByteArray):AiMetadata? {
+        if(bytes.isEmpty()||bytes.size>MAX_BYTES||manifest.isEmpty()||manifest.size>4*1024*1024||mime !in mimeTypes||Build.VERSION.SDK_INT<28)return null
+        return try {NativeReader.inspect(bytes,mime,manifest)?.takeIf {it.length<=MAX_JSON}?.let(::decode)
+            ?.copy(inspectedAt=System.currentTimeMillis(),sha256=sha256(bytes))}
+        catch(_:LinkageError){null}catch(_:Exception){null}
     }
 
     private fun metadata(bytes: ByteArray,state: AiCredentialState,limits: List<AiMetadataLimit>)=
@@ -258,7 +269,7 @@ internal object C2paInspector {
         // of asking the native library to spill into an unspecified process temporary directory.
         private const val SETTINGS="""{"version":1,"core":{"allowed_network_hosts":[],"decode_identity_assertions":false,"backing_store_memory_threshold_in_mb":64},"verify":{"verify_after_reading":true,"verify_trust":true,"verify_timestamp_trust":true,"remote_manifest_fetch":false,"ocsp_fetch":false}}"""
 
-        fun inspect(bytes: ByteArray,mime: String): String? =C2PASettings.create().use {settings->
+        fun inspect(bytes: ByteArray,mime: String,manifest:ByteArray?=null): String? =C2PASettings.create().use {settings->
             settings.updateFromString(SETTINGS,"json")
             C2PAContextBuilder.create().use {builder->
                 builder.setSettings(settings).setHttpResolver(HttpResolver {HttpResponse(503,null)}).build().use {context->
@@ -266,7 +277,10 @@ internal object C2paInspector {
                     val cancel=cancellation.schedule({synchronized(cancelLock){if(!finished)runCatching {context.cancel()}}},8,TimeUnit.SECONDS)
                     try {
                         DataStream(bytes).use {stream->
-                            Reader.fromContext(context).withStream(mime,stream).use {reader->reader.json()}
+                            if(manifest==null)Reader.fromContext(context).withStream(mime,stream).use {reader->reader.json()}
+                            else {
+                                C2paDetachedBridge.create(context,stream,mime,manifest)?.use {reader->reader.json()}
+                            }
                         }
                     }finally {
                         // A timeout callback may already be running. Do not free its native context

@@ -76,6 +76,7 @@ class AiMetadataStore(
                 disclosures=(embedded.metadata?.disclosures.orEmpty()+credentials?.disclosures.orEmpty()).distinct().take(64),
                 credentialState=credentials?.credentialState ?: AiCredentialState.NOT_PRESENT,
                 signer=credentials?.signer,trust=credentials?.trust ?: AiSignerTrust.NOT_EVALUATED,
+                recipes=embedded.metadata?.recipes.orEmpty(),
                 limitations=(embedded.metadata?.limitations.orEmpty()+credentials?.limitations.orEmpty()+
                     if(mime==null)listOf(AiMetadataLimit.UNSUPPORTED_FORMAT)else emptyList()).distinct(),
                 inspectedAt=now,sha256=digest,removals=credentials?.removals.orEmpty(),
@@ -86,6 +87,11 @@ class AiMetadataStore(
         publish();state.value[url]
     }}
     suspend fun cleanup()=gate.withLock {prune();publish()}
+    /** Deep findings update the existing exact-byte observation, never create a new URL entry. */
+    internal suspend fun enrich(url:String,value:AiMetadata)=gate.withLock {
+        val previous=entries[url] ?: return@withLock
+        if(value.sha256!=null&&previous.base.sha256==value.sha256) {entries[url]=previous.copy(base=value);publish()}
+    }
     suspend fun clear() {generation.incrementAndGet();gate.withLock {entries.clear();state.value=emptyMap()}}
     private fun prune(): Boolean {val now=clock();return entries.entries.removeAll {now-it.value.at !in 0 until ttlMs}}
     private fun publish() {

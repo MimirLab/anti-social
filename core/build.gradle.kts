@@ -10,6 +10,8 @@ tasks.processTestResources {
     from("../app/src/main/translation-catalog/catalog.json") { into("bundled-catalogs/translation") }
 }
 dependencies {
+    // Small BSD-licensed Ed25519 verifier, including Android 8+. No provider registration.
+    implementation("net.i2p.crypto:eddsa:0.3.0")
     implementation("org.apache.commons:commons-compress:1.28.0")
     implementation("net.sf.biweekly:biweekly:0.6.8")
     implementation("net.dankito.readability4j:readability4j:1.0.8")

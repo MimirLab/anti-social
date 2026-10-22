@@ -209,6 +209,13 @@ not recognize the field can reject such a newer export rather than discard it.
 
 Copied AI metadata declarations remain readable, but an exported credential-verification report does not become this installation’s verification. Imported media reports reset signature status to unchecked and signer trust to not evaluated until available local bytes can be checked again.
 
+Since 0.36.0-rc2, `AiMetadata.recipes` can retain structured generation records.
+Each record contains `generator`, `use`, nullable `prompt`, `negativePrompt` and
+`model`, a `parameters` object of at most 12 string-to-string entries, `signature`
+and `carrier`. Prompt strings are bounded during capture. Imported provider
+signatures become `UNCHECKED`; a copied `NOVELAI_SIGNATURE` observation becomes a
+file-declared recipe. The ordinary acquisition/header cache is never exported.
+
 `progress`, when present, has exactly `{version: 1, feeds: {...}, readKeys: [...], readAt: ...}`. `readAt` is a nonnegative Unix-millisecond timestamp (positive when shared read marks are present). `feeds` maps up to 32 local feed-context IDs to `FeedMemory` records. Context IDs and post keys are at most 512 characters; the whole progress section is at most 4 MiB. Each memory contains:
 
 ```

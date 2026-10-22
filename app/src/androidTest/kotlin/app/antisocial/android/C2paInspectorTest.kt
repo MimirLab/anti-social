@@ -19,6 +19,22 @@ import java.util.zip.CRC32
 /** Real local cryptographic validation; these fixtures contain no public post or personal data. */
 @RunWith(AndroidJUnit4::class)
 class C2paInspectorTest {
+    @Test fun fetchedManifestsUseTheExplicitOfflineContextAndRejectChangedPixels() {
+        assumeTrue(Build.VERSION.SDK_INT>=28)
+        val bytes=fixture("generated.png");var at=8;var manifest:ByteArray?=null
+        while(at+12<=bytes.size) {
+            val n=(0..3).fold(0){v,i->(v shl 8)+(bytes[at+i].toInt() and 255)}
+            if(String(bytes,at+4,4,Charsets.US_ASCII)=="caBX")manifest=bytes.copyOfRange(at+8,at+8+n)
+            at+=12+n
+        }
+        val m=requireNotNull(manifest)
+        val valid=requireNotNull(C2paInspector.inspectDetached(bytes,"image/png",m))
+        assertEquals(AiCredentialState.VALID,valid.credentialState)
+        assertEquals(AiUse.GENERATED,valid.disclosures.single().use)
+        val changed=requireNotNull(C2paInspector.inspectDetached(fixture("tampered.png"),"image/png",m))
+        assertEquals(AiCredentialState.INVALID,changed.credentialState)
+        assertNull(C2paInspector.inspectDetached(bytes,"image/png",byteArrayOf(1,2,3)))
+    }
     private fun fixture(name: String)=InstrumentationRegistry.getInstrumentation().context.assets.open("provenance/$name").use {it.readBytes()}
 
     @Test fun signedGenerationHasVerifiedAssetIntegrityButAnUntrustedTestSigner() {

@@ -41,6 +41,8 @@ internal data class AiDisclosureEntry(
     val metadataRemoved: Boolean = false,
     val metadataGap: Boolean = false,
     val inspectionStatus: AiInspectionStatus? = null,
+    val headline:String?=null,
+    val integrity:String?=null,
 )
 
 /** A compact disclosure for places where the button and readable manifest can share a column. */

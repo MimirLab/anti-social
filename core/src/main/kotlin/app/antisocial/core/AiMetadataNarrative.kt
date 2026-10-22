@@ -70,6 +70,8 @@ object AiMetadataNarrative {
         AiEvidence.PLATFORM_LABEL->"Platform disclosure"
         AiEvidence.STRUCTURED_DATA->"Page metadata"
         AiEvidence.EMBEDDED_DECLARATION->"Embedded AI-use label"
+        AiEvidence.GENERATION_RECIPE->"Embedded generation recipe"
+        AiEvidence.NOVELAI_SIGNATURE->"NovelAI signed image and generation record"
     }}+value.removals.orEmpty().map {it.evidence}.distinct().map {when(it) {
         MetadataRemovalEvidence.CREDENTIAL_REDACTION->"Content Credentials redaction record"
         MetadataRemovalEvidence.SAME_IMAGE_COPY->"Local comparison of matching encoded pictures"
@@ -81,6 +83,8 @@ object AiMetadataNarrative {
             AiCredentialState.NOT_PRESENT->when {
                 value.disclosures.orEmpty().any {it.evidence==AiEvidence.IPTC_XMP}->"The IPTC/XMP declaration is unsigned."
                 value.disclosures.orEmpty().any {it.evidence==AiEvidence.EMBEDDED_DECLARATION}->"The embedded AI-use label is unsigned."
+                value.disclosures.orEmpty().any {it.evidence==AiEvidence.NOVELAI_SIGNATURE}->"NovelAI's signature verified the decoded image and its signed generation record."
+                value.disclosures.orEmpty().any {it.evidence==AiEvidence.GENERATION_RECIPE}->"The embedded generation recipe is supplied by the file; it is not a verified credential."
                 value.disclosures.orEmpty().any {it.evidence==AiEvidence.STRUCTURED_DATA}->"The page supplies this declaration; no verified file credential accompanies it."
                 value.disclosures.orEmpty().any {it.evidence==AiEvidence.PLATFORM_LABEL}->"This is a platform-supplied declaration. No verified file credential accompanies it."
                 value.removals.orEmpty().any {it.evidence==MetadataRemovalEvidence.CREDENTIAL_REDACTION}->"The supplied redaction claim has no verified file credential."

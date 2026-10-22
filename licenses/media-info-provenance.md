@@ -1,0 +1,11 @@
+# Media inspection references
+
+The metadata container reader and on-demand orchestration are anti social code under GPL-3.0-or-later.
+No website, workflow, embedded program or metadata prompt is executed.
+
+* Generation-format references: [Stable Diffusion Prompt Reader](https://github.com/receyuki/stable-diffusion-prompt-reader), MIT; original notice retained in `sd-prompt-reader-MIT.txt`. The native parser independently validates connected ComfyUI generation paths and structured WebUI, InvokeAI, Easy Diffusion and NovelAI records. It does not bundle Python or the desktop viewer.
+* Alpha-channel payload and signature mechanics: [NovelAI Image Metadata](https://github.com/NovelAI/novelai-image-metadata), copyright 2023 NovelAI, MIT; `novelai-metadata-MIT.txt`. Retrieved source SHA-256: `nai_sig.py` 66716858e42c571987148e3d0e1218315ffe06fc821b7afc425956ed21d3c326; `nai_meta.py` 49fc35c2590fc63576a30d9394e45cb6ac41b372fe7ae6feb6ccb45cf418881c. Ported bounded PNG decoding, column-major alpha LSB extraction, gzip record decoding and fixed-provider-key verification. No image repair or mutation. The initial decoder supports noninterlaced eight-bit RGB/RGBA PNG, at most 4,194,304 pixels. WebP and other sample layouts are not silently converted for verification.
+* Ed25519 verifier: `net.i2p.crypto:eddsa:0.3.0`, [ed25519-java](https://github.com/str4d/ed25519-java/tree/v0.3.0). Full upstream component notices in `eddsa-LICENSE.txt`. Only an explicitly constructed verifier is used; no global security provider is registered.
+* Detached credential bridge: pinned [C2PA Android 0.0.14](https://github.com/contentauth/c2pa-android/tree/0.0.14), Apache-2.0/MIT; existing C2PA notices apply. `c2pa_detached.c` calls the same shipped C ABI with a caller-created, deny-network context. This avoids upstream's default-context detached-reader convenience API. The bridge does not perform networking and adds no second C2PA SDK.
+
+The above license texts also ship in `assets/media-info-notices/`. Network transport, redirects, filtering and Tor remain the responsibility of `NetworkGateway`. A declared recipe, verified provider signature, C2PA integrity and signer trust are separate observations. Validating pixels does not authenticate every unsigned field in the file.

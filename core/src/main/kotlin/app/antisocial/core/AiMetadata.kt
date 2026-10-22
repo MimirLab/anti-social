@@ -3,12 +3,17 @@ package app.antisocial.core
 
 /** Explicit declarations, never a statistical judgement about prose or pixels. */
 enum class AiUse { GENERATED, EDITED, COMPOSITE, ASSISTED, UNSPECIFIED }
-enum class AiEvidence { IPTC_XMP, CONTENT_CREDENTIALS, PLATFORM_LABEL, STRUCTURED_DATA, EMBEDDED_DECLARATION }
+enum class AiEvidence { IPTC_XMP, CONTENT_CREDENTIALS, PLATFORM_LABEL, STRUCTURED_DATA, EMBEDDED_DECLARATION, GENERATION_RECIPE, NOVELAI_SIGNATURE }
 enum class AiCredentialState { NOT_PRESENT, UNCHECKED, VALID, INVALID, UNAVAILABLE }
 enum class AiSignerTrust { NOT_EVALUATED, UNTRUSTED, TRUSTED }
 enum class AiMetadataLimit { REMOTE_NOT_FETCHED, UNSUPPORTED_DEVICE, SIZE_LIMIT, MALFORMED, PARTIAL_CONTENT, UNSUPPORTED_FORMAT }
 enum class MetadataRemovalEvidence { CREDENTIAL_REDACTION, SAME_IMAGE_COPY }
 data class MetadataRemoval(val evidence: MetadataRemovalEvidence,val fields: List<String> = emptyList())
+enum class RecipeSignature { UNSIGNED, UNCHECKED, VALID, INVALID, UNAVAILABLE }
+/** Structured records supplied by the file. A recipe is not itself a verified signature. */
+data class GenerationRecipe(val generator:String,val use:AiUse=AiUse.GENERATED,val prompt:String?=null,
+    val negativePrompt:String?=null,val model:String?=null,val parameters:Map<String,String> = emptyMap(),
+    val signature:RecipeSignature=RecipeSignature.UNSIGNED,val carrier:String="File metadata")
 data class AiDisclosure(
     val use: AiUse,
     val evidence: AiEvidence,
@@ -31,6 +36,7 @@ data class AiMetadata(
     val inspectedAt: Long=0,
     val sha256: String?=null,
     val removals: List<MetadataRemoval> = emptyList(),
+    val recipes: List<GenerationRecipe> = emptyList(),
 )
 
 object AiMetadataValues {
@@ -54,7 +60,8 @@ object AiMetadataValues {
     /** A saved declaration remains readable; its signature must be checked against available bytes again. */
     fun captured(value: AiMetadata?): AiMetadata?=value?.copy(
         disclosures=value.disclosures.orEmpty().filterNotNull().take(64).filter {it.use in AiUse.entries&&it.evidence in AiEvidence.entries}
-            .map {it.copy(sourceType=text(it.sourceType,256),tool=text(it.tool),version=text(it.version,80),action=text(it.action,100),label=text(it.label,240),assetUrl=text(it.assetUrl,2048))},
+            .map {it.copy(sourceType=text(it.sourceType,256),tool=text(it.tool),version=text(it.version,80),action=text(it.action,100),label=text(it.label,240),assetUrl=text(it.assetUrl,2048),
+                evidence=if(it.evidence==AiEvidence.NOVELAI_SIGNATURE)AiEvidence.GENERATION_RECIPE else it.evidence)},
         credentialState=if(value.credentialState==null||value.credentialState==AiCredentialState.NOT_PRESENT)AiCredentialState.NOT_PRESENT else AiCredentialState.UNCHECKED,
         trust=AiSignerTrust.NOT_EVALUATED,signer=text(value.signer),
         // A copied report describes an earlier inspection, not this device's
@@ -62,5 +69,9 @@ object AiMetadataValues {
         limitations=value.limitations.orEmpty().filterNotNull().filter {it!=AiMetadataLimit.UNSUPPORTED_DEVICE}.distinct().take(8),
         removals=value.removals.orEmpty().filterNotNull().take(16).filter {it.evidence in MetadataRemovalEvidence.entries}
             .map {it.copy(fields=it.fields.orEmpty().filterNotNull().take(32).mapNotNull {field->text(field,256)})},
+        recipes=value.recipes.orEmpty().filterNotNull().take(8).map {it.copy(generator=text(it.generator,80).orEmpty(),
+            prompt=text(it.prompt,3000),negativePrompt=text(it.negativePrompt,1500),model=text(it.model,160),carrier=text(it.carrier,80).orEmpty(),
+            parameters=it.parameters.orEmpty().entries.take(12).mapNotNull {p->text(p.key,40)?.let {k->text(p.value,160)?.let {v->k to v}}}.toMap(),
+            signature=if(it.signature==RecipeSignature.UNSIGNED)RecipeSignature.UNSIGNED else RecipeSignature.UNCHECKED)},
     )
 }

@@ -85,6 +85,8 @@ class Repository(val context: Context) {
     val youtube by lazy {YouTubeStore(this)}
     val images by lazy {ImageLoader(this)}
     val aiMetadata by lazy {AiMetadataStore(scope)}
+    private val mediaInfoStore=lazy {MediaInfoStore(this)}
+    internal val mediaInfo get()=mediaInfoStore.value
     val ai by lazy {AiModelManager(this)}
     internal val contextReader by lazy {ContextReader(this)}
     val mediaTools by lazy {ContextMediaTools(this)}
@@ -680,11 +682,13 @@ class Repository(val context: Context) {
             }
             if(cached!=null)return@withKey cached
             awaitReady()
-            val bytes=mediaPermits.withPermit {gateway.bytes(url,sourceUrl)}
+            val payload=mediaPermits.withPermit {gateway.mediaPayload(url,sourceUrl)}
+            val bytes=payload.bytes
             mediaCommit(intent) {
                 val file=File(if(save)savedDir else dataDir,key);atomic(file,bytes)
                 val now=System.currentTimeMillis()
                 dao.putMedia(MediaRow(key,file.path,bytes.size.toLong(),now,lastViewedAt=now,saved=save))
+                mediaInfo.acquired(url,payload)
                 scheduleCleanup();file
             }
         }
@@ -753,6 +757,7 @@ class Repository(val context: Context) {
         LocalMenuReader.cleanup(context.cacheDir,clearAll)
         if(clearAll)evidenceReader.clearArticleMemory()
         if(sourceRecordStore.isInitialized())sourceRecords.cleanup(clearAll)
+        mediaInfo.cleanup(clearAll)
         if(localDiscoveryStore.isInitialized())localDiscovery.cleanup(clearAll)
         contextReader.cleanup(clearAll)
         if(clearAll)mentionNames.clear()else mentionNames.cleanup()
@@ -766,7 +771,7 @@ class Repository(val context: Context) {
         if(clearAll){sponsorBlock.clear();youtube.clear()}else sponsorBlock.cleanup(now)
         val entries=posts.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,false,activeKeys.containsKey(it.key))}+media.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,it.saved,activeKeys.containsKey(it.key))}
         val free=StatFs(context.filesDir.path).availableBytes
-        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)).coerceAtLeast(0)
+        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()).coerceAtLeast(0)
         val evict=CachePolicy.eviction(entries,now,budget,prefs.unseenDays,prefs.viewedDays)
         val postKeys=posts.filter {it.key in evict}.map {it.key};val mediaRows=media.filter {it.key in evict}
         if(postKeys.isNotEmpty()){db.withTransaction {dao.markPurged(postKeys);dao.removePosts(postKeys)}}
@@ -780,7 +785,7 @@ class Repository(val context: Context) {
         val savedBytes=(if(localDiscoveryStore.isInitialized())localDiscovery.bytes(true)else 0)+dao.bookmarkBytes()+dao.savedDetailBytes()+dao.mediaBytes(true)+contextReader.store.logicalBytes(true)
         val videoKeys=dao.allSavedAssets().filter {it.type!="image"}.map {it.assetKey}.toSet()+dao.allBookmarks().mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.flatMap {p->(p.media+p.archivedVersion?.snapshot?.media.orEmpty()).filter {it.type!="image"}.map {hash(it.url)}}
         val videoBytes=dao.allMedia().filter {it.saved&&it.key in videoKeys}.sumOf {it.bytes}
-        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes(),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
+        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes(),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
     }
     suspend fun exportBackup(): ByteArray=withContext(Dispatchers.IO) {val backup=Backup(settings=JsonParser.parseString(prefs.export().toString()).asJsonObject,follows=dao.allFollows(),bookmarks=dao.allBookmarks(),history=dao.allHistory(),savedDetails=dao.allSavedDetails(),collections=dao.allCollections(),collectionLinks=dao.allCollectionLinks(),retainedHistory=dao.allRetainedHistory());gson.toJson(backup).toByteArray()}
     suspend fun importBackup(bytes: ByteArray) {

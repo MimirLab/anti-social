@@ -56,7 +56,8 @@ private object PortableModelValidation {
         SavedCopyDetails::class.java to setOf("fusionRoots"),
         CapturedThread::class.java to setOf("commentAnywhere"),
         SelectedAsset::class.java to setOf("preview"),
-        AiMetadata::class.java to setOf("signer", "sha256"),
+        AiMetadata::class.java to setOf("signer", "sha256", "recipes"),
+        GenerationRecipe::class.java to setOf("prompt","negativePrompt","model"),
         AiDisclosure::class.java to setOf("sourceType", "tool", "version", "action", "label", "assetUrl"),
         MetadataRemoval::class.java to emptySet(),
         AnywherePage::class.java to emptySet(),
@@ -75,6 +76,12 @@ private object PortableModelValidation {
                 }
                 is ParameterizedType -> {
                     val raw = expected.rawType as? Class<*> ?: throw IllegalArgumentException("Unsupported saved-record type.")
+                    if(Map::class.java.isAssignableFrom(raw)) {
+                        require(expected.actualTypeArguments.toList()==listOf(String::class.java,String::class.java)) {"Unsupported saved-record map."}
+                        require(element.isJsonObject&&element.asJsonObject.size()<=12) {"Oversized recipe parameters."}
+                        element.asJsonObject.entrySet().forEach {(key,item)->require(key.length<=40);visit(item,String::class.java,depth+1)}
+                        return
+                    }
                     require(Collection::class.java.isAssignableFrom(raw) && expected.actualTypeArguments.size == 1) { "Unsupported saved-record collection." }
                     require(element.isJsonArray && element.asJsonArray.size() <= 4096) { "Invalid or oversized saved-record list." }
                     element.asJsonArray.forEach { item ->

@@ -6,7 +6,8 @@ import app.antisocial.core.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-@Composable internal fun rememberAiProvenance(repo: Repository,posts: List<Post>,localOnly: Boolean=false): List<AiDisclosureEntry> {
+@Composable internal fun rememberAiProvenance(repo: Repository,posts: List<Post>,localOnly: Boolean=false,
+    additional:Map<String,MediaInfoResult> = emptyMap()): List<AiDisclosureEntry> {
     val reports by repo.aiMetadata.reports.collectAsState()
     val assetsRevision by repo.library.revision.collectAsState()
     val protectedReports by produceState<Map<String,AiMetadata>>(emptyMap(),repo,posts,localOnly,assetsRevision) {
@@ -24,7 +25,7 @@ import kotlinx.coroutines.withContext
             file?.let {repo.aiMetadata.observe(url,it)}
         }
     }}
-    return remember(posts,reports,protectedReports,localOnly) {buildList {
+    return remember(posts,reports,protectedReports,localOnly,additional) {buildList {
         posts.take(CrossPosts.MAX_EDITIONS).forEach {post->
             val source=SourcePresentation.label(post)
             AiMetadataValues.captured(AiMetadata(disclosures=post.aiDisclosures.orEmpty()))?.disclosures.orEmpty()
@@ -38,7 +39,7 @@ import kotlinx.coroutines.withContext
                     val checked=if(!localOnly)reports[url]else protectedReports[url]?.let {local->
                         reports[url]?.takeIf {it.sha256==local.sha256} ?: local
                     }
-                    val value=checked ?: AiMetadataValues.captured(captured) ?: return
+                    val value=additional[url]?.metadata?.takeIf {checked==null||it.sha256==checked.sha256} ?: checked ?: AiMetadataValues.captured(captured) ?: return
                     if(value.showable())add(entry(source,label,value,retained=checked==null))
                 }
                 val label="${if(media.type=="image")"Image"else "Video"} ${index+1}"
@@ -61,13 +62,31 @@ private fun entry(source: String,asset: String,value: AiMetadata,retained: Boole
     inspectionStatus=if(value.disclosures.orEmpty().isEmpty()&&value.removals.orEmpty().isEmpty()&&value.credentialState==AiCredentialState.NOT_PRESENT)
         if(value.limitations.orEmpty().isEmpty())AiInspectionStatus.NO_DECLARATION else AiInspectionStatus.INCOMPLETE
     else null,
+    headline=when {
+        value.disclosures.orEmpty().isNotEmpty()&&value.disclosures.orEmpty().all {it.ingredient}->"AI recorded in source material"
+        value.disclosures.orEmpty().map {it.use}.distinct()==listOf(AiUse.GENERATED)->"Generative AI creation recorded"
+        value.disclosures.orEmpty().map {it.use}.distinct()==listOf(AiUse.EDITED)->"Generative AI edit recorded"
+        value.disclosures.orEmpty().isNotEmpty()->"AI use recorded"
+        value.removals.orEmpty().any {it.evidence==MetadataRemovalEvidence.CREDENTIAL_REDACTION}->"Metadata removal recorded"
+        value.removals.orEmpty().isNotEmpty()->"Copies contain different metadata"
+        value.credentialState==AiCredentialState.VALID->"Content Credentials verified"
+        value.credentialState==AiCredentialState.INVALID->"Credential validation failed"
+        else->"Creation record available"
+    },
+    integrity=when(value.credentialState) {
+        AiCredentialState.VALID->"Signature and file match · "+if(value.trust==AiSignerTrust.TRUSTED)"trusted signer"else "signer not on the trust list"
+        AiCredentialState.INVALID->"The supplied credential did not validate for this copy."
+        AiCredentialState.UNAVAILABLE->"Credential verification unavailable."
+        AiCredentialState.UNCHECKED->"Credential not yet verified."
+        else->null
+    },
 )
 
 /** Preserve observations with durable copies. Verification is rerun when their bytes are available. */
 internal suspend fun Repository.captureAiMetadata(post: Post): Post=withContext(Dispatchers.IO) {
     suspend fun media(items: List<Media>)=items.map {item->
         val observed=availableMedia(item.url)?.let {aiMetadata.inspect(item.url,it)} ?: aiMetadata.reports.value[item.url]
-        val value=(observed ?: item.aiMetadata)?.takeIf {it.showable()}
+        val value=(mediaInfo.observed(observed?.sha256) ?: observed ?: item.aiMetadata)?.takeIf {it.showable()}
         item.copy(aiMetadata=AiMetadataValues.captured(value))
     }
     val archive=post.archivedVersion?.let {it.copy(snapshot=it.snapshot.copy(media=media(it.snapshot.media)))}

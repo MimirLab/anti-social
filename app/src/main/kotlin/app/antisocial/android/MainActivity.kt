@@ -405,8 +405,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val shownMedia=rememberCollectedMedia(repo,if(fusion!=null)contentRoots else listOf(displayed))
     val mediaSources=remember(displayed,fusion,contentRoots){if(fusion==null)emptyMap()else contentRoots.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
     val images=shownMedia.filter {it.type=="image"}
-    val aiEntries=rememberAiProvenance(repo,if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads)
-    var aiExpanded by remember(repo.key(post),archive.showingArchive){mutableStateOf(false)}
+    val infoPosts=if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads
     LaunchedEffect(archive.showingArchive){fullImage=null}
     // Keep an open viewer on the picture the reader chose if later local
     // evidence removes another copy from the card underneath it.
@@ -469,7 +468,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                 if(threads.size>1)threads.distinctBy {it.platform}.forEach {entry->IconButton(onClick={vm.discussions.open(threads,entry.platform.id)},modifier=Modifier.semantics {contentDescription="Read ${entry.platform.label} comments"}){PlatformMark(entry.platform,20.dp)}}
                 if(repeats)TextButton(onClick={showOriginals=true},modifier=Modifier.testTag("Collected originals ${repo.key(post)}")){Text("${threads.size} originals",fontSize=12.sp)}
               }
-                AiProvenanceButton(aiEntries,aiExpanded,{aiExpanded=it})
+                MediaInfoAction(repo,infoPosts)
                 Box {
                     IconButton(onClick={showOptions=true},modifier=Modifier.testTag("Post options ${repo.key(post)}")){Icon(Icons.Rounded.MoreHoriz,"Post options",Modifier.size(22.dp))}
                     DropdownMenu(expanded=showOptions,onDismissRequest={showOptions=false},containerColor=MaterialTheme.colorScheme.surface,tonalElevation=0.dp) {
@@ -482,7 +481,6 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                     }
                 }
             }
-            androidx.compose.animation.AnimatedVisibility(aiExpanded&&aiEntries.isNotEmpty()) {AiProvenanceDetails(aiEntries,Modifier.padding(horizontal=12.dp,vertical=8.dp))}
         }
     }
     if(saveCopy)SaveCopySheet(repo,post,capturedReplies,fusionRoots=saveEditions,onSaved={saveCopy=false;android.widget.Toast.makeText(context,"Saved to your library",android.widget.Toast.LENGTH_SHORT).show()},onDismiss={saveCopy=false})

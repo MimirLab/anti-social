@@ -17,6 +17,7 @@ are also distributed by their upstream projects and Maven/Cargo artifacts.
 | Kotlin and kotlinx.coroutines | Apache-2.0 | https://github.com/JetBrains/kotlin and https://github.com/Kotlin/kotlinx.coroutines |
 | OkHttp | Apache-2.0 | https://github.com/square/okhttp |
 | Gson | Apache-2.0 | https://github.com/google/gson |
+| Ed25519-Java 0.3.0; NovelAI metadata and SD Prompt Reader format references | Upstream BSD/MIT notices retained | See media-info-provenance.md and assets/media-info-notices/ |
 | PdfBox-Android 2.0.27.0 (passive embedded menu text) | Apache-2.0 plus included font/encoding notices | https://github.com/TomRoush/PdfBox-Android/tree/v2.0.27.0 ; full upstream LICENSE/NOTICE in assets/restaurant-menu-notices/. Transitive encryption/signing libraries are excluded. No PDF JavaScript, actions or attachments are executed. |
 | Content Authenticity Android / Rust C2PA reader | Apache-2.0 / MIT | https://github.com/contentauth/c2pa-android ; pinned artifact and notices in c2pa-provenance.md |
 | kotlinx.serialization | Apache-2.0 | https://github.com/Kotlin/kotlinx.serialization |

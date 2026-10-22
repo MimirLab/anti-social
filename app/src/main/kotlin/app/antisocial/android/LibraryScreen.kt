@@ -139,7 +139,6 @@ import kotlinx.coroutines.launch
     val fusion=remember(fusionRoots,selectedEdition,showingArchive){if(selectedEdition=="all"&&!showingArchive)collectedPostFusion(fusionRoots)else null}
     // Offline editions use their captured observations, never a newer live URL's bytes.
     val shownMedia=remember(displayed,fusion,fusionRoots){collectedMedia(if(fusion!=null)fusionRoots else listOf(displayed))}
-    val aiEntries=rememberAiProvenance(repo,if(fusion!=null)fusionRoots else listOf(displayed),localOnly=true)
     val caption=if(selectedEdition=="all"&&!showingArchive&&fusion==null)collectedCaptionPost(fusionRoots) ?: displayed else displayed
     val body=remember(caption){PostPresentation.text(caption)}
     val selectedUrls=entry.details?.selectedAssets.orEmpty().map {it.url}.toSet()
@@ -162,7 +161,7 @@ import kotlinx.coroutines.launch
                 }
             }}
             item {Row(verticalAlignment=Alignment.CenterVertically) {PlatformMark(displayed.platform,25.dp);Column(Modifier.weight(1f).padding(start=10.dp)){MentionText(displayed.author.ifBlank {displayed.platform.label},repo,displayed.platform,displayed.canonicalUrl,accountLabel=true,networkAllowed=false,explicitProfileLinks=displayed.links.orEmpty(),fontWeight=FontWeight.SemiBold);Text(displayed.publishedAt?.let(::libraryDate) ?: "Post date not supplied",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)};ArchiveVersionButton(version,showingArchive){showingArchive=!showingArchive}}}
-            item {AiProvenanceDisclosure(aiEntries)}
+            item {MediaInfoAction(repo,if(fusion!=null)fusionRoots else listOf(displayed),localOnly=true)}
             item {RecoveredArchiveLabel(displayed);ArchiveVersionLabel(version,showingArchive);if(fusion!=null)FusedPostText(fusion,roots=fusionRoots,repo=repo,networkAllowed=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(bottom=8.dp),repo,caption.platform,caption.canonicalUrl,networkAllowed=false);body.attribution?.let {PostAttribution(it,Modifier.padding(bottom=8.dp),repo,caption.platform,caption.canonicalUrl,networkAllowed=false)};if(body.title.isNotBlank())MentionText(body.title,repo,caption.platform,caption.canonicalUrl,networkAllowed=false,explicitProfileLinks=caption.links.orEmpty(),fontSize=20.sp,fontWeight=FontWeight.SemiBold);if(body.body.isNotBlank())PostBodyText(body.body,repo,caption.platform,tag="Local post body",sourceUrl=caption.canonicalUrl,networkAllowed=false,explicitProfileLinks=caption.links.orEmpty())}}
             if(displayed.preview)item {Text("Partial public content · this is the text that was available when saved.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
             items(shownMedia,key={"local-media:${it.url}"}) {media->

@@ -5403,3 +5403,62 @@ records are bounded ordinary cache; saved Context evidence retains its existing
 protection. No new paid service, model, native inference dependency, browser
 extension or privileged Android feature is required. These source/emulator checks
 do not establish physical-phone speed or general external-service availability.
+
+## 0.36.0-rc2 — bounded media Info, 2026-10-22
+
+The post Info action is a stable compact icon, opening a native drawer with
+automatic staged inspection. Normal media acquisition records only a hash,
+final URL/type and explicit credential references; receipt persistence is
+coalesced off the delivery path. Standard container declarations remain passive.
+Ordinary raster files without credential carriers skip native PKI initialization.
+On-demand work is serialized and bounded by time, bytes, requests/redirects,
+pixel count, container sizes and cache quotas. Failed attachments do not prevent
+later available files being inspected. Foreground cancellation retains findings
+and stops the indicator. Parent cancellation and cache clearing prevent late
+publication. Offline copies never fetch missing media or credentials.
+
+Structured generation recipes are supported in PNG text and applicable EXIF
+UserComment records. Connected ComfyUI paths retain separate positive/negative
+prompts; unused nodes and ordinary captions are not AI findings. NovelAI's
+fixed-key verifier reads exact noninterlaced eight-bit PNG samples and bounded
+alpha records. It does not repair or rewrite images. Copied reports lose signature
+authority; saved/portable recipes remain readable. The small C2PA JNI bridge uses
+the pinned SDK's caller-created deny-network context rather than its default-context
+detached convenience API. Only NetworkGateway downloads credential bytes.
+
+Verification:
+
+* Full JVM suite: **1,759 tests, zero failures, one existing optional acquired-weight
+  skip**. New checks include structured versus ordinary metadata, connected graph
+  recognition, bounded compressed fields/depth/pixels, EXIF carriers, Ed25519 RFC
+  vectors, Python-compatible serialization, strict acquisition/redirect filtering
+  and shared request/body budgets.
+* Debug/release APK assembly and lint pass. All three supported native bridge ABIs
+  compile with 16 KiB page alignment. Existing deprecation/lint warnings remain.
+* API 35: **54 selected Android cases, zero failures**, including one Android-8-only
+  assumption skip. Coverage includes exact-byte cache reuse/restart/replacement,
+  offline-to-online recovery, unavailable Tor, partial failures, foreground yield,
+  cancellation/clear races, native detached validation and wrong-image rejection,
+  native disclosure presentation, portability and protected archive storage.
+* Four external public sample PNGs from `enslo/sd-metadata` at
+  `866c04b3c02151fc62f7e7a15d0499cbeccb500a` verified both file and alpha signatures
+  against NovelAI's published key, in independent Python and the Kotlin engine.
+  Android repeated those positive checks; changing one RGB sample invalidated both
+  records. Emulator timings were approximately 0.26–0.51 seconds per original.
+  These are exact-fixture checks, not general detector accuracy or phone-speed claims.
+  The sample images stay outside source/APK and are not distributed with the app.
+* A wider first Android run exposed an opening/display synchronization failure.
+  The production action now retains one IconButton while findings change, and the
+  updated run passed. Native pixel inspection separately waited for the actual
+  dialog surface: an immediate UIAutomation screenshot could still show the
+  underlying Activity despite successful Compose semantics. The paused native
+  screen confirms the dark drawer, concise finding card and expandable details.
+* Signed release APK: **192,786,825 bytes**, SHA-256
+  `ffeb72fde28e871c61f1fe8b87533888b8eeebe49c4057ce9a185ff0f2d69e7d`;
+  **91,932 bytes (89.8 KiB)** above rc1. No classifier, watermark model, language
+  model or additional model-inference runtime is bundled by this change.
+
+Evidence is under the external `evidence/info-engine-v1/` directory. General
+camera/GPS enrichment, WebP pixel verification, guessed sidecars, hash/reverse-image
+lookup and optional statistical detectors are outside this qualified pass.
+Physical-phone and broad live credential-host coverage remain unverified.

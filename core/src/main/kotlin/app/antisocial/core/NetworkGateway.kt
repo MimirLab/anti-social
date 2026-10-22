@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 data class MediaPrefix(val bytes: ByteArray,val finalUrl: String,val contentType: String,val status: Int)
+data class GatewayMediaPayload(val bytes:ByteArray,val finalUrl:String,val contentType:String,val manifestUrls:List<String>)
 
 data class GatewayDocument(val status: Int,val message: String,val headers: Map<String,List<String>>,val text: String,val finalUrl: String)
 
@@ -76,6 +77,11 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     suspend fun <T> boundedHealthRead(maxBytes: Long=512L*1024,maxRequests: Int=4,read: suspend ()->T): T {
         require(maxBytes in 1024..1024*1024)
         require(maxRequests in 1..8)
+        return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests))){read()}
+    }
+    /** Explicit media inspection shares a request/byte budget across redirects and attachments. */
+    suspend fun <T> boundedMediaRead(maxBytes:Long=24L*1024*1024,maxRequests:Int=4,read:suspend ()->T):T {
+        require(maxBytes in 1024..64L*1024*1024&&maxRequests in 1..8)
         return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests))){read()}
     }
     private fun origin(url: HttpUrl)="${url.scheme}://${url.host}:${url.port}"
@@ -474,13 +480,19 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         }
         return null
     }
-    suspend fun bytes(url: String, sourceUrl: String=url, maxBytes: Long=16L*1024*1024): ByteArray = withContext(Dispatchers.IO) {
+    suspend fun bytes(url: String, sourceUrl: String=url, maxBytes: Long=16L*1024*1024): ByteArray = mediaPayload(url,sourceUrl,maxBytes).bytes
+    /** Retains only credential references, never cookies or arbitrary response headers. */
+    suspend fun mediaPayload(url:String,sourceUrl:String=url,maxBytes:Long=16L*1024*1024,type:String="image"):GatewayMediaPayload=withContext(Dispatchers.IO) {
+        require(maxBytes in 1..32L*1024*1024)
+        val budget=kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]
         withTimeout(if(currentPolicy().tor)120_000L else 30_000L) {
-        execute(Request.Builder().url(url).tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,"image")).build()) { response ->
+        execute(Request.Builder().url(url).tag(TextReadBudget::class.java,budget).tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).build()) { response ->
             if(!response.isSuccessful)throw IOException("Media returned ${response.code}")
             val body=response.body ?: throw IOException("Empty media")
             val stream=body.byteStream();val buffer=java.io.ByteArrayOutputStream();val chunk=ByteArray(8192)
-            while(true) { val count=stream.read(chunk);if(count<0)break;if(buffer.size().toLong()+count>maxBytes)throw IOException("Media is too large to cache");buffer.write(chunk,0,count) };buffer.toByteArray()
+            while(true) { val count=stream.read(chunk);if(count<0)break;if(buffer.size().toLong()+count>maxBytes)throw IOException("Media is too large to cache");if(budget!=null&&budget.remaining.addAndGet(-count.toLong())<0)throw IOException("Media inspection byte budget ended");buffer.write(chunk,0,count) }
+            val final=response.request.url.toString()
+            GatewayMediaPayload(buffer.toByteArray(),final,body.contentType()?.toString().orEmpty(),MediaCredentialLinks.headers(response.headers.values("Link"),final))
         }
         }
     }

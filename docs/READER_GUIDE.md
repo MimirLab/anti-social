@@ -44,6 +44,14 @@ Export reader state from Settings for your own backup or another device. Share a
 source/channel pack when you only want to share subscriptions. Recipients preview
 and choose sources; packs do not silently install your personal reading history.
 
+## Behind this post
+
+The post's Info icon opens **Behind this post**. It shows available findings
+immediately and checks generation recipes and linked creation credentials as you
+read. Recipe details and verification explanations are expandable. Reopening
+reuses completed checks. In saved copies, inspection stays offline. Info works
+with AI disabled; see [Media Info](MEDIA_INFO.md) for supported formats and limits.
+
 ## Optional Context
 
 Enable AI in Settings and select local models, your server or your own cloud

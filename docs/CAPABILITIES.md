@@ -12,6 +12,7 @@ announcement/OCR and search improvements; consult its release notes.
 | Social announcements | Explicit event details from identified local publishers and their public posts | Missing dates/venues stay under Possible events. Publication time is not the occurrence time. |
 | Flyer reading | Local English OCR after initial results, without enabling AI | Recognition can be wrong; uncertain images remain candidates. At most two new flyers per search. Extra language packs remain optional. |
 | Saved material | Protected local copies and local search/export | Ordinary expiring cache is separate. Availability of selected media/thread content is recorded at capture time. |
+| Post information | Immediate file declarations; on-demand recipes, NovelAI PNG signatures and linked Content Credentials | Deterministic and available with AI off. Format, size and request limits apply; no statistical image detector or external image upload. See [Media Info](MEDIA_INFO.md). |
 | Context | Optional model-assisted briefs over retrieved post/link/comment evidence | Selection can omit useful facts; preserved sources are inspectable. Unavailable material contributes no invented facts. Read progress and usable briefs are cached. |
 | Video links | In-app playback, SponsorBlock where supported and recovery routes | Hosting, captions and surviving copies are source dependent. YouTube is a controlled linked-video medium, not a new social-feed tab. |
 

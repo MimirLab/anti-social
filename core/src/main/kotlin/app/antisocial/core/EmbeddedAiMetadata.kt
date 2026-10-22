@@ -13,7 +13,8 @@ import org.xml.sax.SAXException
 import org.xml.sax.helpers.DefaultHandler
 import com.google.gson.JsonParser
 
-data class EmbeddedMediaMetadata(val metadata: AiMetadata?,val imageKey: String?,val families: Set<String>,val mime: String?)
+data class EmbeddedMediaMetadata(val metadata: AiMetadata?,val imageKey: String?,val families: Set<String>,val mime: String?,
+    val textFields:Map<String,String> = emptyMap(),val credentialReferences:List<String> = emptyList())
 
 /** Reads actual container metadata, never searches compressed pixels or prose for AI-related words.
  * Image keys cover unchanged encoded picture/color data, excluding only recognized metadata chunks.
@@ -29,10 +30,18 @@ object EmbeddedAiMetadata {
     private val photoshop="Photoshop 3.0\u0000".toByteArray(Charsets.US_ASCII)
     private class Scan {
         val packets=mutableListOf<ByteArray>();val families=linkedSetOf<String>()
+        val text=linkedMapOf<String,String>();val conflicts=mutableSetOf<String>();val references=linkedSetOf<String>();var textBytes=0
         var limited=false;var malformed=false;var key: String?=null;var mime: String?=null
         fun xmp(value: ByteArray) {
             families+="xmp"
             if(value.size>MAX_XMP||packets.size>=8)limited=true else packets+=value
+        }
+        fun rememberText(key:String,value:String) {
+            if(key in conflicts)return
+            if(text.containsKey(key)&&text[key]!=value){text.remove(key);conflicts+=key;malformed=true;return}
+            if(text.containsKey(key))return
+            if(text.size>=32||value.length>GenerationRecipes.MAX_TEXT||textBytes+value.length>MAX_XMP){limited=true;return}
+            text[key]=value;textBytes+=value.length
         }
     }
     fun inspect(bytes: ByteArray): EmbeddedMediaMetadata {
@@ -44,10 +53,12 @@ object EmbeddedAiMetadata {
             bytes.size>=12&&ascii(bytes,0,4)=="RIFF"&&ascii(bytes,8,4)=="WEBP"->webp(bytes,scan)
             bytes.size>=8&&(ascii(bytes,0,2)=="II"||ascii(bytes,0,2)=="MM")->{scan.mime="image/tiff";tiff(bytes,0,bytes.size,scan)}
         }}catch(_: Exception){scan.malformed=true;scan.key=null}
-        val disclosures=scan.packets.flatMap {packet->try {xml(packet)}catch(_: Exception){scan.malformed=true;emptyList()}}.distinct().take(64)
+        val recipes=GenerationRecipes.parse(scan.text)
+        val disclosures=(scan.packets.flatMap {packet->try {xml(packet){scan.references+=it}}catch(_: Exception){scan.malformed=true;emptyList()}}+
+            recipes.map {AiDisclosure(it.use,AiEvidence.GENERATION_RECIPE,tool=it.generator)}).distinct().take(64)
         val limits=buildList {if(scan.limited)add(AiMetadataLimit.SIZE_LIMIT);if(scan.malformed)add(AiMetadataLimit.MALFORMED)}
-        val metadata=if(disclosures.isNotEmpty()||limits.isNotEmpty())AiMetadata(disclosures,limitations=limits)else null
-        return EmbeddedMediaMetadata(metadata,scan.key,scan.families,scan.mime)
+        val metadata=if(disclosures.isNotEmpty()||limits.isNotEmpty()||recipes.isNotEmpty())AiMetadata(disclosures,limitations=limits,recipes=recipes)else null
+        return EmbeddedMediaMetadata(metadata,scan.key,scan.families,scan.mime,scan.text,scan.references.take(4))
     }
     private fun jpeg(b: ByteArray,s: Scan) {
         s.mime="image/jpeg";val hash=MessageDigest.getInstance("SHA-256");hash.update(b,0,2)
@@ -98,7 +109,7 @@ object EmbeddedAiMetadata {
                 // XMP's standard PNG carrier is iTXt. Compressed ordinary text
                 // is still metadata for exact-picture comparisons, but its
                 // arbitrary contents cannot declare AI use.
-                "zTXt"->s.families+="comments"
+                "zTXt"->pngText(b,start,end,s,false,true)
                 "eXIf"->{s.families+="exif";tiff(b,start,end,s)}
                 "IDAT"->image=true
             }
@@ -108,24 +119,37 @@ object EmbeddedAiMetadata {
         }
         error("Incomplete PNG")
     }
-    private fun pngText(b: ByteArray,start: Int,end: Int,s: Scan,international: Boolean) {
+    private fun pngText(b: ByteArray,start: Int,end: Int,s: Scan,international: Boolean,zipped:Boolean=false) {
         val keyEnd=zero(b,start,end);if(keyEnd<0||keyEnd-start>79)return
         val key=ascii(b,start,keyEnd-start)
-        if(key!="XML:com.adobe.xmp") {s.families+="comments";return}
-        if(!international) {s.xmp(b.copyOfRange(keyEnd+1,end));return}
-        var at=keyEnd+1;require(at+2<=end)
-        val compressed=u(b,at++);val method=u(b,at++);require(compressed in 0..1&&method==0)
-        at=zero(b,at,end).takeIf {it>=0}?.plus(1) ?: error("Missing language terminator")
-        at=zero(b,at,end).takeIf {it>=0}?.plus(1) ?: error("Missing translation terminator")
-        if(compressed==0)s.xmp(b.copyOfRange(at,end))else {
-            s.families+="xmp"
+        // PNG XMP uses iTXt (or the previously supported uncompressed tEXt).
+        // zTXt XML-shaped prose is not an XMP declaration.
+        val xmp=key=="XML:com.adobe.xmp"&&!zipped
+        if(!xmp)s.families+="comments"
+        if(!xmp&&key !in setOf("parameters","prompt","workflow","Software","Comment","Source","Description","invokeai_metadata","negative_prompt","seed","steps","sampler_name","guidance_scale","stable_diffusion_model"))return
+        var at=keyEnd+1;var compressed=if(zipped)1 else 0
+        if(international) {
+            require(at+2<=end);compressed=u(b,at++);val method=u(b,at++);require(compressed in 0..1&&method==0)
+            at=zero(b,at,end).takeIf {it>=0}?.plus(1) ?: error("Missing language terminator")
+            at=zero(b,at,end).takeIf {it>=0}?.plus(1) ?: error("Missing translation terminator")
+        }else if(zipped){require(at<end&&u(b,at++)==0)}
+        val limit=if(xmp)MAX_XMP else GenerationRecipes.MAX_TEXT
+        val value=if(compressed==0) {
+            if(end-at>limit){s.limited=true;return};b.copyOfRange(at,end)
+        }else {
+            if(xmp)s.families+="xmp"
             val out=ByteArrayOutputStream()
             InflaterInputStream(ByteArrayInputStream(b,at,end-at)).use {input->
                 val buffer=ByteArray(8192)
-                while(true) {val n=input.read(buffer);if(n<0)break;if(out.size()+n>MAX_XMP){s.limited=true;return};out.write(buffer,0,n)}
+                while(true) {val n=input.read(buffer);if(n<0)break;if(out.size()+n>limit){s.limited=true;return};out.write(buffer,0,n)}
             }
-            s.xmp(out.toByteArray())
+            out.toByteArray()
         }
+        if(xmp)s.xmp(value)else if(s.text.size<32&&s.textBytes+value.size<=MAX_XMP) {
+            // Conflicting same-name records are ambiguous rather than last-writer wins.
+            val text=value.toString(if(international)Charsets.UTF_8 else Charsets.ISO_8859_1)
+            s.rememberText(key,text)
+        }else s.limited=true
     }
     private fun webp(b: ByteArray,s: Scan) {
         s.mime="image/webp";val declared=le32(b,4)+8;require(declared==b.size.toLong())
@@ -152,14 +176,39 @@ object EmbeddedAiMetadata {
         fun word(at: Int): Int {require(at>=start&&at+2<=end);return if(little)u(b,at)+(u(b,at+1) shl 8)else be16(b,at)}
         fun dword(at: Int): Long {require(at>=start&&at+4<=end);return if(little)le32(b,at)else be32(b,at)}
         if(word(start+2)!=42)return
-        var next=dword(start+4);val visited=mutableSetOf<Long>()
-        repeat(8) {
-            if(next==0L||!visited.add(next))return
+        val pending=ArrayDeque<Long>().apply {add(dword(start+4))};val visited=mutableSetOf<Long>()
+        repeat(16) {
+            if(pending.isEmpty())return
+            val next=pending.removeFirst()
+            if(next==0L||!visited.add(next))return@repeat
             require(next<=Int.MAX_VALUE&&start.toLong()+next+2<=end)
             val at=start+next.toInt();val count=word(at);require(count<=1024&&at.toLong()+2+count*12+4<=end)
             repeat(count){index->val entry=at+2+index*12
+                val tag=word(entry);val type=word(entry+2);val amount=dword(entry+4)
+                if(tag==34665&&type==4&&amount==1L)pending.add(dword(entry+8))
+                if(tag in setOf(0x9286,0x0131)&&type in setOf(1,2,7)&&amount in 1..GenerationRecipes.MAX_TEXT.toLong()) {
+                    val offset=if(amount<=4)(entry+8).toLong()else start+dword(entry+8)
+                    require(offset>=start&&offset+amount<=end)
+                    val raw=b.copyOfRange(offset.toInt(),(offset+amount).toInt())
+                    if(tag==0x0131)s.rememberText("Software",String(raw,Charsets.ISO_8859_1).trimEnd('\u0000'))
+                    else if(raw.size>=8) {
+                        s.families+="comments"
+                        val prefix=String(raw,0,8,Charsets.US_ASCII)
+                        val text=when {
+                            prefix=="ASCII\u0000\u0000\u0000"->String(raw,8,raw.size-8,Charsets.UTF_8)
+                            prefix=="UNICODE\u0000"->String(raw,8,raw.size-8,if(raw.size>=10&&raw[8]==0xff.toByte()&&raw[9]==0xfe.toByte())Charsets.UTF_16LE else Charsets.UTF_16BE)
+                            else->null
+                        }?.trim('\u0000','\ufeff')
+                        if(text!=null) {
+                            val outer=GenerationRecipes.obj(text)
+                            if(outer!=null&&outer["Software"]?.takeIf {it.isJsonPrimitive}?.asString=="NovelAI") {
+                                for(key in listOf("Software","Comment","Description","Source"))outer[key]?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isString}?.asString?.let {s.rememberText(key,it)}
+                            }else s.rememberText("parameters",text)
+                        }
+                    }
+                }
                 if(word(entry)==700) {
-                    val type=word(entry+2);val size=dword(entry+4)
+                    val size=dword(entry+4)
                     if(type in setOf(1,7)&&size>0) {
                         s.families+="xmp"
                         if(size>MAX_XMP)s.limited=true else {
@@ -169,10 +218,10 @@ object EmbeddedAiMetadata {
                     }
                 }
             }
-            next=dword(at+2+count*12)
+            pending.add(dword(at+2+count*12))
         }
     }
-    private fun xml(bytes: ByteArray): List<AiDisclosure> {
+    private fun xml(bytes: ByteArray,reference:(String)->Unit={}): List<AiDisclosure> {
         require(bytes.size<=MAX_XMP)
         val raw=bytes.toString(Charsets.UTF_8).trimEnd('\u0000')
         require(!raw.contains("<!DOCTYPE",true)&&!raw.contains("<!ENTITY",true))
@@ -211,6 +260,7 @@ object EmbeddedAiMetadata {
                 return distinct.firstOrNull()
             }
             val source=property(IPTC,"DigitalSourceType")?.trim()
+            property("http://purl.org/dc/terms/","provenance")?.takeIf {it.length<=4096}?.let(reference)
             val use=AiMetadataValues.sourceType(source)
             val tool=AiMetadataValues.text(property(IPTC,"AISystemUsed"))
             val version=AiMetadataValues.text(property(IPTC,"AISystemVersionUsed"),80)
