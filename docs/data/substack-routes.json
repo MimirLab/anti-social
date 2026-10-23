@@ -1,0 +1,2699 @@
+{
+  "schema": "anti-social.source-research.v1",
+  "platform": "substack",
+  "observedDate": "2026-10-23",
+  "runtimeEnabled": false,
+  "purpose": "Source atlas for a future native Substack adapter; not consumed by shipped runtime.",
+  "qualification": "Anonymous desktop HTTP probes, plus existing production JVM NetworkGateway/RssSources checks. No source cookies, keys or page JavaScript execution. Live Tor and physical-phone availability not qualified. Status is target- and time-specific.",
+  "latencyCaveat": "Single development-laptop observations, not a benchmark; HTTP probe timings include a 350 ms pacing delay and may include per-host queue time.",
+  "counts": {
+    "routeFamilies": 37,
+    "feedRelayInstances": 43,
+    "feedRelayInstancesReturningEntries": 11,
+    "repositoriesReviewed": 42,
+    "httpProbes": 109
+  },
+  "routes": [
+    {
+      "id": "publication-rss",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/feed"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed",
+        "article-body-or-preview",
+        "media-enclosures"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "on-feed",
+        "act-feed",
+        "act-alias-feed"
+      ],
+      "notes": "20 dated entries on each sampled publication; custom-domain alias redirected to the same publisher. Feed is a recent window, not full history. Existing RSS reader can consume it.",
+      "sources": [
+        "https://support.substack.com/hc/en-us/articles/360038239391-Is-there-an-RSS-feed-for-my-publication"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publication-archive",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/archive?sort=new&offset={offset}&limit={limit}",
+        "{verified-publication-origin}/api/v1/archive?sort=new&search={query}&offset={offset}&limit={limit}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-archive",
+        "publication-search"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "on-archive",
+        "on-archive-next",
+        "act-archive",
+        "lenny-archive",
+        "on-search-scoped"
+      ],
+      "notes": "Two 3-entry archive pages had six distinct IDs; three publication hosts succeeded. Publication-scoped search returned a different matching candidate set. Full-text relevance was not exhaustively evaluated.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts",
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publication-posts-list",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/posts?limit={limit}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed-metadata"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "on-posts-list"
+      ],
+      "notes": "Alternate list endpoint; do not infer complete bodies or reliable pagination from this first-page probe.",
+      "sources": [
+        "https://github.com/NHagar/substack_api",
+        "https://github.com/myfear/substack-reader-cli"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "article-json",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/posts/{slug}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-body-or-preview",
+        "article-metadata",
+        "bylines",
+        "media-references"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "on-post-json",
+        "act-post-json",
+        "lenny-post-json"
+      ],
+      "notes": "Free samples had substantial matching bodies. A paid-only sample exposed a partial body, not a full paid article. Preserve audience and extraction completeness.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts",
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "article-html",
+      "kind": "original",
+      "paths": [
+        "{canonical-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-body-or-preview",
+        "embedded-post-state"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "on-post-html",
+        "act-post-html",
+        "lenny-post-html"
+      ],
+      "notes": "HTTP acquisition and static parsing only; never execute page scripts. Strictly decode embedded JSON rather than evaluating assignments.",
+      "sources": [
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "public-profile",
+      "kind": "original",
+      "paths": [
+        "https://substack.com/api/v1/user/{handle}/public_profile",
+        "https://open.substack.com/api/v1/user/{handle}/public_profile",
+        "{verified-publication-origin}/api/v1/user/{handle}/public_profile"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "public-profile",
+        "publication-identity",
+        "declared-account-links",
+        "public-reading-list"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "hamish-profile",
+        "open-host-profile",
+        "on-host-public-profile"
+      ],
+      "notes": "Same public profile identity through three tested hosts. These share Substack infrastructure. Sample profile exceeded 1 MB; project and cache only needed public fields, honor subscriptionsTruncated and avoid retaining incidental account timestamps.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts",
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "profile-notes",
+      "kind": "original",
+      "paths": [
+        "https://substack.com/api/v1/reader/feed/profile/{user-id}?cursor={returned-cursor}",
+        "{verified-publication-origin}/api/v1/reader/feed/profile/{user-id}?cursor={returned-cursor}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "profile-notes",
+        "profile-post-activity",
+        "restack-provenance"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "hamish-notes",
+        "hamish-notes-next",
+        "on-host-notes"
+      ],
+      "notes": "Two pages of 12 had 24 distinct entity keys. Preserve activity type and original publication date separately from restack time.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "note-json",
+      "kind": "original",
+      "paths": [
+        "https://substack.com/api/v1/reader/comment/{note-id}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "note",
+        "ancestors"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "hamish-note-thread"
+      ],
+      "notes": "Validate item.comment.id against the selected Note, retain parent relationships and stable user IDs.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "note-replies",
+      "kind": "original",
+      "paths": [
+        "https://substack.com/api/v1/reader/comment/{note-id}/replies?cursor={returned-cursor}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "note-replies-partial"
+      ],
+      "observation": "observed-repeated-page",
+      "probeLabels": [
+        "hamish-note-replies",
+        "note-replies-next",
+        "note-replies-scoped"
+      ],
+      "notes": "First sample had eight branches, moreBranches=1 and a nextCursor. Following it, including comment_id, repeated all eight branch IDs. Pagination is not qualified; stop on zero novel IDs and retain partial coverage.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "note-html-embed",
+      "kind": "original",
+      "paths": [
+        "https://substack.com/@{handle}/note/c-{note-id}",
+        "https://substack.com/embed/c/{note-id}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "note-html",
+        "note-embed"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "hamish-note-html",
+        "note-embed"
+      ],
+      "notes": "Static note/embed responses contain the note presentation. Embed is not a complete discussion or publication feed.",
+      "sources": [
+        "https://github.com/conorbronsdon/substack-mcp/blob/main/src/api/public-reader.ts"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "article-comments",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/post/{post-id}/comments?all_comments=true&sort=newest_first"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-comments-partial"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "on-comments",
+        "act-comments",
+        "lenny-comments",
+        "act-comments-newest"
+      ],
+      "notes": "Four real comments on the custom-domain sample, with nested children fields. Other samples had none. Best-first and newest-first probes returned the same four descending dates; sort enforcement and large-thread completeness remain unqualified.",
+      "sources": [
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "article-reader-replies",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/reader/post/{post-id}/replies?publication_id={publication-id}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-comments-partial"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "act-reader-replies"
+      ],
+      "notes": "Separate reader-thread representation returned four branches, moreBranches=0 and no nextCursor for one small discussion. Not proof of complete large discussions.",
+      "sources": [
+        "https://substackcdn.com/bundle/static/js/reactReader2.ff7fc9d4.js"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publication-search",
+      "kind": "original",
+      "paths": [
+        "https://substack.com/api/v1/publication/search?query={query}&offset={offset}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-discovery"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "publication-search"
+      ],
+      "notes": "Public query returned 20 results and a more flag despite limit=3. Do not trust a requested result limit; locally bound parsing. This does not establish global article or Notes search.",
+      "sources": [
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publication-recommendations",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/recommendations/from/{publication-id}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "creator-recommendations",
+        "related-publications"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "on-recommendations"
+      ],
+      "notes": "One recommendation in the sample, with recommended publication identity and domain. Recommendation is not proof of common ownership.",
+      "sources": [
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publication-authors",
+      "kind": "original",
+      "paths": [
+        "{verified-publication-origin}/api/v1/publication/users/ranked?public=true"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-authors"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "on-authors"
+      ],
+      "notes": "One publicly listed publication user in the sample. Not a reader/follower graph or complete ownership proof.",
+      "sources": [
+        "https://github.com/NHagar/substack_api"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "rsshub-substack",
+      "kind": "feed-relay",
+      "paths": [
+        "{instance-base}/substack/subscribe/{publication-subdomain}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed",
+        "article-body-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "rsshub-1",
+        "rsshub-3",
+        "rsshub-2",
+        "rsshub-0",
+        "rsshub-extra-4",
+        "rsshub-extra-12",
+        "rsshub-extra-16",
+        "rsshub-extra-18"
+      ],
+      "notes": "Eight tested hosts returned 20-entry RSS. Upstream adapter reads publication /feed; it adds no Notes or paid access. The balancer may share downstream operators with other entries.",
+      "sources": [
+        "https://github.com/DIYgod/RSSHub/blob/master/lib/routes/substack/subscribe.ts",
+        "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "rssbridge-substack",
+      "kind": "feed-relay",
+      "paths": [
+        "{instance-base}/?action=display&bridge=Substack&url={encoded-publication-feed}&format=Atom"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed",
+        "article-body-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "rssbridge-bloat",
+        "rssbridge-rofl",
+        "rssbridge-official"
+      ],
+      "notes": "Three tested hosts returned 20-entry Atom. Several listed hosts have this bridge disabled. Optional server-configured SID support is not an accountless phone capability.",
+      "sources": [
+        "https://github.com/RSS-Bridge/rss-bridge/blob/master/bridges/SubstackBridge.php",
+        "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+      ],
+      "retrievalProvider": "substack",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "substacktools-metadata",
+      "kind": "reader-service",
+      "paths": [
+        "https://api.substacktools.com/free-tools/downloader/post/metadata?url={encoded-article-url}",
+        "https://api.substacktools.com/free-tools/downloader/publication/metadata?url={encoded-publication-url}",
+        "https://api.substacktools.com/free-tools/downloader/publication/dir?url={encoded-publication-url}&offset={offset}&limit={limit}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-metadata",
+        "publication-identity",
+        "publication-archive"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "substacktools-post",
+        "substacktools-publication",
+        "substacktools-directory"
+      ],
+      "notes": "Matched article and publication IDs; directory sample returned three items. Directory and metadata include excerpts, not full article bodies.",
+      "sources": [
+        "https://www.substacktools.com/downloader"
+      ],
+      "retrievalProvider": "substack-via-substacktools",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "substacktools-markdown",
+      "kind": "reader-service",
+      "paths": [
+        "https://api.substacktools.com/free-tools/downloader/post/markdown?url={encoded-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-markdown-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "substacktools-markdown",
+        "substacktools-markdown-file"
+      ],
+      "notes": "First response is a short-lived signed download URL, not Markdown. Download returned 20,909 characters matching 35/38 sampled body passages. Keep title/canonical identity from metadata, validate HTTPS destination, do not persist signed query credentials.",
+      "sources": [
+        "https://www.substacktools.com/downloader"
+      ],
+      "retrievalProvider": "substack-via-substacktools",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false,
+      "requiresSecondFetch": true
+    },
+    {
+      "id": "substackdownloader",
+      "kind": "reader-service",
+      "paths": [
+        "https://www.substackdownloader.com/api/convert"
+      ],
+      "method": "POST",
+      "capabilities": [
+        "article-markdown-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "substackdownloader-convert"
+      ],
+      "notes": "Read-only conversion POST {url,format:md,platform:substack,browserCapture:false}, no session field or cookies. JSON included title and 21,163-character Markdown matching 35/38 body passages. Credentialed paid mode is separate and excluded.",
+      "sources": [
+        "https://www.substackdownloader.com/"
+      ],
+      "retrievalProvider": "substack-via-substackdownloader",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "pullsy-proxy",
+      "kind": "transport-relay",
+      "paths": [
+        "https://proxy.pullsy.online/?url={encoded-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-html-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "pullsy-proxy"
+      ],
+      "notes": "Served selected article HTML with 38/38 sampled body passages; client-side reader cleanup can be reimplemented locally. Broad paywall marketing is not proof of full paid access.",
+      "sources": [
+        "https://pullsy.online/tools/medium-reader/"
+      ],
+      "retrievalProvider": "substack-via-pullsy",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "substackfwd",
+      "kind": "transport-relay",
+      "paths": [
+        "https://substackfwd.xyz/?url={encoded-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-html-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "substackfwd"
+      ],
+      "notes": "Served article HTML at the proxy URL without HTTP redirect; 38/38 sampled body passages matched. Operator and durability not established. Revalidate before enabling.",
+      "sources": [
+        "https://github.com/OmarShehata/twitter-substack-proxy"
+      ],
+      "retrievalProvider": "substack-via-substackfwd",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "joel-proxy",
+      "kind": "metadata-proxy",
+      "paths": [
+        "https://substack-proxy.vercel.app/api/substack/posts?domain={publication-subdomain}&limit={limit}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed-metadata"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "joel-proxy"
+      ],
+      "notes": "Three article metadata rows; code tries /api/v1/posts then /api/v1/archive and truncates excerpts to 240 characters. Reject its random fallback IDs and invented Unknown dates. Not a full-text route.",
+      "sources": [
+        "https://github.com/joelsunnehall/substack-proxy"
+      ],
+      "retrievalProvider": "substack-via-joel",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "ryan-proxy",
+      "kind": "publisher-specific-proxy",
+      "paths": [
+        "https://substack-proxy-pi.vercel.app/api/substack-feed"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed-metadata"
+      ],
+      "observation": "observed-metadata",
+      "probeLabels": [
+        "ryan-proxy"
+      ],
+      "notes": "Source hardcodes ryanhockstein.substack.com/feed. Three rows returned. Only applicable to that publication; do not generalize to arbitrary publishers.",
+      "sources": [
+        "https://github.com/ryanhock2003/substack-proxy"
+      ],
+      "retrievalProvider": "substack-via-ryan",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false,
+      "publisherScope": "https://ryanhockstein.substack.com"
+    },
+    {
+      "id": "jina-reader",
+      "kind": "generic-extractor",
+      "paths": [
+        "https://r.jina.ai/{canonical-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-markdown-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "jina-article"
+      ],
+      "notes": "Accept: application/json returned data.url/title/content; exact selected URL and 35/38 sampled body passages matched. About 15.8 seconds in one desktop request; reserve for fallback. May be cached.",
+      "sources": [
+        "https://github.com/jina-ai/reader"
+      ],
+      "retrievalProvider": "substack-via-jina",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "anycrawler",
+      "kind": "generic-extractor",
+      "paths": [
+        "https://api.anycrawler.com/free/v1/crawl?url={encoded-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-markdown-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "anycrawler-post"
+      ],
+      "notes": "Anonymous GET returned ok/requested_url/results.markdown/status_code. Matched 35/38 body passages, but included navigation/subscribe text; still apply local content cleaning. Service documents up to 24-hour cached responses.",
+      "sources": [
+        "https://anycrawler.com/free/"
+      ],
+      "retrievalProvider": "substack-via-anycrawler",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "markdownifyweb",
+      "kind": "generic-extractor",
+      "paths": [
+        "https://www.markdownifyweb.com/api/convert"
+      ],
+      "method": "POST",
+      "capabilities": [
+        "article-markdown-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "markdownifyweb-convert"
+      ],
+      "notes": "Read-only conversion POST {url}; JSON url/title/markdown matched selected article and 35/38 body passages. No browser session. Public web endpoint, not a stability guarantee.",
+      "sources": [
+        "https://www.markdownifyweb.com/"
+      ],
+      "retrievalProvider": "substack-via-markdownifyweb",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "morss",
+      "kind": "generic-feed-expander",
+      "paths": [
+        "https://morss.it/{publication-feed-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-feed",
+        "article-body-or-preview"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "morss-feed"
+      ],
+      "notes": "Returned four feed entries, not the original twenty. Useful bounded fallback with explicit coverage; cannot claim catch-up completion from this sample.",
+      "sources": [
+        "https://morss.it/"
+      ],
+      "retrievalProvider": "substack-via-morss",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "wayback",
+      "kind": "archive",
+      "paths": [
+        "https://web.archive.org/cdx/search/cdx?url={encoded-article-url}&output=json&filter=statuscode%3A200&collapse=digest&limit=2",
+        "https://web.archive.org/web/{capture-time}id_/{canonical-article-url}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "archived-article"
+      ],
+      "observation": "observed-content",
+      "probeLabels": [
+        "wayback-cdx",
+        "wayback-replay"
+      ],
+      "notes": "Exact-URL index located a 20261022200555 capture; replay matched all 38 sampled body passages. Capture date is an archive observation, not a new post publication date. Existing archive engine can reuse this path.",
+      "sources": [
+        "https://github.com/internetarchive/wayback/blob/master/wayback-cdx-server/README.md"
+      ],
+      "retrievalProvider": "internet-archive-capture",
+      "upstreamDependency": "internet-archive-capture",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "arquivo",
+      "kind": "archive",
+      "paths": [
+        "https://arquivo.pt/wayback/cdx?url={encoded-article-url}&output=json&filter=statuscode%3A200&limit=2"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "archive-index"
+      ],
+      "observation": "not-usable-in-probe",
+      "probeLabels": [
+        "arquivo-cdx"
+      ],
+      "notes": "Index reachable but zero captures for the sampled article; no Substack replay qualified. Keep target miss distinct from provider outage.",
+      "sources": [
+        "https://github.com/arquivo/pwa-technologies/wiki/URL-search:-CDX-server-API"
+      ],
+      "retrievalProvider": "arquivo-capture",
+      "upstreamDependency": "arquivo-capture",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "openrss",
+      "kind": "notes-feed-service",
+      "paths": [
+        "https://openrss.org/substack.com/@{handle}",
+        "https://openrss.org/{publication-host}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "notes-feed-candidate"
+      ],
+      "observation": "not-usable-in-probe",
+      "probeLabels": [
+        "openrss-user",
+        "openrss-publication"
+      ],
+      "notes": "Documents Notes/replies/restacks, but selected handle returned an HTML feed-creation page and publication request hit 429. Do not repeatedly retry or count HTML as feed. A separately supplied, verified feed could be supported later.",
+      "sources": [
+        "https://openrss.org/feeds/substack"
+      ],
+      "retrievalProvider": "substack-via-openrss",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "readbetter",
+      "kind": "conversion-tool",
+      "paths": [
+        "https://www.readbetter.io/substack-to-epub"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "article-epub-candidate"
+      ],
+      "observation": "source-only",
+      "probeLabels": [],
+      "notes": "Public page offers three anonymous conversions per day. Script exposes generation/download POSTs; no conversion requested in this audit. Optional user-directed export lead, not a background polling source.",
+      "sources": [
+        "https://www.readbetter.io/substack-to-epub"
+      ],
+      "retrievalProvider": "substack-via-readbetter",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "generic-cors-fallbacks",
+      "kind": "transport-relay",
+      "paths": [
+        "https://corsproxy.io/?{encoded-article-url}",
+        "https://api.allorigins.win/raw?url={encoded-article-url}",
+        "https://api.codetabs.com/v1/proxy?quest={encoded-article-url}",
+        "https://api.rss2json.com/v1/api.json?rss_url={encoded-publication-feed}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "unqualified-transport-candidate"
+      ],
+      "observation": "not-usable-in-probe",
+      "probeLabels": [
+        "corsproxy-article",
+        "allorigins-article",
+        "codetabs-article",
+        "rss2json-on"
+      ],
+      "notes": "Observed 403, 502, 522 and 403 respectively. These are shared-origin transport/format relays, not independent archives; do not add to healthy pool.",
+      "sources": [
+        "https://pullsy.online/tools/medium-reader/"
+      ],
+      "retrievalProvider": "substack-via-generic-proxies",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "sharing-redirectors",
+      "kind": "link-unwrapper",
+      "paths": [
+        "https://substack-proxy.glitch.me/",
+        "https://api.omarshehata.me/substack-proxy/",
+        "https://link.selcukcihan.com"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "incoming-link-unwrapping"
+      ],
+      "observation": "source-only",
+      "probeLabels": [
+        "old-glitch"
+      ],
+      "notes": "Old Glitch root redirects to migrated site; project supplies share metadata plus navigation, not independent article text. selcukcihan documents the same pattern. Preserve as incoming-link recognition references.",
+      "sources": [
+        "https://github.com/OmarShehata/twitter-substack-proxy",
+        "https://github.com/selcukcihan/substack-sharing"
+      ],
+      "retrievalProvider": "substack-via-redirectors",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publisher-static-mirrors",
+      "kind": "publisher-specific-mirror",
+      "paths": [
+        "{verified-mirror-origin}/{verified-article-path}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publisher-scoped-article-copy"
+      ],
+      "observation": "source-only",
+      "probeLabels": [],
+      "notes": "Found Superstack, substack-edgelord, Data Mine block adapter and author-configured AEO reverse proxies. Match actual publication/post IDs or canonical declarations; no arbitrary-publisher hosted service established.",
+      "sources": [
+        "https://github.com/that-mathevs/substack-edgelord",
+        "https://github.com/Marvin-The-Bodega-Cat/substack-block-adapter",
+        "https://github.com/kees-/superstack",
+        "https://github.com/dgtldept/substack-aeo-proxy"
+      ],
+      "retrievalProvider": "publisher-specific-copy",
+      "upstreamDependency": "publisher-specific-copy",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "sidestack-catalog",
+      "kind": "discovery-catalog",
+      "paths": [
+        "https://sidestack.io/directory/all",
+        "https://sidestack.io/directory/substack/{publication-subdomain}"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "publication-discovery-candidate"
+      ],
+      "observation": "source-only",
+      "probeLabels": [],
+      "notes": "Scraper repo includes publication/feed metadata and custom domains, but live directory page returned 403. Treat its older snapshots as leads requiring live identity/feed checks. Do not ship a giant static directory or confuse subscriber estimates with current facts.",
+      "sources": [
+        "https://github.com/JaredTweed/sidestack_scraper"
+      ],
+      "retrievalProvider": "sidestack-directory",
+      "upstreamDependency": "sidestack-directory",
+      "runtimeEnabled": false
+    },
+    {
+      "id": "publisher-api",
+      "kind": "credentialed-reference",
+      "paths": [
+        "https://publisher-api.substack.com/v1"
+      ],
+      "method": "GET",
+      "capabilities": [
+        "owner-publication-api"
+      ],
+      "observation": "credentialed",
+      "probeLabels": [],
+      "notes": "Publisher API wrapper requires a publication API key; this is not an anonymous source for arbitrary creators. No key or private analytics requested.",
+      "sources": [
+        "https://github.com/dkships/substack-publisher-mcp"
+      ],
+      "retrievalProvider": "substack-publisher-api",
+      "upstreamDependency": "substack-live",
+      "runtimeEnabled": false
+    }
+  ],
+  "feedRelayInstances": [
+    {
+      "family": "rssbridge",
+      "base": "https://bridge.suumitsu.eu",
+      "observed": "not-qualified",
+      "status": 400,
+      "entries": 0,
+      "elapsedMs": 1064,
+      "detail": "Substack bridge disabled by host",
+      "probeLabel": "rssbridge-extra-12",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://bridge.utilibre.org",
+      "observed": "not-qualified",
+      "status": 400,
+      "entries": 0,
+      "elapsedMs": 1186,
+      "detail": "Substack bridge disabled by host",
+      "probeLabel": "rssbridge-extra-21",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://feed.eugene2molotov.ru",
+      "observed": "not-qualified",
+      "status": 400,
+      "entries": 0,
+      "elapsedMs": 1386,
+      "detail": "Substack bridge disabled by host",
+      "probeLabel": "rssbridge-extra-13",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://feeds.proxeuse.com",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 1006,
+      "detail": "SSLError",
+      "probeLabel": "rssbridge-extra-8",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://ololbu.ru/rss-bridge",
+      "observed": "not-qualified",
+      "status": 400,
+      "entries": 0,
+      "elapsedMs": 1401,
+      "detail": "Substack bridge disabled by host",
+      "probeLabel": "rssbridge-extra-11",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rb.ash.fail",
+      "observed": "not-qualified",
+      "status": 404,
+      "entries": 0,
+      "elapsedMs": 955,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rssbridge-extra-15",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rb.vern.cc",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 2088,
+      "detail": "SSLError",
+      "probeLabel": "rssbridge-extra-18",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.bb8.fun",
+      "observed": "not-qualified",
+      "status": 404,
+      "entries": 0,
+      "elapsedMs": 1386,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rssbridge-extra-10",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.cheredeprince.net",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 960,
+      "detail": "SSLError",
+      "probeLabel": "rssbridge-extra-2",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.ggc-project.de",
+      "observed": "not-qualified",
+      "status": 502,
+      "entries": 0,
+      "elapsedMs": 933,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rssbridge-extra-7",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.lewd.tech",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 395,
+      "detail": "ConnectionError",
+      "probeLabel": "rssbridge-lewd",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.mediani.de",
+      "observed": "not-qualified",
+      "status": 400,
+      "entries": 0,
+      "elapsedMs": 1155,
+      "detail": "Substack bridge disabled by host",
+      "probeLabel": "rssbridge-extra-14",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.org/bridge01",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 2794,
+      "detail": "Feed with real entries",
+      "probeLabel": "rssbridge-official",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss-bridge.sans-nuage.fr",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 23461,
+      "detail": "ReadTimeout",
+      "probeLabel": "rssbridge-extra-3",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss.bloat.cat",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 1693,
+      "detail": "Feed with real entries",
+      "probeLabel": "rssbridge-bloat",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss.nixnet.services",
+      "observed": "not-qualified",
+      "status": 503,
+      "entries": 0,
+      "elapsedMs": 1069,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rssbridge-extra-6",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rss.noleron.com",
+      "observed": "not-qualified",
+      "status": 200,
+      "entries": 0,
+      "elapsedMs": 898,
+      "detail": "RSSHub landing page, not the requested RSS-Bridge feed",
+      "probeLabel": "rssbridge-extra-16",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rssbridge.boldair.dev",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 1049,
+      "detail": "SSLError",
+      "probeLabel": "rssbridge-extra-9",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rssbridge.flossboxin.org.in",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 708,
+      "detail": "ConnectionError",
+      "probeLabel": "rssbridge-extra-1",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rssbridge.prenghy.org",
+      "observed": "not-qualified",
+      "status": 530,
+      "entries": 0,
+      "elapsedMs": 548,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rssbridge-extra-20",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://rssbridge.projectsegfau.lt",
+      "observed": "not-qualified",
+      "status": 200,
+      "entries": 0,
+      "elapsedMs": 1702,
+      "detail": "Service shutdown landing page",
+      "probeLabel": "rssbridge-extra-17",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rssbridge",
+      "base": "https://wtf.roflcopter.fr/rss-bridge",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 15537,
+      "detail": "Feed with real entries",
+      "probeLabel": "rssbridge-rofl",
+      "runtimeEnabled": false,
+      "source": "https://rss-bridge.github.io/rss-bridge/General/Public_Hosts.html"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://holoxx.f5.si",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 831,
+      "detail": "SSLError",
+      "probeLabel": "rsshub-extra-10",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://hub.slarker.me",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 22663,
+      "detail": "ReadTimeout",
+      "probeLabel": "rsshub-extra-2",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.4040940.xyz",
+      "observed": "not-qualified",
+      "status": 200,
+      "entries": 0,
+      "elapsedMs": 928,
+      "detail": "Redirected to unrelated reader page, not feed",
+      "probeLabel": "rsshub-extra-15",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.datuan.dev",
+      "observed": "not-qualified",
+      "status": 530,
+      "entries": 0,
+      "elapsedMs": 651,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rsshub-extra-14",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.littlebaby.life/rsshub",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 391,
+      "detail": "ConnectionError",
+      "probeLabel": "rsshub-extra-8",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.noleron.com",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 2855,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-3",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.owo.nz",
+      "observed": "not-qualified",
+      "status": 502,
+      "entries": 0,
+      "elapsedMs": 1451,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rsshub-extra-6",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.spriple.org",
+      "observed": "not-qualified",
+      "status": 523,
+      "entries": 0,
+      "elapsedMs": 5980,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rsshub-extra-17",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rss.wudifeixue.com",
+      "observed": "not-qualified",
+      "status": 404,
+      "entries": 0,
+      "elapsedMs": 1282,
+      "detail": "RSSHub landing page, not the requested RSS-Bridge feed",
+      "probeLabel": "rsshub-extra-7",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub-balancer.virworks.moe",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 2510,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-extra-18",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.app",
+      "observed": "not-qualified",
+      "status": 403,
+      "entries": 0,
+      "elapsedMs": 515,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rsshub-4",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.cups.moe",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 1615,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-extra-16",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.email-once.com",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 426,
+      "detail": "ConnectionError",
+      "probeLabel": "rsshub-extra-13",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.henry.wang",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 645,
+      "detail": "ConnectionError",
+      "probeLabel": "rsshub-extra-9",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.isrss.com",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 2921,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-extra-12",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.ktachibana.party",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 4126,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-2",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.pseudoyu.com",
+      "observed": "not-qualified",
+      "status": null,
+      "entries": 0,
+      "elapsedMs": 390,
+      "detail": "ConnectionError",
+      "probeLabel": "rsshub-extra-3",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.rss.tips",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 1919,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-extra-4",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.rssforever.com",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 8593,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-0",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.umzzz.com",
+      "observed": "not-qualified",
+      "status": 403,
+      "entries": 0,
+      "elapsedMs": 1584,
+      "detail": "Not qualified for Substack in this probe",
+      "probeLabel": "rsshub-extra-11",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    },
+    {
+      "family": "rsshub",
+      "base": "https://rsshub.woodland.cafe",
+      "observed": "feed-returned",
+      "status": 200,
+      "entries": 20,
+      "elapsedMs": 3632,
+      "detail": "Feed with real entries",
+      "probeLabel": "rsshub-1",
+      "runtimeEnabled": false,
+      "source": "https://github.com/RSSNext/rsshub-docs/blob/main/.vitepress/theme/components/InstanceList.vue"
+    }
+  ],
+  "repositories": [
+    {
+      "repository": "https://github.com/AnthonyDavidAdams/substack-api-reference",
+      "description": "Unofficial Substack API reference — 129 verified endpoints with body shapes, gathered across 14 capture rounds. Read + write side fully mapped. Includes Claude Agent SDK skill manifest and TypeScript client.",
+      "homepage": "https://earthpilot.co/play",
+      "pushedAt": "2026-06-23T23:34:16Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/JaredTweed/sidestack_scraper",
+      "description": "Scrapes a nearly complete list of Substack RSS feeds and corresponding details into a json (which is also saved in this repo). ",
+      "homepage": null,
+      "pushedAt": "2026-10-23T13:35:50Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/Jfangle/DownloadMySubstack",
+      "description": "This python scrip will download my substack archive. You can change the directory in which it downloads and/or change which substack archive you download by editing a few lines. It will not bypass any paywalls. Downloads as PDF",
+      "homepage": null,
+      "pushedAt": "2025-07-02T03:03:53Z",
+      "declaredLicense": null,
+      "inspection": "metadata-only-readme-unavailable",
+      "role": "publisher download script; no hosted pool endpoint"
+    },
+    {
+      "repository": "https://github.com/LinuxCTRL/substack-mirror",
+      "description": null,
+      "homepage": null,
+      "pushedAt": "2026-04-01T15:11:40Z",
+      "declaredLicense": null,
+      "inspection": "selected-source-and-readme",
+      "role": "self-hosted mirror/index; no hosted pool endpoint; private database not inspected"
+    },
+    {
+      "repository": "https://github.com/Marvin-The-Bodega-Cat/substack-block-adapter",
+      "description": "Standalone Data Mine adapter: mirror a Substack into GitHub and freeze it as a block",
+      "homepage": null,
+      "pushedAt": "2026-06-18T19:01:16Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "publisher-scoped mirror generator"
+    },
+    {
+      "repository": "https://github.com/Medialabiitg/SubstackRSSserver",
+      "description": null,
+      "homepage": null,
+      "pushedAt": "2026-02-10T07:51:15Z",
+      "declaredLicense": null,
+      "inspection": "metadata-only-readme-unavailable",
+      "role": "metadata only; README unavailable"
+    },
+    {
+      "repository": "https://github.com/NHagar/substack_api",
+      "description": "Unofficial wrapper for Substack's API",
+      "homepage": "https://www.nickhagar.net/substack_api/",
+      "pushedAt": "2026-09-15T16:02:39Z",
+      "declaredLicense": "MIT",
+      "inspection": "selected-source-and-readme",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/NatGeoX/Substack-URL-Converter",
+      "description": "X (formerly Twitter) blocks outgoing links to Substack. Our community, Tech Writer Stack, has created a tool to bypass these restrictions. This simple tool helps you generate a new URL that will redirect to your Substack publication.",
+      "homepage": null,
+      "pushedAt": "2024-04-08T15:02:44Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "sharing redirector"
+    },
+    {
+      "repository": "https://github.com/OmarShehata/twitter-substack-proxy",
+      "description": null,
+      "homepage": null,
+      "pushedAt": "2025-07-07T21:02:47Z",
+      "declaredLicense": null,
+      "inspection": "selected-source-and-readme",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/api-evangelist/substack",
+      "description": "Substack — independent third-party profile of a public API surface, by API Evangelist. Substack is an independent newsletter and media platform that lets writers, podcasters, video creators, and other culture makers publish directly to readers and monetize through paid subscriptions.",
+      "homepage": null,
+      "pushedAt": "2026-10-23T18:24:17Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "third-party API catalog, not a service"
+    },
+    {
+      "repository": "https://github.com/christi4nity/re-ink",
+      "description": "E-ink optimized Substack reader for Android",
+      "homepage": null,
+      "pushedAt": "2026-06-26T15:05:16Z",
+      "declaredLicense": "GPL-3.0",
+      "inspection": "readme-and-metadata",
+      "role": "IMAP/account-based reader; UX reference only"
+    },
+    {
+      "repository": "https://github.com/conorbronsdon/substack-mcp",
+      "description": "MCP server for Substack: rich drafts, Notes, analytics, and consented subscriber management across publications. Long-form posts stay draft-only; Notes publish immediately. Used regularly by multiple newsletters, includes a CLI.",
+      "homepage": "https://conorbronsdon.com/builds/",
+      "pushedAt": "2026-10-18T21:02:20Z",
+      "declaredLicense": "MIT",
+      "inspection": "selected-source-and-readme",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/cucoleadan/unofficial-substack-sdk",
+      "description": "Unofficial TypeScript SDK for Substack's web API.",
+      "homepage": "https://www.npmjs.com/package/unofficial-substack-sdk",
+      "pushedAt": "2026-10-02T07:21:25Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/dgtldept/substack-aeo-proxy",
+      "description": "Vercel serverless proxy that injects JSON-LD structured data into Substack pages for Answer Engine Optimization (AEO). Free template with Claude prompts for customization.",
+      "homepage": "https://dgtldept.com/p/professional-brand-aeo-playbook",
+      "pushedAt": "2026-04-09T17:59:35Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/dkships/substack-publisher-mcp",
+      "description": "MCP server for Substack's official Publisher API — query posts, analytics, and subscribers from Claude, Cursor, or any MCP client",
+      "homepage": "https://publisher-api.substack.com/v1/docs/",
+      "pushedAt": "2026-10-22T23:49:45Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "credentialed publication-owner API"
+    },
+    {
+      "repository": "https://github.com/gloom-sh/gloom-substack",
+      "description": "Authenticated Substack reader for Gloomberb",
+      "homepage": null,
+      "pushedAt": "2026-09-29T07:06:26Z",
+      "declaredLicense": "NOASSERTION",
+      "inspection": "readme-and-metadata",
+      "role": "authenticated desktop reader"
+    },
+    {
+      "repository": "https://github.com/inder/betterssc",
+      "description": null,
+      "homepage": null,
+      "pushedAt": "2026-09-18T19:52:29Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "logged-in browser Chat reader"
+    },
+    {
+      "repository": "https://github.com/itsPat/StackReader",
+      "description": "A reader for Substack",
+      "homepage": null,
+      "pushedAt": "2021-07-26T04:52:23Z",
+      "declaredLicense": "Apache-2.0",
+      "inspection": "readme-and-metadata",
+      "role": "iOS reader reference; no hosted fallback established"
+    },
+    {
+      "repository": "https://github.com/jakub-k-slys/substack-api",
+      "description": "Substack API client is a modern TypeScript library provides a clean, entity-based interface to interact with Substack publications, posts, comments, and user profiles.",
+      "homepage": "https://iam.slys.dev",
+      "pushedAt": "2026-10-21T14:57:43Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/joelsunnehall/substack-proxy",
+      "description": null,
+      "homepage": "https://substack-proxy.vercel.app",
+      "pushedAt": "2025-09-04T18:58:49Z",
+      "declaredLicense": null,
+      "inspection": "selected-source-and-readme",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/kamerozkan/substack-scraper-posts-notes",
+      "description": "Substack scraper for posts and Substack Notes: paste publication URLs or profile handles and get every post with title, date, paywall flag, likes, restacks, comments, tags, authors and the full text of free posts, plus Notes with text, likes, restacks and replies. No login, no API key.",
+      "homepage": "https://apify.com/kamerozkan/substack-scraper-posts-notes",
+      "pushedAt": "2026-10-19T16:24:32Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/kees-/substack-to-json",
+      "description": "Scrape substack newsletter into post data",
+      "homepage": null,
+      "pushedAt": "2022-12-31T08:38:06Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "browser-based static mirror generator"
+    },
+    {
+      "repository": "https://github.com/kees-/superstack",
+      "description": "Build a static mirror of a substack blog",
+      "homepage": null,
+      "pushedAt": "2022-12-01T21:08:50Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/matthagy/substack_client",
+      "description": "A prototype client library for accessing Substack content using the REST API that serves the frontend",
+      "homepage": null,
+      "pushedAt": "2022-12-11T18:29:03Z",
+      "declaredLicense": "Apache-2.0",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/maxweinsteinn/postack",
+      "description": "Substack-style React frontend for a bulletin-board system (BBS)",
+      "homepage": null,
+      "pushedAt": "2026-05-14T21:53:32Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "unrelated BBS clone"
+    },
+    {
+      "repository": "https://github.com/myfear/substack-reader-cli",
+      "description": "A small substack CLI in Java",
+      "homepage": null,
+      "pushedAt": "2026-02-28T09:20:41Z",
+      "declaredLicense": "Apache-2.0",
+      "inspection": "readme-and-metadata",
+      "role": "Java/Gson/Jsoup API reader reference"
+    },
+    {
+      "repository": "https://github.com/nazmulphp/substack-alternative-app",
+      "description": "substack reader app source codes, make you own money making platform like substack reader app. Easily make a web application that substack alternative",
+      "homepage": null,
+      "pushedAt": "2026-08-01T19:52:34Z",
+      "declaredLicense": null,
+      "inspection": "metadata-only-readme-unavailable",
+      "role": "no usable acquisition mechanism established"
+    },
+    {
+      "repository": "https://github.com/nyazbek/feedel",
+      "description": "A quiet, chronological reader for YouTube, X, Substack and arXiv. No recommendations, no Shorts, no autoplay.",
+      "homepage": null,
+      "pushedAt": "2026-10-23T19:48:50Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "chronological reader, Substack acquired as RSS"
+    },
+    {
+      "repository": "https://github.com/rohit1901/substack-feed-api",
+      "description": "A RSS Feed parser for Substack. #library",
+      "homepage": "https://www.npmjs.com/package/substack-feed-api",
+      "pushedAt": "2026-01-30T13:08:32Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "RSS parsing library, not a hosted fallback"
+    },
+    {
+      "repository": "https://github.com/ryanhock2003/substack-proxy",
+      "description": null,
+      "homepage": "https://substack-proxy-pi.vercel.app",
+      "pushedAt": "2025-09-09T03:21:06Z",
+      "declaredLicense": null,
+      "inspection": "selected-source-and-readme",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/saumyagupta12/substack-free-reader",
+      "description": "Compiles and shows feed of free substack posts",
+      "homepage": null,
+      "pushedAt": "2026-08-02T06:56:02Z",
+      "declaredLicense": null,
+      "inspection": "metadata-only-readme-unavailable",
+      "role": "no usable acquisition mechanism established"
+    },
+    {
+      "repository": "https://github.com/selcukcihan/substack-sharing",
+      "description": "App that lets you share your substack posts, bypassing twitter's blockage of substack",
+      "homepage": "https://link.selcukcihan.com",
+      "pushedAt": "2025-11-12T08:55:37Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/shadowfacts/bouncer",
+      "description": "A simple Node.js reverse-proxy using substack/bouncy.",
+      "homepage": null,
+      "pushedAt": "2015-04-19T15:30:52Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "unrelated programmer alias"
+    },
+    {
+      "repository": "https://github.com/snapsynapse/substack2md",
+      "description": "Convert Substack posts to clean, Obsidian-friendly Markdown using your authenticated browser session.",
+      "homepage": "https://substack2md.space/",
+      "pushedAt": "2026-09-09T03:59:43Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "authenticated browser extractor"
+    },
+    {
+      "repository": "https://github.com/snehify/SubstackLens",
+      "description": "A newsletter discovery engine with keyword search, semantic search, and RSS feed management.",
+      "homepage": null,
+      "pushedAt": "2026-10-19T11:31:00Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "self-hosted feed index, no public service established"
+    },
+    {
+      "repository": "https://github.com/substaker/awesome-substack",
+      "description": "A curated list of the best Substacks, resources, and tools for readers, writers, and creators on Substack.",
+      "homepage": null,
+      "pushedAt": "2026-02-26T23:07:08Z",
+      "declaredLicense": "CC0-1.0",
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/that-mathevs/substack-edgelord",
+      "description": "Mirror a Substack newsletter to your own domain as a pure static site on Cloudflare's edge. No server, no CMS.",
+      "homepage": null,
+      "pushedAt": "2026-09-14T11:09:22Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "publisher-scoped static mirror generator"
+    },
+    {
+      "repository": "https://github.com/the-kind-ghost/substack-mirror-tool",
+      "description": "Simple tool to mirror a Substack publication to a github repository.",
+      "homepage": null,
+      "pushedAt": "2026-03-02T13:49:20Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "template, no live pool endpoint established"
+    },
+    {
+      "repository": "https://github.com/timf34/Substack2Markdown",
+      "description": "Download free and premium Substack posts, saving them as Markdown files. Also generates HTML interfaces to allow you to browse and sort the markdown files for each author.",
+      "homepage": null,
+      "pushedAt": "2026-08-10T18:33:14Z",
+      "declaredLicense": "MIT",
+      "inspection": "selected-source-and-readme",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/victor-david/substack-reader",
+      "description": "A Chrome browser extension to override the stack author's selected theme",
+      "homepage": null,
+      "pushedAt": "2024-10-20T01:33:05Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "theme extension, not a source"
+    },
+    {
+      "repository": "https://github.com/walkersutton/substack-reverse-proxy",
+      "description": null,
+      "homepage": null,
+      "pushedAt": "2024-08-09T18:29:48Z",
+      "declaredLicense": null,
+      "inspection": "readme-and-metadata",
+      "role": "protocol, discovery or proxy reference; see route-specific qualification"
+    },
+    {
+      "repository": "https://github.com/waltgarcia/substack-image-downloader",
+      "description": "Download Substack post/note images at maximum quality (original S3 URLs) and upscale them 4x with Real-ESRGAN",
+      "homepage": null,
+      "pushedAt": "2026-09-10T03:07:18Z",
+      "declaredLicense": "MIT",
+      "inspection": "readme-and-metadata",
+      "role": "image source extraction reference; no AI upscaling needed"
+    }
+  ],
+  "probes": [
+    {
+      "label": "on-feed",
+      "status": 200,
+      "bytes": 733443,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 612,
+      "requested": "https://on.substack.com/feed"
+    },
+    {
+      "label": "act-feed",
+      "status": 200,
+      "bytes": 943903,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 626,
+      "requested": "https://www.astralcodexten.com/feed"
+    },
+    {
+      "label": "act-alias-feed",
+      "status": 200,
+      "bytes": 943903,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 782,
+      "requested": "https://astralcodexten.substack.com/feed",
+      "final": "https://www.astralcodexten.com/feed"
+    },
+    {
+      "label": "on-archive",
+      "status": 200,
+      "bytes": 24846,
+      "contentType": "application/json; charset=utf-8",
+      "records": 3,
+      "elapsedMs": 1186,
+      "requested": "https://on.substack.com/api/v1/archive?sort=new&offset=0&limit=3"
+    },
+    {
+      "label": "act-archive",
+      "status": 200,
+      "bytes": 15031,
+      "contentType": "application/json; charset=utf-8",
+      "records": 3,
+      "elapsedMs": 572,
+      "requested": "https://www.astralcodexten.com/api/v1/archive?sort=new&offset=0&limit=3"
+    },
+    {
+      "label": "lenny-archive",
+      "status": 200,
+      "bytes": 13470,
+      "contentType": "application/json; charset=utf-8",
+      "records": 3,
+      "elapsedMs": 599,
+      "requested": "https://www.lennysnewsletter.com/api/v1/archive?sort=new&offset=0&limit=3"
+    },
+    {
+      "label": "hamish-profile",
+      "status": 200,
+      "bytes": 1036982,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 708,
+      "requested": "https://substack.com/api/v1/user/hamish/public_profile"
+    },
+    {
+      "label": "pullsy",
+      "status": 200,
+      "bytes": 51298,
+      "contentType": "text/html",
+      "elapsedMs": 565,
+      "requested": "https://pullsy.online/tools/medium-reader/"
+    },
+    {
+      "label": "substacktools",
+      "status": 200,
+      "bytes": 41927,
+      "contentType": "text/html; charset=utf-8",
+      "entries": 0,
+      "elapsedMs": 805,
+      "requested": "https://www.substacktools.com/reader",
+      "final": "https://www.substacktools.com/downloader"
+    },
+    {
+      "label": "openrss-substack-doc",
+      "status": 200,
+      "bytes": 401318,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 1048,
+      "requested": "https://openrss.org/feeds/substack"
+    },
+    {
+      "label": "rss2json-on",
+      "status": 403,
+      "bytes": 5754,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 543,
+      "requested": "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fon.substack.com%2Ffeed"
+    },
+    {
+      "label": "rsshub-1",
+      "status": 200,
+      "bytes": 851003,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 3632,
+      "requested": "https://rsshub.woodland.cafe/substack/subscribe/on"
+    },
+    {
+      "label": "openrss-user",
+      "status": 200,
+      "bytes": 124406,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 4942,
+      "requested": "https://openrss.org/substack.com/@hamish"
+    },
+    {
+      "label": "openrss-publication",
+      "status": 429,
+      "bytes": 50049,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 6222,
+      "requested": "https://openrss.org/on.substack.com",
+      "final": "https://openrss.org/on.substack.com/feed"
+    },
+    {
+      "label": "rsshub-4",
+      "status": 403,
+      "bytes": 5560,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 515,
+      "requested": "https://rsshub.app/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-3",
+      "status": 200,
+      "bytes": 847018,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 2855,
+      "requested": "https://rss.noleron.com/substack/subscribe/on"
+    },
+    {
+      "label": "rssbridge-bloat",
+      "status": 200,
+      "bytes": 821613,
+      "contentType": "application/atom+xml; charset=UTF-8",
+      "entries": 20,
+      "elapsedMs": 1693,
+      "requested": "https://rss.bloat.cat/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rsshub-2",
+      "status": 200,
+      "bytes": 851006,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 4126,
+      "requested": "https://rsshub.ktachibana.party/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-0",
+      "status": 200,
+      "bytes": 847024,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 8593,
+      "requested": "https://rsshub.rssforever.com/substack/subscribe/on"
+    },
+    {
+      "label": "on-post-json",
+      "status": 200,
+      "bytes": 41982,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 615,
+      "requested": "https://on.substack.com/api/v1/posts/model-behavior-rick-rubin"
+    },
+    {
+      "label": "on-post-html",
+      "status": 200,
+      "bytes": 352191,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 600,
+      "requested": "https://on.substack.com/p/model-behavior-rick-rubin"
+    },
+    {
+      "label": "on-comments",
+      "status": 200,
+      "bytes": 44,
+      "contentType": "application/json; charset=utf-8",
+      "comments": 0,
+      "elapsedMs": 585,
+      "requested": "https://on.substack.com/api/v1/post/221572936/comments?all_comments=true&sort=best_first"
+    },
+    {
+      "label": "act-post-json",
+      "status": 200,
+      "bytes": 8607,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 820,
+      "requested": "https://www.astralcodexten.com/api/v1/posts/san-francisco-meetup-this-saturday"
+    },
+    {
+      "label": "act-post-html",
+      "status": 200,
+      "bytes": 124138,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 620,
+      "requested": "https://www.astralcodexten.com/p/san-francisco-meetup-this-saturday"
+    },
+    {
+      "label": "act-comments",
+      "status": 200,
+      "bytes": 11765,
+      "contentType": "application/json; charset=utf-8",
+      "comments": 4,
+      "elapsedMs": 554,
+      "requested": "https://www.astralcodexten.com/api/v1/post/221685994/comments?all_comments=true&sort=best_first"
+    },
+    {
+      "label": "lenny-post-json",
+      "status": 200,
+      "bytes": 62530,
+      "contentType": "application/json; charset=utf-8",
+      "comments": 0,
+      "elapsedMs": 856,
+      "requested": "https://www.lennysnewsletter.com/api/v1/posts/how-to-tell-if-a-startup-has-a-moat"
+    },
+    {
+      "label": "lenny-post-html",
+      "status": 200,
+      "bytes": 274816,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 615,
+      "requested": "https://www.lennysnewsletter.com/p/how-to-tell-if-a-startup-has-a-moat"
+    },
+    {
+      "label": "lenny-comments",
+      "status": 200,
+      "bytes": 44,
+      "contentType": "application/json; charset=utf-8",
+      "comments": 0,
+      "elapsedMs": 705,
+      "requested": "https://www.lennysnewsletter.com/api/v1/post/219482066/comments?all_comments=true&sort=best_first"
+    },
+    {
+      "label": "hamish-notes",
+      "status": 200,
+      "bytes": 132351,
+      "contentType": "application/json; charset=utf-8",
+      "items": 12,
+      "elapsedMs": 890,
+      "requested": "https://substack.com/api/v1/reader/feed/profile/3567"
+    },
+    {
+      "label": "hamish-note-thread",
+      "status": 200,
+      "bytes": 7826,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 702,
+      "requested": "https://substack.com/api/v1/reader/comment/367042581"
+    },
+    {
+      "label": "hamish-note-replies",
+      "status": 200,
+      "bytes": 28779,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 967,
+      "requested": "https://substack.com/api/v1/reader/comment/367042581/replies"
+    },
+    {
+      "label": "on-archive-next",
+      "status": 200,
+      "bytes": 10065,
+      "contentType": "application/json; charset=utf-8",
+      "records": 3,
+      "elapsedMs": 580,
+      "requested": "https://on.substack.com/api/v1/archive?sort=new&offset=3&limit=3"
+    },
+    {
+      "label": "hamish-notes-next",
+      "status": 200,
+      "bytes": 171326,
+      "contentType": "application/json; charset=utf-8",
+      "items": 12,
+      "elapsedMs": 758,
+      "requested": "https://substack.com/api/v1/reader/feed/profile/3567?cursor=RETURNED_CURSOR"
+    },
+    {
+      "label": "on-posts-list",
+      "status": 200,
+      "bytes": 123726,
+      "contentType": "application/json; charset=utf-8",
+      "records": 3,
+      "elapsedMs": 1202,
+      "requested": "https://on.substack.com/api/v1/posts?limit=3"
+    },
+    {
+      "label": "hamish-note-html",
+      "status": 200,
+      "bytes": 111985,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 1432,
+      "requested": "https://substack.com/@hamish/note/c-367042581"
+    },
+    {
+      "label": "on-recommendations",
+      "status": 200,
+      "bytes": 2528,
+      "contentType": "application/json; charset=utf-8",
+      "records": 1,
+      "elapsedMs": 1037,
+      "requested": "https://on.substack.com/api/v1/recommendations/from/1"
+    },
+    {
+      "label": "substacktools-post",
+      "status": 200,
+      "bytes": 8535,
+      "contentType": "application/json",
+      "elapsedMs": 712,
+      "requested": "https://api.substacktools.com/free-tools/downloader/post/metadata?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "publication-search",
+      "status": 200,
+      "bytes": 353461,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 2066,
+      "requested": "https://substack.com/api/v1/publication/search?query=science&limit=3&offset=0"
+    },
+    {
+      "label": "substacktools-markdown",
+      "status": 200,
+      "bytes": 509,
+      "contentType": "text/plain; charset=utf-8",
+      "elapsedMs": 1060,
+      "requested": "https://api.substacktools.com/free-tools/downloader/post/markdown?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "substacktools-publication",
+      "status": 200,
+      "bytes": 58591,
+      "contentType": "application/json",
+      "elapsedMs": 1858,
+      "requested": "https://api.substacktools.com/free-tools/downloader/publication/metadata?url=https%3A%2F%2Fon.substack.com"
+    },
+    {
+      "label": "substacktools-directory",
+      "status": 200,
+      "bytes": 11668,
+      "contentType": "application/json",
+      "items": 3,
+      "elapsedMs": 1605,
+      "requested": "https://api.substacktools.com/free-tools/downloader/publication/dir?url=https%3A%2F%2Fon.substack.com&offset=0&limit=3"
+    },
+    {
+      "label": "ryan-proxy",
+      "status": 200,
+      "bytes": 80689,
+      "contentType": "application/rss+xml; charset=utf-8",
+      "entries": 3,
+      "elapsedMs": 3762,
+      "requested": "https://substack-proxy-pi.vercel.app/api/substack-feed"
+    },
+    {
+      "label": "substacktools-openapi",
+      "status": 404,
+      "bytes": 22,
+      "contentType": "application/json",
+      "elapsedMs": 1240,
+      "requested": "https://api.substacktools.com/openapi.json"
+    },
+    {
+      "label": "joel-proxy",
+      "status": 200,
+      "bytes": 2363,
+      "contentType": "application/json; charset=utf-8",
+      "items": 3,
+      "elapsedMs": 5961,
+      "requested": "https://substack-proxy.vercel.app/api/substack/posts?domain=on&limit=3"
+    },
+    {
+      "label": "open-host-profile",
+      "status": 200,
+      "bytes": 1036982,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 942,
+      "requested": "https://open.substack.com/api/v1/user/hamish/public_profile"
+    },
+    {
+      "label": "pullsy-proxy",
+      "status": 200,
+      "bytes": 351523,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 942,
+      "requested": "https://proxy.pullsy.online/?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "on-host-public-profile",
+      "status": 200,
+      "bytes": 1036982,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 998,
+      "requested": "https://on.substack.com/api/v1/user/hamish/public_profile"
+    },
+    {
+      "label": "corsproxy-article",
+      "status": 403,
+      "bytes": 322,
+      "contentType": "application/json",
+      "elapsedMs": 498,
+      "requested": "https://corsproxy.io/?https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin="
+    },
+    {
+      "label": "on-host-notes",
+      "status": 200,
+      "bytes": 132387,
+      "contentType": "application/json; charset=utf-8",
+      "items": 12,
+      "elapsedMs": 1785,
+      "requested": "https://on.substack.com/api/v1/reader/feed/profile/3567"
+    },
+    {
+      "label": "allorigins-article",
+      "status": 502,
+      "bytes": 872,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 2517,
+      "requested": "https://api.allorigins.win/raw?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "substackfwd",
+      "status": 200,
+      "bytes": 352285,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1877,
+      "requested": "https://substackfwd.xyz/?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "rssbridge-lewd",
+      "elapsedMs": 395,
+      "requested": "https://rss-bridge.lewd.tech/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "ConnectionError"
+    },
+    {
+      "label": "old-glitch",
+      "status": 200,
+      "bytes": 2641,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 736,
+      "requested": "https://substack-proxy.glitch.me/",
+      "final": "https://api.omarshehata.me/substack-proxy//"
+    },
+    {
+      "label": "note-embed",
+      "status": 200,
+      "bytes": 78501,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 722,
+      "requested": "https://substack.com/embed/c/367042581"
+    },
+    {
+      "label": "jina-article",
+      "status": 200,
+      "bytes": 28353,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 15772,
+      "requested": "https://r.jina.ai/https://on.substack.com/p/model-behavior-rick-rubin"
+    },
+    {
+      "label": "rssbridge-rofl",
+      "status": 200,
+      "bytes": 821639,
+      "contentType": "application/atom+xml; charset=UTF-8",
+      "entries": 20,
+      "elapsedMs": 15537,
+      "requested": "https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "codetabs-article",
+      "status": 522,
+      "bytes": 977,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 19806,
+      "requested": "https://api.codetabs.com/v1/proxy?quest=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "act-comments-newest",
+      "status": 200,
+      "bytes": 11765,
+      "contentType": "application/json; charset=utf-8",
+      "comments": 4,
+      "elapsedMs": 574,
+      "requested": "https://www.astralcodexten.com/api/v1/post/221685994/comments?all_comments=true&sort=newest_first"
+    },
+    {
+      "label": "note-replies-next",
+      "status": 200,
+      "bytes": 28782,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 677,
+      "requested": "https://substack.com/api/v1/reader/comment/367042581/replies?cursor=RETURNED_CURSOR"
+    },
+    {
+      "label": "substacktools-markdown-file",
+      "status": 200,
+      "bytes": 21409,
+      "contentType": "",
+      "elapsedMs": 937,
+      "requested": "https://441aaad03a2d3f10dd6142d5c4a7aeaa.r2.cloudflarestorage.com/stackstorage-dev/free_download/post/markdown/model-behavior-rick-rubin.md"
+    },
+    {
+      "label": "substackdownloader",
+      "status": 200,
+      "bytes": 12634,
+      "contentType": "text/html; charset=utf-8",
+      "entries": 0,
+      "elapsedMs": 606,
+      "requested": "https://www.substackdownloader.com/"
+    },
+    {
+      "label": "anycrawler-post",
+      "status": 200,
+      "bytes": 29116,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 1191,
+      "requested": "https://api.anycrawler.com/free/v1/crawl?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin"
+    },
+    {
+      "label": "markdownifyweb",
+      "status": 200,
+      "bytes": 84254,
+      "contentType": "text/html; charset=utf-8",
+      "entries": 0,
+      "elapsedMs": 664,
+      "requested": "https://www.markdownifyweb.com/"
+    },
+    {
+      "label": "rssbridge-official",
+      "status": 200,
+      "bytes": 821633,
+      "contentType": "application/atom+xml; charset=UTF-8",
+      "entries": 20,
+      "elapsedMs": 2794,
+      "requested": "https://rss-bridge.org/bridge01/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "morss-feed",
+      "status": 200,
+      "bytes": 70745,
+      "contentType": "text/xml; charset=utf-8",
+      "entries": 4,
+      "elapsedMs": 4244,
+      "requested": "https://morss.it/https://on.substack.com/feed"
+    },
+    {
+      "label": "rsshub-extra-3",
+      "elapsedMs": 390,
+      "requested": "https://rsshub.pseudoyu.com/substack/subscribe/on",
+      "errorClass": "ConnectionError"
+    },
+    {
+      "label": "rsshub-extra-6",
+      "status": 502,
+      "bytes": 864,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 1451,
+      "requested": "https://rss.owo.nz/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-7",
+      "status": 404,
+      "bytes": 5000,
+      "contentType": "text/html; charset=UTF-8",
+      "entries": 0,
+      "elapsedMs": 1282,
+      "requested": "https://rss.wudifeixue.com/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-8",
+      "elapsedMs": 391,
+      "requested": "https://rss.littlebaby.life/rsshub/substack/subscribe/on",
+      "errorClass": "ConnectionError"
+    },
+    {
+      "label": "rsshub-extra-4",
+      "status": 200,
+      "bytes": 850998,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 1919,
+      "requested": "https://rsshub.rss.tips/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-9",
+      "elapsedMs": 645,
+      "requested": "https://rsshub.henry.wang/substack/subscribe/on",
+      "errorClass": "ConnectionError"
+    },
+    {
+      "label": "rsshub-extra-10",
+      "elapsedMs": 831,
+      "requested": "https://holoxx.f5.si/substack/subscribe/on",
+      "errorClass": "SSLError"
+    },
+    {
+      "label": "rsshub-extra-13",
+      "elapsedMs": 426,
+      "requested": "https://rsshub.email-once.com/substack/subscribe/on",
+      "errorClass": "ConnectionError"
+    },
+    {
+      "label": "rsshub-extra-11",
+      "status": 403,
+      "bytes": 24987,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1584,
+      "requested": "https://rsshub.umzzz.com/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-14",
+      "status": 530,
+      "bytes": 761,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 651,
+      "requested": "https://rss.datuan.dev/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-15",
+      "status": 200,
+      "bytes": 9705,
+      "contentType": "text/html",
+      "elapsedMs": 928,
+      "requested": "https://rss.4040940.xyz/substack/subscribe/on",
+      "final": "https://app.folo.is/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-12",
+      "status": 200,
+      "bytes": 851000,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 2921,
+      "requested": "https://rsshub.isrss.com/substack/subscribe/on"
+    },
+    {
+      "label": "rsshub-extra-16",
+      "status": 200,
+      "bytes": 850998,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 1615,
+      "requested": "https://rsshub.cups.moe/substack/subscribe/on"
+    },
+    {
+      "label": "rssbridge-extra-1",
+      "elapsedMs": 708,
+      "requested": "https://rssbridge.flossboxin.org.in/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "ConnectionError"
+    },
+    {
+      "label": "rssbridge-extra-2",
+      "elapsedMs": 960,
+      "requested": "https://rss-bridge.cheredeprince.net/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "SSLError"
+    },
+    {
+      "label": "rsshub-extra-18",
+      "status": 200,
+      "bytes": 850998,
+      "contentType": "application/xml; charset=utf-8",
+      "entries": 20,
+      "elapsedMs": 2510,
+      "requested": "https://rsshub-balancer.virworks.moe/substack/subscribe/on"
+    },
+    {
+      "label": "rssbridge-extra-6",
+      "status": 503,
+      "bytes": 773,
+      "contentType": "text/html",
+      "elapsedMs": 1069,
+      "requested": "https://rss.nixnet.services/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-7",
+      "status": 502,
+      "bytes": 150,
+      "contentType": "text/html",
+      "elapsedMs": 933,
+      "requested": "https://rss-bridge.ggc-project.de/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rsshub-extra-17",
+      "status": 523,
+      "bytes": 919,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 5980,
+      "requested": "https://rss.spriple.org/substack/subscribe/on"
+    },
+    {
+      "label": "rssbridge-extra-8",
+      "elapsedMs": 1006,
+      "requested": "https://feeds.proxeuse.com/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "SSLError"
+    },
+    {
+      "label": "rssbridge-extra-9",
+      "elapsedMs": 1049,
+      "requested": "https://rssbridge.boldair.dev/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "SSLError"
+    },
+    {
+      "label": "rssbridge-extra-10",
+      "status": 404,
+      "bytes": 19,
+      "contentType": "text/plain; charset=utf-8",
+      "elapsedMs": 1386,
+      "requested": "https://rss-bridge.bb8.fun/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-11",
+      "status": 400,
+      "bytes": 680,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1401,
+      "requested": "https://ololbu.ru/rss-bridge/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-12",
+      "status": 400,
+      "bytes": 1047,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1064,
+      "requested": "https://bridge.suumitsu.eu/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-13",
+      "status": 400,
+      "bytes": 680,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1386,
+      "requested": "https://feed.eugene2molotov.ru/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-14",
+      "status": 400,
+      "bytes": 680,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1155,
+      "requested": "https://rss-bridge.mediani.de/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-15",
+      "status": 404,
+      "bytes": 616,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 955,
+      "requested": "https://rb.ash.fail/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-16",
+      "status": 200,
+      "bytes": 10724,
+      "contentType": "text/html; charset=UTF-8",
+      "entries": 0,
+      "elapsedMs": 898,
+      "requested": "https://rss.noleron.com/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-17",
+      "status": 200,
+      "bytes": 111,
+      "contentType": "text/plain; charset=utf-8",
+      "elapsedMs": 1702,
+      "requested": "https://rssbridge.projectsegfau.lt/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "rssbridge-extra-18",
+      "elapsedMs": 2088,
+      "requested": "https://rb.vern.cc/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "SSLError"
+    },
+    {
+      "label": "rssbridge-extra-20",
+      "status": 530,
+      "bytes": 768,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 548,
+      "requested": "https://rssbridge.prenghy.org/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "wayback-cdx",
+      "status": 200,
+      "bytes": 260,
+      "contentType": "application/json",
+      "records": 2,
+      "elapsedMs": 881,
+      "requested": "https://web.archive.org/cdx/search/cdx?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin&output=json&filter=statuscode%3A200&collapse=digest&limit=2"
+    },
+    {
+      "label": "rssbridge-extra-21",
+      "status": 400,
+      "bytes": 1090,
+      "contentType": "text/html; charset=UTF-8",
+      "elapsedMs": 1186,
+      "requested": "https://bridge.utilibre.org/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom"
+    },
+    {
+      "label": "on-sitemap",
+      "status": 404,
+      "bytes": 41,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 532,
+      "requested": "https://on.substack.com/sitemap.xml"
+    },
+    {
+      "label": "arquivo-cdx",
+      "status": 200,
+      "bytes": 0,
+      "contentType": "text/x-ndjson",
+      "elapsedMs": 1111,
+      "requested": "https://arquivo.pt/wayback/cdx?url=https%3A%2F%2Fon.substack.com%2Fp%2Fmodel-behavior-rick-rubin&output=json&filter=statuscode%3A200&limit=2"
+    },
+    {
+      "label": "on-search-scoped",
+      "status": 200,
+      "bytes": 19182,
+      "contentType": "application/json; charset=utf-8",
+      "records": 3,
+      "elapsedMs": 870,
+      "requested": "https://on.substack.com/api/v1/archive?sort=new&search=Rubin&offset=0&limit=3"
+    },
+    {
+      "label": "on-authors",
+      "status": 200,
+      "bytes": 354,
+      "contentType": "application/json; charset=utf-8",
+      "records": 1,
+      "elapsedMs": 1101,
+      "requested": "https://on.substack.com/api/v1/publication/users/ranked?public=true"
+    },
+    {
+      "label": "rsshub-extra-2",
+      "elapsedMs": 22663,
+      "requested": "https://hub.slarker.me/substack/subscribe/on",
+      "errorClass": "ReadTimeout"
+    },
+    {
+      "label": "rssbridge-extra-3",
+      "elapsedMs": 23461,
+      "requested": "https://rss-bridge.sans-nuage.fr/?action=display&bridge=Substack&url=https%3A%2F%2Fon.substack.com%2Ffeed&format=Atom",
+      "errorClass": "ReadTimeout"
+    },
+    {
+      "label": "act-reader-replies",
+      "status": 200,
+      "bytes": 16192,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 572,
+      "requested": "https://www.astralcodexten.com/api/v1/reader/post/221685994/replies?publication_id=89120"
+    },
+    {
+      "label": "note-replies-scoped",
+      "status": 200,
+      "bytes": 28794,
+      "contentType": "application/json; charset=utf-8",
+      "elapsedMs": 671,
+      "requested": "https://substack.com/api/v1/reader/comment/367042581/replies?comment_id=367042581&cursor=RETURNED_CURSOR"
+    },
+    {
+      "label": "wayback-replay",
+      "status": 200,
+      "bytes": 336719,
+      "contentType": "text/html; charset=utf-8",
+      "elapsedMs": 1359,
+      "requested": "https://web.archive.org/web/20261022200555id_/https://on.substack.com/p/model-behavior-rick-rubin"
+    },
+    {
+      "label": "substackdownloader-convert",
+      "status": 200,
+      "bytes": 21985,
+      "elapsedMs": 1713,
+      "method": "POST",
+      "requested": "https://www.substackdownloader.com/api/convert"
+    },
+    {
+      "label": "markdownifyweb-convert",
+      "status": 200,
+      "bytes": 22327,
+      "elapsedMs": 3345,
+      "method": "POST",
+      "requested": "https://www.markdownifyweb.com/api/convert"
+    }
+  ]
+}
