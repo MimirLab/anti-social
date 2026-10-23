@@ -11,7 +11,7 @@ data class Subscription(val id: String,val name: String,val accounts: List<Follo
 data class AccountCandidate(val target: Target,val evidence: String,val kind:AccountLinkKind=AccountLinkKind.PROFILE,val sourceUrl:String?=null,val checkedAt:Long?=null)
 /** A public identity label is a fallback, separate from the account's own name. */
 data class AccountNameHint(val target:Target,val name:String,val kind:AccountLinkKind,val sourceUrl:String,val checkedAt:Long,val identityGroup:String?=null)
-data class AccountDiscovery(val name: String,val candidates: List<AccountCandidate>,val notice: String?=null,val complete:Boolean=true,val nameHints:List<AccountNameHint> = emptyList())
+data class AccountDiscovery(val name: String,val candidates: List<AccountCandidate>,val notice: String?=null,val complete:Boolean=true,val nameHints:List<AccountNameHint> = emptyList(),val publicAccounts:List<PublicAccount>?=null)
 data class PostGroup(val posts: List<Post>) { val primary get()=posts.first() }
 
 /** Local, explicitly linked identities. A matching handle is never identity evidence. */
@@ -29,8 +29,8 @@ object Subscriptions {
     fun publicHttps(url: String)=runCatching {val u=URI(url);u.scheme=="https"&&!u.host.isNullOrBlank()&&u.userInfo==null}.getOrDefault(false)
     /** Old profile fields often still contain http URLs. Try only their HTTPS form; never make an insecure request. */
     fun httpsLink(url: String): String?=url.replaceFirst(Regex("^http://",RegexOption.IGNORE_CASE),"https://").takeIf(::publicHttps)
-    fun candidates(links: List<String>,routes: DarwinRoutes,evidence: String)=links.asSequence().mapNotNull(::httpsLink).mapNotNull {routes.recognize(it)}
-        .filter {ReaderScope.isFeedSource(it.platform)&&it.kind==TargetKind.PROFILE&&PublicSearchAdapter.profileAllowed(it)}.distinctBy {it.canonicalUrl.lowercase().trimEnd('/')}.take(20).map {AccountCandidate(it,evidence)}.toList()
+    fun candidates(links: List<String>,routes: DarwinRoutes,evidence: String,discoveryRouting:Boolean=false)=links.asSequence().mapNotNull(::httpsLink).mapNotNull {routes.recognize(it)}
+        .filter {(ReaderScope.isFeedSource(it.platform)||discoveryRouting&&it.platform==Platform.YOUTUBE)&&it.kind==TargetKind.PROFILE&&PublicSearchAdapter.profileAllowed(it)}.distinctBy {if(it.platform==Platform.YOUTUBE)it.canonicalUrl.trimEnd('/')else it.canonicalUrl.lowercase().trimEnd('/')}.take(20).map {AccountCandidate(it,evidence)}.toList()
     /** One explicitly linked website, no recursive crawl, embedded assets or scripts. */
     fun websiteLinks(html: String,base: String): List<String> {
         val page=Jsoup.parse(html,base)

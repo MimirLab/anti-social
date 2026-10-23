@@ -12,10 +12,10 @@ internal class AdjacentStore(private val directory:File,private val clock:()->Lo
     @Synchronized fun epoch()=generation
     @Synchronized fun get(key:String):Cached? {
         val file=File(directory,Repository.hash(key)+".json")
-        if(!file.isFile||file.length()>192*1024)return null
+        if(!file.isFile||file.length()>384*1024)return null
         val entry=runCatching {PublicRelations.json(file.readText()).let {gson.fromJson(it,Entry::class.java)}}.getOrNull()
         val valid=runCatching {
-            entry!=null&&entry.schema==1&&entry.at in (clock()-6*60*60_000L)..(clock()+60_000)&&entry.snapshot.cards.size<=80&&entry.snapshot.coverage.size<=40&&
+            entry!=null&&entry.schema==1&&entry.at in (clock()-6*60*60_000L)..(clock()+60_000)&&entry.snapshot.cards.size<=AdjacentDiscovery.MAX_CARDS&&entry.snapshot.coverage.size<=40&&
                 entry.snapshot.cards.all {c->c.key.length<=1024&&AdjacentDiscovery.valid(c.profile.target)&&c.profile.name.length<=160&&c.evidence.size in 1..12&&c.score.isFinite()&&c.evidence.all {e->
                     e.kind in AdjacentKind.entries&&AdjacentDiscovery.valid(e.owner)&&e.count in 1..100_000&&e.sampleSize in 0..1000&&e.detail.length<=1000&&e.sourceUrl.length<=8192&&e.records.size<=8&&e.witnesses.size<=12&&e.witnesses.all(AdjacentDiscovery::valid)
                 }}&&entry.snapshot.coverage.all {it.status in HealthStatus.entries&&it.detail.length<=1000}
@@ -25,9 +25,9 @@ internal class AdjacentStore(private val directory:File,private val clock:()->Lo
     }
     @Synchronized fun put(key:String,snapshot:AdjacentSnapshot,epoch:Long) {
         if(epoch!=generation||snapshot.loading||!snapshot.complete)return
-        val value=snapshot.copy(cards=snapshot.cards.take(80),coverage=snapshot.coverage.takeLast(40))
+        val value=snapshot.copy(cards=snapshot.cards.take(AdjacentDiscovery.MAX_CARDS),coverage=snapshot.coverage.takeLast(40))
         val bytes=gson.toJson(Entry(at=clock(),snapshot=value)).toByteArray()
-        if(bytes.size>192*1024)return
+        if(bytes.size>384*1024)return
         val file=File(directory,Repository.hash(key)+".json")
         Repository.atomic(file,bytes);cleanup(false,file.name)
     }

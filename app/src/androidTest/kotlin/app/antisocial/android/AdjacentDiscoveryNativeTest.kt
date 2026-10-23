@@ -138,4 +138,73 @@ class AdjacentDiscoveryNativeTest {
             assertTrue(result.coverage.none {it.status==HealthStatus.HEALTHY});assertTrue(result.coverage.any {it.detail.contains("Tor")})
         }finally {repo.prefs.tor=oldTor;repo.prefs.originalFallback=fallback;repo.gateway.configure(old);repo.adjacentStore.cleanup(true)}
     }
+    @Test fun freshCacheStillExpandsEveryLinkedProviderAndYoutubePeersReturnAsReadableSocialAccounts() {
+        val session=AdjacentSession(seed,repo.routes,read={throw IllegalStateException("Fixture")})
+        val yt=PublicAccount("youtube","https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa",id="UCaaaaaaaaaaaaaaaaaaaaaa",kind=AccountLinkKind.DIRECTORY)
+        val peer=PublicAccount("youtube","https://www.youtube.com/channel/UCbbbbbbbbbbbbbbbbbbbbbb","Practical workshop","UCbbbbbbbbbbbbbbbbbbbbbb")
+        val local=listOf(repo.routes.target(Platform.BLUESKY,"workshop.test"),repo.routes.target(Platform.REDDIT,"u/fixture"),repo.routes.target(Platform.MASTODON,"https://masto.example/@fixture"))
+        val seen=linkedSetOf<Platform>();var reverseReads=0
+        val controller=AdjacentController(repo,scope,create={_,_,_->AdjacentRuntime(session,"fixture",0,repo.gateway.currentPolicy(),true)},
+            identities={p->seen+=p.target.platform;AccountDiscovery(p.name,listOf(AccountCandidate(p.target,"Entered",AccountLinkKind.ENTERED)),publicAccounts=if(p.target==seed.target)listOf(yt)else emptyList())},
+            next={_,update->AdjacentSnapshot(listOf(card()),complete=true).also(update)},roots={local},
+            bridge={account,related,_->if(related)BridgePage(account,neighbors=listOf(BridgeNeighbor(peer,AdjacentKind.FEATURED,"Creator selected","https://www.youtube.com/@fixture")))else {reverseReads++;BridgePage(account,links=listOf("https://x.com/peer_fixture","https://bsky.app/profile/peer.test"))}})
+        ui.runOnIdle {controller.start(seed)}
+        ui.waitUntil(8000){controller.state.value.bridgeMethods.firstOrNull()?.resolved?.values?.flatten()?.size==2&&!controller.state.value.loading}
+        assertTrue(seen.containsAll(local.map {it.platform}+Platform.X+Platform.YOUTUBE));assertTrue(reverseReads>0)
+        val method=controller.state.value.bridgeMethods.single();assertEquals("Practical workshop",method.page.neighbors.single().account.name)
+        assertEquals(setOf(Platform.X,Platform.BLUESKY),method.resolved.values.flatten().map {it.target.platform}.toSet())
+        assertTrue(method.processing.isEmpty());assertFalse(ReaderScope.isFeedSource(Platform.YOUTUBE))
+        val order=controller.state.value.methodOrder;assertEquals(order.distinct(),order)
+        ui.runOnIdle {ui.activity.setContent {MaterialTheme {AdjacentSheet(repo,controller.state.collectAsState().value,{},{},{},controller::refresh,controller::visible,{})}}}
+        ui.onNodeWithTag("Related accounts").performScrollToNode(hasTestTag("Discovery method YouTube Creator recommendations"))
+        ui.onNodeWithText("Practical workshop").assertIsDisplayed();ui.onNodeWithText("Public accounts found").assertIsDisplayed()
+        evidence("method-deck-youtube-return")
+        ui.runOnIdle {controller.stop()}
+    }
+    @Test fun streamedMethodOrderStaysStableWhenAnEarlierAccountGetsEvidenceFromASlowerMethod() {
+        val first=card();val slower=first.copy(evidence=listOf(first.evidence.single().copy(kind=AdjacentKind.SHARED_PARTICIPANTS,owner=repo.routes.target(Platform.BLUESKY,"workshop.test"),count=2)))
+        val order=listOf(discoveryMethod(first.evidence.single()),discoveryMethod(slower.evidence.single()))
+        val state=AdjacentUiState(seed,AdjacentSnapshot(listOf(first.copy(evidence=slower.evidence+first.evidence))),methodOrder=order)
+        assertEquals(order,adjacentDeck(state).map {it.key})
+        assertEquals(listOf("Creator recommendations","Shared commenters"),adjacentDeck(state).map {it.label})
+    }
+
+    @Test fun liveNasaBundleUsesTheDeckAcrossNativeProvidersAndYoutubeWithoutManualExpansion() {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialLiveAdjacent")=="true")
+        val original=repo.prefs.originalFallback;val policy=repo.gateway.currentPolicy()
+        repo.prefs.originalFallback=true;repo.gateway.configure(NetworkPolicy())
+        val nasa=Profile(repo.routes.target(Platform.X,"NASA"),"NASA",displayNameSupplied=false)
+        val local=listOf("https://x.com/NASA","https://x.com/WomenNASA","https://x.com/NASASTEM","https://x.com/NASA_Astronauts","https://x.com/NASA_Technology","https://x.com/NASAInterns","https://x.com/nasahqphoto","https://www.instagram.com/nasa","https://www.facebook.com/NASA","https://social.beachcom.org/@nasa","https://www.threads.com/@nasa","https://www.reddit.com/user/nasa").mapNotNull(repo.routes::recognize)
+        val controller=AdjacentController(repo,scope,roots={local})
+        try {
+            ui.runOnIdle {ui.activity.setContent {MaterialTheme {AdjacentSheet(repo,controller.state.collectAsState().value,{},{},controller::more,controller::refresh,controller::visible,{})}};controller.start(nasa)}
+            ui.waitUntil(90_000){val s=controller.state.value;s.bridgeMethods.any {it.page.account.provider=="youtube"&&it.resolved.values.any {it.isNotEmpty()}}&&s.snapshot.coverage.any {it.source.contains("reddit")}}
+            val state=controller.state.value
+            assertTrue(state.snapshot.cards.isNotEmpty());assertTrue(state.bridges.any {it.target.platform==Platform.REDDIT})
+            assertTrue(state.snapshot.coverage.any {it.source.contains("federated")})
+            val key=state.bridgeMethods.first {it.page.account.provider=="youtube"}.key
+            ui.onNodeWithTag("Related accounts").performScrollToNode(hasTestTag("Discovery method YouTube Creator recommendations"))
+            evidence("live-nasa-method-deck")
+            val context=ui.activity
+            val out=File(requireNotNull(context.getExternalFilesDir("validation")),"adjacent-discovery/live-nasa-deck.json")
+            out.writeText(com.google.gson.Gson().toJson(mapOf("nativeCards" to state.snapshot.cards.size,"coverage" to state.snapshot.coverage,"methodOrder" to state.methodOrder,"bridgeProviders" to state.bridgeMethods.map {it.page.account.provider},"youtubeReadableNeighbors" to state.bridgeMethods.first {it.key==key}.resolved.values.count {it.isNotEmpty()})))
+        }finally {ui.runOnIdle {controller.stop()};repo.prefs.originalFallback=original;repo.gateway.configure(policy)}
+    }
+
+    @Test fun failedBridgeReadsAreUnavailableRatherThanClaimingThereAreNoSocialAccounts() {
+        val session=AdjacentSession(seed,repo.routes,read={error("Fixture")})
+        val yt=PublicAccount("youtube","https://www.youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa",id="UCaaaaaaaaaaaaaaaaaaaaaa",kind=AccountLinkKind.DIRECTORY)
+        val peer=PublicAccount("youtube","https://www.youtube.com/channel/UCbbbbbbbbbbbbbbbbbbbbbb","Unavailable workshop","UCbbbbbbbbbbbbbbbbbbbbbb")
+        val controller=AdjacentController(repo,scope,create={_,_,_->AdjacentRuntime(session,"fixture",0,repo.gateway.currentPolicy(),false)},
+            identities={p->AccountDiscovery(p.name,listOf(AccountCandidate(p.target,"Entered",AccountLinkKind.ENTERED)),publicAccounts=if(p.target==seed.target)listOf(yt)else emptyList())},
+            next={_,update->AdjacentSnapshot(complete=true).also(update)},roots={emptyList()},
+            bridge={a,related,_->if(related)BridgePage(a,neighbors=listOf(BridgeNeighbor(peer,AdjacentKind.FEATURED,"Creator selected",a.url)))else throw java.io.IOException("Fixture offline")})
+        ui.runOnIdle {controller.start(seed)}
+        ui.waitUntil(5000){controller.state.value.bridgeMethods.any {it.failed.isNotEmpty()}&&!controller.state.value.loading}
+        ui.runOnIdle {ui.activity.setContent {MaterialTheme {AdjacentSheet(repo,controller.state.collectAsState().value,{},{},{},{},{},{})}}}
+        ui.onNodeWithText("Lookup unavailable · try again later").assertIsDisplayed()
+        ui.onNodeWithText("No public social links found").assertDoesNotExist()
+        ui.runOnIdle {controller.stop()}
+    }
+
 }

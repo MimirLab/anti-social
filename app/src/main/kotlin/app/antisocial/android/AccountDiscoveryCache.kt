@@ -28,7 +28,7 @@ internal class AccountDiscoveryCache(private val directory:File,private val cloc
         val file=File(directory,Repository.hash(key)+".json")
         if(!file.isFile||file.length()>64*1024)return null
         val entry=runCatching {gson.fromJson(file.readText(),Entry::class.java)}.getOrNull()
-        if(entry==null||runCatching {entry.expires<=clock()||entry.discovery.nameHints.size>40||entry.discovery.candidates.size !in 1..20||entry.discovery.candidates.any {!AccountLinkage.valid(it.target)||it.kind !in AccountLinkKind.entries}}.getOrDefault(true)){file.delete();return null}
+        if(entry==null||runCatching {entry.expires<=clock()||entry.discovery.nameHints.size>40||entry.discovery.candidates.size !in 1..48||entry.discovery.candidates.any {!AccountLinkage.validIdentity(it.target)||it.kind !in AccountLinkKind.entries}||entry.discovery.publicAccounts.orEmpty().size>48||entry.discovery.publicAccounts.orEmpty().any {it.provider.length !in 1..32||it.url.length>8192||RssSources.feedUrl(it.url)==null||it.anchors.size>24||it.links.size>24||it.kind !in AccountLinkKind.entries}}.getOrDefault(true)){file.delete();return null}
         file.setLastModified(clock());return entry.discovery
     }
     @Synchronized fun put(key:String,value:AccountDiscovery,epoch:Long) {

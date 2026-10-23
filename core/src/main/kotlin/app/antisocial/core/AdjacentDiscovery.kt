@@ -9,7 +9,7 @@ import kotlin.math.ln
 
 enum class AdjacentKind { FEATURED, FOLLOWS, SHARED_FOLLOWERS, SHARED_PARTICIPANTS, SECOND_HOP, INTERACTION, COMMUNITY, FORWARDED, MENTIONED, READING_LIST, COLLABORATION }
 data class AdjacentEvidence(val kind:AdjacentKind,val owner:Target,val sourceUrl:String,val checkedAt:Long,
-    val via:Target?=null,val count:Int=1,val sampleSize:Int=0,val detail:String="",val records:List<String> = emptyList(),val weight:Double=1.0,val witnesses:List<Target> = emptyList())
+    val via:Target?=null,val count:Int=1,val sampleSize:Int=0,val detail:String="",val records:List<String> = emptyList(),val weight:Double=1.0,val witnesses:List<Target> = emptyList(),val method:String="")
 data class AdjacentObservation(val profile:Profile,val evidence:AdjacentEvidence)
 data class AdjacentCard(val key:String,val profile:Profile,val evidence:List<AdjacentEvidence>,val score:Double)
 data class AdjacentCoverage(val source:String,val status:HealthStatus,val checkedAt:Long,val detail:String,val sampled:Int=0,val more:Boolean=false)
@@ -26,7 +26,7 @@ data class AdjacentBatch(val observations:List<AdjacentObservation> = emptyList(
     val more:Boolean=false,val detail:String="Public relationship sample")
 
 object AdjacentDiscovery {
-    const val MAX_CARDS=80
+    const val MAX_CARDS=160
     const val MAX_REQUESTS=24
     fun valid(target:Target)=ReaderScope.isFeedSource(target.platform)&&target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY,TargetKind.FEED)&&
         RssSources.feedUrl(target.canonicalUrl)!=null
@@ -88,12 +88,13 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
     private val learning:AdaptiveRouting=AdaptiveRouting(),private val tor:Boolean=false,
     private val clock:()->Long=System::currentTimeMillis,private val timeoutMs:Long=18_000,
     initial:List<AdjacentObservation> = emptyList(),cached:AdjacentSnapshot?=null,
-    private val onLearning:()->Unit={}) {
+    private val onLearning:()->Unit={},private val maxRequests:Int=AdjacentDiscovery.MAX_REQUESTS) {
     private val load=Mutex();private val lock=Mutex()
     private val queue=ArrayDeque<AdjacentRequest>();private val queued=HashSet<String>();private val visited=HashSet<String>()
     private val observations=linkedMapOf<String,MutableList<AdjacentObservation>>()
     private val order=ArrayList<String>();private val coverage=linkedMapOf<String,AdjacentCoverage>()
     private val owners=linkedSetOf(AdjacentDiscovery.key(seed.target));private var requests=0;private var started=false
+    private val served=HashMap<Platform,Int>()
     private val ownerIds=linkedSetOf(AdjacentDiscovery.profileKey(seed))
     init {
         cached?.cards?.take(AdjacentDiscovery.MAX_CARDS)?.forEach {card->order+=card.key;observations[card.key]=card.evidence.take(12).map {AdjacentObservation(card.profile,it)}.toMutableList()}
@@ -102,10 +103,10 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
         AdjacentSources.plan(seed,routes).forEach(::enqueue)
     }
     private fun enqueue(request:AdjacentRequest) {
-        if(queue.size<64&&request.depth<=2&&request.endpoints.isNotEmpty()&&queued.add(request.key))queue.addLast(request)
+        if(queue.size<192&&request.depth<=2&&request.endpoints.isNotEmpty()&&queued.add(request.key))queue.addLast(request)
     }
     suspend fun addBridge(profile:Profile,observed:List<AdjacentObservation> = emptyList(),onUpdate:(AdjacentSnapshot)->Unit={})=lock.withLock {
-        if(AdjacentDiscovery.valid(profile.target)&&owners.size<3&&owners.add(AdjacentDiscovery.key(profile.target))) {
+        if(AdjacentDiscovery.valid(profile.target)&&owners.size<40&&owners.add(AdjacentDiscovery.key(profile.target))) {
             ownerIds+=AdjacentDiscovery.profileKey(profile)
             order.removeAll {observations[it]?.firstOrNull()?.profile?.let {p->AdjacentDiscovery.key(p.target) in owners||AdjacentDiscovery.profileKey(p) in ownerIds}==true}
             observed.forEach(::accept)
@@ -115,7 +116,7 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
     private fun accept(value:AdjacentObservation) {
         if(!AdjacentDiscovery.valid(value.profile.target)||AdjacentDiscovery.key(value.profile.target) in owners||AdjacentDiscovery.profileKey(value.profile) in ownerIds)return
         val key=AdjacentDiscovery.profileKey(value.profile)
-        if(key !in observations&&observations.size>=128)return
+        if(key !in observations&&observations.size>=320)return
         val values=observations.getOrPut(key){mutableListOf()}
         val e=value.evidence
         if(!e.weight.isFinite()||e.weight<=0||e.count !in 1..100_000||e.sourceUrl.length>8192)return
@@ -138,7 +139,7 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
         val score=merged.sumOf {e->when(e.kind){AdjacentKind.FEATURED,AdjacentKind.COLLABORATION->100.0;AdjacentKind.READING_LIST->85.0;AdjacentKind.SHARED_FOLLOWERS,AdjacentKind.SHARED_PARTICIPANTS->65.0+e.weight*8;AdjacentKind.SECOND_HOP->45.0+e.weight*6;AdjacentKind.INTERACTION->35.0+ln(e.count.toDouble()+1)*5;AdjacentKind.COMMUNITY->40.0;AdjacentKind.FOLLOWS->30.0;AdjacentKind.FORWARDED->25.0;AdjacentKind.MENTIONED->10.0+ln(e.count.toDouble()+1)}}
         return AdjacentCard(key,profile,merged,score)
     }
-    private fun snapshot(loading:Boolean)=AdjacentSnapshot(order.map(::card),coverage.values.toList().takeLast(40),loading,queue.isNotEmpty()&&requests<AdjacentDiscovery.MAX_REQUESTS,requests,started&&!loading)
+    private fun snapshot(loading:Boolean)=AdjacentSnapshot(order.map(::card),coverage.values.toList().takeLast(40),loading,queue.isNotEmpty()&&requests<maxRequests,requests,started&&!loading)
     suspend fun current()=lock.withLock {snapshot(false)}
     suspend fun loadNext(onUpdate:(AdjacentSnapshot)->Unit={}):AdjacentSnapshot=load.withLock {
         started=true
@@ -152,16 +153,19 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
                     while(currentCoroutineContext().isActive) {
                         val query=lock.withLock {
                             var next:AdjacentRequest?=null
-                            while(queue.isNotEmpty()&&claimed<6&&requests<AdjacentDiscovery.MAX_REQUESTS&&next==null) {
-                                val candidate=queue.removeFirst()
-                                if(visited.add(candidate.key)){next=candidate;claimed++}
+                            while(queue.isNotEmpty()&&claimed<6&&requests<maxRequests&&next==null) {
+                                // Breadth across providers precedes pagination and sampled
+                                // audience expansion. Seven X roots cannot starve Reddit.
+                                val candidate=queue.minWith(compareBy<AdjacentRequest> {it.depth}.thenBy {served[it.actor.target.platform] ?: 0}.thenBy {if(it.cursor==null)0 else 1})
+                                queue.remove(candidate)
+                                if(visited.add(candidate.key)){next=candidate;claimed++;served[candidate.actor.target.platform]=(served[candidate.actor.target.platform] ?: 0)+1}
                             };next
                         } ?: break
                         val candidates=query.endpoints.sortedWith(compareBy<AdjacentEndpoint> {if(it.source.role==SourceRole.ORIGINAL)1 else 0}.thenBy {learning.score(it.source,Capability.PROFILE,tor)})
                         var done=false
                         for(endpoint in candidates) {
                             if(!learning.eligible(endpoint.source,Capability.PROFILE,tor,query.actor.target))continue
-                            val admitted=lock.withLock {if(requests>=AdjacentDiscovery.MAX_REQUESTS)false else {requests++;true}}
+                            val admitted=lock.withLock {if(requests>=maxRequests)false else {requests++;true}}
                             if(!admitted)break
                             val start=clock()
                             try {
@@ -174,7 +178,7 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
                                 val health=if(batch.sampled>0||batch.observations.isNotEmpty())HealthStatus.HEALTHY else HealthStatus.EMPTY
                                 if(document.cachedPublisher==null)learning.observe(ProbeResult(endpoint.source,Capability.PROFILE,health,(clock()-start).coerceAtLeast(1),clock(),tor,batch.detail),query.actor.target)
                                 lock.withLock {
-                                    batch.observations.sortedWith(compareByDescending<AdjacentObservation> {when(it.evidence.kind){AdjacentKind.FEATURED,AdjacentKind.COLLABORATION->3;AdjacentKind.SHARED_FOLLOWERS,AdjacentKind.READING_LIST->2;else->1}}.thenBy {AdjacentDiscovery.key(it.profile.target)}).forEach(::accept)
+                                    batch.observations.sortedWith(compareByDescending<AdjacentObservation> {when(it.evidence.kind){AdjacentKind.FEATURED,AdjacentKind.COLLABORATION->3;AdjacentKind.SHARED_FOLLOWERS,AdjacentKind.READING_LIST->2;else->1}}.thenBy {AdjacentDiscovery.key(it.profile.target)}).map {it.copy(evidence=it.evidence.copy(method=endpoint.source.frontend))}.forEach(::accept)
                                     batch.next.forEach(::enqueue)
                                     coverage[endpoint.source.key]=AdjacentCoverage(endpoint.source.frontend,health,observedAt,if(document.cachedPublisher!=null)"Cached publisher declarations. "+batch.detail else batch.detail,batch.sampled,batch.more)
                                     currentCoroutineContext().ensureActive();onUpdate(snapshot(true))

@@ -531,7 +531,7 @@ class Repository(val context: Context) {
         require(AdjacentDiscovery.valid(profile.target)){"Open a public account, community or feed to discover connections"}
         awaitReady();gateway.originalFallback=prefs.originalFallback
         val policy=gateway.currentPolicy();val originals=prefs.originalFallback
-        val key="v1|"+AdjacentDiscovery.key(profile.target)+"|"+policy+"|"+originals
+        val key="v2|"+AdjacentDiscovery.key(profile.target)+"|"+policy+"|"+originals
         val cached=if(force)null else adjacentStore.get(key)
         val page=knownPage?.takeIf {it.profile?.target==profile.target} ?: cachedPage(profile.target)
         val observed=page?.let {AdjacentDiscovery.observed(profile,it,routes,it.provenance?.fetchedAt ?: System.currentTimeMillis())}.orEmpty()+participantBank.related(profile)
@@ -551,7 +551,7 @@ class Repository(val context: Context) {
                 purpose=if(publisher)FetchPurpose.SUPPLEMENTAL else FetchPurpose.API)
             AdjacentDocument(Payload(result.text,result.finalUrl,result.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),result.status),result.headers)
         },learning=pool.learning,tor=policy.tor,timeoutMs=if(policy.tor)28_000 else 18_000,initial=observed,cached=cached?.snapshot,
-            onLearning={pool.onLearning(pool.learning.snapshot())})
+            onLearning={pool.onLearning(pool.learning.snapshot())},maxRequests=64)
         AdjacentRuntime(session,key,adjacentStore.epoch(),policy,cached?.fresh==true)
     }
     internal suspend fun adjacentNext(runtime:AdjacentRuntime,onUpdate:(AdjacentSnapshot)->Unit):AdjacentSnapshot=withContext(Dispatchers.IO) {
@@ -602,13 +602,17 @@ class Repository(val context: Context) {
             }}
         }}catch(e:CancellationException){if(e !is TimeoutCancellationException)throw e}catch(_:Exception){}
     }
-    suspend fun discoverAccounts(target: Target,knownProfile: Profile?=null,matchingNames:Boolean=false,onUpdate:(AccountDiscovery)->Unit={}): AccountDiscovery=withContext(Dispatchers.IO) {
-        require(ReaderScope.isFeedSource(target.platform)){ReaderScope.VIDEO_ONLY}
+    suspend fun discoverAccounts(target: Target,knownProfile: Profile?=null,matchingNames:Boolean=false,onUpdate:(AccountDiscovery)->Unit={}): AccountDiscovery=
+        resolveAccountDiscovery(target,knownProfile,matchingNames,false,onUpdate)
+    internal suspend fun discoverRoutingAccounts(target:Target,knownProfile:Profile?=null,onUpdate:(AccountDiscovery)->Unit={}):AccountDiscovery=
+        resolveAccountDiscovery(target,knownProfile,false,true,onUpdate)
+    private suspend fun resolveAccountDiscovery(target:Target,knownProfile:Profile?,matchingNames:Boolean,discoveryRouting:Boolean,onUpdate:(AccountDiscovery)->Unit):AccountDiscovery=withContext(Dispatchers.IO) {
+        require(ReaderScope.isFeedSource(target.platform)||discoveryRouting&&target.platform==Platform.YOUTUBE){ReaderScope.VIDEO_ONLY}
         awaitReady();gateway.originalFallback=prefs.originalFallback
-        if(!AccountLinkage.valid(target))return@withContext AccountDiscovery(target.identity,listOf(AccountCandidate(target,"Account you opened")),"Cross-platform discovery is available for people and organizations.")
+        if(!(if(discoveryRouting)AccountLinkage.validIdentity(target)else AccountLinkage.valid(target)))return@withContext AccountDiscovery(target.identity,listOf(AccountCandidate(target,"Account you opened")),"Cross-platform discovery is available for people and organizations.")
         val policy=gateway.currentPolicy()
         val platforms=if(matchingNames)(prefs.selected+PlatformOrder.popular).distinct()else emptyList()
-        val cacheKey="v3|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
+        val cacheKey="v4|routing=$discoveryRouting|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
         val epoch=accountDiscoveryCache.epoch()
         val local=dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}
         // Cached observations keep their original checkedAt. Local subscription
@@ -624,14 +628,17 @@ class Repository(val context: Context) {
         known?.takeIf {AccountLinkage.same(it.target,target,routes)}?.let {rememberAccountNames(Page(emptyList(),profile=it))}
         val engine=AccountDiscoveryEngine(routes,
             profile={account->
-                val p=pool.load(account,originalFallback=prefs.originalFallback,requestedCapability=Capability.PROFILE,progress={},profileNameOnly=!AccountLinkage.same(account,target,routes)).profile
+                val p=if(discoveryRouting&&account.platform==Platform.YOUTUBE) {
+                    val page=discoveryBridge(PublicAccounts.from(account),false)
+                    Profile(account,page.account.name.ifBlank {account.identity},page.description,links=page.links,displayNameSupplied=page.account.name.isNotBlank(),persistentId=page.account.id)
+                }else pool.load(account,originalFallback=prefs.originalFallback,requestedCapability=Capability.PROFILE,progress={},profileNameOnly=!AccountLinkage.same(account,target,routes)).profile
                     ?.takeIf {AccountLinkage.same(it.target,account,routes)}
                 p?.let {rememberAccountNames(Page(emptyList(),profile=it))};p
             },
             web={url,source->gateway.text(url,source,maxBytes=AccountLinkage.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to if(url.startsWith("https://www.wikidata.org/w/api.php")||url.startsWith("https://keybase.io/_/api/"))"application/json"else "text/html,application/xhtml+xml;q=0.9"))},
             laneTimeout=if(policy.tor)10_000 else 6_000,totalTimeout=if(policy.tor)30_000 else 20_000,
             cachedWebsite={url->accountDiscoveryCache.website(policy.toString()+"|"+url)},
-            rememberWebsite={url,result->if(policy==gateway.currentPolicy())accountDiscoveryCache.rememberWebsite(policy.toString()+"|"+url,result,epoch)})
+            rememberWebsite={url,result->if(policy==gateway.currentPolicy())accountDiscoveryCache.rememberWebsite(policy.toString()+"|"+url,result,epoch)},discoveryRouting=discoveryRouting)
         val result=gateway.boundedMediaRead(maxBytes=4L*1024*1024,maxRequests=8) {
             engine.discover(target,known,local,platforms) {update->rememberAccountHints(update.nameHints,epoch);onUpdate(update)}
         }

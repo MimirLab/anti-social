@@ -15,21 +15,22 @@ import java.util.Locale
 /** A public association is a suggestion, never an automatic ownership merge. */
 enum class AccountLinkKind { ENTERED, LOCAL, PROFILE, WEBSITE, RECIPROCAL, DIRECTORY, USERNAME }
 data class AccountWebsite(val url:String,val label:String)
-data class AccountWebLinks(val accounts:List<AccountCandidate>,val websites:List<String>,val nameHints:List<AccountNameHint> = emptyList(),val publisher:PublisherLinks?=null,val checkedAt:Long=0,val sourceUrl:String?=null)
+data class AccountWebLinks(val accounts:List<AccountCandidate>,val websites:List<String>,val nameHints:List<AccountNameHint> = emptyList(),val publisher:PublisherLinks?=null,val checkedAt:Long=0,val sourceUrl:String?=null,val publicAccounts:List<PublicAccount>?=null)
 
 object AccountLinkage {
     const val MAX_DOCUMENT=512*1024
     private val hubs=setOf("linktr.ee","beacons.ai","bio.link","linkin.bio","campsite.bio","solo.to","lnk.bio","taplink.cc")
-    private val properties=linkedMapOf(Platform.X to "P2002",Platform.INSTAGRAM to "P2003",Platform.FACEBOOK to "P2013",Platform.BLUESKY to "P12361",Platform.MASTODON to "P4033",Platform.THREADS to "P11892",Platform.TIKTOK to "P7085",Platform.REDDIT to "P4265",Platform.TELEGRAM to "P3789")
+    private val properties=linkedMapOf(Platform.X to "P2002",Platform.INSTAGRAM to "P2003",Platform.FACEBOOK to "P2013",Platform.BLUESKY to "P12361",Platform.MASTODON to "P4033",Platform.THREADS to "P11892",Platform.TIKTOK to "P7085",Platform.REDDIT to "P4265",Platform.TELEGRAM to "P3789",Platform.YOUTUBE to "P2397")
     fun key(target:Target,routes:DarwinRoutes)=MentionNames.account(target,routes)?.key?.id ?: target.platform.id+":"+target.canonicalUrl.trimEnd('/')
     fun same(a:Target,b:Target,routes:DarwinRoutes)=key(a,routes)==key(b,routes)
     fun valid(target:Target)=ReaderScope.isFeedSource(target.platform)&&target.kind==TargetKind.PROFILE&&PublicSearchAdapter.profileAllowed(target)
+    fun validIdentity(target:Target)=valid(target)||target.platform==Platform.YOUTUBE&&target.kind==TargetKind.PROFILE&&YouTubeUrls.recognize(target.canonicalUrl)?.kind==TargetKind.PROFILE
     fun webUrl(raw:String):String?=Subscriptions.httpsLink(raw)?.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()}?.newBuilder()?.fragment(null)?.build()?.toString()
     fun isHub(url:String)=url.toHttpUrlOrNull()?.host?.removePrefix("www.") in hubs
     fun websites(links:List<String>,routes:DarwinRoutes)=links.asSequence().mapNotNull(::webUrl).filter {routes.recognize(it)==null}
         .filterNot {val u=it.toHttpUrlOrNull()!!;u.host in setOf("keybase.io","keyoxide.org","www.wikidata.org")||Regex("(?i)\\.(pdf|jpg|png|mp4|zip)$").containsMatchIn(u.encodedPath)}
         .distinct().sortedBy {if(isHub(it))0 else 1}.take(2).toList()
-    fun profiles(links:List<String>,routes:DarwinRoutes,kind:AccountLinkKind,source:String,at:Long,label:String)=Subscriptions.candidates(links,routes,label)
+    fun profiles(links:List<String>,routes:DarwinRoutes,kind:AccountLinkKind,source:String,at:Long,label:String,discoveryRouting:Boolean=false)=Subscriptions.candidates(links,routes,label,discoveryRouting)
         .map {it.copy(kind=kind,sourceUrl=source,checkedAt=at)}
 
     /** Preserve identity attributes before washing away page navigation. No script,
@@ -38,7 +39,7 @@ object AccountLinkage {
         if(payload.text.length>MAX_DOCUMENT)return AccountWebLinks(emptyList(),emptyList())
         HtmlAdmission.check(payload.text)
         val page=Jsoup.parse(payload.text,payload.finalUrl)
-        val links=mutableListOf<String>();val more=mutableListOf<String>();val names=mutableListOf<AccountNameHint>()
+        val links=mutableListOf<String>();val more=mutableListOf<String>();val names=mutableListOf<AccountNameHint>();val public=mutableListOf<PublicAccount>()
         val path=payload.finalUrl.toHttpUrlOrNull()?.encodedPath.orEmpty().trim('/').lowercase(Locale.ROOT)
         val publisherPage=path.isEmpty()||path in setOf("about","contact","links","bio","connect","home","index.html")
         val identitySelector="a[rel~=me],link[rel~=me],[itemprop=sameAs][href]"
@@ -63,6 +64,7 @@ object AccountLinkage {
                 val sameAs=strings(o["sameAs"]);links+=sameAs
                 val name=strings(o["name"]).singleOrNull()
                 val group=java.security.MessageDigest.getInstance("SHA-256").digest(o.toString().toByteArray()).take(16).joinToString(""){"%02x".format(it)}
+                public+=sameAs.mapNotNull {PublicAccounts.parse(it,routes,name.orEmpty(),AccountLinkKind.WEBSITE,payload.finalUrl,group,sameAs.take(24))}
                 if(name!=null)profiles(sameAs,routes,AccountLinkKind.WEBSITE,payload.finalUrl,at,"").forEach {c->
                     MentionNames.account(c.target,routes)?.let {account->MentionNames.sanitizeDisplayName(name,account.key)}?.let {
                         names+=AccountNameHint(c.target,it,AccountLinkKind.WEBSITE,payload.finalUrl,at,group)
@@ -74,9 +76,11 @@ object AccountLinkage {
         }
         page.select("script[type=application/ld+json]").take(8).forEach {n->if(n.data().length<=64*1024)runCatching {JsonParser.parseString(n.data())}.getOrNull()?.let {inspect(it)}}
         val label="Linked from "+payload.finalUrl.toHttpUrlOrNull()?.host.orEmpty()
-        return AccountWebLinks(profiles(links,routes,AccountLinkKind.WEBSITE,payload.finalUrl,at,label),more.distinct().take(2),names.distinctBy {key(it.target,routes)}.take(20),PublicRelations.publisher(page,payload.finalUrl,headers),at,payload.finalUrl)
+        public+=links.mapNotNull {PublicAccounts.parse(it,routes,kind=AccountLinkKind.PROFILE,source=payload.finalUrl)}
+        return AccountWebLinks(profiles(links,routes,AccountLinkKind.WEBSITE,payload.finalUrl,at,label),more.distinct().take(2),names.distinctBy {key(it.target,routes)}.take(32),PublicRelations.publisher(page,payload.finalUrl,headers),at,payload.finalUrl,public.distinctBy(PublicAccounts::key).take(48))
     }
     private fun handle(target:Target)=when(target.platform) {
+        Platform.YOUTUBE->target.identity.removePrefix("channel/").takeIf {it.matches(Regex("UC[A-Za-z0-9_-]{22}"))}
         Platform.REDDIT->target.identity.removePrefix("user/").removePrefix("u/")
         Platform.MASTODON->target.canonicalUrl.toHttpUrlOrNull()?.let {it.encodedPath.trim('/').removePrefix("@")+"@"+it.host}
         else->target.identity.removePrefix("profile/").removePrefix("@").takeIf {it.matches(Regex("[A-Za-z0-9_.@:-]{1,256}"))}
@@ -95,15 +99,15 @@ object AccountLinkage {
         return "https://www.wikidata.org/w/api.php".toHttpUrlOrNull()!!.newBuilder().addQueryParameter("action","wbgetentities")
             .addQueryParameter("ids",ids.joinToString("|")).addQueryParameter("props","claims|labels").addQueryParameter("languages","en").addQueryParameter("format","json").build().toString()
     }
-    private fun propertyTarget(property:String,value:String,routes:DarwinRoutes):Target? {
+    private fun propertyTarget(property:String,value:String,routes:DarwinRoutes,discoveryRouting:Boolean=false):Target? {
         val platform=properties.entries.firstOrNull {it.value==property}?.key ?: return null
-        val raw=if(platform==Platform.MASTODON) {
+        val raw=if(platform==Platform.YOUTUBE)"https://www.youtube.com/channel/$value"else if(platform==Platform.MASTODON) {
             val parts=value.removePrefix("@").split('@');if(parts.size!=2)return null
             "https://${parts[1]}/@${parts[0]}"
         }else if(platform==Platform.REDDIT)"u/"+value.removePrefix("user/").removePrefix("u/")else value
-        return runCatching {routes.target(platform,raw)}.getOrNull()?.takeIf {it.platform==platform&&valid(it)}
+        return runCatching {routes.target(platform,raw)}.getOrNull()?.takeIf {it.platform==platform&&(if(discoveryRouting)validIdentity(it)else valid(it))}
     }
-    fun wikidata(body:String,seed:Target,routes:DarwinRoutes,at:Long):AccountWebLinks {
+    fun wikidata(body:String,seed:Target,routes:DarwinRoutes,at:Long,discoveryRouting:Boolean=false):AccountWebLinks {
         if(body.length>MAX_DOCUMENT)return AccountWebLinks(emptyList(),emptyList())
         val entities=runCatching {JsonParser.parseString(body).asJsonObject["entities"].asJsonObject}.getOrNull() ?: return AccountWebLinks(emptyList(),emptyList())
         if(entities.size()>3)return AccountWebLinks(emptyList(),emptyList())
@@ -111,7 +115,7 @@ object AccountLinkage {
         val records=entities.entrySet().take(3).mapNotNull {(id,value)->
             if(!id.matches(Regex("Q[1-9][0-9]*")))return@mapNotNull null
             val claims=runCatching {value.asJsonObject["claims"].asJsonObject}.getOrNull() ?: return@mapNotNull null
-            val selected=(properties.values.toList()+"P856").flatMap {property->
+            val selected=(properties.values.toList()+listOf("P856","P3040")).flatMap {property->
                 claims[property]?.takeIf {it.isJsonArray}?.asJsonArray?.take(16).orEmpty().mapNotNull {e->runCatching {
                     val o=e.asJsonObject
                     if(o["rank"]?.asString=="deprecated"||o["qualifiers"]?.asJsonObject?.has("P582")==true)return@runCatching null
@@ -122,7 +126,7 @@ object AccountLinkage {
                     Claim(property,data.asString,o["rank"]?.asString=="preferred")
                 }.getOrNull()}
             }
-            val matching=selected.filter {propertyTarget(it.property,it.value,routes)?.let {account->same(account,seed,routes)}==true}
+            val matching=selected.filter {propertyTarget(it.property,it.value,routes,discoveryRouting)?.let {account->same(account,seed,routes)}==true}
             if(matching.isEmpty())null else Triple(id,selected,if(matching.any {it.preferred})2 else 1)
         }
         // Prefer an explicit preferred seed statement. Several equally ranked
@@ -130,7 +134,7 @@ object AccountLinkage {
         val rank=records.maxOfOrNull {it.third} ?: return AccountWebLinks(emptyList(),emptyList())
         val record=records.filter {it.third==rank}.singleOrNull() ?: return AccountWebLinks(emptyList(),emptyList())
         val source="https://www.wikidata.org/wiki/"+record.first
-        val accounts=record.second.mapNotNull {propertyTarget(it.property,it.value,routes)}.distinctBy {key(it,routes)}.take(20)
+        val accounts=record.second.mapNotNull {propertyTarget(it.property,it.value,routes,discoveryRouting)}.distinctBy {key(it,routes)}.take(20)
             .map {AccountCandidate(it,"Listed together on Wikidata",AccountLinkKind.DIRECTORY,source,at)}
         val websites=record.second.filter {it.property=="P856"}.mapNotNull {webUrl(it.value)}.distinct().take(2)
         val label=runCatching {entities[record.first].asJsonObject["labels"].asJsonObject["en"].asJsonObject["value"].asString}.getOrNull()
@@ -139,7 +143,7 @@ object AccountLinkage {
             val name=label?.let {MentionNames.sanitizeDisplayName(it,account.key)} ?: return@mapNotNull null
             AccountNameHint(c.target,name,AccountLinkKind.DIRECTORY,source,at)
         }
-        return AccountWebLinks(accounts,websites,hints)
+        return AccountWebLinks(accounts,websites,hints,publicAccounts=if(discoveryRouting)accounts.map {PublicAccounts.from(it.target,label.orEmpty(),AccountLinkKind.DIRECTORY).copy(sourceUrl=source)}+record.second.filter {it.property=="P3040"}.mapNotNull {PublicAccounts.parse("https://soundcloud.com/"+it.value,routes,label.orEmpty(),AccountLinkKind.DIRECTORY,source)}else null)
     }
     fun keybaseUrl(seed:Target):String? {
         val field=when(seed.platform){Platform.X->"twitter";Platform.REDDIT->"reddit";else->return null}
@@ -172,16 +176,18 @@ object AccountLinkage {
  * accounts; cancellation stops children and prevents a final cache publication. */
 class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile:suspend (Target)->Profile?,private val web:suspend (String,String)->Payload,
     private val clock:()->Long=System::currentTimeMillis,private val laneTimeout:Long=6_000L,private val totalTimeout:Long=20_000L,
-    private val cachedWebsite:(String)->AccountWebLinks?={null},private val rememberWebsite:(String,AccountWebLinks)->Unit={_,_->}) {
+    private val cachedWebsite:(String)->AccountWebLinks?={null},private val rememberWebsite:(String,AccountWebLinks)->Unit={_,_->},private val discoveryRouting:Boolean=false) {
     suspend fun discover(seed:Target,known:Profile?=null,local:List<Follow> = emptyList(),extraPlatforms:List<Platform> = emptyList(),onUpdate:(AccountDiscovery)->Unit={}):AccountDiscovery {
-        require(AccountLinkage.valid(seed))
-        val mutex=Mutex();val gate=Semaphore(2);val candidates=linkedMapOf<String,AccountCandidate>();val names=linkedMapOf<String,AccountNameHint>();val sites=linkedSetOf<String>();var name=known?.name?.takeIf(String::isNotBlank) ?: seed.identity
+        val allowed:(Target)->Boolean=if(discoveryRouting)AccountLinkage::validIdentity else AccountLinkage::valid
+        require(allowed(seed))
+        val mutex=Mutex();val gate=Semaphore(2);val candidates=linkedMapOf<String,AccountCandidate>();val names=linkedMapOf<String,AccountNameHint>();val sites=linkedSetOf<String>();val public=linkedMapOf<String,PublicAccount>();var name=known?.name?.takeIf(String::isNotBlank) ?: seed.identity
         val existing=local.filter {AccountLinkage.same(it.target,seed,routes)}.map(Subscriptions::id).toSet()
         val confirmed=local.filter {Subscriptions.id(it) in existing}.map {AccountLinkage.key(it.target,routes)}.toSet()
         candidates[AccountLinkage.key(seed,routes)]=AccountCandidate(seed,"Account you opened",AccountLinkKind.ENTERED,seed.canonicalUrl,clock())
-        fun snapshot(complete:Boolean)=AccountDiscovery(name,candidates.values.sortedBy {it.kind.ordinal}.take(20),if(complete&&candidates.size==1)"No other accounts were found on the available sources. You can subscribe now or try matching names."else "Choose the accounts that belong together. Suggestions stay unselected.",complete,names.values.toList())
-        suspend fun publish(found:List<AccountCandidate> = emptyList(),hints:List<AccountNameHint> = emptyList())=mutex.withLock {
-            for(c in found.filter {AccountLinkage.valid(it.target)}.take(20)) {
+        fun snapshot(complete:Boolean)=AccountDiscovery(name,candidates.values.sortedBy {it.kind.ordinal}.take(20),if(complete&&candidates.size==1)"No other accounts were found on the available sources. You can subscribe now or try matching names."else "Choose the accounts that belong together. Suggestions stay unselected.",complete,names.values.toList(),if(discoveryRouting)public.values.take(48)else null)
+        suspend fun publish(found:List<AccountCandidate> = emptyList(),hints:List<AccountNameHint> = emptyList(),routesFound:List<PublicAccount> = emptyList())=mutex.withLock {
+            if(discoveryRouting)routesFound.take(48).forEach {account->if(public.size<48)public[PublicAccounts.key(account)]=account}
+            for(c in found.filter {allowed(it.target)}.take(20)) {
                 val key=AccountLinkage.key(c.target,routes);val old=candidates[key]
                 if(old==null&&candidates.size<20||old!=null&&c.kind.ordinal<old.kind.ordinal)candidates[key]=c
             }
@@ -199,14 +205,14 @@ class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile
                 val payload=web(clean,seed.canonicalUrl)
                 AccountLinkage.website(payload,routes,clock()).also {currentCoroutineContext().ensureActive();rememberWebsite(clean,it)}
             } ?: return
-            publish(result.accounts,result.nameHints)
+            publish(result.accounts+(if(discoveryRouting)result.publicAccounts.orEmpty().mapNotNull {a->PublicAccounts.target(a,routes)?.let {AccountCandidate(it,"Linked public account",a.kind,a.sourceUrl,clock())}}else emptyList()),result.nameHints+(if(discoveryRouting)result.publicAccounts.orEmpty().filter {it.name.isNotBlank()&&it.identityGroup!=null&&it.sourceUrl!=null}.mapNotNull {a->PublicAccounts.target(a,routes)?.let {AccountNameHint(it,a.name.take(160),a.kind,a.sourceUrl!!,clock(),a.identityGroup)}}else emptyList()),result.publicAccounts.orEmpty())
             if(depth==0)coroutineScope {result.websites.forEach {launch {site(it,1)}}}
         }
         suspend fun inspect(p:Profile) {
             if(!AccountLinkage.same(p.target,seed,routes))return
             mutex.withLock {if(p.name.isNotBlank())name=p.name.take(160)}
             val links=(p.links.orEmpty()+Subscriptions.urls(p.description.take(16_384))).distinct().take(48)
-            val accounts=AccountLinkage.profiles(links,routes,AccountLinkKind.PROFILE,seed.canonicalUrl,clock(),"Linked from ${seed.platform.label} profile")
+            val accounts=AccountLinkage.profiles(links,routes,AccountLinkKind.PROFILE,seed.canonicalUrl,clock(),"Linked from ${seed.platform.label} profile",discoveryRouting)
             // A bio can link to another person. Transfer a seed's label only
             // within a reader-confirmed bundle; named sameAs/directory records
             // supply their own identity labels independently.
@@ -214,17 +220,17 @@ class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile
                 val account=MentionNames.account(c.target,routes) ?: return@mapNotNull null
                 MentionNames.sanitizeDisplayName(p.name,account.key)?.let {AccountNameHint(c.target,it,AccountLinkKind.LOCAL,seed.canonicalUrl,clock())}
             }else emptyList()
-            publish(accounts,hints)
+            publish(accounts,hints,if(discoveryRouting)links.mapNotNull {PublicAccounts.parse(it,routes,source=seed.canonicalUrl)}else emptyList())
             coroutineScope {AccountLinkage.websites(links,routes).forEach {launch {site(it)}}}
         }
         publish()
         publish(local.filter {Subscriptions.id(it) in existing}.map {AccountCandidate(it.target,"Already linked in your subscriptions",AccountLinkKind.LOCAL,it.target.canonicalUrl,clock())})
         withTimeoutOrNull(totalTimeout) {supervisorScope {
-            launch {val p=known?.takeIf {AccountLinkage.same(it.target,seed,routes)} ?: attempt {profile(seed)};if(p!=null)inspect(p)}
+            launch {val p=known?.takeIf {AccountLinkage.same(it.target,seed,routes)&&(it.links.orEmpty().isNotEmpty()||it.description.isNotBlank()||!discoveryRouting&&it.displayNameSupplied)} ?: attempt {profile(seed)};if(p!=null)inspect(p)}
             launch {AccountLinkage.wikidataUrl(seed)?.let {url->attempt {web(url,seed.canonicalUrl)}?.let {search->
                 val entityUrl=AccountLinkage.wikidataEntitiesUrl(search.text) ?: return@let
                 val payload=attempt {web(entityUrl,seed.canonicalUrl)} ?: return@let
-                val result=AccountLinkage.wikidata(payload.text,seed,routes,clock());publish(result.accounts,result.nameHints)
+                val result=AccountLinkage.wikidata(payload.text,seed,routes,clock(),discoveryRouting);publish(result.accounts+(if(discoveryRouting)result.publicAccounts.orEmpty().mapNotNull {a->PublicAccounts.target(a,routes)?.let {AccountCandidate(it,"Linked public account",a.kind,a.sourceUrl,clock())}}else emptyList()),result.nameHints+(if(discoveryRouting)result.publicAccounts.orEmpty().filter {it.name.isNotBlank()&&it.identityGroup!=null&&it.sourceUrl!=null}.mapNotNull {a->PublicAccounts.target(a,routes)?.let {AccountNameHint(it,a.name.take(160),a.kind,a.sourceUrl!!,clock(),a.identityGroup)}}else emptyList()),result.publicAccounts.orEmpty())
                 coroutineScope {result.websites.take(1).forEach {launch {site(it)}}}
             }}}
             launch {AccountLinkage.keybaseUrl(seed)?.let {url->attempt {web(url,seed.canonicalUrl)}?.let {publish(AccountLinkage.keybase(it.text,seed,routes,clock()))}}}

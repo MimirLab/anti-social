@@ -31,7 +31,7 @@ were added by this increment. Existing Darwin and GPL attribution remains intact
 
 | Inspected source | Useful puzzle piece | Integration decision |
 | --- | --- | --- |
-| [yt-meta](https://github.com/ShaneIsley/yt-meta) (MIT), [YouTube.js](https://github.com/LuanRT/YouTube.js) (MIT) | Lazy comment pagination, chronological cutoffs, explicit creator hearts/pins, collaborator objects, cards and end screens | Linked-video support and Context may preserve these fields when their existing payload includes them. Do not turn YouTube into a social subscription platform or run commenter scans for every embedded video. No new YouTube collector activated here. |
+| [yt-meta](https://github.com/ShaneIsley/yt-meta) (MIT), [YouTube.js](https://github.com/LuanRT/YouTube.js) (MIT) | Lazy comment pagination, chronological cutoffs, explicit creator hearts/pins, collaborator objects, cards and end screens | Linked-video support and Context may preserve these fields when their existing payload includes them. Do not turn YouTube into a social subscription platform or run commenter scans for every embedded video. The 0.38 discovery bridge now extracts creator-selected channel tiles and scoped About links from literal public channel JSON. Video/comment collectors are separate; no YouTube subscription platform was added. |
 | [YouTube Data Tools v2](https://github.com/bernorieder/youtube-data-tools-v2) (GPL-3.0) | Shared-commenter networks and owner/reply flags | Reference for participant deduplication and collection windows. Its API-key/data-processing deployment is not bundled. Existing fetched-discussion participant bank captures the transferable cheap technique. |
 | [gallery-dl Instagram extractor](https://github.com/mikf/gallery-dl/blob/master/gallery_dl/extractor/instagram.py), [Instaloader structures](https://instaloader.github.io/module/structures.html), [instagrapi](https://github.com/subzeroid/instagrapi/blob/master/docs/usage-guide/media.md) | Accepted coauthors, tagged users and sponsors are different relationships | The new typed post relationship record has these slots. Current successful lightweight Instagram routes do not consistently provide those payloads. Do not invent collaboration from a caption mention. Extractor adaptation requires representative acquired fixtures first; full Python/session collectors not installed. |
 | [Threads AI Radar](https://github.com/BaYue-SYJ/threads-ai-radar), [Agentic-Threads](https://github.com/tjdwls101010/Agentic-Threads) | Embedded JSON can retain reply, quote and repost account references | Preserve typed references if supplied by a successful account/post payload. Login-session collection and a viral-post ranker are not accountless discovery foundations. No session collector activated. |
@@ -48,10 +48,10 @@ were added by this increment. Existing Darwin and GPL attribution remains intact
 
 | Source | Useful mechanism and boundary |
 | --- | --- |
-| [TwitchMap](https://twitchmap.com/) | Shared active chatters in a limited channel/time panel; the inspected site does not establish a stable integration API. A map is not a complete audience graph. Twitch remains outside the reader's core platform expansion. |
+| [TwitchMap](https://twitchmap.com/) | Shared active chatters in a limited channel/time panel; its public page actually requests `data.json`. That small JSON graph is now an on-demand bridge adapter. Channel indices and edges are checked; the panel remains incomplete. Twitch is not a reader subscription platform. |
 | [Twitch APIs](https://dev.twitch.tv/docs/api/reference/) | Teams/shared-chat are explicit collaboration. Mirrored chat must not count as independent audience overlap; token requirements remain real. |
-| [soundcloud.py](https://github.com/7x11x13/soundcloud.py) (MIT) | Featured profiles, reposts and playlists are richer than generic related-artists output. Useful music-companion design; no new music runtime/platform added. |
-| [bandcamp-retriever](https://github.com/lufinkey/bandcamp-retriever), [Mixcloud metadata](https://www.mixcloud.com/developers/) | Public curation/following and advertised relationship routes | Distinct music ecosystems. Do not copy code without confirmed license, fetch owner-private collections or add unsupported platform tabs. |
+| [soundcloud.py](https://github.com/7x11x13/soundcloud.py) (MIT) | Featured profiles, reposts and playlists are richer than generic related-artists output. A live public NASA profile contains `apiClient` and `user` hydration records. Those supply the public client identifier and exact user/URN without fetching or running scripts. Native public featured/following/web-profile reads now form a discovery bridge; NASA follows ESA. No music runtime/platform added. |
+| [bandcamp-retriever](https://github.com/lufinkey/bandcamp-retriever), [Mixcloud metadata](https://www.mixcloud.com/developers/) | Public curation/following and advertised relationship routes | Mixcloud's anonymous profile and following JSON are now a discovery bridge. Bandcamp remains a parser/reference candidate; no private collections or new subscription tabs were added. |
 | [Nostr NIP-02](https://github.com/nostr-protocol/nips/blob/master/02.md), [nostr-social-graph](https://github.com/mmalmi/nostr-social-graph) (MIT) | Signed follow lists and compact graph serialization | Good native graph/relay adapter candidate when Nostr reading is supported. No global relay mirror is needed; no Nostr backend added here. |
 | [PodPeopleDB](https://github.com/madeofpendletonwool/podpeople-db) (GPL-3.0), [podcast socialInteract](https://podcasting2.org/docs/podcast-namespace/tags/social-interact) | Credits and publisher-declared discussion locations | Potential Context/video-audio source references. Small corpus and role/source verification matter. Direct Podroll URLs are the included inexpensive part; person APIs and discussion fan-out are deferred. |
 | [Blogroll Network Map](https://github.com/robalexdev/rss-blogroll-network) (Apache-2.0), [rss-feed-index](https://github.com/lwindolf/rss-feed-index) | Catalogs can discover reading-list locations | A catalog is a lead, not a current endorsement. Fetch current publisher OPML using the included parser; no stale global catalog imported. |
@@ -62,3 +62,18 @@ were added by this increment. Existing Darwin and GPL attribution remains intact
 These notes deliberately distinguish a working acquired route, a useful parsing
 reference and a proposed adapter. Missing access or absent fields stay missing;
 a failed graph source never becomes a claim that no related accounts exist.
+
+## Wider discovery verification
+
+Desktop probes located twelve creator-selected channel tiles on NASA's YouTube
+About/channel page, the public TwitchMap graph, and SoundCloud NASA → ESA follows.
+Android gateway tests then verified the full YouTube round trip: Learn With NASA
+returned Facebook, X and a Pinterest board; Kennedy Space Center returned X,
+Facebook and Instagram. SoundCloud's actual public profile/follow/web-profile
+requests also passed through NetworkGateway. These are observed routes, not a
+promise of future provider availability or exhaustive graph coverage.
+
+Reuse opportunity: SoundCloud's public hydration avoids a multi-asset client-ID
+scrape. Keep only typed public identifiers; discard anonymous browser identifiers,
+analytics initialization and the page/scripts. The same literal-payload extractor
+can support future relationship preservation without executing website code.
