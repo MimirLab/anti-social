@@ -144,20 +144,23 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     var group by remember(state.platform){mutableStateOf(repo.prefs.readingGroup(state.platform))}
     // An explicit source change clears the old flow before the next frozen batch.
     val feedMembership=remember(follows){follows.filter {it.enabled}.map {it.copy(name="",personName=null)}}
+    val candidatesFlow=remember(repo){repo.followedSnapshot(null)}
+    val globalSnapshot=key(feedMembership){candidatesFlow.collectAsStateWithLifecycle<FollowedPostSnapshot?>(null).value}
+    val useGlobal=state.section=="feed"&&state.target==null&&state.combined&&activeChannel==null
     val postsFlow=remember(state.platform,group,state.section,state.target,state.combined,state.subscriptionId,feedMembership,channelId,activeChannel){if(state.section=="subscription")repo.followedSnapshot(null,personId=state.subscriptionId)else if(state.section=="feed"&&state.target==null)repo.followedSnapshot(if(state.combined)null else state.platform,if(state.combined||channelId!=null)""else group,channel=activeChannel)else flowOf(FollowedPostSnapshot(emptyList(),emptyMap()))}
     // A placeholder empty list must not become the reader's first accepted batch.
-    val storedPostsState=key(postsFlow){postsFlow.collectAsStateWithLifecycle<FollowedPostSnapshot?>(null)}
-    val storedSnapshot=storedPostsState.value
+    // The unfiltered combined feed is the exact same window as the global
+    // counterpart source. Reuse its coherent snapshot instead of issuing and
+    // decoding a second thousand-post Room stream.
+    val storedSnapshot=if(useGlobal)globalSnapshot else key(postsFlow){postsFlow.collectAsStateWithLifecycle<FollowedPostSnapshot?>(null).value}
     val allStoredPosts=storedSnapshot?.posts.orEmpty()
     val storedPosts=if(state.combined||state.section=="subscription")allStoredPosts else allStoredPosts.filter {it.platform==state.platform}
-    val candidatesFlow=remember(repo){repo.followedSnapshot(null)}
-    val globalSnapshot=candidatesFlow.collectAsStateWithLifecycle<FollowedPostSnapshot?>(null).value
     val feedRefresh by repo.feedRefresh.collectAsStateWithLifecycle()
     // Keep the current scope represented even when a busy global feed's bounded
     // window omits its older rows, or Room delivers the two query results apart.
-    val matchingCandidates=remember(globalSnapshot,storedPosts){globalSnapshot?.let {(storedPosts+it.posts).distinctBy(repo::key)}}
+    val matchingCandidates=remember(globalSnapshot,storedPosts,useGlobal){globalSnapshot?.let {if(useGlobal)it.posts else (storedPosts+it.posts).distinctBy(repo::key)}}
     val matchingMemberships=remember(globalSnapshot,storedSnapshot){buildMap<String,Set<String>> {
-        listOfNotNull(globalSnapshot?.memberships,storedSnapshot?.memberships).forEach {map->map.forEach {(key,ids)->put(key,get(key).orEmpty()+ids)}}
+        (if(useGlobal)listOfNotNull(globalSnapshot?.memberships)else listOfNotNull(globalSnapshot?.memberships,storedSnapshot?.memberships)).forEach {map->map.forEach {(key,ids)->put(key,get(key).orEmpty()+ids)}}
     }}
     val imageRevision by repo.images.identities.revision.collectAsStateWithLifecycle()
     LaunchedEffect(repo,matchingCandidates) {
@@ -166,7 +169,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships,imageRevision) {
         val candidates=matchingCandidates;val accounts=loadedFollows
         if(candidates==null||accounts==null){value=null;return@produceState}
-        value=withContext(Dispatchers.Default){KnownPostGroups(candidates,accounts,matchingMemberships,imageRevision,CrossPosts.group(candidates.map(repo.images.identities::captured),accounts,matchingMemberships,repo.images.identities::same).flatMap {g->g.posts.map {repo.key(it) to g.posts}}.toMap())}
+        value=withContext(Dispatchers.Default){KnownPostGroups(candidates,accounts,matchingMemberships,imageRevision,CrossPosts.groupCancellable(candidates.map(repo.images.identities::captured),accounts,matchingMemberships,repo.images.identities::same).flatMap {g->g.posts.map {repo.key(it) to g.posts}}.toMap())}
     }
     val discussionGroups=knownGroups?.groups.orEmpty()
     val counterpartsReady=!feedRefresh.running&&globalSnapshot?.generation==feedRefresh.generation&&
@@ -270,13 +273,13 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                     "follows"->SubscriptionsScreen(vm,follows){showFollow=true}
                     "discover"->LocalDiscoveryScreen(vm)
                     "image-search"->ImageSearchScreen(vm,savedKeys)
-                    "subscription"->if(storedPostsState.value==null)LinearProgressIndicator(Modifier.fillMaxWidth())else GroupedFeed(vm,storedPosts,follows,savedKeys,Subscriptions.bundles(follows).firstOrNull {it.id==state.subscriptionId}?.name ?: "Subscription","Linked accounts · latest first",counterparts=discussionGroups,counterpartsReady=counterpartsReady){showFollow=true}
+                    "subscription"->if(storedSnapshot==null)LinearProgressIndicator(Modifier.fillMaxWidth())else GroupedFeed(vm,storedPosts,follows,savedKeys,Subscriptions.bundles(follows).firstOrNull {it.id==state.subscriptionId}?.name ?: "Subscription","Linked accounts · latest first",counterparts=discussionGroups,counterpartsReady=counterpartsReady){showFollow=true}
                     "saved"->LibraryScreen(repo,onOpenOriginal={post->vm.open(repo.postTarget(post) ?: Target(post.platform,TargetKind.POST,post.id,post.canonicalUrl))},onStorage={vm.settings(SettingsPage.STORAGE)},onLocalDiscovery={vm.localSearch.mode(LocalSearchMode.BUSINESSES);vm.localSearch.saved(true);vm.section("discover")})
                     "pools"->PoolScreen(vm)
                     else->readerStates.SaveableStateProvider(readerKey) {
                         val displayed=state.page?.posts ?: if(state.target==null)storedPosts else emptyList()
                         if(state.target==null) {
-                            if(storedPostsState.value==null)LinearProgressIndicator(Modifier.fillMaxWidth())
+                            if(storedSnapshot==null)LinearProgressIndicator(Modifier.fillMaxWidth())
                             else if(channelId!=null) {
                                 if(activeChannel==null||channelError!=null)UnavailableChannel(channelError ?: "The selected channel is unavailable.",manageChannels)
                                 else PersonalChannelFeed(vm,activeChannel,storedPosts,follows,savedKeys,matchingMemberships,discussionGroups,counterpartsReady,onAdd={showFollow=true},onEdit=manageChannels)
@@ -370,6 +373,8 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     }
 }
 
+private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread>,val editions:List<Post>)
+
 @Composable internal fun PostCard(post: Post,vm: AntiSocialViewModel,saved: Boolean,discussions: List<Post> = listOf(post),bodyVariants: List<Post>?=null,onExplain: (()->Unit)?=null,onFilter: (()->Unit)?=null,onOpen: ()->Unit) {
     val repo=vm.repo;val context=LocalContext.current
     val outgoing=rememberOutgoingActions(repo)
@@ -384,8 +389,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val savedKeys=LocalSavedPostKeys.current
     val isSaved=saved||threads.any {repo.key(it) in savedKeys}
     var fullImage by remember(post.id){mutableStateOf<Pair<List<Media>,Int>?>(null)}
-    var saveCopy by remember(repo.key(post)){mutableStateOf(false)}
-    var capturedReplies by remember {mutableStateOf<List<CapturedThread>>(emptyList())}
+    var saveCopy by remember(repo.key(post)){mutableStateOf<PostSaveCapture?>(null)}
     val archive=rememberArchivePresentation(post,repo,active=fullImage==null&&!showOriginals&&!showOptions)
     val displayed=archive.post
     val attributedAccounts=remember(threads,displayed,archive.showingArchive){(if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads).distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}}
@@ -396,12 +400,14 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     // A late exact copy can add comment/source controls without changing the
     // frozen reading body. Preserve those validated editions when saving too;
     // no unseen differing context or additional attachment is fetched here.
-    val saveEditions=remember(contentRoots,threads,fusion,post){
+    // Saved-copy proof is needed only after a save action. It must not repeat
+    // pairwise collection validation on the rendering/scrolling path.
+    val savePlan=remember(contentRoots,threads,post){lazy {
         val body=runCatching {repo.library.normalizedFusionRoots(post,contentRoots)}.getOrDefault(emptyList())
         val extended=if(collectedCaptionTexts(threads)==collectedCaptionTexts(contentRoots))
             runCatching {repo.library.normalizedFusionRoots(post,threads)}.getOrDefault(emptyList())else emptyList()
         extended.ifEmpty {body}
-    }
+    }}
     val shownMedia=rememberCollectedMedia(repo,if(fusion!=null)contentRoots else listOf(displayed))
     val mediaSources=remember(displayed,fusion,contentRoots){if(fusion==null)emptyMap()else contentRoots.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
     val images=shownMedia.filter {it.type=="image"}
@@ -432,7 +438,13 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                     }
                 }
                 ArchiveVersionButton(archive.version,archive.showingArchive,archive.toggle)
-                IconButton(onClick={vm.launch {if(isSaved)threads.forEach {repo.bookmark(it,false)}else if(saveEditions.isNotEmpty())repo.library.save(post,emptyList(),captureLoadedThreads(vm,threads),fusionRoots=saveEditions)else repo.bookmark(post,true)}}){Icon(if(isSaved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(isSaved)"Remove saved post" else "Save post",tint=if(isSaved)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
+                IconButton(onClick={vm.launch {
+                    if(isSaved)threads.forEach {repo.bookmark(it,false)}else {
+                        val replies=captureLoadedThreads(vm,threads)
+                        val editions=withContext(Dispatchers.Default){savePlan.value}
+                        if(editions.isNotEmpty())repo.library.save(post,emptyList(),replies,fusionRoots=editions)else repo.bookmark(post,true)
+                    }
+                }}){Icon(if(isSaved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(isSaved)"Remove saved post" else "Save post",tint=if(isSaved)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
             }
             val visualFirst=linkedVideo||post.platform in setOf(Platform.INSTAGRAM,Platform.PIXELFED,Platform.SNAPCHAT,Platform.TIKTOK,Platform.PINTEREST,Platform.IFUNNY)
             ArchiveVersionLabel(archive.version,archive.showingArchive,Modifier.padding(start=16.dp,end=16.dp,bottom=10.dp))
@@ -452,8 +464,8 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                 }
                 if(videoDescriptionExpanded){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else PostText(caption.copy(title=""),repo,onOpen,showDetails=false)}
             }else if(visualFirst&&!linkedVideo){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
-            val postLinks=(listOf(displayed,caption)+contentRoots).flatMap(PostLinks::urls).map {repo.publicUrl(it,displayed.platform)}.distinct().take(PostLinks.MAX_LINKS)
-            val sourceUrls=(postLinks+threads.map {repo.publicUrl(it.canonicalUrl,it.platform)}).distinct()
+            val postLinks=remember(displayed,caption,contentRoots,repo){(listOf(displayed,caption)+contentRoots).flatMap(PostLinks::urls).map {repo.publicUrl(it,displayed.platform)}.distinct().take(PostLinks.MAX_LINKS)}
+            val sourceUrls=remember(postLinks,threads,repo){(postLinks+threads.map {repo.publicUrl(it.canonicalUrl,it.platform)}).distinct()}
             val inspectableSources=remember(sourceUrls){sourceRequests(sourceUrls).isNotEmpty()}
             if(showSourceDetails)SourceDetailsSheet(repo,sourceUrls,onOpen={vm.openLink(it)},onDismiss={showSourceDetails=false})
             PaperUpdateNotice(repo,postLinks){showSourceDetails=true}
@@ -473,7 +485,16 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                     IconButton(onClick={showOptions=true},modifier=Modifier.testTag("Post options ${repo.key(post)}")){Icon(Icons.Rounded.MoreHoriz,"Post options",Modifier.size(22.dp))}
                     DropdownMenu(expanded=showOptions,onDismissRequest={showOptions=false},containerColor=MaterialTheme.colorScheme.surface,tonalElevation=0.dp) {
                         DropdownMenuItem(text={Text("Copy clean link")},leadingIcon={Icon(Icons.Rounded.Link,null)},modifier=Modifier.testTag("Copy post link ${repo.key(post)}"),onClick={showOptions=false;outgoing.copy(copyTarget,threads)})
-                        DropdownMenuItem(text={Text("Save a copy")},leadingIcon={Icon(Icons.Rounded.Download,null)},modifier=Modifier.testTag("Save copy ${repo.key(post)}"),onClick={showOptions=false;capturedReplies=captureLoadedThreads(vm,threads);saveCopy=true})
+                        DropdownMenuItem(text={Text("Save a copy")},leadingIcon={Icon(Icons.Rounded.Download,null)},modifier=Modifier.testTag("Save copy ${repo.key(post)}"),onClick={
+                            showOptions=false
+                            val replies=captureLoadedThreads(vm,threads)
+                            vm.launch {
+                                val editions=withContext(Dispatchers.Default){savePlan.value}
+                                // A late edition must not replace this completed
+                                // plan or restart its proof on the UI thread.
+                                saveCopy=PostSaveCapture(post,replies,editions)
+                            }
+                        })
                         if(inspectableSources)DropdownMenuItem(text={Text("Source details")},leadingIcon={Icon(Icons.Rounded.TravelExplore,null)},modifier=Modifier.testTag("Inspect sources ${repo.key(post)}"),onClick={showOptions=false;showSourceDetails=true})
                         onFilter?.let {filter->DropdownMenuItem(text={Text("Filter like this…")},leadingIcon={Icon(Icons.Rounded.Tune,null)},modifier=Modifier.testTag("Filter like ${repo.key(post)}"),onClick={showOptions=false;filter()})}
                         onExplain?.let {explain->DropdownMenuItem(text={Text("Why this appeared")},leadingIcon={Icon(Icons.Rounded.Info,null)},modifier=Modifier.testTag("Why post ${repo.key(post)}"),onClick={showOptions=false;explain()})}
@@ -483,7 +504,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
             }
         }
     }
-    if(saveCopy)SaveCopySheet(repo,post,capturedReplies,fusionRoots=saveEditions,onSaved={saveCopy=false;android.widget.Toast.makeText(context,"Saved to your library",android.widget.Toast.LENGTH_SHORT).show()},onDismiss={saveCopy=false})
+    saveCopy?.let {capture->SaveCopySheet(repo,capture.post,capture.replies,fusionRoots=capture.editions,onSaved={saveCopy=null;android.widget.Toast.makeText(context,"Saved to your library",android.widget.Toast.LENGTH_SHORT).show()},onDismiss={saveCopy=null})}
     if(showOriginals)OriginalPostsSheet(vm,threads,copyTarget){showOriginals=false}
 }
 

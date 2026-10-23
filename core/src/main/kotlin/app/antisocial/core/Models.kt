@@ -37,7 +37,13 @@ data class Source(val platform: Platform, val frontend: String, val root: String
 data class Provenance(val source: Source, val fetchedAt: Long, val finalUrl: String, val cached: Boolean = false)
 /** Runtime is optional source metadata; unknown runtime does not imply a short video. */
 data class Media(val url: String, val type: String = "image", val preview: String? = null, val description: String = "", val mimeType: String? = null,val aiMetadata: AiMetadata?=null,val durationMs: Long?=null,val audioUrl: String?=null,val audioMimeType: String?=null,val visualFingerprint: String?=null)
-data class Post(val id: String, val platform: Platform, val canonicalUrl: String, val author: String, val body: String, val title: String = "", val publishedAt: Long? = null, val avatar: String? = null, val media: List<Media> = emptyList(), val replyCount: Long? = null, val score: Long? = null, val parentId: String? = null, val provenance: Provenance? = null, val links: List<String>? = null,val preview: Boolean=false,val archivedVersion: ArchivedVersion?=null,val recoveredArchive: ArchiveRecovery?=null,val aiDisclosures: List<AiDisclosure>?=null,val extractionCoverage: ExtractionCoverage?=null,val conversationId: String?=null,val relationId: String?=null,val sourceParentId: String?=null,val contextNotes:List<PublicContextNote>?=null)
+data class Post(val id: String, val platform: Platform, val canonicalUrl: String, val author: String, val body: String, val title: String = "", val publishedAt: Long? = null, val avatar: String? = null, val media: List<Media> = emptyList(), val replyCount: Long? = null, val score: Long? = null, val parentId: String? = null, val provenance: Provenance? = null, val links: List<String>? = null,val preview: Boolean=false,val archivedVersion: ArchivedVersion?=null,val recoveredArchive: ArchiveRecovery?=null,val aiDisclosures: List<AiDisclosure>?=null,val extractionCoverage: ExtractionCoverage?=null,val conversationId: String?=null,val relationId: String?=null,val sourceParentId: String?=null,val contextNotes:List<PublicContextNote>?=null) {
+    // Identity depends only on immutable constructor fields. Keep this derived
+    // value with its existing record, not in another retained URL/history bank.
+    // Transient also keeps Gson captures, exports and old reader files identical.
+    @Transient @Volatile private var cachedIdentity:String?=null
+    val identityKey:String get()=cachedIdentity ?: (platform.id+":"+ContentIdentity.key(platform,canonicalUrl)).also {cachedIdentity=it}
+}
 /** An archive-only recovery is not a live edition paired with an older version. */
 data class ArchiveRecovery(val provider: String,val capturedAt: Long,val archiveUrl: String)
 /** Archive artwork stays inside its replay origin while post identity remains shareable. */

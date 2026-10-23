@@ -18,7 +18,8 @@ object PostPresentation {
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
 
-    fun text(post: Post): PostTextPresentation {
+    fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).also {CrossPostFusion.rememberPresentation(post,it)}
+    private fun textUncached(post: Post): PostTextPresentation {
         if(post.title.isBlank()||post.body.isBlank())return PostTextPresentation(post.title,post.body)
         val title=comparison(post.title)
         val author=comparison(post.author).removePrefix("@")
@@ -97,7 +98,7 @@ object PostPresentation {
     /** Whole-presentation identity for rendering already-grouped editions. Keep
      * meaningful symbols and URL path/query case instead of token-only equality.
      */
-    internal fun comparableContent(post: Post): String=comparison(content(post))
+    internal fun comparableContent(post: Post): String=CrossPostFusion.comparison(post) ?: comparison(content(post)).also {CrossPostFusion.rememberComparison(post,it)}
 
     private fun comparison(value: String): String {
         val plain=Jsoup.parseBodyFragment(value).apply {select("script,style,noscript").remove()}.text()

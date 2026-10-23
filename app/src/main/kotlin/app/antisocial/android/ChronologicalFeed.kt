@@ -42,6 +42,8 @@ private data class FrozenFeedRow(val key: String,val aliases: List<String>,val p
 private data class FeedRestore(val row: Int,val offset: Int,val exact: Boolean)
 private data class FeedContent(val aliases: Set<String>,val text: List<String>,val media: Set<String>)
 private data class ManualFeedRefresh(val generation: Long,val before: List<FeedContent>)
+private data class FeedBodyChanges(val rows:List<FrozenFeedRow>,val available:Map<String,Post>,val counterparts:Map<String,List<Post>>,
+    val sources:Set<String>,val captions:Set<String>,val regroup:Boolean)
 
 /** LazyColumn can retain a preceding item while only its trailing spacing
  * overlaps the viewport. Anchor to actual card content, keeping partly visible
@@ -78,6 +80,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val ready by store.ready.collectAsState()
     val state by vm.screen.collectAsState()
     val memory=memories[feedId] ?: store.get(feedId)
+    val readKeys=remember(memory.readKeys){memory.readKeys.toHashSet()}
+    val freshKeys=remember(memory.freshKeys){memory.freshKeys.toHashSet()}
     val scope=rememberCoroutineScope()
     val list=rememberLazyListState()
     val density=LocalDensity.current
@@ -121,7 +125,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val frozen=rows.orEmpty()
     val filterGroups=remember(frozen){frozen.map {it.bodyPosts}}
     val assessments=rememberFilterAssessments(repo,filtering,filterGroups)
-    fun decision(row: FrozenFeedRow)=assessments.decision(row.bodyPosts)
+    val decisions=remember(frozen,assessments){frozen.associate {it.key to assessments.decision(it.bodyPosts)}}
+    fun decision(row: FrozenFeedRow)=decisions[row.key]
     fun revealed(row: FrozenFeedRow)=row.aliases.any {it in filtering.revealed}
     fun readable(row: FrozenFeedRow)=decision(row)?.let {!it.withheld||revealed(row)}==true
     fun rendered(values: List<FrozenFeedRow>)=values.filter {decision(it)?.action!=ContentAction.HIDE||revealed(it)}
@@ -139,15 +144,15 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         if(list.isScrollInProgress)return@LaunchedEffect
         val anchor=frozen.indexOfFirst {it.key in visibleKeys}
         val nearby=if(anchor<=0)emptyList()else frozen.take(anchor).asReversed().filter {row->
-            decision(row)?.withheld==false&&row.aliases.any {it !in memory.readKeys}
+            decision(row)?.withheld==false&&row.aliases.any {it !in readKeys}
         }.take(contextOptions.lookahead)
         val snapshots=withContext(Dispatchers.Default){nearby.map {row->contextSnapshot(repo,row.primary,row.posts,row.bodyPosts)}}
         repo.contextReader.ahead(feedId,snapshots)
     }
-    val aliases=frozen.flatMap {it.aliases}
+    val aliases=remember(frozen){frozen.flatMap {it.aliases}}
     val rowByAlias=remember(frozen){frozen.flatMapIndexed {index,row->row.aliases.map {it to index}}.toMap()}
-    val baselineRows=frozen.filter {row->row.aliases.all {it in baseline}}.map {it.key}.toSet()
-    val boundary=FeedReading.boundary(frozen.map {it.key},baselineRows) ?: frozen.size
+    val baselineRows=remember(frozen,baseline){frozen.filter {row->row.aliases.all {it in baseline}}.map {it.key}.toSet()}
+    val boundary=remember(frozen,baselineRows){FeedReading.boundary(frozen.map {it.key},baselineRows) ?: frozen.size}
     val pending=RefreshLedger.pending(accountIds,checks)
     val matchedAliases=remember(frozen,counterparts) {frozen.flatMap {row->row.aliases+row.aliases.flatMap {key->counterparts[key].orEmpty().map(repo::key)}}.toSet()}
     val staged=memory.stagedKeys.count {it !in matchedAliases}
@@ -157,10 +162,6 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         val accepted=memory.acceptedKeys.toSet();val shown=matchedAliases
         availableKeys.count {it in accepted&&it !in shown}
     }
-    val changed=remember(frozen,available,visibleKeys){
-        fun sourceContent(post: Post)=post.copy(provenance=null,archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null)})
-        frozen.any {row->row.key !in visibleKeys&&row.posts.any {old->available[repo.key(old)]?.let {sourceContent(it)!=sourceContent(old)}==true}}
-    }
     // Both Following and combined feeds can acquire another source edition.
     // Compare it with the frozen body even when its root is outside this feed's
     // retrieval window. Only the visible card retains its current wording until it leaves the viewport.
@@ -168,25 +169,37 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         val current=known.associateBy(repo::key)
         return orderedCollectedOriginals(posts.map {current[repo.key(it)] ?: it}+known)
     }
-    val fusionChanged by produceState(false,frozen,counterparts,visibleKeys) {
+    // Content is compared when source material changes, never on each viewport
+    // transition. Visibility only controls when an already identified change
+    // may be adopted; the card under the finger retains its frozen body.
+    val bodyChanges by produceState<FeedBodyChanges?>(null,frozen,available,counterparts) {
         value=withContext(Dispatchers.Default) {
             val owners=frozen.flatMap {row->row.aliases.map {it to row.key}}.toMap()
+            fun sourceContent(post:Post)=post.copy(provenance=null,archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null)})
             fun contexts(posts: List<Post>): List<Triple<String,Set<Platform>?,Set<String>?>> = collectedPostFusion(posts)?.segments
                 ?.map {Triple(it.text,if(it.shared)null else it.platforms,if(it.shared)null else it.originalKeys)}
                 ?: listOf(Triple(collectedCaptionPost(posts)?.let(PostPresentation::content).orEmpty(),null,null))
-            frozen.any {row->
+            val sources=mutableSetOf<String>();val captions=mutableSetOf<String>();var regroup=false
+            frozen.forEach {row->
+                ensureActive()
+                if(row.posts.any {old->available[repo.key(old)]?.let {it!=old&&sourceContent(it)!=sourceContent(old)}==true})sources+=row.key
                 val known=row.aliases.flatMap {counterparts[it].orEmpty()}
-                val regroup=known.any {post->owners[repo.key(post)]?.let {it!=row.key}==true}
-                regroup||(row.key !in visibleKeys&&contexts(latestEditions(row.posts,known))!=contexts(row.bodyPosts))
+                if(known.any {post->owners[repo.key(post)]?.let {it!=row.key}==true})regroup=true
+                val current=latestEditions(row.posts,known)
+                if(current!=row.bodyPosts&&contexts(current)!=contexts(row.bodyPosts))captions+=row.key
             }
+            FeedBodyChanges(frozen,available,counterparts,sources,captions,regroup)
         }
     }
+    val changes=bodyChanges?.takeIf {it.rows==frozen&&it.available==available&&it.counterparts==counterparts}
+    val changed=changes?.sources?.any {it !in visibleKeys}==true
+    val fusionChanged=changes?.let {it.regroup||it.captions.any {key->key !in visibleKeys}}==true
     val removedByRules=explanations!=null&&frozen.any {row->row.aliases.none {it in available}}
     val incoming=counterpartsReady&&(staged>0||returned>0||changed||fusionChanged||removedByRules)
-    val unread=frozen.count {row->readable(row)&&row.aliases.any {it !in memory.readKeys}}
-    val fresh=frozen.count {row->readable(row)&&row.aliases.any {it !in memory.readKeys}&&row.aliases.any {it in memory.freshKeys}}
-    val unreadBefore=frozen.take(boundary).count {row->readable(row)&&row.aliases.any {it !in memory.readKeys}}
-    val caught=(frozen.isNotEmpty()||explanations!=null)&&counterpartsReady&&RefreshLedger.caughtUp(accountIds,checks)&&unreadBefore==0&&!incoming&&!filtersPending
+    val unread=frozen.count {row->readable(row)&&row.aliases.any {it !in readKeys}}
+    val fresh=frozen.count {row->readable(row)&&row.aliases.any {it !in readKeys}&&row.aliases.any {it in freshKeys}}
+    val unreadBefore=frozen.take(boundary).count {row->readable(row)&&row.aliases.any {it !in readKeys}}
+    val caught=(frozen.isNotEmpty()||explanations!=null)&&counterpartsReady&&changes!=null&&RefreshLedger.caughtUp(accountIds,checks)&&unreadBefore==0&&!incoming&&!filtersPending
     val canContinue=FeedReading.restoreReturn(memory,aliases)!=null
 
     fun extend(row: FrozenFeedRow,owners: Map<String,String> = emptyMap(),adopting: Boolean=false): FrozenFeedRow {
@@ -198,7 +211,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     suspend fun freeze(keys: List<String>,source: Map<String,Post>): List<FrozenFeedRow> {
         val snapshots=keys.mapNotNull(source::get).map {it.copy(media=it.media.toList(),links=it.links?.toList())}
         val groups=when {
-            counterparts.isEmpty()->withContext(Dispatchers.Default){CrossPosts.group(snapshots,accounts,sameMedia=repo.images.identities::same)}
+            counterparts.isEmpty()->withContext(Dispatchers.Default){CrossPosts.groupCancellable(snapshots,accounts,sameMedia=repo.images.identities::same)}
             else->{
                 val accepted=snapshots.associateBy(repo::key);val used=mutableSetOf<String>()
                 snapshots.mapNotNull {post->
@@ -453,8 +466,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                     FilledTonalButton(onClick=onEditRules ?: if(accounts.isEmpty())onAdd else ({requestRefresh()})){Text(if(onEditRules!=null)"Edit channel rules"else if(accounts.isEmpty())"Add a subscription"else "Refresh subscriptions")}
                 }}
                 fun LazyListScope.feedRows(values: List<FrozenFeedRow>) {items(rendered(values),key={it.key}) {row->
-                    val unreadRow=row.aliases.any {it !in memory.readKeys}
-                    val newRow=unreadRow&&row.aliases.any {it in memory.freshKeys}
+                    val unreadRow=row.aliases.any {it !in readKeys}
+                    val newRow=unreadRow&&row.aliases.any {it in freshKeys}
                     val combined=remember(row.bodyPosts){collectedPostFusion(row.bodyPosts)?.segments?.any {!it.shared}==true}
                     FeedReadDwell(list,row.key,restored&&!navigating&&unreadRow&&readable(row)) {store.markRead(feedId,row.bodyPosts.map(repo::key))}
                     Column(Modifier.testTag("Feed row ${row.key}"),verticalArrangement=Arrangement.spacedBy(6.dp)) {

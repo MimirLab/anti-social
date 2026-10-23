@@ -26,6 +26,9 @@ data class StorageUsage(val cache: Long=0,val saved: Long=0,val filters: Long=0,
 data class FollowedPostSnapshot(val posts: List<Post>,val memberships: Map<String,Set<String>>,val generation: Long=0)
 data class FeedRefreshState(val generation: Long=0,val running: Boolean=false,val requested: Set<String> = emptySet(),val failed: Set<String> = emptySet())
 private data class PostWindow(val posts: List<Post>,val generation: Long)
+/** Access-time/bookkeeping updates are not new source material. Comparing this
+ * projection before decoding prevents a read dwell from reparsing the feed. */
+private data class FeedPostRecord(val key:String,val payload:String,val publishedAt:Long?,val createdAt:Long)
 data class FilterSource(val id: String,val url: String,val name: String,val enabled: Boolean=true)
 data class FilterState(val ready: Boolean=false,val updating: Boolean=false,val rules: Int=0,val message: String="Preparing privacy filters",val lastCheckedAt:Long=0)
 data class Backup(val schema: Int=2,val settings: JsonObject,val follows: List<FollowRow>,val bookmarks: List<BookmarkRow>,val history: List<HistoryRow>,val savedDetails: List<SavedDetailRow>?=null,val collections: List<LibraryCollectionRow>?=null,val collectionLinks: List<SavedCollectionRow>?=null,val retainedHistory: List<RetainedHistoryRow>?=null)
@@ -260,15 +263,17 @@ class Repository(val context: Context) {
         }
     }
     suspend fun awaitConnection() {awaitReady();applyNetworkSettings();if(prefs.tor)withTimeout(120_000){while(!tor.state.value.ready)delay(1000)}}
-    fun key(post: Post)="${post.platform.id}:${ContentIdentity.key(post.platform,post.canonicalUrl)}"
+    fun key(post: Post)=post.identityKey
     fun postTarget(post: Post): Target?=if(post.platform==Platform.RSS)runCatching {RssSources.itemTarget(post)}.getOrNull()else routes.recognize(post.canonicalUrl)
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun postWindow(platform: Platform?,group: String="",personId: String?=null,channel: PersonalChannel?=null): Flow<PostWindow> = combine(follows,feedRefresh) {list,refresh->
         val eligible=channel?.let {PersonalChannels.accounts(it,list).map(Follow::id).toSet()}
         list.filter {ReaderScope.active(it)&&(platform==null||it.target.platform==platform)&&(group.isBlank()||it.group==group)&&(personId==null||Subscriptions.id(it)==personId)&&(eligible==null||it.id in eligible)}.map {it.id} to refresh
     }.distinctUntilChanged().flatMapLatest {(ids,refresh)->
-        if(refresh.running)emptyFlow()else if(ids.isEmpty())flowOf(PostWindow(emptyList(),refresh.generation)) else combine(ids.chunked(400).map {dao.followedPosts(it)}) {chunks->
-            val posts=chunks.flatMap {it}.distinctBy {it.key}.sortedWith(compareByDescending<PostRow> {it.publishedAt ?: Long.MIN_VALUE}.thenByDescending {it.createdAt}).take(1000).mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.filter(::readableRecord).also {registerPageOrigins(Page(it))}
+        if(refresh.running)emptyFlow()else if(ids.isEmpty())flowOf(PostWindow(emptyList(),refresh.generation)) else combine(ids.chunked(400).map {chunk->dao.followedPosts(chunk).map {rows->rows.map {FeedPostRecord(it.key,it.payload,it.publishedAt,it.createdAt)}}.distinctUntilChanged()}) {chunks->
+            chunks.flatMap {it}.distinctBy {it.key}.sortedWith(compareByDescending<FeedPostRecord> {it.publishedAt ?: Long.MIN_VALUE}.thenByDescending {it.createdAt}).take(1000)
+        }.distinctUntilChanged().map {rows->
+            val posts=rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.filter(::readableRecord).also {registerPageOrigins(Page(it))}
             PostWindow(posts,refresh.generation)
         }
     }.flowOn(Dispatchers.Default)

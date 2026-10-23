@@ -4,6 +4,8 @@ import org.jsoup.Jsoup
 import java.net.URI
 import java.text.Normalizer
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 data class Subscription(val id: String,val name: String,val accounts: List<Follow>)
 data class AccountCandidate(val target: Target,val evidence: String,val kind:AccountLinkKind=AccountLinkKind.PROFILE,val sourceUrl:String?=null,val checkedAt:Long?=null)
@@ -67,11 +69,12 @@ object CrossPosts {
     private val trailingTags=Regex("(?:\\s+#[\\p{L}\\p{N}_]+){1,8}\\s*$")
     private val negations=setOf("no","not","never","without","cannot","can't","don't","doesn't","didn't","won't","wouldn't","shouldn't","isn't","aren't","wasn't","weren't","hasn't","haven't","hadn't","mustn't","couldn't")
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
-        val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean) {
+        val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
+        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>) {
     }
     private fun uri(value: String)=runCatching {URI(value)}.getOrNull()?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
     private fun origin(value: URI)=value.host.lowercase()+":"+(if(value.port==-1)443 else value.port)
-    fun originalKey(post: Post)=post.platform.id+":"+ContentIdentity.key(post.platform,post.canonicalUrl)
+    fun originalKey(post: Post)=post.identityKey
     /** An author-bearing original URL proves which public account posted it.
      * Display names, feed membership, opaque post IDs and matching handles on
      * other servers never supply this proof. */
@@ -146,9 +149,10 @@ object CrossPosts {
      * close scene, meaningful subject wording and short interval must all agree.
      * Every different sentence remains separately attributed in the composition. */
     private fun relatedVisualPair(a: Post,b: Post): Boolean {
-        if(a.platform!=Platform.X||b.platform!=Platform.X||!repeatIdentity(a,b)||a.preview||b.preview||a.parentId!=null||b.parentId!=null||!realOriginal(a)||!realOriginal(b))return false
+        if(a.platform!=Platform.X||b.platform!=Platform.X||a.preview||b.preview||a.parentId!=null||b.parentId!=null)return false
         val subject=speaker(a) ?: return false
         if(subject!=speaker(b))return false
+        if(!repeatIdentity(a,b)||!realOriginal(a)||!realOriginal(b))return false
         val left=a.publishedAt?.takeIf {it>0} ?: return false;val right=b.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(left>=right)left.toULong()-right.toULong()else right.toULong()-left.toULong()
         if(distance>6uL*60uL*60uL*1000uL)return false
@@ -366,7 +370,7 @@ object CrossPosts {
     private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
         val eligible=accounts[post.platform].orEmpty()
         val pathOwner=eligible.firstOrNull {own(post,it.second)}?.first
-        val sources=memberships[post.platform.id+":"+ContentIdentity.key(post.platform,post.canonicalUrl)].orEmpty()
+        val sources=memberships[originalKey(post)].orEmpty()
         // An opaque post ID cannot name its author. Exact local subscription
         // memberships can still prove which explicitly linked feed supplied it;
         // conflicting source bundles do not lower the content threshold.
@@ -396,13 +400,14 @@ object CrossPosts {
             // A literal non-social site address can itself be the announced
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
-            urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain))
+            urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain),
+            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post))
     }
     private fun explicit(a: Features,b: Features): Boolean {
         return a.urls.any {linksToOriginal(it,b.post)}||b.urls.any {linksToOriginal(it,a.post)}
     }
     private fun matches(a: Features,b: Features,sameMedia: (Post,Post)->Boolean,repeated: Boolean=false): Boolean {
-        if(a.post.platform==b.post.platform&&!repeated||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||!realOriginal(a.post)||!realOriginal(b.post))return false
+        if(a.post.platform==b.post.platform&&!repeated||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||!a.validOriginal||!b.validOriginal)return false
         val linked=repeated||a.owner!=null&&a.owner==b.owner
         val reference=linked&&explicit(a,b)
         val timeA=a.post.publishedAt;val timeB=b.post.publishedAt
@@ -462,9 +467,11 @@ object CrossPosts {
         if(post.platform in ExpandedRoutes.federated)return ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("post:")
         return SocialLinkHosts.platform(url.toString())==post.platform&&ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("post:")
     }
-    private fun copyImages(a: Post,b: Post,sameMedia: (Post,Post)->Boolean): Boolean = sameImages(
-        a.copy(media=a.media.filter {normalizedUrl(it.url)!=a.avatar?.let(::normalizedUrl)}),
-        b.copy(media=b.media.filter {normalizedUrl(it.url)!=b.avatar?.let(::normalizedUrl)}),sameMedia)
+    private fun copyImages(a: Post,b: Post,sameMedia: (Post,Post)->Boolean): Boolean {
+        if(a.media.none {it.type=="image"}||b.media.none {it.type=="image"})return false
+        return sameImages(a.copy(media=a.media.filter {normalizedUrl(it.url)!=a.avatar?.let(::normalizedUrl)}),
+            b.copy(media=b.media.filter {normalizedUrl(it.url)!=b.avatar?.let(::normalizedUrl)}),sameMedia)
+    }
     private fun completeCopyText(a: Features,b: Features): Boolean {
         if(a.text.isBlank()||a.text!=b.text||a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols)return false
         // A question is not silently changed into an assertion. Ignore URL query
@@ -473,14 +480,14 @@ object CrossPosts {
         return questions(a.post)==questions(b.post)
     }
     private fun copyMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
-        if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!realOriginal(a.post)||!realOriginal(b.post))return false
+        if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!a.validOriginal||!b.validOriginal)return false
         val reference=explicit(a,b)
-        val ownUrls=listOfNotNull(normalizedUrl(a.post.canonicalUrl),normalizedUrl(b.post.canonicalUrl)).toSet()
+        val ownUrls=listOfNotNull(a.canonical,b.canonical).toSet()
         fun external(urls: Set<String>)=urls.filterNot {it in ownUrls||linksToOriginal(it,a.post)||linksToOriginal(it,b.post)}.toSet()
         val left=external(a.destinations);val right=external(b.destinations)
         if(left.isNotEmpty()&&right.isNotEmpty()&&left!=right)return false
         val images=copyImages(a.post,b.post,sameMedia)
-        val clips=clipIds(a.post).intersect(clipIds(b.post)).isNotEmpty()
+        val clips=a.clips.intersect(b.clips).isNotEmpty()
         // Video-only identity may corroborate a substantial caption, but cannot
         // stand in for two different explicitly attached still-image galleries.
         fun stills(post: Post)=post.media.any {it.type=="image"&&clipIds(post.copy(media=listOf(it))).isEmpty()}
@@ -500,7 +507,7 @@ object CrossPosts {
         return CrossPostFusion.copiedCore(a.post,b.post)||images&&CrossPostFusion.mediaMatched(a.post,b.post)
     }
     private fun fusionMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean,repeated: Boolean=false): Boolean {
-        if(a.post.platform==b.post.platform&&!repeated||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||!realOriginal(a.post)||!realOriginal(b.post))return false
+        if(a.post.platform==b.post.platform&&!repeated||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||!a.validOriginal||!b.validOriginal)return false
         if(a.text==b.text&&!completeCopyText(a,b))return false
         if(!repeated&&(a.owner==null||a.owner!=b.owner))return false
         val timeA=a.post.publishedAt ?: return false;val timeB=b.post.publishedAt ?: return false
@@ -513,7 +520,7 @@ object CrossPosts {
     }
     private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(a.post.platform!=b.post.platform||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated)return false
-        if(!repeatIdentity(a.post,b.post))return false
+        if(!(a.account!=null&&a.account==b.account||(a.curator ?: a.account)?.let {it==(b.curator ?: b.account)}==true))return false
         val timeA=a.post.publishedAt?.takeIf {it>0} ?: return false;val timeB=b.post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>MAX_REPEAT_WINDOW.toULong())return false
@@ -523,9 +530,9 @@ object CrossPosts {
         if(row.text.isNotBlank()){add("text:"+row.text);add("base:"+row.base)}
         normalizedUrl(row.post.canonicalUrl)?.let {add("url:"+it)}
         row.destinations.forEach {add("url:"+it)};row.media.forEach {add("media:"+it)}
-        clipIds(row.post).forEach {add("clip:"+it)}
-        val repeatAccount=originalAccount(row.post)
-        speaker(row.post)?.let {subject->(curator(row.post) ?: repeatAccount)?.let {add("speaker:$it:$subject")}}
+        row.clips.forEach {add("clip:"+it)}
+        val repeatAccount=row.account
+        speaker(row.post)?.let {subject->(row.curator ?: repeatAccount)?.let {add("speaker:$it:$subject")}}
         CrossPostFusion.candidateAnchors(row.post).forEach {
             if(row.owner!=null)add("fusion:"+row.owner+":"+it)
             if(repeatAccount!=null)add("repeat:"+repeatAccount+":"+it)
@@ -533,6 +540,15 @@ object CrossPosts {
         }
     }
     fun group(posts: List<Post>,follows: List<Follow>,memberships: Map<String,Set<String>> = emptyMap(),sameMedia: (Post,Post)->Boolean = {_,_->false}): List<PostGroup> {
+        return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia)}
+    }
+    /** A newer source/image snapshot cancels obsolete CPU work, not just its
+     * publication. Never return a partly checked collection after cancellation. */
+    suspend fun groupCancellable(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap(),sameMedia:(Post,Post)->Boolean={_,_->false}):List<PostGroup> {
+        val context=currentCoroutineContext()
+        return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia){context.ensureActive()}}
+    }
+    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,checkpoint:()->Unit={}):List<PostGroup> {
         val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
         // Canonical aliases are snapshots of one post, never separate discussion
         // threads. Prefer the readable complete snapshot, retaining its provenance.
@@ -540,13 +556,14 @@ object CrossPosts {
         fun quality(post: Post)=listOf(if(post.preview)0L else 1L,if(post.recoveredArchive==null)1L else 0L,
             (post.body.length.toLong()+post.title.length).coerceAtMost(MAX_TEXT.toLong()),post.media.size.toLong(),post.provenance?.fetchedAt ?: 0)
         fun better(a: Post,b: Post): Boolean {val aa=quality(a);val bb=quality(b);for(i in aa.indices)if(aa[i]!=bb[i])return aa[i]>bb[i];return false}
-        posts.forEach {post->val key=post.platform.id+":"+ContentIdentity.key(post.platform,post.canonicalUrl);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
+        posts.forEach {post->checkpoint();val key=originalKey(post);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
         val postOrder=compareByDescending<Post> {it.publishedAt ?: Long.MIN_VALUE}.thenBy(::originalKey)
-        val ordered=unique.values.sortedWith(postOrder).map {features(it,accounts,memberships)}
-        val keys=ordered.map(::candidateKeys)
+        val ordered=unique.values.sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
+        val keys=ordered.map {checkpoint();candidateKeys(it)}
         val index=mutableMapOf<String,MutableList<Int>>()
         keys.forEachIndexed {i,names->names.forEach {index.getOrPut(it){mutableListOf()}.add(i)}}
         val candidates=keys.mapIndexed {i,names->
+            checkpoint()
             val textKey="text:"+ordered[i].text
             val exactBucket=index[textKey].orEmpty()
             if(exactBucket.size>MAX_CANDIDATES+1)null else {
@@ -573,6 +590,7 @@ object CrossPosts {
         val repeatEdges=Array(ordered.size){mutableSetOf<Int>()}
         val fusionEdges=Array(ordered.size){mutableSetOf<Int>()}
         ordered.indices.forEach {i->candidates[i]?.filter {it>i&&i in candidates[it].orEmpty()}?.forEach {j->
+            checkpoint()
             if(repeatMatch(ordered[i],ordered[j],sameMedia)||copyMatch(ordered[i],ordered[j],sameMedia)){repeatEdges[i]+=j;repeatEdges[j]+=i}
             val exact=matches(ordered[i],ordered[j],sameMedia)
             if(exact||fusionMatch(ordered[i],ordered[j],sameMedia)) {
@@ -587,6 +605,7 @@ object CrossPosts {
         val cohortOf=IntArray(ordered.size){-1}
         val oldest=ordered.indices.sortedWith(compareBy<Int> {ordered[it].post.publishedAt ?: Long.MAX_VALUE}.thenBy {originalKey(ordered[it].post)})
         oldest.forEach {i->
+            checkpoint()
             val matching=repeatEdges[i].mapNotNull {cohortOf[it].takeIf {id->id>=0}}.distinct().filter {id->
                 val members=cohorts[id]+i
                 if(members.size>MAX_EDITIONS||cohorts[id].any {it !in repeatEdges[i]})false else {
@@ -618,6 +637,7 @@ object CrossPosts {
         val groupOf=IntArray(cohorts.size){-1}
         val recent=cohorts.indices.sortedWith(compareByDescending<Int> {ordered[cohorts[it].first()].post.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(ordered[cohorts[it].first()].post)})
         recent.forEach {i->
+            checkpoint()
             val matching=cohortEdges[i].mapNotNull {neighbor->groupOf[neighbor].takeIf {it>=0}}.distinct().filter {group->
                 val members=(result[group]+i).flatMap {cohorts[it]}
                 members.size<=MAX_EDITIONS&&result[group].all {unambiguous(it,i)}&&
@@ -627,9 +647,11 @@ object CrossPosts {
             if(existing==null){groupOf[i]=result.size;result+=mutableListOf(i)}else {groupOf[i]=existing;result[existing]+=i}
         }
         val grouped=result.map {group->
+            checkpoint()
             val originals=group.flatMap {cohorts[it]}.map {ordered[it].post}
             PostGroup(originals.sortedWith(compareBy<Post> {it.publishedAt?.takeIf {time->time>0} ?: Long.MAX_VALUE}.thenBy(::originalKey)))
         }
+        checkpoint()
         return collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia).sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
 }

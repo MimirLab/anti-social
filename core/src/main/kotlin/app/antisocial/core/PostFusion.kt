@@ -11,6 +11,36 @@ data class PostFusion(val segments: List<FusionSegment>)
  * account ownership or image identity; CrossPosts verifies content independently.
  */
 object CrossPostFusion {
+    internal data class PreparationStats(val computations:Int,val hits:Int,val entries:Int,val bytes:Long)
+    private class Workspace {
+        val documents=java.util.IdentityHashMap<Post,Prepared?>()
+        val contexts=HashMap<String,ComparisonContext>()
+        val presentations=java.util.IdentityHashMap<Post,PostTextPresentation>()
+        val comparisons=java.util.IdentityHashMap<Post,String>()
+        var bytes=0L;var computations=0;var hits=0
+    }
+    private val workspace=ThreadLocal<Workspace>()
+    /** Reuse pure caption analysis inside one synchronous operation only.
+     * Every match/contradiction guard still runs. No source, history or bitmap
+     * survives the operation; nested grouping shares the same bounded workspace. */
+    internal fun <T> withPrepared(block:()->T):T {
+        if(workspace.get()!=null)return block()
+        workspace.set(Workspace())
+        return try {block()}finally {workspace.remove()}
+    }
+    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes)}
+    internal fun presentation(post:Post)=workspace.get()?.presentations?.get(post)
+    internal fun rememberPresentation(post:Post,value:PostTextPresentation) {
+        val current=workspace.get() ?: return
+        val bytes=96L+(value.title.length.toLong()+value.body.length+(value.attribution?.length ?: 0))*2
+        if(current.presentations.size<2_048&&current.bytes+bytes<=8L*1024*1024){current.presentations[post]=value;current.bytes+=bytes}
+    }
+    internal fun comparison(post:Post)=workspace.get()?.comparisons?.get(post)
+    internal fun rememberComparison(post:Post,value:String) {
+        val current=workspace.get() ?: return
+        val bytes=64L+value.length*2L
+        if(current.comparisons.size<2_048&&current.bytes+bytes<=8L*1024*1024){current.comparisons[post]=value;current.bytes+=bytes}
+    }
     private const val MAX_TEXT=16_384
     private const val MAX_WORDS=1_024
     private const val MAX_ANCHORS=256
@@ -32,7 +62,10 @@ object CrossPostFusion {
     private data class Token(val text: String,val start: Int,val end: Int,val url: Boolean)
     private data class Anchor(val text: String,val index: Int)
     private data class Part(val start: Int,val end: Int,val words: Int,val key: String)
-    private data class Prepared(val text: String,val words: List<Token>,val gaps: List<String>,val anchors: List<Anchor>,val parts: List<Part>)
+    private data class Prepared(val text: String,val words: List<Token>,val gaps: List<String>,val anchors: List<Anchor>,val parts: List<Part>) {
+        val partIndex by lazy(LazyThreadSafetyMode.NONE){parts.withIndex().groupBy {it.value.key}}
+    }
+    private data class ComparisonContext(val words:List<String>,val numbers:List<String>,val urls:List<String>,val question:Boolean)
     private data class Match(val a: Int,val b: Int)
     private data class SourcePart(val source: Int,val part: Int)
     private class Node(val key: String) {
@@ -114,7 +147,18 @@ object CrossPostFusion {
     }
     private fun normalizeQuote(value: Char)=when(value){'’','‘'->'\'';'“','”'->'"';else->value}
     private fun normalizeGap(value: String)=numericWhitespace.replace(value," ").map(::normalizeQuote).joinToString("")
-    private fun prepare(post: Post): Prepared? {
+    private fun prepare(post:Post):Prepared? {
+        val current=workspace.get() ?: return preparePost(post)
+        if(current.documents.containsKey(post)){current.hits++;return current.documents[post]}
+        current.computations++
+        val result=preparePost(post)
+        val bytes=result?.let {128L+it.text.length*2L+it.words.size*80L+it.gaps.sumOf {s->48L+s.length*2L}+it.anchors.sumOf {a->48L+a.text.length*2L}+it.parts.sumOf {p->160L+p.key.length*2L}} ?: 64L
+        if(current.documents.size<2_048&&current.bytes+bytes<=8L*1024*1024) {
+            current.documents[post]=result;current.bytes+=bytes
+        }
+        return result
+    }
+    private fun preparePost(post: Post): Prepared? {
         if(post.body.length.toLong()+post.title.length>MAX_TEXT)return null
         val fields=PostPresentation.text(post)
         val boundary=fields.title.takeIf {it.isNotBlank()&&fields.body.isNotBlank()}?.length
@@ -170,15 +214,23 @@ object CrossPostFusion {
     }}.orEmpty()
 
     private fun contextWords(value: String)=word.findAll(value).map {it.value.lowercase(Locale.ROOT).replace('’','\'')}.toList()
+    private fun comparisonContext(value:String):ComparisonContext {
+        val current=workspace.get()
+        current?.contexts?.get(value)?.let {return it}
+        val result=ComparisonContext(contextWords(value),numericClaim.findAll(value).map {numericWhitespace.replace(it.value,"").replace('−','-')}.toList(),
+            explicitUrl.findAll(value).map {it.value}.toList(),'?' in explicitUrl.replace(value,""))
+        val bytes=96L+value.length*2L+result.words.sumOf {48L+it.length*2L}+result.numbers.sumOf {48L+it.length*2L}+result.urls.sumOf {48L+it.length*2L}
+        if(current!=null&&current.contexts.size<2_048&&current.bytes+bytes<=8L*1024*1024){current.contexts[value]=result;current.bytes+=bytes}
+        return result
+    }
     private fun competingContext(a: String,b: String): Boolean {
-        val aa=contextWords(a);val bb=contextWords(b)
-        fun numbers(value: String)=numericClaim.findAll(value).map {numericWhitespace.replace(it.value,"").replace('−','-')}.toList()
-        val numbersA=numbers(a);val numbersB=numbers(b)
+        val first=comparisonContext(a);val second=comparisonContext(b)
+        val aa=first.words;val bb=second.words
+        val numbersA=first.numbers;val numbersB=second.numbers
         // URL paths and queries can be case sensitive even though ordinary
         // prose comparison is not. A changed destination is not typography.
-        fun urls(value: String)=explicitUrl.findAll(value).map {it.value}.toList()
-        val urlsA=urls(a);val urlsB=urls(b)
-        if(aa==bb&&numbersA==numbersB&&urlsA==urlsB)return ('?' in explicitUrl.replace(a,""))!=('?' in explicitUrl.replace(b,""))
+        val urlsA=first.urls;val urlsB=second.urls
+        if(aa==bb&&numbersA==numbersB&&urlsA==urlsB)return first.question!=second.question
         if(minOf(aa.size,bb.size)<3) {
             // Short labels still carry facts: “20.” versus “21.” and
             // “Approved.” versus “Not approved.” cannot be silent additions.
@@ -201,8 +253,8 @@ object CrossPostFusion {
      * The substantial-overlap gate applies to their union, not each sentence.
      */
     private fun alignment(a: Prepared,b: Prepared,mediaConfirmed: Boolean=false): List<Match>? {
-        val aa=a.parts.withIndex().groupBy {it.value.key}
-        val bb=b.parts.withIndex().groupBy {it.value.key}
+        val aa=a.partIndex
+        val bb=b.partIndex
         val matches=mutableListOf<Match>()
         for((key,first) in aa) {
             val second=bb[key] ?: continue

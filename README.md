@@ -62,7 +62,8 @@ qualified separately from official releases.
 ## Build or contribute
 
 [Build from a clean checkout](docs/BUILDING.md) · [Test journeys and release gates](docs/RELEASE_QUALIFICATION.md)
-· [Reader guide](docs/READER_GUIDE.md) · [Development evidence](docs/DEVELOPMENT_HISTORY.md)
+· [Reader guide](docs/READER_GUIDE.md) · [Feed performance](docs/FEED_PERFORMANCE.md)
+· [Development evidence](docs/DEVELOPMENT_HISTORY.md)
 
 Start with one failing public-source fixture or reader journey. Keep acquisition
 passive, preserve source evidence, and ensure a slow enrichment cannot delay the
