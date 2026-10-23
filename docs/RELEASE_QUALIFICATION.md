@@ -1,7 +1,10 @@
 # Next-release qualification
 
-Status: the 0.36.0-rc1 implementation and emulator qualification are complete.
-Physical-phone qualification remains open, so the official Latest APK is unchanged.
+Status: the 0.36 implementation and emulator qualification are complete. On
+October 23, 2026, the owner explicitly requested publishing the tested build as
+0.36.0 through the permanent download link for phone use. Physical-phone
+performance, battery and GPU qualification remain unverified; publication does
+not change that evidence boundary.
 
 ## Recorded checks
 
@@ -41,7 +44,7 @@ Physical-phone qualification remains open, so the official Latest APK is unchang
 
 Private raw artifacts, process/fixture hashes and preview backups remain under
 `LiberBuild/quality-release`. No physical phone is claimed qualified. These
-receipts do not satisfy the publication gate below.
+receipts do not establish physical-phone qualification.
 
 ## Required journeys
 
@@ -86,8 +89,11 @@ observations, and idle behavior. Separate reproducible app defects from dated
 external-source outages; both require honest coverage notes.
 
 Back up and update the laptop preview after tested increments. Publish the
-official APK and corresponding source through `scripts/publish_release.py` only
-after physical-phone qualification. Preserve signing identity, app ID and the
+official APK and corresponding source through `scripts/publish_release.py`.
+For 0.36.0, the owner directed publication of the tested candidate before
+physical-phone qualification; disclose that limit in its release notes. Further
+local-inference profile promotions retain the qualification requirements above.
+Preserve signing identity, app ID and the
 fixed-name download asset. No credentials or personal reader state are release artifacts.
 
 ## 0.36.0-rc3: self-permalink cross-post repair

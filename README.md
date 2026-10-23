@@ -10,8 +10,7 @@ keep what matters, and get on with your day.
 · [Releases and corresponding source](https://github.com/MimirLab/anti-social/releases)
 · [What works, and its limits](docs/CAPABILITIES.md)
 
-The 0.36 development candidate is being qualified; the download link continues
-to serve the current official release.
+The download link always serves the latest official release.
 
 ## Read on your terms
 
