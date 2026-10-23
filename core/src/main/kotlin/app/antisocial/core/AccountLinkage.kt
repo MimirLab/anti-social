@@ -15,7 +15,7 @@ import java.util.Locale
 /** A public association is a suggestion, never an automatic ownership merge. */
 enum class AccountLinkKind { ENTERED, LOCAL, PROFILE, WEBSITE, RECIPROCAL, DIRECTORY, USERNAME }
 data class AccountWebsite(val url:String,val label:String)
-data class AccountWebLinks(val accounts:List<AccountCandidate>,val websites:List<String>,val nameHints:List<AccountNameHint> = emptyList())
+data class AccountWebLinks(val accounts:List<AccountCandidate>,val websites:List<String>,val nameHints:List<AccountNameHint> = emptyList(),val publisher:PublisherLinks?=null,val checkedAt:Long=0,val sourceUrl:String?=null)
 
 object AccountLinkage {
     const val MAX_DOCUMENT=512*1024
@@ -34,8 +34,9 @@ object AccountLinkage {
 
     /** Preserve identity attributes before washing away page navigation. No script,
      * embedded asset or browser code is executed; the HTML is never persisted. */
-    fun website(payload:Payload,routes:DarwinRoutes,at:Long):AccountWebLinks {
+    fun website(payload:Payload,routes:DarwinRoutes,at:Long,headers:Map<String,List<String>> = emptyMap()):AccountWebLinks {
         if(payload.text.length>MAX_DOCUMENT)return AccountWebLinks(emptyList(),emptyList())
+        HtmlAdmission.check(payload.text)
         val page=Jsoup.parse(payload.text,payload.finalUrl)
         val links=mutableListOf<String>();val more=mutableListOf<String>();val names=mutableListOf<AccountNameHint>()
         val path=payload.finalUrl.toHttpUrlOrNull()?.encodedPath.orEmpty().trim('/').lowercase(Locale.ROOT)
@@ -61,9 +62,10 @@ object AccountLinkage {
             if(identity&&sameSite&&(publisherPage||depth==0||describesPage)) {
                 val sameAs=strings(o["sameAs"]);links+=sameAs
                 val name=strings(o["name"]).singleOrNull()
+                val group=java.security.MessageDigest.getInstance("SHA-256").digest(o.toString().toByteArray()).take(16).joinToString(""){"%02x".format(it)}
                 if(name!=null)profiles(sameAs,routes,AccountLinkKind.WEBSITE,payload.finalUrl,at,"").forEach {c->
                     MentionNames.account(c.target,routes)?.let {account->MentionNames.sanitizeDisplayName(name,account.key)}?.let {
-                        names+=AccountNameHint(c.target,it,AccountLinkKind.WEBSITE,payload.finalUrl,at)
+                        names+=AccountNameHint(c.target,it,AccountLinkKind.WEBSITE,payload.finalUrl,at,group)
                     }
                 }
             }
@@ -72,7 +74,7 @@ object AccountLinkage {
         }
         page.select("script[type=application/ld+json]").take(8).forEach {n->if(n.data().length<=64*1024)runCatching {JsonParser.parseString(n.data())}.getOrNull()?.let {inspect(it)}}
         val label="Linked from "+payload.finalUrl.toHttpUrlOrNull()?.host.orEmpty()
-        return AccountWebLinks(profiles(links,routes,AccountLinkKind.WEBSITE,payload.finalUrl,at,label),more.distinct().take(2),names.distinctBy {key(it.target,routes)}.take(20))
+        return AccountWebLinks(profiles(links,routes,AccountLinkKind.WEBSITE,payload.finalUrl,at,label),more.distinct().take(2),names.distinctBy {key(it.target,routes)}.take(20),PublicRelations.publisher(page,payload.finalUrl,headers),at,payload.finalUrl)
     }
     private fun handle(target:Target)=when(target.platform) {
         Platform.REDDIT->target.identity.removePrefix("user/").removePrefix("u/")
@@ -193,10 +195,10 @@ class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile
         suspend fun site(url:String,depth:Int=0) {
             val clean=AccountLinkage.webUrl(url) ?: return
             val accepted=mutex.withLock {sites.size<3&&sites.add(clean)};if(!accepted)return
-            val result=cachedWebsite(clean) ?: run {
-                val payload=attempt {web(clean,seed.canonicalUrl)} ?: return
+            val result=cachedWebsite(clean) ?: attempt {
+                val payload=web(clean,seed.canonicalUrl)
                 AccountLinkage.website(payload,routes,clock()).also {currentCoroutineContext().ensureActive();rememberWebsite(clean,it)}
-            }
+            } ?: return
             publish(result.accounts,result.nameHints)
             if(depth==0)coroutineScope {result.websites.forEach {launch {site(it,1)}}}
         }

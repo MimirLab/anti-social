@@ -7,6 +7,7 @@ announcement/OCR and search improvements; consult its release notes.
 |---|---|---|
 | Public social reading | Native cards, selected subscriptions, public search, alternate sources and archive recovery | Coverage depends on platform and route. Login walls and empty frontends are failures. Private/account-only content is unavailable. |
 | Collected posts | Cross-platform editions, repeated text/media cleanup, original links and comment streams | Similarity is imperfect. Originals and meaningful differences remain inspectable. |
+| Related-account discovery | Streamed public follows, creator recommendations, observed participants and communities; identity bridges across platforms | Sampled public coverage, bounded work, unavailable routes visible. No complete-audience or common-ownership inference from a shared name. See [Discover related](ADJACENT_DISCOVERY.md). |
 | Chronological reading | Preserved position, pending updates, caught-up boundary and channels | An unavailable subscription remains pending rather than falsely caught up. |
 | Local discovery | Businesses, actual branches, published contacts, social accounts, menus and event occurrences | Directory entries can be stale. Menus/prices retain their source and mode; a location pin is not proof of current opening or stock. |
 | Social announcements | Explicit event details from identified local publishers and their public posts | Missing dates/venues stay under Possible events. Publication time is not the occurrence time. |

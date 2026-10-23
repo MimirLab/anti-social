@@ -26,6 +26,7 @@ import kotlinx.coroutines.*
     var discovering by remember {mutableStateOf<Subscription?>(null)}
     var adding by remember {mutableStateOf<Subscription?>(null)}
     var addingRss by remember {mutableStateOf(false)}
+    var related by remember {mutableStateOf<Subscription?>(null)}
     val legacyVideos by vm.repo.legacyVideoFollows.collectAsState(emptyList())
     var showLegacyVideos by remember {mutableStateOf(false)}
     LazyColumn(Modifier.fillMaxSize().testTag("Subscriptions list"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -61,6 +62,7 @@ import kotlinx.coroutines.*
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState())) {
                         TextButton(onClick={vm.subscription(subscription.id)}){Text("Read feed")}
+                        if(subscription.accounts.any {AdjacentDiscovery.valid(it.target)})TextButton(onClick={related=subscription}){Text("Discover related")}
                         if(subscription.accounts.any {it.target.kind==TargetKind.PROFILE})TextButton(onClick={discovering=subscription}){Text("Find linked accounts")}
                     }
                 }
@@ -78,6 +80,7 @@ import kotlinx.coroutines.*
             TextButton(onClick={managing=null;adding=subscription}){Icon(Icons.Rounded.Add,null);Text("Add an account manually")}
         }},confirmButton={TextButton(onClick={managing=null}){Text("Done")}})
     }
+    related?.let {subscription->subscription.accounts.firstOrNull {AdjacentDiscovery.valid(it.target)}?.let {account->AdjacentDialog(vm,Profile(account.target,subscription.name,displayNameSupplied=false),null,onDismiss={related=null})}}
     discovering?.let {subscription->SubscriptionDialog(vm,subscription.accounts.first().target.platform,subscription,autoDiscover=true,onDismiss={discovering=null})}
     adding?.let {subscription->SubscriptionDialog(vm,subscription.accounts.first().target.platform,subscription,onDismiss={adding=null})}
     if(addingRss)RssSourceSheet(onAdd={url,title,folder->vm.repo.addRssSource(url,title,folder)},onDismiss={addingRss=false})

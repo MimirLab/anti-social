@@ -174,3 +174,57 @@ was compiled with `-PantisocialTestBuildType=release` against the actual release
 ABI. Debug instrumentation's Kotlin internal names do not match release; that
 harness mismatch is not an app-path failure. Deliberate PROBE/STALL operations
 remain disabled in release and are exercised only in the debug boundary batch.
+
+## 0.37.0: adjacent-account discovery
+
+Discover related adds a compass on public profiles and an action in Subscriptions.
+It streams public connection cards independently of slower identity work, uses
+existing account linkage to bridge supported graphs, and groups aliases only with
+explicit local links, exact directory associations or the same website identity
+object naming both accounts. Shared names, incidental bio links and separate
+people described on one page cannot establish an automatic identity merge.
+
+The included graph routes cover X/FxEmbed, Bluesky/AppView and Constellation,
+Mastodon-compatible public lists, Reddit/Arctic Shift, publisher recommendations
+and existing fetched public discussions. Sources and sample limits remain visible.
+Related discovery requires no AI, additional runtime, social login or user key.
+See [the implementation guide](ADJACENT_DISCOVERY.md) and
+[the investigation record](DISCOVERY_SOURCES.md).
+
+Qualification on October 23, 2026:
+
+- JVM suite: **1,820 tests, zero failures/errors, one optional weight-dependent skip**.
+- API 35 release regressions: **433 distinct successful checks and seven opt-in or
+  device-dependent skips**, combining the feed, Library, Context, privacy, names,
+  discovery and final targeted runs. The final targeted block passed all 58
+  checks, including ownership grouping, independent graph/identity progress,
+  cancellation, saved-record compatibility, name storage and the image-info UI.
+- API 26: all 18 discovery/export checks passed after the cache repair; all seven
+  discovery checks passed again after the identity and progress refinements.
+  Native Android 8 and Android 15 discovery screens were inspected.
+- Live public X, Bluesky, Mastodon and Reddit responses passed Android Gateway
+  acquisition/parsing. These are dated source observations, not a latency SLA or
+  qualification of every instance. Archive aggregation has a longer per-request
+  allowance within the unchanged overall block deadline. A separate live check
+  exercises Reddit through the app's actual bounded discovery session.
+- Release assembly and Android lint pass. Existing lint warnings remain; passing
+  lint does not imply every warning has been removed. No new production library,
+  model or browser runtime is included. APK growth is approximately 100 KiB over
+  0.36.1. Physical-phone energy and latency remain unverified.
+
+Earlier failures remain in the private raw record. The new nullable forward
+metadata initially failed the strict saved-export schema; explicit optional-field
+registration, typed nested validation and old/new export tests repaired it. Android
+8 exposed equal filesystem timestamps evicting a freshly written graph snapshot;
+the cache now retains that write when enforcing its bound. Nine generic Compose
+image-info fixtures could not launch against a release app; they now use the
+existing target MainActivity with isolated-device guards and all nine pass. A
+separate test-only host/dependency experiment was removed.
+
+Telegram forward provenance survives offline snapshots, and the article reader
+preserves citations belonging to the selected work before washing text. Cache
+limits, privacy-policy changes, original-source settings, selected-Tor failure,
+source cooldown and ordinary-cache cleanup have dedicated checks. Saved copies,
+subscription data, application ID and signing compatibility retain their existing
+protection. Source, APK, preview backup and publication receipts stay under the
+external build root; credentials and private reader state are excluded.

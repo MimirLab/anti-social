@@ -8,7 +8,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.activity.compose.setContent
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.cancel
+import org.junit.Before
+import org.junit.Assume
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -20,7 +27,13 @@ import java.io.File
 /** These fixtures exercise native presentation only; they do not contact a metadata service. */
 @RunWith(AndroidJUnit4::class)
 class AiProvenanceUiTest {
-    @get:Rule val ui=createComposeRule()
+    @get:Rule val ui=createAndroidComposeRule<MainActivity>()
+    @Before fun isolateReader() {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val repo=(ui.activity.application as AntiSocialApplication).repo
+        runBlocking {repo.awaitReady()}
+        ui.runOnIdle {ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java].viewModelScope.cancel()}
+    }
 
     private val generation=AiDisclosureEntry(
         source="Bluesky",asset="Image 1",
@@ -29,7 +42,7 @@ class AiProvenanceUiTest {
         tools=listOf("Example Image Studio 4.2"),aiDeclared=true)
 
     private fun show(entries: List<AiDisclosureEntry>,dark: Boolean=true) {
-        ui.setContent {
+        ui.runOnIdle {ui.activity.setContent {
             MaterialTheme(colorScheme=if(dark)darkColorScheme()else lightColorScheme()) {
                 Surface(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -39,7 +52,7 @@ class AiProvenanceUiTest {
                     }
                 }
             }
-        }
+        }}
     }
 
     private fun evidence(name: String) {

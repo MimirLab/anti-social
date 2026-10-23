@@ -81,7 +81,8 @@ internal val LocalMentionNameSource=staticCompositionLocalOf<MentionNameSource?>
     source: MentionNameSource?=null,
     explicitProfileLinks: List<String> = emptyList(),
     accountLabel: Boolean=false,
-    onTextLayout: ((TextLayoutResult)->Unit)?=null
+    onTextLayout: ((TextLayoutResult)->Unit)?=null,
+    onAccountClick: (()->Unit)?=null
 ) {
     val bank=source ?: LocalMentionNameSource.current ?: repo?.mentionNames
     val raw=remember(value,repo,platform,accountLabel){(repo?.publicText(value,platform) ?: value).let {if(accountLabel)IdentityDisplay.controls(it)else it}}
@@ -154,12 +155,12 @@ internal val LocalMentionNameSource=staticCompositionLocalOf<MentionNameSource?>
         onDispose {lifecycle.removeObserver(observer);lease?.close()}
     }
     val linkColor=MaterialTheme.colorScheme.primary
-    val text=remember(presentation,linkColor) {
+    val text=remember(presentation,linkColor,onAccountClick) {
         buildAnnotatedString {
             var at=0
             presentation.mentions.forEach {mention->
                 append(presentation.text.substring(at,mention.start))
-                withLink(LinkAnnotation.Clickable(mention.original.key.id,TextLinkStyles(style=SpanStyle(color=linkColor,textDecoration=TextDecoration.Underline)),linkInteractionListener={selected=mention.original})) {
+                withLink(LinkAnnotation.Clickable(mention.original.key.id,TextLinkStyles(style=SpanStyle(color=linkColor,textDecoration=TextDecoration.Underline)),linkInteractionListener={if(onAccountClick!=null)onAccountClick()else selected=mention.original})) {
                     append(IdentityDisplay.controls(presentation.text.substring(mention.start,mention.endExclusive)))
                 }
                 at=mention.endExclusive

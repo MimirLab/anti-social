@@ -23,6 +23,19 @@ available streams, while platform tabs let you inspect each stream. Community
 participation belongs to All or its community tab; the app does not post into an
 unconnected social account.
 
+## Find related accounts and communities
+
+Tap the compass beside Subscribe locally on a public profile, or choose Discover
+related in a subscription's menu. Initial connections appear while other sources
+work. Filter with platform icons, search the collected cards with the magnifier,
+and tap a connection reason to see how it was found. Use the person-plus to
+subscribe. Explore further reads another bounded block; closing stops discovery.
+
+Linked accounts can bridge into another platform's public graph. This remains
+separate from finding the same person's accounts: a mention, follow or shared
+commenter is a connection, not an identity claim. Sources shows coverage and
+unavailable routes. See [Discover related](ADJACENT_DISCOVERY.md).
+
 ## Find a business or event
 
 Open Search, select Businesses or Events, and choose a city and radius. The area

@@ -26,6 +26,7 @@ class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScop
     val browserLinks=browserRequests.receiveAsFlow()
     internal val articles=ArticleReaderController(repo,viewModelScope)
     internal val localSearch=LocalDiscoveryController(repo,viewModelScope)
+    internal val adjacent=AdjacentController(repo,viewModelScope)
     fun openBrowser(url:String){viewModelScope.launch {browserRequests.send(url)}}
     val discussions=discussionReader?.invoke(viewModelScope) ?: DiscussionReader(repo,viewModelScope)
     val imageSearch=imageSearchFactory?.invoke(viewModelScope) ?: ImageSearchController(repo,viewModelScope)
@@ -300,6 +301,6 @@ class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScop
         }
     }
     fun launch(action: suspend ()->Unit) {viewModelScope.launch {try {action()}catch(e: CancellationException){throw e}catch(e: Exception){screen.value=screen.value.copy(error=e.message)}}}
-    override fun onCleared(){localSearch.close();imageSearch.close();super.onCleared()}
+    override fun onCleared(){localSearch.close();imageSearch.close();adjacent.stop();super.onCleared()}
     class Factory(private val repo: Repository): ViewModelProvider.Factory {override fun <T: ViewModel> create(modelClass: Class<T>): T { @Suppress("UNCHECKED_CAST") return AntiSocialViewModel(repo) as T }}
 }

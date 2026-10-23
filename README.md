@@ -16,6 +16,7 @@ The download link always serves the latest official release.
 
 - Open shared social links through healthy public routes and archive recovery.
 - Follow accounts and ordinary RSS/Atom feeds; organize subscriptions into channels.
+- [Discover related accounts and communities](docs/ADJACENT_DISCOVERY.md) through public connections and creator recommendations.
 - Read collected cross-posts once, with access to their original editions and comment streams.
 - Keep your reading position, adopt incoming posts deliberately, and reach a caught-up boundary.
 - Find nearby businesses, their public social accounts, branch menus and dated events.

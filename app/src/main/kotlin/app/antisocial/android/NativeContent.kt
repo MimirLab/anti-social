@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ImageSearch
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
@@ -43,9 +44,11 @@ import kotlinx.coroutines.delay
                 vm.repo.prefetchAccountLinks(profile)
             }
             var subscribe by remember(profile.target){mutableStateOf(false)}
+            var adjacent by remember(profile.target){mutableStateOf(false)}
             var accountDetails by remember(profile.target){mutableStateOf(false)}
             if(accountDetails)SourceDetailsSheet(vm.repo,listOf(profile.target.canonicalUrl)+profile.links.orEmpty(),profile,onOpen={vm.openLink(it)},onDismiss={accountDetails=false})
             if(subscribe)SubscriptionDialog(vm,profile.target.platform,autoDiscover=true,initialTarget=profile.target,initialProfile=profile,onDismiss={subscribe=false})
+            if(adjacent)AdjacentDialog(vm,profile,page,onDismiss={adjacent=false})
             Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
                 profile.avatar?.let {RemoteImage(it,profile.target.canonicalUrl,vm.repo,Modifier.size(72.dp).clip(CircleShape),"${profile.name} profile picture",maxEdge=256)}
                 Column(Modifier.weight(1f).padding(start=16.dp)) {
@@ -56,7 +59,10 @@ import kotlinx.coroutines.delay
             }
             if(profile.description.isNotBlank())MentionText(profile.description,vm.repo,profile.target.platform,profile.target.canonicalUrl,explicitProfileLinks=profile.links.orEmpty(),fontSize=14.sp,lineHeight=21.sp)
             if(profile.persistentId!=null||!profile.verifiedWebsites.isNullOrEmpty())TextButton(onClick={accountDetails=true},modifier=Modifier.testTag("Account details")){Text("Account details")}
-            if(ReaderScope.isFeedSource(profile.target.platform))FilledTonalButton(onClick={subscribe=true},modifier=Modifier.fillMaxWidth()) {Text("Subscribe locally")}
+            if(ReaderScope.isFeedSource(profile.target.platform))Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                FilledTonalButton(onClick={subscribe=true},modifier=Modifier.weight(1f)) {Text("Subscribe locally")}
+                if(AdjacentDiscovery.valid(profile.target))IconButton(onClick={adjacent=true},modifier=Modifier.testTag("Discover related accounts")){Icon(Icons.Rounded.Explore,"Discover related accounts")}
+            }
         }
         page.collections.forEach {collection->
             Surface(onClick={vm.open(collection.target)},shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceVariant) {

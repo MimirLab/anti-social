@@ -523,6 +523,51 @@ class Repository(val context: Context) {
     }
     private val accountCacheStore=lazy {AccountDiscoveryCache(File(context.cacheDir,"account-links"))}
     internal val accountDiscoveryCache get()=accountCacheStore.value
+    private val adjacentCacheStore=lazy {AdjacentStore(File(context.cacheDir,"adjacent-discovery"))}
+    internal val adjacentStore get()=adjacentCacheStore.value
+    private val participantBankStore=lazy {PublicParticipantBank(File(context.cacheDir,"public-participants.json"),routes)}
+    internal val participantBank get()=participantBankStore.value
+    internal suspend fun adjacentSession(profile:Profile,knownPage:Page?=null,force:Boolean=false):AdjacentRuntime=withContext(Dispatchers.IO) {
+        require(AdjacentDiscovery.valid(profile.target)){"Open a public account, community or feed to discover connections"}
+        awaitReady();gateway.originalFallback=prefs.originalFallback
+        val policy=gateway.currentPolicy();val originals=prefs.originalFallback
+        val key="v1|"+AdjacentDiscovery.key(profile.target)+"|"+policy+"|"+originals
+        val cached=if(force)null else adjacentStore.get(key)
+        val page=knownPage?.takeIf {it.profile?.target==profile.target} ?: cachedPage(profile.target)
+        val observed=page?.let {AdjacentDiscovery.observed(profile,it,routes,it.provenance?.fetchedAt ?: System.currentTimeMillis())}.orEmpty()+participantBank.related(profile)
+        val session=AdjacentSession(profile,routes,read={endpoint->
+            if(policy!=gateway.currentPolicy()||originals!=prefs.originalFallback)throw SourceFailure(HealthStatus.UNKNOWN,"Connection settings changed; refresh discovery")
+            if(policy.tor&&!policy.ready)throw SourceFailure(HealthStatus.UNKNOWN,"Waiting for the selected Tor connection")
+            if(endpoint.source.role==SourceRole.ORIGINAL&&!originals)throw SourceFailure(HealthStatus.UNKNOWN,"Original-site fallback is disabled")
+            if(endpoint.source.role==SourceRole.ORIGINAL)gateway.registerOriginalUrl(endpoint.source.root)
+            val publisher=endpoint.source.frontend=="discovery-publisher"
+            if(publisher)accountDiscoveryCache.website(policy.toString()+"|"+endpoint.url)?.let {warm->
+                val declarations=warm.publisher;val source=warm.sourceUrl
+                if(declarations!=null&&warm.checkedAt>0&&source!=null)return@AdjacentSession AdjacentDocument(
+                    Payload("",source,"text/html",200),cachedPublisher=declarations,checkedAt=warm.checkedAt)
+            }
+            val result=gateway.extractorDocument(endpoint.url,sourceUrl=profile.target.canonicalUrl,maxBytes=PublicRelations.MAX_DOCUMENT.toLong(),
+                headers=mapOf("Accept" to if(publisher)"text/html,application/rss+xml,application/atom+xml,application/json;q=0.8"else "application/json"),
+                purpose=if(publisher)FetchPurpose.SUPPLEMENTAL else FetchPurpose.API)
+            AdjacentDocument(Payload(result.text,result.finalUrl,result.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),result.status),result.headers)
+        },learning=pool.learning,tor=policy.tor,timeoutMs=if(policy.tor)28_000 else 18_000,initial=observed,cached=cached?.snapshot,
+            onLearning={pool.onLearning(pool.learning.snapshot())})
+        AdjacentRuntime(session,key,adjacentStore.epoch(),policy,cached?.fresh==true)
+    }
+    internal suspend fun adjacentNext(runtime:AdjacentRuntime,onUpdate:(AdjacentSnapshot)->Unit):AdjacentSnapshot=withContext(Dispatchers.IO) {
+        check(runtime.policy==gateway.currentPolicy()){"Connection settings changed; refresh discovery"}
+        val result=gateway.boundedMediaRead(maxBytes=3L*1024*1024,maxRequests=8) {
+            runtime.session.loadNext {snapshot->
+                check(runtime.policy==gateway.currentPolicy()){"Connection settings changed; refresh discovery"}
+                val names=snapshot.cards.map {it.profile}.filter {it.displayNameSupplied&&runtime.named.add(AdjacentDiscovery.key(it.target)+"|"+it.name)}
+                if(names.isNotEmpty())rememberAccountNames(Page(emptyList(),accounts=names))
+                onUpdate(snapshot)
+            }
+        }
+        currentCoroutineContext().ensureActive()
+        if(runtime.policy==gateway.currentPolicy())adjacentStore.put(runtime.key,result,runtime.epoch)
+        result
+    }
     private val accountWarmLock=Any()
     private val accountWarmAttempts=linkedMapOf<String,Long>()
     /** One idle, cancellable website read after a deliberate profile open. The
@@ -546,8 +591,9 @@ class Repository(val context: Context) {
         val epoch=accountDiscoveryCache.epoch()
         try {withTimeout(if(policy.tor)5_000L else 3_000L) {
             gateway.deferredRead {gateway.boundedMediaRead(maxBytes=256*1024L,maxRequests=2) {
-                val payload=gateway.text(website,profile.target.canonicalUrl,maxBytes=256*1024L,headers=mapOf("Accept" to "text/html,application/xhtml+xml;q=0.9"))
-                val result=AccountLinkage.website(payload,routes,System.currentTimeMillis())
+                val document=gateway.extractorDocument(website,sourceUrl=profile.target.canonicalUrl,maxBytes=256*1024L,headers=mapOf("Accept" to "text/html,application/xhtml+xml;q=0.9"),purpose=FetchPurpose.SUPPLEMENTAL)
+                val payload=Payload(document.text,document.finalUrl,"text/html",document.status)
+                val result=AccountLinkage.website(payload,routes,System.currentTimeMillis(),document.headers)
                 currentCoroutineContext().ensureActive()
                 if(policy==gateway.currentPolicy()) {
                     accountDiscoveryCache.rememberWebsite(key,result,epoch)
@@ -562,7 +608,7 @@ class Repository(val context: Context) {
         if(!AccountLinkage.valid(target))return@withContext AccountDiscovery(target.identity,listOf(AccountCandidate(target,"Account you opened")),"Cross-platform discovery is available for people and organizations.")
         val policy=gateway.currentPolicy()
         val platforms=if(matchingNames)(prefs.selected+PlatformOrder.popular).distinct()else emptyList()
-        val cacheKey="v2|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
+        val cacheKey="v3|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
         val epoch=accountDiscoveryCache.epoch()
         val local=dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}
         // Cached observations keep their original checkedAt. Local subscription
@@ -628,6 +674,8 @@ class Repository(val context: Context) {
         if(!pool.supportsComments(post.platform,prefs.originalFallback))throw SourceFailure(HealthStatus.UNSUPPORTED,"Public comments are not available from the current ${post.platform.label} readers.")
         val target=Discussions.target(post,routes,order==ReadingOrder.SLOP) ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"This post has no readable discussion address")
         val page=if(previous==null)pool.load(target,originalFallback=prefs.originalFallback,requestedCapability=Capability.COMMENTS)else pool.continuePage(target,previous,prefs.originalFallback,requestedCapability=Capability.COMMENTS)
+        val graphEpoch=participantBank.epoch()
+        scope.launch(Dispatchers.IO){participantBank.observe(post,page,graphEpoch)}
         store(page,allowPurged=true);rememberPage(target,page);scheduleCleanup()
         return page
     }
@@ -830,6 +878,8 @@ class Repository(val context: Context) {
         // cache eviction behind a network update. The next pass can prune them.
         if(filterMutex.tryLock())try {pruneFilterFiles()}finally {filterMutex.unlock()}
         if(accountCacheStore.isInitialized())accountDiscoveryCache.cleanup(clearAll)
+        if(adjacentCacheStore.isInitialized())adjacentStore.cleanup(clearAll)
+        if(participantBankStore.isInitialized())participantBank.cleanup(clearAll)
         articleReadingCache.cleanup(clearAll)
         LocalMenuReader.cleanup(context.cacheDir,clearAll)
         ContentSandbox.cleanup(context.cacheDir,clearAll)
@@ -849,7 +899,7 @@ class Repository(val context: Context) {
         if(clearAll){sponsorBlock.clear();youtube.clear()}else sponsorBlock.cleanup(now)
         val entries=posts.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,false,activeKeys.containsKey(it.key))}+media.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,it.saved,activeKeys.containsKey(it.key))}
         val free=StatFs(context.filesDir.path).availableBytes
-        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()-(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)).coerceAtLeast(0)
+        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()-(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)-(if(adjacentCacheStore.isInitialized())adjacentStore.bytes()else 0)-(if(participantBankStore.isInitialized())participantBank.bytes()else 0)).coerceAtLeast(0)
         val evict=CachePolicy.eviction(entries,now,budget,prefs.unseenDays,prefs.viewedDays)
         val postKeys=posts.filter {it.key in evict}.map {it.key};val mediaRows=media.filter {it.key in evict}
         if(postKeys.isNotEmpty()){db.withTransaction {dao.markPurged(postKeys);dao.removePosts(postKeys)}}
@@ -863,7 +913,7 @@ class Repository(val context: Context) {
         val savedBytes=(if(localDiscoveryStore.isInitialized())localDiscovery.bytes(true)else 0)+dao.bookmarkBytes()+dao.savedDetailBytes()+dao.mediaBytes(true)+contextReader.store.logicalBytes(true)
         val videoKeys=dao.allSavedAssets().filter {it.type!="image"}.map {it.assetKey}.toSet()+dao.allBookmarks().mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.flatMap {p->(p.media+p.archivedVersion?.snapshot?.media.orEmpty()).filter {it.type!="image"}.map {hash(it.url)}}
         val videoBytes=dao.allMedia().filter {it.saved&&it.key in videoKeys}.sumOf {it.bytes}
-        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes()+(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
+        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes()+(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)+(if(adjacentCacheStore.isInitialized())adjacentStore.bytes()else 0)+(if(participantBankStore.isInitialized())participantBank.bytes()else 0),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
     }
     suspend fun exportBackup(): ByteArray=withContext(Dispatchers.IO) {val backup=Backup(settings=JsonParser.parseString(prefs.export().toString()).asJsonObject,follows=dao.allFollows(),bookmarks=dao.allBookmarks(),history=dao.allHistory(),savedDetails=dao.allSavedDetails(),collections=dao.allCollections(),collectionLinks=dao.allCollectionLinks(),retainedHistory=dao.allRetainedHistory());gson.toJson(backup).toByteArray()}
     suspend fun importBackup(bytes: ByteArray) {

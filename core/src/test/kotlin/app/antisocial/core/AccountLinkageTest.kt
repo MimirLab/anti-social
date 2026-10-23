@@ -40,7 +40,8 @@ class AccountLinkageTest {
             <script type="application/ld+json">{"@type":"NewsArticle","name":"Another subject","sameAs":["https://x.com/incidental"]}</script>"""
         val result=AccountLinkage.website(payload(html,"https://workshop.test/"),routes,123)
         assertEquals(2,result.accounts.size)
-        assertEquals(listOf(AccountNameHint(instagram,"Community Workshop",AccountLinkKind.WEBSITE,"https://workshop.test/",123)),result.nameHints)
+        assertEquals(listOf(AccountNameHint(instagram,"Community Workshop",AccountLinkKind.WEBSITE,"https://workshop.test/",123)),result.nameHints.map {it.copy(identityGroup=null)})
+        assertTrue(result.nameHints.single().identityGroup!!.matches(Regex("[a-f0-9]{32}")))
     }
     @Test fun exactDirectoryEntitySuppliesANameFallbackWithoutChangingTheTarget() {
         val data=JsonParser.parseString(document(entity())).asJsonObject

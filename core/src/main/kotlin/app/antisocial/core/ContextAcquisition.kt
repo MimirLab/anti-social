@@ -206,6 +206,7 @@ object ContextArticles {
         val published=meta("article:published_time","datePublished","date","pubdate") ?: document.selectFirst("time[datetime]")?.attr("datetime")
         val publishedAt=published?.let {value->runCatching {Instant.parse(value).toEpochMilli()}.getOrNull() ?: runCatching {LocalDate.parse(value.take(10)).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()}.getOrNull()}
         val paper=identities.metadataDoi(document)?.doi ?: PublicSourceRecords.paper(originalUrl)?.identity
+        val declaredReferences=PublicRelations.citations(document,originalUrl)
         document.select("script,style,noscript,iframe,frame,object,embed,canvas,svg,form,nav,aside,footer,button,input,textarea,select,[hidden],[aria-hidden=true],[inert],[role=navigation],[role=banner],.cookie-banner,.cookie-consent,.newsletter-signup,.share-buttons,.social-share,.related-posts").remove()
         val hiddenStyle=Regex("(?:^|;)\\s*(?:display\\s*:\\s*none|visibility\\s*:\\s*hidden)\\s*(?:!important)?\\s*(?:;|$)",RegexOption.IGNORE_CASE)
         document.select("[style]").filter {hiddenStyle.containsMatchIn(it.attr("style"))}.forEach {it.remove()}
@@ -264,7 +265,7 @@ object ContextArticles {
         if(blocks.isEmpty())content.text().trim().takeIf {it.isNotEmpty()}?.let {blocks+=ContextArticleBlock(it.take(MAX_TEXT_CHARS));truncated=it.length>MAX_TEXT_CHARS}
         if(blocks.sumOf {it.text.length}<160||blocks.none {it.kind!=ContextArticleBlockKind.HEADING&&it.text.length>=60})throw SourceFailure(HealthStatus.EMPTY,"The source did not supply a substantial readable article")
         val title=readable.title?.trim().takeUnless {it.isNullOrBlank()} ?: meta("og:title") ?: document.title()
-        return ContextArticleEvidence(originalUrl,payload.finalUrl,title.take(1000),author ?: readable.byline?.trim()?.takeIf {it.isNotBlank()}?.take(300),site,publishedAt,blocks,fetchedAt,truncated,references=SignalDiscovery.references(content,originalUrl),publicationDoi=paper)
+        return ContextArticleEvidence(originalUrl,payload.finalUrl,title.take(1000),author ?: readable.byline?.trim()?.takeIf {it.isNotBlank()}?.take(300),site,publishedAt,blocks,fetchedAt,truncated,references=(SignalDiscovery.references(content,originalUrl)+declaredReferences).distinctBy {it.url}.sortedByDescending {it.priority}.take(12),publicationDoi=paper)
     }
 }
 

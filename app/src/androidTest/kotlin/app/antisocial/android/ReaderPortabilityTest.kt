@@ -250,6 +250,22 @@ class ReaderPortabilityTest {
         try {strictSavedModel(captured,PostSnapshot::class.java);fail("Native reply IDs must remain strings.")}catch(expected: IllegalArgumentException) {}
     }
 
+    @Test fun publicForwardMetadataIsOptionalForOldSavesAndTypedWhenPresent() {
+        val root=post(22)
+        val legacy=repo.gson.toJsonTree(root).asJsonObject
+        legacy.remove("publicRelations");strictSavedModel(legacy,Post::class.java)
+        assertNull(repo.gson.fromJson(legacy,Post::class.java).publicRelations)
+        val forwarded=root.copy(publicRelations=listOf(PublicRelation(PublicRelationKind.FORWARD,"https://t.me/public_source","Public source")))
+        val json=repo.gson.toJsonTree(forwarded).asJsonObject;strictSavedModel(json,Post::class.java)
+        assertEquals(forwarded,repo.gson.fromJson(json,Post::class.java))
+        val snapshot=repo.gson.toJsonTree(PostSnapshot.from(forwarded)).asJsonObject
+        strictSavedModel(snapshot,PostSnapshot::class.java)
+        assertEquals(forwarded.publicRelations,repo.gson.fromJson(snapshot,PostSnapshot::class.java).publicRelations)
+        json.getAsJsonArray("publicRelations")[0].asJsonObject.addProperty("kind","UNKNOWN")
+        try {strictSavedModel(json,Post::class.java);fail("Unknown relation kinds must be rejected")}catch(expected:IllegalArgumentException) {}
+        assertFalse(PublicRelations.valid(forwarded.copy(publicRelations=listOf(PublicRelation(PublicRelationKind.FORWARD,"javascript:alert(1)")))))
+    }
+
     @Test fun savedScalarCoercionsAndUnknownNestedFieldsCannotReachAnyImportWrite()=runBlocking {
         val first=post(8);val last=post(9).copy(media=listOf(Media("https://images.example.org/$suffix/manifest.jpg")))
         followIds+=x.id;savedKeys+=repo.key(first);savedKeys+=repo.key(last)
