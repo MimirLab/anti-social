@@ -13,7 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,7 +57,7 @@ internal fun sourceRequests(urls:List<String>,profile:Profile?=null):List<Source
                 Text("This account's server reports a verified link back from each website.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 profile?.verifiedWebsites.orEmpty().forEach {website->
                     TextButton(onClick={onOpen(website.url)},modifier=Modifier.testTag("Verified website ${website.url}")) {Icon(Icons.Rounded.Link,null,Modifier.size(16.dp));Spacer(Modifier.width(8.dp));Text(website.label.ifBlank {website.url})}
-                    Text(website.url+" · verified "+recordDate(website.verifiedAt),style=MaterialTheme.typography.bodySmall)
+                    Text(IdentityDisplay.destination(website.url)+" · verified "+recordDate(website.verifiedAt),style=MaterialTheme.typography.bodySmall)
                 }
             }
             if(requests.size>1)item {
@@ -73,7 +73,7 @@ internal fun sourceRequests(urls:List<String>,profile:Profile?=null):List<Source
 
 @Composable internal fun SourceRecordPanel(repo:Repository,request:SourceRecordRequest,onOpen:(String)->Unit) {
     val record by rememberSourceRecord(repo,request,automatic=false)
-    val clipboard=LocalClipboardManager.current
+    val clipboardContext=LocalContext.current
     Column(verticalArrangement=Arrangement.spacedBy(14.dp),modifier=Modifier.testTag("Source record ${request.key}")) {
         SelectionContainer {Text(request.identity,style=MaterialTheme.typography.titleSmall)}
         val data=record
@@ -95,7 +95,7 @@ internal fun sourceRequests(urls:List<String>,profile:Profile?=null):List<Source
             if(data.facts.isNotEmpty()) {
                 HorizontalDivider()
                 Text("Checked "+recordDate(data.checkedAt),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                data.facts.map {it.sourceUrl}.distinct().forEach {url->TextButton(onClick={clipboard.setText(AnnotatedString(url))},contentPadding=PaddingValues(0.dp)){Text("Copy record link · "+java.net.URI(url).host,style=MaterialTheme.typography.labelMedium)}}
+                data.facts.map {it.sourceUrl}.distinct().forEach {url->TextButton(onClick={ReaderClipboard.copy(clipboardContext,"Record link",url)},contentPadding=PaddingValues(0.dp)){Text("Copy record link · "+IdentityDisplay.domain(url),style=MaterialTheme.typography.labelMedium)}}
             }
         }
     }
@@ -126,7 +126,7 @@ internal fun sourceRequests(urls:List<String>,profile:Profile?=null):List<Source
         if(expanded)notes.distinctBy {it.text}.take(4).forEach {note->
             SelectionContainer {Text(note.text,style=MaterialTheme.typography.bodyMedium)}
             Text(note.status?.let {"Recorded status: $it"} ?: "Rating status was not supplied by this source.",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            note.links.forEach {url->TextButton(onClick={onOpen(url)}){Text(url,maxLines=2)}}
+            note.links.forEach {url->TextButton(onClick={onOpen(url)}){Text(IdentityDisplay.destination(url),maxLines=2)}}
         }
     }
 }

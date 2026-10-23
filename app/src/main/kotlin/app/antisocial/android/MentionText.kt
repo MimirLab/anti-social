@@ -21,7 +21,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -42,6 +42,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.antisocial.core.MentionAccount
 import app.antisocial.core.MentionMatch
 import app.antisocial.core.MentionNames
+import app.antisocial.core.IdentityDisplay
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import app.antisocial.core.Platform
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
@@ -81,7 +84,7 @@ internal val LocalMentionNameSource=staticCompositionLocalOf<MentionNameSource?>
     onTextLayout: ((TextLayoutResult)->Unit)?=null
 ) {
     val bank=source ?: LocalMentionNameSource.current ?: repo?.mentionNames
-    val raw=remember(value,repo,platform){repo?.publicText(value,platform) ?: value}
+    val raw=remember(value,repo,platform,accountLabel){(repo?.publicText(value,platform) ?: value).let {if(accountLabel)IdentityDisplay.controls(it)else it}}
     val available by bank?.names?.collectAsState() ?: remember {mutableStateOf(emptyMap())}
     val enabled by bank?.enabled?.collectAsState() ?: remember {mutableStateOf(false)}
     val matches=remember(raw,platform,sourceUrl,repo,enabled,explicitProfileLinks,accountLabel) {
@@ -157,16 +160,18 @@ internal val LocalMentionNameSource=staticCompositionLocalOf<MentionNameSource?>
             presentation.mentions.forEach {mention->
                 append(presentation.text.substring(at,mention.start))
                 withLink(LinkAnnotation.Clickable(mention.original.key.id,TextLinkStyles(style=SpanStyle(color=linkColor,textDecoration=TextDecoration.Underline)),linkInteractionListener={selected=mention.original})) {
-                    append(presentation.text.substring(mention.start,mention.endExclusive))
+                    append(IdentityDisplay.controls(presentation.text.substring(mention.start,mention.endExclusive)))
                 }
                 at=mention.endExclusive
             }
             append(presentation.text.substring(at))
         }
     }
-    Text(text,fontSize=fontSize,lineHeight=lineHeight,color=color,fontWeight=fontWeight,maxLines=maxLines,overflow=overflow,style=style,
+    val identityNotice=if(accountLabel)IdentityDisplay.notice(value) ?: IdentityDisplay.notice(presentation.text)else null
+    val safeText=if(accountLabel)buildAnnotatedString {append(text);if(identityNotice!=null)append(" ⚠")}else text
+    Text(safeText,fontSize=fontSize,lineHeight=lineHeight,color=color,fontWeight=fontWeight,maxLines=maxLines,overflow=overflow,style=style,
         onTextLayout={layout=it;onTextLayout?.invoke(it)},
-        modifier=modifier.onGloballyPositioned {coordinates->
+        modifier=modifier.semantics {if(identityNotice!=null)stateDescription=identityNotice}.onGloballyPositioned {coordinates->
             placement.coordinates=coordinates
             resampleGeometry()
         }.pointerInput(raw) {
@@ -207,7 +212,7 @@ private fun mentionIsVisible(start: Int,end: Int,layout: TextLayoutResult?,geome
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun MentionAccountSheet(mention: MentionMatch,name: String?,onOpen: ((String)->Unit)?,onDismiss: ()->Unit) {
-    val clipboard=LocalClipboardManager.current
+    val clipboardContext=LocalContext.current
     ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),modifier=Modifier.testTag("Mention account sheet")) {
         Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {
@@ -224,12 +229,13 @@ private fun mentionIsVisible(start: Int,end: Int,layout: TextLayoutResult?,geome
                 PlatformMark(mention.key.platform,21.dp)
                 Text("${mention.key.platform.label} account",style=MaterialTheme.typography.labelLarge)
             }
-            SelectionContainer {Text(mention.target.canonicalUrl,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Mention authentic account link"))}
+            IdentityDisplay.notice(name ?: mention.fallbackLabel ?: "")?.let {Text(it,style=MaterialTheme.typography.bodySmall)}
+            SelectionContainer {Text(IdentityDisplay.destination(mention.target.canonicalUrl),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Mention authentic account link"))}
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 if(onOpen!=null)FilledTonalButton(onClick={onDismiss();onOpen(mention.target.canonicalUrl)},modifier=Modifier.testTag("Open mentioned account")) {
                     Icon(Icons.AutoMirrored.Rounded.OpenInNew,null,Modifier.size(17.dp));Spacer(Modifier.width(7.dp));Text("Open account")
                 }
-                TextButton(onClick={clipboard.setText(AnnotatedString(mention.target.canonicalUrl))},modifier=Modifier.testTag("Copy mentioned account link")) {
+                TextButton(onClick={ReaderClipboard.copy(clipboardContext,"Account link",mention.target.canonicalUrl)},modifier=Modifier.testTag("Copy mentioned account link")) {
                     Icon(Icons.Rounded.ContentCopy,null,Modifier.size(17.dp));Spacer(Modifier.width(7.dp));Text("Copy link")
                 }
             }

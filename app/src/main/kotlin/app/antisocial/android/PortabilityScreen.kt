@@ -78,7 +78,7 @@ import java.io.ByteArrayOutputStream
             item {PortableCard("Your reader",Icons.Rounded.MoveDown) {
                 Text("Subscriptions, folders, channel rules, collections and saved text in anti social's documented reader format.",fontSize=13.sp,lineHeight=20.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth().toggleable(progress,enabled=!busy,role=Role.Checkbox,onValueChange={progress=it}).testTag("Export reading progress"),verticalAlignment=Alignment.CenterVertically) {Checkbox(progress,null,enabled=!busy);Text("Include reading progress",fontSize=14.sp)}
-                FilledTonalButton(onClick={prepare("antisocial-reader.json"){repo.portability.exportState(progress)}},enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("Export reader file")){Icon(Icons.Rounded.Upload,null);Spacer(Modifier.width(8.dp));Text("Export reader file")}
+                FilledTonalButton(onClick={prepare("antisocial-reader.json"){repo.portability.exportState(progress)}},enabled=!busy,modifier=Modifier.fillMaxWidth().rejectObscuredTouches().testTag("Export reader file")){Icon(Icons.Rounded.Upload,null);Spacer(Modifier.width(8.dp));Text("Export reader file")}
                 Text("This is a readable file. Offline media stays on this device. Use Backup & restore for a passphrase-protected copy.",fontSize=12.sp,lineHeight=18.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }}
             item {PortableCard("A source pack",Icons.Rounded.Share) {
@@ -183,7 +183,7 @@ import java.io.ByteArrayOutputStream
                 error?.let {message->item {Text(message,fontSize=13.sp,color=MaterialTheme.colorScheme.error,modifier=Modifier.testTag("Import preview error"))}}
                 if(busy)item {LinearProgressIndicator(Modifier.fillMaxWidth())}
             }
-            Button(onClick={scope.launch {busy=true;error=null;try {onImport(selected,PortableImportOptions(channels=channels,filters=filters,collections=collections,settings=settings,progress=progress))}catch(e: CancellationException){throw e}catch(e: Exception){error=e.message ?: "The selected data could not be imported."}finally {busy=false}}},enabled=!busy&&(selected.isNotEmpty()||otherSelected),modifier=Modifier.fillMaxWidth().padding(top=8.dp,bottom=24.dp).testTag("Confirm portable import")){Text(if(busy)"Adding…"else "Add selected")}
+            Button(onClick={scope.launch {busy=true;error=null;try {onImport(selected,PortableImportOptions(channels=channels,filters=filters,collections=collections,settings=settings,progress=progress))}catch(e: CancellationException){throw e}catch(e: Exception){error=e.message ?: "The selected data could not be imported."}finally {busy=false}}},enabled=!busy&&(selected.isNotEmpty()||otherSelected),modifier=Modifier.fillMaxWidth().padding(top=8.dp,bottom=24.dp).rejectObscuredTouches().testTag("Confirm portable import")){Text(if(busy)"Adding…"else "Add selected")}
         }
     }
 }

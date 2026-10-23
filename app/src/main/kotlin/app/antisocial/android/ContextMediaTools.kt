@@ -135,9 +135,19 @@ class ContextMediaTools(private val repo:Repository) {
     private suspend fun request(command:Int,input:Bundle,file:File):ByteArray=withContext(Dispatchers.IO) {
         ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {descriptor->input.putParcelable("file",descriptor);client.request(command,input).getByteArray("result") ?: error("The media tool returned no result.")}
     }
+    private suspend fun ocrPixels(input:Bundle,image:android.graphics.Bitmap,scaled:Boolean):OcrResult {
+        try {
+            input.putParcelable("bitmap",image);input.putBoolean("scaled",scaled)
+            return gson.fromJson(client.request(ContextMediaIpc.OCR_PIXELS,input).getByteArray("result")?.toString(Charsets.UTF_8) ?: error("The image text tool returned no result"),OcrResult::class.java)
+        }finally {image.recycle()}
+    }
+    private suspend fun decodedOcr(input:Bundle,file:File):OcrResult {
+        val raster=repo.documentSandbox.ocrImage(file)
+        return ocrPixels(input,raster.bitmap,raster.scaled)
+    }
     suspend fun ocr(localFile:File,language:String="eng"):OcrResult=tracked {
         val file=this.localFile(localFile);val input=selected(ContextMediaKind.OCR,language);val hash=sourceHash(file)
-        val result=gson.fromJson(request(ContextMediaIpc.OCR,input,file).toString(Charsets.UTF_8),OcrResult::class.java)
+        val result=decodedOcr(input,file)
         check(result.width>0&&result.height>0&&result.meanConfidence.isFinite()&&result.lines.size<=512)
         result.copy(sourceSha256=hash)
     }
@@ -147,7 +157,7 @@ class ContextMediaTools(private val repo:Repository) {
         val file=this.localFile(localFile);val pack=catalog.pack(ContextMediaKind.OCR,"eng")
         val directory=store.install(pack,openBundled={name->context.assets.open("discovery-ocr/$name")})
         val hash=sourceHash(file)
-        val result=gson.fromJson(request(ContextMediaIpc.OCR,input(pack,directory),file).toString(Charsets.UTF_8),OcrResult::class.java)
+        val result=decodedOcr(input(pack,directory),file)
         check(result.width>0&&result.height>0&&result.meanConfidence.isFinite()&&result.lines.size<=512)
         result.copy(sourceSha256=hash)
     }
@@ -162,17 +172,21 @@ class ContextMediaTools(private val repo:Repository) {
         ensureEnabled();require(pageIndex>=0);val file=this.localFile(localFile);val hash=sourceHash(file)
         val pack=catalog.pack(ContextMediaKind.OCR,language);val directory=store.installed(pack)
         val ocrEnabled=preferences.getBoolean("ocr",false)&&directory!=null&&capabilities().ocrAllowed
-        val input=if(ocrEnabled)input(pack,directory!!)else Bundle()
-        input.putBoolean("ocrEnabled",ocrEnabled);input.putBoolean("allowOcr",allowOcr);input.putInt("pageIndex",pageIndex)
-        repo.ai.releaseForMedia();gson.fromJson(request(ContextMediaIpc.PDF,input,file).toString(Charsets.UTF_8),ContextPdfPageResult::class.java).copy(sourceSha256=hash)
+        val embedded=repo.documentSandbox.pdfEmbedded(file,pageIndex)
+        if(embedded.text.isNotBlank())return@tracked embedded.copy(sourceSha256=hash)
+        if(!allowOcr)return@tracked embedded.copy(sourceSha256=hash,available=false,reason="This scanned page is waiting for permission to use local image text extraction.")
+        if(!ocrEnabled)return@tracked embedded.copy(sourceSha256=hash,available=false,reason="This page needs the optional image text tool. Enable it in Context settings.")
+        repo.ai.releaseForMedia()
+        val image=repo.documentSandbox.pdfOcrPage(file,pageIndex)
+        val result=ocrPixels(input(pack,directory!!),image,true)
+        embedded.copy(text=result.text,ocr=true,uncertain=result.uncertain,truncated=result.truncated,sourceSha256=hash)
     }
     /** Embedded PDF text is ordinary document parsing, not AI.
      * The isolated worker has no network; no OCR/model is downloaded or enabled. */
     internal suspend fun pdfTextPage(localFile:File,pageIndex:Int):ContextPdfPageResult=tracked {
         require(pageIndex in 0..5)
         val file=this.localFile(localFile)
-        val input=Bundle().apply {putInt("pageIndex",pageIndex);putBoolean("ocrEnabled",false);putBoolean("allowOcr",false)}
-        gson.fromJson(request(ContextMediaIpc.PDF_TEXT,input,file).toString(Charsets.UTF_8),ContextPdfPageResult::class.java)
+        try {repo.documentSandbox.pdfText(file,pageIndex)}catch(e:CancellationException){throw e}catch(e:Exception){throw IllegalStateException("This document could not be read as a menu.",e)}
     }
 }
 

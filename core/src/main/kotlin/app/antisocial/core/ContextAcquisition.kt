@@ -61,8 +61,8 @@ internal data class ContextVideoMetadata(val videoId: String,val title: String,v
 
 /** Requested evidence only. It shares the existing source candidates/backoff,
  * never starts a heartbeat, follows article links, or claims media it has not read. */
-class ContextEvidenceReader(private val gateway: NetworkGateway,private val routes: DarwinRoutes,private val pool: SourcePool=SourcePool(gateway,routes),private val clock: ()->Long=System::currentTimeMillis) {
-    val articles=PublicArticleResolver(gateway,clock)
+class ContextEvidenceReader(private val gateway: NetworkGateway,private val routes: DarwinRoutes,private val pool: SourcePool=SourcePool(gateway,routes),private val clock: ()->Long=System::currentTimeMillis,extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}) {
+    val articles=PublicArticleResolver(gateway,clock,extract)
     private data class Cached(val at: Long,val value: ContextVideoMetadata)
     private val metadata=ConcurrentHashMap<String,Cached>()
     private data class ArticleMemo(val at:Long,val value:ContextArticleEvidence)
@@ -81,11 +81,11 @@ class ContextEvidenceReader(private val gateway: NetworkGateway,private val rout
         is ContextArticleFetch.NotModified->throw SourceFailure(HealthStatus.EMPTY,"The article source returned no new document")
         is ContextArticleFetch.PublicPdf->throw SourceFailure(HealthStatus.UNSUPPORTED,"The available public copy is a PDF")
     }
-    suspend fun articleConditional(url:String,sourceUrl:String,validators:ContextArticleValidators,knownRetrieval:String?=null):ContextArticleFetch=
+    suspend fun articleConditional(url:String,sourceUrl:String,validators:ContextArticleValidators,knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):ContextArticleFetch=
         withContext(Dispatchers.IO){
-            val policy=gateway.currentPolicy();val key="$policy|${gateway.originalFallback}|$url"
+            val policy=gateway.currentPolicy();val key="$policy|${gateway.originalFallback}|$purpose|$url"
             if(validators.etag==null&&validators.lastModified==null&&knownRetrieval==null)recentArticle(key)?.let {return@withContext ContextArticleFetch.Ready(it)}
-            articles.conditional(url,sourceUrl,validators,knownRetrieval).also {result->
+            articles.conditional(url,sourceUrl,validators,knownRetrieval,purpose).also {result->
                 if(result is ContextArticleFetch.Ready&&gateway.currentPolicy()==policy)rememberArticle(key,result.document)
             }
         }
@@ -179,13 +179,20 @@ object ContextArticles {
     private val identities by lazy {DarwinArticleRoutes()}
     const val MAX_TEXT_CHARS=240_000
     const val READING_FORMAT="markdown-blocks-v1"
-    fun extract(payload: Payload,originalUrl: String,fetchedAt: Long=System.currentTimeMillis()): ContextArticleEvidence {
+    fun extract(payload: Payload,originalUrl: String,fetchedAt: Long=System.currentTimeMillis(),readerChecks:Boolean=false): ContextArticleEvidence {
         val type=payload.contentType.substringBefore(';').trim().lowercase(Locale.ROOT)
         if(type.isNotEmpty()&&type !in setOf("text/html","application/xhtml+xml"))throw SourceFailure(HealthStatus.UNSUPPORTED,"This source is not a public HTML article")
         if(!payload.text.trimStart('\uFEFF',' ','\n','\r','\t').startsWith('<'))throw SourceFailure(HealthStatus.UNSUPPORTED,"The source did not return an HTML article")
         if(payload.text.length>4*1024*1024)throw SourceFailure(HealthStatus.UNSUPPORTED,"This article exceeds the extraction budget")
+        HtmlAdmission.check(payload.text)
         val document=Jsoup.parse(payload.text,payload.finalUrl)
         if(document.allElements.size>30_000)throw SourceFailure(HealthStatus.UNSUPPORTED,"This article exceeds the document budget")
+        if(readerChecks) {
+            val lead=(document.title()+" "+document.selectFirst("h1")?.text().orEmpty()).lowercase()
+            if(Regex("article not found|could not (?:find|retrieve)|error fetching|unsupported url|something went wrong").containsMatchIn(lead))throw SourceFailure(HealthStatus.EMPTY,"The public reader did not supply this article")
+            if(ArchiveUrls.original(payload.finalUrl)!=null||payload.finalUrl.toHttpUrlOrNull()?.host in setOf("archive.ph","archive.is","archive.today"))
+                document.select("#wm-ipp-base,#wm-ipp-print,#donato,#HEADER,#FOOTER,#DIVSHARE,.archive-toolbar").remove()
+        }
         val headline=document.title()+" "+document.select("h1").text()
         val lead=(headline+" "+document.body().text().take(800)).lowercase(Locale.ROOT)
         if(document.select("#challenge-container,#turnstile-widget-container,#anubis-main,#captcha-area,.g-recaptcha").isNotEmpty()||Regex("checking your browser|verify you are human|making sure you.re not a bot|just a moment").containsMatchIn(headline.lowercase(Locale.ROOT)))throw SourceFailure(HealthStatus.CHALLENGE,"This article requires a browser challenge")

@@ -1,9 +1,10 @@
 package app.antisocial.android
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.LruCache
 import app.antisocial.core.KeyedMutex
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
@@ -51,9 +52,15 @@ class ImageLoader(private val repo: Repository) {
         memory.get(key)?.let {observeAvailable(url);identities.observe(url,it);return@withContext it}
         keys.withKey(key) {
             memory.get(key)?.let {observeAvailable(url);identities.observe(url,it);return@withKey it}
-            val file=repo.media(url,source)
-            repo.aiMetadata.observe(url,file)
-            decode(file,edge).also {memory.put(key,it);identities.observe(url,it)}
+            val warming=async {try {repo.contentSandbox.warm()}catch(e:CancellationException){throw e}catch(_:Exception){/* The actual read owns recovery. */}}
+            try {
+                val file=repo.media(url,source)
+                repo.aiMetadata.observe(url,file)
+                // The chosen decoder owns its bind. Ordinary images join the
+                // warm worker through its mutex; AVIF/HEIF need not wait for an
+                // unrelated isolated-worker startup before their platform lane.
+                decode(file,edge).also {memory.put(key,it);identities.observe(url,it)}
+            }finally {warming.cancel()}
         }
         }finally {work.close()}
     }
@@ -74,12 +81,7 @@ class ImageLoader(private val repo: Repository) {
         }
     }
     private suspend fun decode(file: File,edge: Int): Bitmap=decoders.withPermit {
-        val bounds=BitmapFactory.Options().apply {inJustDecodeBounds=true}
-        BitmapFactory.decodeFile(file.path,bounds)
-        require(bounds.outWidth>0&&bounds.outHeight>0){"Image format is unavailable"}
-        var sample=1
-        while(maxOf(bounds.outWidth,bounds.outHeight)/sample>edge)sample*=2
-        BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply {inSampleSize=sample}) ?: error("Image could not be decoded")
+        repo.contentSandbox.image(file,edge)
     }
     fun clear(){memory.evictAll();identities.clear()}
 }

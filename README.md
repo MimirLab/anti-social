@@ -47,6 +47,10 @@ Flyer text recognition uses a small local OCR reader, independently of optional
 language models. Context is an aid to reading source material, not a guarantee
 that every useful fact will be retained.
 
+Content parsing uses bounded workers and retrieval policies. The
+[hardening guide](docs/HARDENING.md) describes the permission boundaries, platform
+codec exceptions, compatibility checks and practical limits.
+
 ## Install and update
 
 Use the APK link above on a stock, unrooted Android device running Android 8 or

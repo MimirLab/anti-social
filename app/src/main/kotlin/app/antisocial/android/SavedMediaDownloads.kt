@@ -3,7 +3,6 @@ package app.antisocial.android
 
 import android.net.ConnectivityManager
 import android.os.StatFs
-import android.graphics.BitmapFactory
 import app.antisocial.core.VideoFormats
 import app.antisocial.core.YouTubeUrls
 import kotlinx.coroutines.CancellationException
@@ -36,7 +35,7 @@ class SavedMediaDownloads(private val repo: Repository) {
             if(latest.token!=token||latest.status in terminal)continue
             val available=repo.library.assetFile(asset.url)
             if(available!=null) {
-                val invalid=SavedAssetValidation.problem(available,asset.type)
+                val invalid=SavedAssetValidation.problem(available,asset.type,repo.contentSandbox)
                 if(invalid==null)status(asset,"COMPLETE",available.length())else status(asset,"UNSUPPORTED",available.length(),invalid)
                 continue
             }
@@ -89,7 +88,7 @@ class SavedMediaDownloads(private val repo: Repository) {
                     continue
                 }
                 repo.gateway.download(stream?.media?.url ?: asset.url,stream?.sourceUrl ?: asset.sourceUrl,temp,maxBytes=limit)
-                val invalid=SavedAssetValidation.problem(temp,asset.type)
+                val invalid=SavedAssetValidation.problem(temp,asset.type,repo.contentSandbox)
                 if(invalid!=null) {
                     status(asset,"UNSUPPORTED",error=invalid)
                     continue
@@ -135,7 +134,7 @@ class SavedMediaDownloads(private val repo: Repository) {
                 val source=File(cached.path)
                 if(cached.saved||!source.isFile||source.length()>MAX_IMAGE||
                     StatFs(repo.context.filesDir.path).availableBytes-source.length()<FREE_RESERVE||
-                    SavedAssetValidation.problem(source,"image")!=null)return@withLock false
+                    SavedAssetValidation.problem(source,"image",repo.contentSandbox)!=null)return@withLock false
                 temp.parentFile?.mkdirs();source.copyTo(temp,true);true
             }
             if(!copied)null else {
@@ -190,12 +189,11 @@ class SavedMediaDownloads(private val repo: Repository) {
 /** A successful HTTP response is not proof of an image or playable media. */
 internal object SavedAssetValidation {
     /** Null means a recognized media container; it does not promise a codec is supported. */
-    fun problem(file: File,type: String): String? {
+    suspend fun problem(file: File,type: String,sandbox:ContentSandbox): String? {
         if(!file.isFile||file.length()==0L)return "The source returned empty media."
         if(type=="image") {
-            val bounds=BitmapFactory.Options().apply {inJustDecodeBounds=true}
-            BitmapFactory.decodeFile(file.path,bounds)
-            return if(bounds.outWidth>0&&bounds.outHeight>0)null else "The source did not return a supported image."
+            val bounds=try {sandbox.imageBounds(file)}catch(e:CancellationException){throw e}catch(_:Exception){return "The source did not return a supported image."}
+            return if(bounds.first>0&&bounds.second>0)null else "The source did not return a supported image."
         }
         val bytes=file.inputStream().use {input->val buffer=ByteArray(2048);val count=input.read(buffer);if(count<0)ByteArray(0)else buffer.copyOf(count)}
         val text=String(bytes,Charsets.UTF_8).trimStart('\uFEFF',' ','\t','\r','\n')

@@ -57,7 +57,7 @@ object Extraction {
         val body=payload.text.trim()
         val page=when {
             actual.frontend=="bing-rss" -> PublicSearchAdapter.rss(body,target,routes,publicSearchEntitiesOnly)
-            actual.frontend=="duckduckgo" -> PublicSearchAdapter.duckDuckGo(Jsoup.parse(body,payload.finalUrl),target,routes,publicSearchQuery ?: PublicSearchAdapter.query(target),publicSearchEntitiesOnly)
+            actual.frontend=="duckduckgo" -> {HtmlAdmission.check(body);PublicSearchAdapter.duckDuckGo(Jsoup.parse(body,payload.finalUrl),target,routes,publicSearchQuery ?: PublicSearchAdapter.query(target),publicSearchEntitiesOnly)}
             body.startsWith("{") || body.startsWith("[") -> json(JsonParser.parseString(body),target,provenance,routes)
             body.startsWith("<?xml") || payload.contentType.contains("xml",true)&&!payload.contentType.contains("xhtml",true) || Regex("^<(?:[a-z0-9_]+:)?(rss|feed)(?:\\s|>)",RegexOption.IGNORE_CASE).containsMatchIn(body) -> rss(body,target,provenance,routes)
             else -> html(body,target,provenance,routes,publicSearchQuery,publicSearchEntitiesOnly)
@@ -75,6 +75,7 @@ object Extraction {
         // This parser does not resolve external resources. Reject declarations as
         // well, independent of Android's unsupported JAXP security-feature flags.
         if(body.contains('\u0000')||Regex("<!\\s*(?:DOCTYPE|ENTITY)\\b",RegexOption.IGNORE_CASE).containsMatchIn(body))throw SourceFailure(HealthStatus.UNSUPPORTED,"Feed declarations and external entities are not supported")
+        HtmlAdmission.check(body)
         val document=Jsoup.parse(body,provenance.finalUrl,Parser.xmlParser())
         fun local(element: Element)=element.normalName().substringAfter(':')
         val items=document.getAllElements().filter {local(it)=="item"}
@@ -296,6 +297,7 @@ object Extraction {
         return Page(StructuredAiMetadata.mergeExactPosts(posts).map {post->post.copy(parentId=identities[post.parentId] ?: post.parentId)},next,profile,accounts=accounts)
     }
     fun html(body: String, target: Target, provenance: Provenance, routes: DarwinRoutes,publicSearchQuery: String?=null,publicSearchEntitiesOnly: Boolean=false): Page {
+        HtmlAdmission.check(body)
         val d=Jsoup.parse(body,provenance.finalUrl)
         d.selectFirst(".disabled-feature")?.let {node->throw SourceFailure(HealthStatus.UNSUPPORTED,node.selectFirst("h1,h2")?.text().orEmpty().ifBlank {"This feature is disabled on this source"})}
         val head=d.title()+" "+d.body().text().take(800)

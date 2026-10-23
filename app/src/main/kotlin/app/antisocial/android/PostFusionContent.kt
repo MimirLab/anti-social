@@ -1,6 +1,8 @@
 /* AntiSocial, GPL-3.0-or-later. Darwin remains the routing donor. */
 package app.antisocial.android
 
+import app.antisocial.core.IdentityDisplay
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -131,7 +133,7 @@ internal fun postDetailSections(caption: Post,fusion: PostFusion?,roots: List<Po
                     Spacer(Modifier.width(8.dp))
                     val account=repo?.routes?.recognize(link)?.takeIf {it.kind==app.antisocial.core.TargetKind.PROFILE}
                     if(account!=null)MentionText(account.identity,repo,account.platform,account.canonicalUrl,accountLabel=true,networkAllowed=networkAllowed,maxLines=1,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.primary)
-                    else Text(link.removePrefix("https://"),maxLines=1,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.primary)
+                    else Text(IdentityDisplay.destination(link).removePrefix("https://"),maxLines=1,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.primary)
                 }
             }
         }

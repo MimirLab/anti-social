@@ -3,6 +3,7 @@
     <uses-sdk tools:overrideLibrary="org.contentauth.c2pa" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" tools:node="remove" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -12,6 +13,9 @@
     <!-- NetworkGateway rejects HTTP globally except an explicitly configured
          numeric local AI server; Android must allow that narrow user choice. -->
     <application android:name=".AntiSocialApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="false" android:usesCleartextTraffic="true" android:theme="@style/Theme.AntiSocial" android:supportsRtl="true">
+        <service android:name=".PlatformImageService" android:process=":platform_images" android:exported="false" />
+        <service android:name=".DocumentSandboxService" android:process=":document_sandbox" android:isolatedProcess="true" android:exported="false" />
+        <service android:name=".ContentSandboxService" android:process=":content_sandbox" android:isolatedProcess="true" android:exported="false" />
         <service android:name=".LocalAiService" android:process=":local_ai" android:exported="false" />
         <service android:name=".ContextMediaService" android:process=":context_media" android:exported="false" />
         <service android:name=".LanguageService" android:process=":languages" android:exported="false" />

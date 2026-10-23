@@ -1,8 +1,6 @@
 /* AntiSocial, GPL-3.0-or-later. Shared Darwin public-source acquisition; native reader. */
 package app.antisocial.android
 
-import android.graphics.pdf.PdfRenderer
-import android.os.ParcelFileDescriptor
 import app.antisocial.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +12,7 @@ internal data class ArticleReadingState(val url:String,val loading:Boolean=true,
 internal class ArticleReaderController(internal val repo:Repository,private val scope:CoroutineScope) {
     val state=MutableStateFlow<ArticleReadingState?>(null)
     private val routes=DarwinArticleRoutes()
-    internal var fetch:suspend (String)->ContextArticleFetch={repo.evidenceReader.articleConditional(it,it,ContextArticleValidators())}
+    internal var fetch:suspend (String)->ContextArticleFetch={repo.evidenceReader.articleConditional(it,it,ContextArticleValidators(),purpose=FetchPurpose.DELIBERATE)}
     internal var pdfLoad:suspend (ContextArticleFetch.PublicPdf)->Pair<File,Int> = {loadPdf(it)}
     private var job:Job?=null
     private val recent=linkedMapOf<String,Pair<Long,ContextArticleEvidence>>()
@@ -60,9 +58,9 @@ internal class ArticleReaderController(internal val repo:Repository,private val 
         check(directory.usableSpace>=256L*1024*1024){"Storage is low"}
         try {
             if(!file.isFile||file.length()==0L||file.length()>cache.maxFileBytes||now-file.lastModified() !in 0..15*60_000L) {
-                repo.gateway.download(result.url,result.url,file,type="document",maxBytes=cache.maxFileBytes)
+                repo.gateway.download(result.url,result.url,file,type="document",maxBytes=cache.maxFileBytes,purpose=FetchPurpose.DELIBERATE)
             }
-            val pages=ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {fd->PdfRenderer(fd).use {it.pageCount}}
+            val pages=repo.contentSandbox.pdfCount(file)
             require(pages in 1..2000){"This document has too many pages for the reader"}
             file.setLastModified(now)
             return file to pages

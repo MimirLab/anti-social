@@ -1,0 +1,3 @@
+RE2/J 1.8: Google and contributors, BSD-3-Clause. https://github.com/google/re2j/tree/re2j-1.8
+Unicode 18.0.0 confusables subset: Unicode, Inc., Unicode-3.0. https://unicode.org/Public/security/latest/confusables.txt
+The displayed observation is limited to mixed Latin/Greek/Cyrillic lookalikes, not a general identity or authenticity verdict.

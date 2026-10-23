@@ -66,7 +66,7 @@ internal class LocalMenuReader(private val repo:Repository) {
         check(dir.usableSpace>128L*1024*1024){"Storage is low"}
         val file=synchronized(activeFiles){File.createTempFile("menu-",".pdf",dir).also {activeFiles+=it.path}}
         try {
-            repo.gateway.download(url,source.discoveredFrom ?: source.url,file,type="document",maxBytes=4L*1024*1024)
+            repo.gateway.download(url,source.discoveredFrom ?: source.url,file,type="document",maxBytes=4L*1024*1024,purpose=FetchPurpose.SUPPLEMENTAL)
             val magic=file.inputStream().use {input->val bytes=ByteArray(5);if(input.read(bytes)==5)bytes.toString(Charsets.US_ASCII)else ""}
             require(magic=="%PDF-"){"This menu did not provide a PDF document"}
             val digest=MessageDigest.getInstance("SHA-256");file.inputStream().use {input->val chunk=ByteArray(16384);while(true){currentCoroutineContext().ensureActive();val n=input.read(chunk);if(n<0)break;digest.update(chunk,0,n)}}

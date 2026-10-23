@@ -46,6 +46,7 @@ object LocalStructuredData {
         html("<script type=\"application/ld+json\">"+body.replace("</","<\\/")+"</script>",url,at,area,business)
     fun html(body:String,url:String,at:Long,area:LocalArea?=null,business:LocalBusiness?=null):LocalExtraction {
         require(body.length<=MAX_DOCUMENT){"This page exceeds the local discovery allowance"}
+        HtmlAdmission.check(body)
         val xml=Regex("(?is)^\\s*(?:<\\?xml[^>]*>\\s*)?<(?:rss|feed)(?:\\s|>)").containsMatchIn(body)
         val page=Jsoup.parse(body,url,if(xml)Parser.xmlParser()else Parser.htmlParser())
         val records=mutableListOf<JsonObject>();var nodes=0

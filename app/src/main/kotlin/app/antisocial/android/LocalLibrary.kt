@@ -151,7 +151,7 @@ class LocalLibrary(private val repo: Repository) {
                         detail=SavedCopyDetails(UUID.randomUUID().toString(),row.savedAt,selectedAssets=local)
                         dao.putSavedDetail(SavedDetailRow(row.key,gson.toJson(detail)))
                         local.forEach {a->
-                            val file=assetFile(a.url);val problem=file?.let {SavedAssetValidation.problem(it,a.type)}
+                            val file=assetFile(a.url);val problem=file?.let {SavedAssetValidation.problem(it,a.type,repo.contentSandbox)}
                             dao.putSavedAsset(SavedAssetRow(row.key,a.key,detail.token,a.url,a.sourceUrl,a.type,if(problem==null)"COMPLETE"else "UNSUPPORTED",file?.length() ?: 0,problem,row.savedAt))
                         }
                     }
@@ -200,7 +200,7 @@ class LocalLibrary(private val repo: Repository) {
                 dao.putSavedDetail(SavedDetailRow(owner,json));dao.deleteSavedAssets(owner)
                 for(a in assets) {
                     val file=assetFile(a.url)
-                    val problem=file?.let {SavedAssetValidation.problem(it,a.type)}
+                    val problem=file?.let {SavedAssetValidation.problem(it,a.type,repo.contentSandbox)}
                     dao.putSavedAsset(SavedAssetRow(owner,a.key,token,a.url,a.sourceUrl,a.type,if(file==null)"QUEUED"else if(problem==null)"COMPLETE"else "UNSUPPORTED",file?.length() ?: 0,problem,now))
                 }
                 dao.setCollectionLinks(owner,validCollections)

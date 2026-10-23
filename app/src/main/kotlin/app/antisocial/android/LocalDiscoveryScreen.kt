@@ -185,7 +185,7 @@ import java.time.format.DateTimeFormatter
             value.phones.distinctBy {LocalBusinessContact.phoneKey(it) ?: it}.take(3).forEach {phone->val dial=LocalBusinessContact.phone(phone)
                 BusinessContactRow(Icons.Rounded.Call,"Phone",LocalBusinessContact.displayPhone(phone,area?.countryCode),if(dial==null)null else ({contact(android.content.Intent.ACTION_DIAL,"tel:$dial")}))}
             value.emails.orEmpty().mapNotNull(LocalBusinessContact::email).distinct().take(3).forEach {email->BusinessContactRow(Icons.Rounded.Email,"Email",email){contact(android.content.Intent.ACTION_SENDTO,"mailto:$email")}}
-            value.websites.sortedBy {LocalBusinessDetails.websitePriority(value,it)}.distinctBy {runCatching {java.net.URI(it).host.removePrefix("www.")}.getOrDefault(it)}.take(3).forEachIndexed {i,url->BusinessContactRow(Icons.Rounded.Language,if(LocalBusinessDetails.directorySite(value,url))"Directory entry"else if(i==0)"Website"else "Related website",runCatching {java.net.URI(url).host.removePrefix("www.")}.getOrDefault(url),onClick={onRead(url)})}
+            value.websites.sortedBy {LocalBusinessDetails.websitePriority(value,it)}.distinctBy {runCatching {java.net.URI(it).host.removePrefix("www.")}.getOrDefault(it)}.take(3).forEachIndexed {i,url->BusinessContactRow(Icons.Rounded.Language,if(LocalBusinessDetails.directorySite(value,url))"Directory entry"else if(i==0)"Website"else "Related website",IdentityDisplay.domain(url).removePrefix("www."),onClick={onRead(url)})}
         }}
         val facts=LocalBusinessDetails.facts(value)
         val resources=facts.filter {it.field in LocalBusinessDetails.links&&LocalDiscoveryIdentity.url(it.value)!=null}.distinctBy {it.field+it.value}.take(8)
@@ -239,7 +239,7 @@ import java.time.format.DateTimeFormatter
         fields.filter {it.kind in setOf(LocalEvidenceKind.PUBLIC_POST,LocalEvidenceKind.POSTER)}.map {it.excerpt}.filter(String::isNotBlank).distinct().take(5).forEach {Text(it,fontSize=12.sp)}
         fields.mapNotNull {it.region?.imageUrl}.distinct().forEach {image->if(onImage!=null)TextButton(onClick={onImage(image,url)}){Text("Inspect source flyer")}}
         fields.mapNotNull {it.license}.distinct().forEach {Text(it,fontSize=11.sp)}
-        TextButton(onClick={onOpen(url)}){Text(runCatching {java.net.URI(url).host}.getOrNull() ?: "Source",maxLines=1,overflow=TextOverflow.Ellipsis)}
+        TextButton(onClick={onOpen(url)}){Text(IdentityDisplay.domain(url),maxLines=1,overflow=TextOverflow.Ellipsis)}
     }}
 }
 internal fun eventTime(event:LocalEvent,area:LocalArea?):String {

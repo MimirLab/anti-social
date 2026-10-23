@@ -32,7 +32,7 @@ internal object ContextMediaNative {
     @JvmStatic external fun transcribe(pcmPath:String,id:String):ByteArray
     @JvmStatic external fun release()
 }
-internal object ContextMediaIpc {const val PREPARE=1;const val OCR=2;const val SPEECH=3;const val PDF=4;const val CANCEL=5;const val RELEASE=6;const val PDF_TEXT=7}
+internal object ContextMediaIpc {const val PREPARE=1;const val OCR=2;const val SPEECH=3;const val PDF=4;const val CANCEL=5;const val RELEASE=6;const val PDF_TEXT=7;const val OCR_PIXELS=8}
 
 /** No Repository, networking client, listening socket, or remote fallback lives
  * in this process. The app passes read-only local descriptors and verified data. */
@@ -229,9 +229,13 @@ class ContextMediaService:Service() {
                             finally {image.recycle()}
                         }
                     }
-                    ContextMediaIpc.OCR->descriptor(input).use {fd->prepare(input);val(image,scaled)=bitmap(fd.fileDescriptor);try {ensureActive();result.putByteArray("result",gson.toJson(readBitmap(input,image,key,scaled)).toByteArray())}finally {image.recycle()}}
-                    ContextMediaIpc.PDF->descriptor(input).use {fd->result.putByteArray("result",gson.toJson(pdf(input,fd.fileDescriptor,key)).toByteArray())}
-                    ContextMediaIpc.PDF_TEXT->descriptor(input).use {fd->result.putByteArray("result",gson.toJson(menuPdfText(input,fd.fileDescriptor,key)).toByteArray())}
+                    ContextMediaIpc.OCR_PIXELS->{
+                        @Suppress("DEPRECATION") val image=input.getParcelable<Bitmap>("bitmap") ?: error("Decoded pixels unavailable")
+                        try {require(image.width>0&&image.height>0&&image.width.toLong()*image.height<=ContentWire.MAX_PIXELS);prepare(input);ensureActive();result.putByteArray("result",gson.toJson(readBitmap(input,image,key,input.getBoolean("scaled"))).toByteArray())}finally {image.recycle()}
+                    }
+                    ContextMediaIpc.OCR->descriptor(input).use {fd->check(BuildConfig.DEBUG){"Compressed input requires the isolated decoder"};prepare(input);val(image,scaled)=bitmap(fd.fileDescriptor);try {ensureActive();result.putByteArray("result",gson.toJson(readBitmap(input,image,key,scaled)).toByteArray())}finally {image.recycle()}}
+                    ContextMediaIpc.PDF->descriptor(input).use {fd->check(BuildConfig.DEBUG){"PDF input requires the isolated decoder"};result.putByteArray("result",gson.toJson(pdf(input,fd.fileDescriptor,key)).toByteArray())}
+                    ContextMediaIpc.PDF_TEXT->descriptor(input).use {fd->check(BuildConfig.DEBUG){"PDF input requires the isolated decoder"};result.putByteArray("result",gson.toJson(menuPdfText(input,fd.fileDescriptor,key)).toByteArray())}
                     ContextMediaIpc.SPEECH->descriptor(input).use {fd->
                         prepare(input);val decoded=decode(fd.fileDescriptor,input,key)
                         try {ensureActive();val raw=ContextMediaWire.transcript(ContextMediaNative.transcribe(decoded.file.path,key))

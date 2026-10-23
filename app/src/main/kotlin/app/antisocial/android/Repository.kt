@@ -38,12 +38,15 @@ class AntiSocialApplication: Application() {
     lateinit var repo: Repository;private set
     override fun onCreate() {
         super.onCreate()
-        val process=if(android.os.Build.VERSION.SDK_INT>=28)getProcessName()else
-            getSystemService(android.app.ActivityManager::class.java).runningAppProcesses?.firstOrNull {it.pid==android.os.Process.myPid()}?.processName
-        if(process==null||process==packageName)repo=Repository(this)
+        if(android.os.Build.VERSION.SDK_INT>=28&&android.os.Process.isIsolated())return
+        val process=runCatching {if(android.os.Build.VERSION.SDK_INT>=28)getProcessName()else
+            getSystemService(android.app.ActivityManager::class.java).runningAppProcesses?.firstOrNull {it.pid==android.os.Process.myPid()}?.processName}.getOrNull()
+        if(process==packageName)repo=Repository(this)
     }
 }
 class Repository(val context: Context) {
+    internal val documentSandbox by lazy {ContentSandbox(context.applicationContext,DocumentSandboxService::class.java)}
+    internal val contentSandbox by lazy {ContentSandbox(context.applicationContext)}
     val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
     val gson=Gson()
     val prefs=Preferences(context)
@@ -54,7 +57,7 @@ class Repository(val context: Context) {
     private fun assetJson(name: String)=context.assets.open(name).bufferedReader().use { JsonParser.parseReader(it).asJsonObject }
     val cleaner=UrlCleaner(assetJson("clean-links.json"))
     val routes=DarwinRoutes(assetJson("darwin-routes.json"),cleaner)
-    val evidenceReader by lazy {ContextEvidenceReader(gateway,routes,pool)}
+    val evidenceReader by lazy {ContextEvidenceReader(gateway,routes,pool,extract=documentSandbox::article)}
     private val sourceRecordStore=lazy {SourceRecordStore(this)}
     internal val sourceRecords get()=sourceRecordStore.value
     internal val articleReadingCache:ArticleReadingCache by lazy {ArticleReadingCache(File(context.cacheDir,"article-reading"),
@@ -829,6 +832,7 @@ class Repository(val context: Context) {
         if(accountCacheStore.isInitialized())accountDiscoveryCache.cleanup(clearAll)
         articleReadingCache.cleanup(clearAll)
         LocalMenuReader.cleanup(context.cacheDir,clearAll)
+        ContentSandbox.cleanup(context.cacheDir,clearAll)
         if(clearAll)evidenceReader.clearArticleMemory()
         if(sourceRecordStore.isInitialized())sourceRecords.cleanup(clearAll)
         mediaInfo.cleanup(clearAll)
@@ -901,7 +905,7 @@ class Repository(val context: Context) {
                 details.forEach {row->
                     dao.putSavedDetail(row);dao.deleteSavedAssets(row.key)
                     val detail=gson.fromJson(row.payload,SavedCopyDetails::class.java)
-                    detail.selectedAssets.forEach {a->val file=savedMedia(a.url);val problem=file?.let {SavedAssetValidation.problem(it,a.type)};dao.putSavedAsset(SavedAssetRow(row.key,a.key,detail.token,a.url,a.sourceUrl,a.type,if(file==null)"MISSING"else if(problem==null)"COMPLETE"else "UNSUPPORTED",file?.length() ?: 0,problem ?: if(file==null)"Media files are not included in text backups"else null,System.currentTimeMillis()))}
+                    detail.selectedAssets.forEach {a->val file=savedMedia(a.url);val problem=file?.let {SavedAssetValidation.problem(it,a.type,contentSandbox)};dao.putSavedAsset(SavedAssetRow(row.key,a.key,detail.token,a.url,a.sourceUrl,a.type,if(file==null)"MISSING"else if(problem==null)"COMPLETE"else "UNSUPPORTED",file?.length() ?: 0,problem ?: if(file==null)"Media files are not included in text backups"else null,System.currentTimeMillis()))}
                 }
                 backup.bookmarks.forEach {row->dao.setCollectionLinks(row.key,links.filter {it.ownerKey==row.key}.map {it.collectionId})}
                 retained.forEach {r->dao.putRetainedHistory(r.copy(bytes=r.payload.toByteArray().size.toLong()));dao.deleteDocuments(r.key,"history")}

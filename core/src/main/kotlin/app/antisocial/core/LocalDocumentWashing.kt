@@ -19,6 +19,7 @@ object LocalDocumentWashing {
     }
     fun extract(payload:Payload,at:Long,area:LocalArea,business:LocalBusiness?=null,menuSource:Boolean=false,menuBranch:Boolean=false):LocalExtraction {
         require(payload.text.length<=LocalStructuredData.MAX_DOCUMENT)
+        HtmlAdmission.check(payload.text)
         // Readability is an in-memory parser. Its Markdown has no executable
         // HTML, widgets, image fetches or browser state. No .md/HTML temporary
         // file is created, retained, or left behind by a background reader.

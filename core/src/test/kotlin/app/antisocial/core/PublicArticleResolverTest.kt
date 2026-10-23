@@ -17,7 +17,7 @@ class PublicArticleResolverTest {
         val calls=mutableListOf<Call>()
         var documents:(Call)->GatewayDocument={GatewayDocument(503,"unavailable",emptyMap(),"",it.url)}
         var indexes:(String)->String={if(it.startsWith("https://web.archive.org"))"[[\"timestamp\",\"original\"]]"else "<title>No results</title>"}
-        override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean):GatewayDocument {
+        override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose):GatewayDocument {
             val c=Call(url,headers,head,strict);calls+=c;return documents(c)
         }
         override suspend fun index(url:String,source:String,origins:Set<String>):Payload {calls+=Call(url);return Payload(indexes(url),url,"application/json",200)}

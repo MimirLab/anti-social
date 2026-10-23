@@ -144,11 +144,13 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         return filteredDestination(request,sourceUrl,"document").toString()
     }
     private fun filteredDestination(request:Request,source:String,type:String):HttpUrl {
+        if(request.tag(FetchPurpose::class.java)==FetchPurpose.SUPPLEMENTAL&&(request.method !in setOf("GET","HEAD")||!AutomaticLinks.mayRead(request.url)))throw IOException("Action links require deliberate opening")
         var value=request.url.toString()
         val engine=filter.get()
         repeat(9) {
             val url=cleaner.clean(value).toHttpUrlOrNull() ?: throw IOException("Invalid destination")
             validate(url,request);restrict(request,url)
+            if(request.tag(FetchPurpose::class.java)==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(url))throw IOException("Action links require deliberate opening")
             val decision=engine.check(url.toString(),source,type)
             checkedRequests.incrementAndGet()
             if(decision.blocked){blockedRequests.incrementAndGet();onBlocked(url.host,decision.reason);throw IOException("Blocked by privacy filters: ${url.host}")}
@@ -293,12 +295,12 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         require(request.url.query==null){"Connection preparation must not contain a query"}
         execute(request,10_000){it.code}
     }
-    suspend fun text(url: String, sourceUrl: String=url, type: String="xmlhttprequest", maxBytes: Long=4L*1024*1024, headers: Map<String,String> = emptyMap(), route: NetworkRoute=NetworkRoute.DEFAULT,allowedOrigins: Set<String>?=null): Payload = withContext(Dispatchers.IO) {
+    suspend fun text(url: String, sourceUrl: String=url, type: String="xmlhttprequest", maxBytes: Long=4L*1024*1024, headers: Map<String,String> = emptyMap(), route: NetworkRoute=NetworkRoute.DEFAULT,allowedOrigins: Set<String>?=null,purpose:FetchPurpose=FetchPurpose.API): Payload = withContext(Dispatchers.IO) {
         val pinned=allowedOrigins?.let {values->
             require(values.isNotEmpty()&&values.size<=4){"Invalid archive origin scope"}
             AllowedOrigins(values.map {value->val parsed=value.toHttpUrlOrNull() ?: error("Invalid archive origin");require(parsed.isHttps||allowHttpForTests);origin(parsed)}.toSet(),if(values.any {searchHost(it.toHttpUrlOrNull()?.host.orEmpty())})"search source"else "archive")
         } ?: requestOrigins(sourceUrl)
-        val request=Request.Builder().url(url).tag(AllowedOrigins::class.java,pinned).tag(NetworkRoute::class.java,route).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).apply { headers.forEach { (k,v)->header(k,v) } }.build()
+        val request=Request.Builder().url(url).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,pinned).tag(NetworkRoute::class.java,route).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).apply { headers.forEach { (k,v)->header(k,v) } }.build()
         readText(request,maxBytes)
     }
     /** NewPipe's synchronous parsers receive bounded documents through this
@@ -310,7 +312,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         val request=Request.Builder().url(parsed).tag(AllowedOrigins::class.java,pinned).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).build()
         readText(request,maxBytes)
     }
-    suspend fun extractorDocument(url: String,method: String="GET",data: ByteArray?=null,headers: Map<String,String> = emptyMap(),sourceUrl: String=url,sameOrigin: Boolean=false,maxBytes:Long=8L*1024*1024,route:NetworkRoute=NetworkRoute.DEFAULT): GatewayDocument=withContext(Dispatchers.IO) {
+    suspend fun extractorDocument(url: String,method: String="GET",data: ByteArray?=null,headers: Map<String,String> = emptyMap(),sourceUrl: String=url,sameOrigin: Boolean=false,maxBytes:Long=8L*1024*1024,route:NetworkRoute=NetworkRoute.DEFAULT,purpose:FetchPurpose=FetchPurpose.API): GatewayDocument=withContext(Dispatchers.IO) {
         require(maxBytes in 1..8L*1024*1024){"Invalid extraction allowance"}
         require(method in setOf("GET","HEAD","POST")) {"Unsupported extraction method"}
         require(data==null||data.size<=1024*1024) {"Extraction request exceeds its size limit"}
@@ -318,7 +320,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         require(method!="POST"||content.substringBefore(';') in setOf("application/json","application/x-www-form-urlencoded")) {"Unsupported extraction request"}
         val budget=kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]
         val pinned=if(sameOrigin)AllowedOrigins(setOf(origin(url.toHttpUrlOrNull() ?: error("Invalid extraction URL"))),"context")else requestOrigins(sourceUrl)
-        val request=Request.Builder().url(url).tag(NetworkRoute::class.java,route).tag(AllowedOrigins::class.java,pinned).tag(PublicExtractor::class.java,PublicExtractor()).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).tag(TextReadBudget::class.java,budget).apply {
+        val request=Request.Builder().url(url).tag(NetworkRoute::class.java,route).tag(AllowedOrigins::class.java,pinned).tag(FetchPurpose::class.java,purpose).tag(PublicExtractor::class.java,PublicExtractor()).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).tag(TextReadBudget::class.java,budget).apply {
             headers.forEach {(key,value)->if(!key.equals("Cookie",true)&&!key.equals("Authorization",true))header(key,value)}
             method(method,if(method=="POST")(data ?: ByteArray(0)).toRequestBody(content.toMediaType())else null)
         }.build()
@@ -559,9 +561,9 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             withContext(kotlinx.coroutines.NonCancellable) {drained.await()}
         }
     }
-    suspend fun download(url: String, sourceUrl: String, file: java.io.File, type: String="media", maxBytes: Long=256L*1024*1024): Long = withContext(Dispatchers.IO) {
+    suspend fun download(url: String, sourceUrl: String, file: java.io.File, type: String="media", maxBytes: Long=256L*1024*1024,purpose:FetchPurpose=FetchPurpose.MEDIA): Long = withContext(Dispatchers.IO) {
         withTimeout(if(currentPolicy().tor)600_000L else 300_000L) {
-        execute(Request.Builder().url(url).tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).build()) { response ->
+        execute(Request.Builder().url(url).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).build()) { response ->
             if(!response.isSuccessful)throw IOException("Download returned ${response.code}")
             val body=response.body ?: throw IOException("Empty media")
             if(body.contentLength()>maxBytes)throw IOException("Download exceeds its size limit")

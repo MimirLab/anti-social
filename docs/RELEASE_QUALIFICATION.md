@@ -120,3 +120,57 @@ Native Android shows one card with all three platform controls and loads all
 three fixture discussion roots. This does not claim that Instagram's public
 comment service is available. Physical-phone qualification and the official
 Latest release gate above remain open.
+
+
+## 0.36.1: hostile-content boundaries
+
+This increment adds permissionless descriptor-based image/PDF/article workers,
+bounded responses and killable deadlines, supplemental-link purpose checks,
+pre-DOM admission, qualified RE2/J link cleaning, and narrow identity/clipboard/
+credential controls. See [the boundary guide](HARDENING.md) for coverage and the
+HEIF/AVIF compatibility exception. Stock Android and existing signing identity
+are retained. No reader database migration is introduced.
+
+The implementation qualification on October 23, 2026 records:
+
+- **1,798 JVM cases**, zero failures, one optional model-weight skip.
+- Six API 35 regression batches: **425 passed, seven optional skips**, zero
+  failures. After the final parser/output/cleaner refinements, feed (64), Context
+  (147 plus three skips), and privacy (40 plus one skip) were repeated and passed.
+- Final API 35 boundary/reader/menu/saved-media/OCR/optional-AI batch: **70 passed**.
+  Final API 26 boundary/article/menu/native-controls batch: **33 passed**.
+  These overlap the broader journeys; the counts are not distinct-user totals.
+- Actual isolated UID, denied network/private-file access, read-only descriptors,
+  worker stalls/cancellation/recovery, hostile output, staging cleanup, transparent
+  and wide/custom-color pictures, and ordinary extracted text are checked.
+  AVIF interpretation matches the original decoder on API 35. GIF and BMP match
+  on API 26 and API 35. The HEIC fixture is unsupported by the original platform
+  decoder on both emulators; this is not a claim of successful HEIC decoding.
+- Native identity, article, menu and feed screens were inspected. Optional live
+  services and physical-phone performance/battery/GPU behavior remain unverified.
+
+Private raw receipts and recovery backups are kept in `LiberBuild/evidence/hardening-v1`.
+
+Release lint caught `Os.fcntlInt` being public only from API 30, despite the
+older emulator executing it. Admission now uses that public API only on API 30+;
+older Android uses public `fstat` and a zero-byte write probe. Tests check read-only,
+read/write and write-only descriptors and unchanged bytes/offsets on both APIs.
+Production release lint passes with zero errors, 177 warnings and one hint.
+Including matching release instrumentation reports three additional existing
+fixture warnings (180 total); warnings remain.
+
+One batch run during concurrent release compilation and a second emulator had
+an AVIF pixel mismatch and a menu visibility assertion failure (68 passes/two
+failures). Both cases passed individually. The entire 70-case batch then passed
+with builds/second emulator stopped, followed by four additional format-test
+passes. These observations do not establish the cause of the transient failures;
+the failed report and reruns are retained. Physical-phone behavior remains unverified.
+
+The non-debuggable shipping APK passed a separate native selection: **48 passed,
+one optional live-network skip, zero failures**. It covers branding/bridges,
+Library/status, filters/privacy, article/menu/announcement/native-control journeys
+and ten release-compatible descriptor/pixel/PDF/article cases. Instrumentation
+was compiled with `-PantisocialTestBuildType=release` against the actual release
+ABI. Debug instrumentation's Kotlin internal names do not match release; that
+harness mismatch is not an app-path failure. Deliberate PROBE/STALL operations
+remain disabled in release and are exercised only in the debug boundary batch.

@@ -99,7 +99,7 @@ import kotlinx.coroutines.*
                 val installed=if(kind==AiKind.TEXT)state.textInstalled!=null else state.embeddingInstalled!=null
                 Text(if(kind==AiKind.TEXT)state.textRoute else state.embeddingRoute,fontSize=12.sp,lineHeight=18.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=5)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick={try {manager.download(kind)}catch(e: Exception){error=e.message}},enabled=!state.working&&manager.localSupported,modifier=Modifier.testTag("Download selected AI model")){Text(if(installed)"Install selected"else "Download")}
+                    OutlinedButton(onClick={try {manager.download(kind)}catch(e: Exception){error=e.message}},enabled=!state.working&&manager.localSupported,modifier=Modifier.rejectObscuredTouches().testTag("Download selected AI model")){Text(if(installed)"Install selected"else "Download")}
                     if(installed)TextButton(onClick={work {manager.remove(kind)}},enabled=!state.working,modifier=Modifier.testTag("Remove selected AI model")){Text("Remove")}
                 }
                 if(installed)TextButton(onClick={work {manager.checkSetup(kind)}},enabled=!state.working,modifier=Modifier.testTag("Check selected AI model")){Text("Check this model")}
@@ -108,7 +108,7 @@ import kotlinx.coroutines.*
                     Text(if(state.engineInstalled)"Text engine · ${aiBytes(state.engineBytes)}"else "Text engine · not installed",fontSize=13.sp,modifier=Modifier.testTag("Local text engine status"))
                     Text("A compact installer stays in the app. Setup restores our exact custom engine; temporary upstream files are then deleted.",fontSize=12.sp,lineHeight=18.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     if(state.engineInstalled)TextButton(onClick={work {manager.removeEngine()}},enabled=!state.working,modifier=Modifier.testTag("Remove local text engine")){Text("Remove engine · keep models")}
-                    else if(installed)TextButton(onClick={work {manager.installEngine()}},enabled=!state.working,modifier=Modifier.testTag("Install local text engine")){Text("Install engine")}
+                    else if(installed)TextButton(onClick={work {manager.installEngine()}},enabled=!state.working,modifier=Modifier.rejectObscuredTouches().testTag("Install local text engine")){Text("Install engine")}
                 }
             }}}
             item {AiCard {Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -176,6 +176,7 @@ import kotlinx.coroutines.*
     var enabled by remember {mutableStateOf(current.enabled)}
     val custom=current.preset==AiProviderPreset.CUSTOM
     AlertDialog(onDismissRequest=onDismiss,title={Text(current.displayName)},text={
+        SensitiveInteraction()
         Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("Your ${if(kind==AiKind.TEXT)"text"else "embedding"} model",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(custom) {
@@ -191,7 +192,7 @@ import kotlinx.coroutines.*
             }
             OutlinedTextField(url,{url=it},readOnly=!custom,label={Text("API base URL")},placeholder={Text(if(server)"http://192.168.1.10:1234/v1"else "https://provider.example/v1")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("AI provider URL"))
             OutlinedTextField(model,{model=it},label={Text("Model ID")},supportingText={Text("Choose a model available to your account.")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("AI provider model name"))
-            OutlinedTextField(key,{key=it;removeKey=false},label={Text(if(current.hasKey)"Replace saved API key (optional)"else "API key (if required)")},visualTransformation=PasswordVisualTransformation(),singleLine=true,modifier=Modifier.fillMaxWidth().testTag("AI provider API key"))
+            OutlinedTextField(key,{key=it;removeKey=false},label={Text(if(current.hasKey)"Replace saved API key (optional)"else "API key (if required)")},visualTransformation=PasswordVisualTransformation(),singleLine=true,modifier=Modifier.fillMaxWidth().rejectObscuredTouches().testTag("AI provider API key"))
             if(current.hasKey)TextButton(onClick={removeKey=true;key=""}){Text(if(removeKey)"Saved key will be removed"else "Remove saved key")}
             if(protocol==AiProtocol.ANTHROPIC)OutlinedTextField(workspace,{workspace=it},label={Text("Workspace ID (optional)")},supportingText={Text("For Anthropic keys that require a workspace.")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("AI provider workspace"))
             Row(Modifier.fillMaxWidth().toggleable(enabled,role=Role.Switch,onValueChange={enabled=it}).testTag("AI provider enabled"),verticalAlignment=Alignment.CenterVertically) {
@@ -202,7 +203,7 @@ import kotlinx.coroutines.*
             if(saved)TextButton(onClick=onForget,modifier=Modifier.testTag("Forget AI provider")){Text("Forget provider & key")}
             message?.let {Text(it,color=MaterialTheme.colorScheme.error,fontSize=12.sp,modifier=Modifier.testTag("AI provider error"))}
         }
-    },confirmButton={TextButton(onClick={onSave(current.copy(enabled=enabled,location=if(server)AiLocation.SERVER else AiLocation.CLOUD,baseUrl=url,model=model,label=label,protocol=protocol,workspaceId=if(protocol==AiProtocol.ANTHROPIC)workspace else ""),key.takeIf {it.isNotEmpty()},removeKey)},enabled=url.isNotBlank()&&model.isNotBlank(),modifier=Modifier.testTag("Save AI provider")){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})
+    },confirmButton={TextButton(onClick={onSave(current.copy(enabled=enabled,location=if(server)AiLocation.SERVER else AiLocation.CLOUD,baseUrl=url,model=model,label=label,protocol=protocol,workspaceId=if(protocol==AiProtocol.ANTHROPIC)workspace else ""),key.takeIf {it.isNotEmpty()},removeKey)},enabled=url.isNotBlank()&&model.isNotBlank(),modifier=Modifier.rejectObscuredTouches().testTag("Save AI provider")){Text("Save")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancel")}})
 }
 
 @Composable private fun AiCard(content: @Composable ColumnScope.()->Unit) {Surface(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp),color=MaterialTheme.colorScheme.surfaceContainer){Column(content=content)}}

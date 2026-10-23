@@ -383,7 +383,7 @@ internal class ContextReader(private val repo: Repository) {
     }
     private fun substantiveLink(url: String): Boolean {
         val parsed=url.toHttpUrlOrNull() ?: return false
-        if(!parsed.isHttps||parsed.encodedPath in setOf("/privacy","/terms","/login","/signup"))return false
+        if(!AutomaticLinks.mayRead(url)||!parsed.isHttps||parsed.encodedPath in setOf("/privacy","/terms","/login","/signup"))return false
         val target=runCatching {repo.routes.recognize(url)}.getOrNull()
         return target==null||target.kind in setOf(TargetKind.POST,TargetKind.THREAD,TargetKind.MEDIA)
     }

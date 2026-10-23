@@ -19,21 +19,21 @@ import java.time.format.ResolverStyle
 internal interface ArticleTransport {
     val originalAllowed:Boolean
     val mode:NetworkPolicy
-    suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean=false,strict:Boolean=true):GatewayDocument
+    suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean=false,strict:Boolean=true,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):GatewayDocument
     suspend fun index(url:String,source:String,origins:Set<String>):Payload
 }
 private class GatewayArticleTransport(private val gateway:NetworkGateway):ArticleTransport {
     override val originalAllowed get()=gateway.originalFallback
     override val mode get()=gateway.currentPolicy()
-    override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean)=gateway.extractorDocument(url,
-        method=if(head)"HEAD"else "GET",headers=headers,sourceUrl=source,sameOrigin=strict)
+    override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose)=gateway.extractorDocument(url,
+        method=if(head)"HEAD"else "GET",headers=headers,sourceUrl=source,sameOrigin=strict,purpose=purpose)
     override suspend fun index(url:String,source:String,origins:Set<String>)=gateway.text(url,source,maxBytes=1024L*1024,allowedOrigins=origins)
 }
 
 /** One bounded acquisition policy shared by native reading and AI preparation.
  * Health contains provider/publisher hints, never preference or model decisions. */
-class PublicArticleResolver internal constructor(private val transport:ArticleTransport,private val routes:DarwinArticleRoutes=DarwinArticleRoutes(),private val clock:()->Long=System::currentTimeMillis) {
-    constructor(gateway:NetworkGateway,clock:()->Long=System::currentTimeMillis):this(GatewayArticleTransport(gateway),clock=clock)
+class PublicArticleResolver internal constructor(private val transport:ArticleTransport,private val routes:DarwinArticleRoutes=DarwinArticleRoutes(),private val clock:()->Long=System::currentTimeMillis,private val extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}) {
+    constructor(gateway:NetworkGateway,clock:()->Long=System::currentTimeMillis,extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}):this(GatewayArticleTransport(gateway),clock=clock,extract=extract)
     private data class Health(val failures:Int=0,val until:Long=0,val latency:Long=0)
     private data class Hint(val at:Long,val path:ArticlePath)
     private val health=linkedMapOf<String,Health>()
@@ -53,11 +53,12 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     @Synchronized private fun rejectUrl(url:String,mode:NetworkPolicy) {rejected.remove(mode.tor.toString()+"|"+url);rejected[mode.tor.toString()+"|"+url]=clock()+5*60_000;while(rejected.size>128)rejected.remove(rejected.keys.first())}
     @Synchronized fun reject(original:String,retrieved:String) {hints.entries.removeAll {it.key.endsWith("|$original")&&it.value.path.url==retrieved};rejectUrl(retrieved,transport.mode)}
 
-    suspend fun conditional(url:String,source:String,validators:ContextArticleValidators=ContextArticleValidators(),knownRetrieval:String?=null):ContextArticleFetch=
-        withTimeoutOrNull(if(transport.mode.tor)120_000L else 45_000L){resolve(url,source,validators,knownRetrieval)}
+    suspend fun conditional(url:String,source:String,validators:ContextArticleValidators=ContextArticleValidators(),knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):ContextArticleFetch=
+        withTimeoutOrNull(if(transport.mode.tor)120_000L else 45_000L){resolve(url,source,validators,knownRetrieval,purpose)}
             ?: throw SourceFailure(HealthStatus.UNAVAILABLE,"Public copy lookup reached its time allowance")
-    private suspend fun resolve(url:String,source:String,validators:ContextArticleValidators,knownRetrieval:String?):ContextArticleFetch {
+    private suspend fun resolve(url:String,source:String,validators:ContextArticleValidators,knownRetrieval:String?,purpose:FetchPurpose):ContextArticleFetch {
         require(url.toHttpUrlOrNull()?.let {it.username.isEmpty()&&it.password.isEmpty()}==true){"Invalid article URL"}
+        if(purpose==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(url))throw SourceFailure(HealthStatus.UNSUPPORTED,"Action links require deliberate opening")
         val mode=transport.mode
         if(mode.tor&&!mode.ready)throw SourceFailure(HealthStatus.UNAVAILABLE,"Tor is not ready")
         val original=routes.identity(url) ?: url
@@ -71,7 +72,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                 val result=withTimeout(if(mode.tor)40_000L else 15_000L) {
                     val useValidators=knownRetrieval?.toHttpUrlOrNull()==path.url.toHttpUrlOrNull()||knownRetrieval==null&&path.url==url
                     val headers=if(useValidators)buildMap {validators.etag?.let {put("If-None-Match",it)};validators.lastModified?.let {put("If-Modified-Since",it)}}else emptyMap()
-                    val response=transport.document(path.url,source,headers,path.pdf,path.route!="Original publisher"||headers.isNotEmpty())
+                    val response=transport.document(path.url,source,headers,path.pdf,path.route!="Original publisher"||headers.isNotEmpty(),purpose)
                     checkMode()
                     if(path.route!="Original publisher"&&!routes.sameArticle(path.url,response.finalUrl))
                         throw SourceFailure(HealthStatus.EMPTY,"The reader route did not return its requested article")
@@ -85,18 +86,16 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                         ContextArticleFetch.NotModified(response.finalUrl,ContextArticleValidators(next.etag ?: validators.etag,next.lastModified ?: validators.lastModified),clock())
                     }else {
                         if(response.status !in 200..299)throw SourceFailure(when(response.status){401->HealthStatus.LOGIN_REQUIRED;429->HealthStatus.RATE_LIMITED;else->HealthStatus.UNAVAILABLE},"Article source returned ${response.status}",httpStatus=response.status)
+                        if(purpose==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(response.finalUrl))throw SourceFailure(HealthStatus.UNSUPPORTED,"Action links require deliberate opening")
                         val type=header("Content-Type").orEmpty().substringBefore(';').trim().lowercase()
                         val access=ArticleAccess(path.route,original,response.finalUrl,archiveTime(response.finalUrl,response.text),path.version,path.license,path.retracted)
                         if(path.pdf||type=="application/pdf") {
                             if(type !in setOf("application/pdf","application/octet-stream"))throw SourceFailure(HealthStatus.EMPTY,"The public document route returned no PDF")
                             ContextArticleFetch.PublicPdf(original,response.finalUrl,access)
                         }else {
-                            val lead=Jsoup.parse(response.text).let {(it.title()+" "+it.selectFirst("h1")?.text().orEmpty()).lowercase()}
-                            if(Regex("article not found|could not (?:find|retrieve)|error fetching|unsupported url|something went wrong").containsMatchIn(lead))
-                                throw SourceFailure(HealthStatus.EMPTY,"The public reader did not supply this article")
+                            HtmlAdmission.check(response.text)
                             if(path.route=="Existing archive capture"&&!matchingCapture(response.finalUrl,response.text,original))throw SourceFailure(HealthStatus.EMPTY,"The capture did not identify this exact article")
-                            val html=if(path.route=="Existing archive capture")archiveBody(response.text)else response.text
-                            val body=ContextArticles.extract(Payload(html,response.finalUrl,type,response.status),original,clock())
+                            val body=extract(Payload(response.text,response.finalUrl,type,response.status),original,clock())
                             val abstractOnly=response.finalUrl.toHttpUrlOrNull()?.let {it.host=="arxiv.org"&&it.encodedPath.startsWith("/abs/")}==true
                             val site=when {
                                 path.route in setOf("scribe","libMedium","small","freedium")->"Medium"
@@ -211,16 +210,15 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     internal fun archiveTodayCaptures(payload:Payload,original:String):List<String> {
         val u=payload.finalUrl.toHttpUrlOrNull() ?: return emptyList()
         if(origin(payload.finalUrl) !in ARCHIVE_TODAY||u.encodedPath!="/search/"||!routes.sameArticle(u.queryParameter("q").orEmpty(),original))return emptyList()
+        HtmlAdmission.check(payload.text)
         return Jsoup.parse(payload.text,payload.finalUrl).select("a[href]").mapNotNull {a->a.absUrl("href").toHttpUrlOrNull()?.takeIf {
             origin(it.toString()) in ARCHIVE_TODAY&&Regex("/[A-Za-z0-9]{5}").matches(it.encodedPath)&&a.text().trim().length>=8
         }?.toString()}.distinct().takeLast(2).reversed()
     }
-    private fun archiveBody(html:String):String {
-        val d=Jsoup.parse(html);d.select("#wm-ipp-base,#wm-ipp-print,#donato,#HEADER,#FOOTER,#DIVSHARE,.archive-toolbar").remove();return d.outerHtml()
-    }
     internal fun matchingCapture(url:String,html:String,original:String):Boolean {
         ArchiveUrls.original(url)?.let {return routes.sameArticle(original,it)}
         if(origin(url) !in ARCHIVE_TODAY)return false
+        HtmlAdmission.check(html)
         val d=Jsoup.parse(html,url)
         val values=d.select("input[name=q],input[name=url],input#url,#SHARE_LONGLINK,meta[property=og:url],link[rel=canonical],#HEADER a[href]").take(64).flatMap {e->listOf(e.attr("value"),e.attr("content"),e.absUrl("href"))}
         return values.any {value->routes.sameArticle(original,value)||Regex("^https://archive\\.(?:ph|is|today)/[0-9.:-]+/(https?://.+)$").matchEntire(value)?.groupValues?.get(1)?.let {routes.sameArticle(original,it)}==true}
@@ -228,6 +226,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     private fun archiveTime(url:String,html:String):Long? {
         ArchiveUrls.original(url)?.let {return url.substringAfter("/web/").substringBefore('/').take(14).let(::timestamp)}
         if(origin(url) !in ARCHIVE_TODAY)return null
+        HtmlAdmission.check(html)
         val long=Jsoup.parse(html).selectFirst("#SHARE_LONGLINK")?.attr("value") ?: return null
         val stamp=Regex("^https://archive\\.(?:ph|is|today)/([0-9]{4}\\.[0-9]{2}\\.[0-9]{2}-[0-9]{6})/").find(long)?.groupValues?.get(1) ?: return null
         return timestamp(stamp.filter(Char::isDigit))

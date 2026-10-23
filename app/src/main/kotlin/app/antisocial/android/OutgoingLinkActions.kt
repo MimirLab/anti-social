@@ -1,8 +1,6 @@
 /* AntiSocial, GPL-3.0-or-later. Darwin remains the routing donor. */
 package app.antisocial.android
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -35,7 +33,7 @@ internal class OutgoingLinkActions(private val repo: Repository,private val cont
         }
     }
     private fun copy(result: ShareRouteResult.Available) {
-        context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Post link · ${result.platform.label}",result.url))
+        ReaderClipboard.copy(context,"Post link · ${result.platform.label}",result.url)
         if(result.notice==null)Toast.makeText(context,"Link copied",Toast.LENGTH_SHORT).show()
     }
     fun copy(post: Post,editions: List<Post> = emptyList())=run({repo.resolveOutgoing(post,editions,ShareLinkAction.COPY)},::copy)

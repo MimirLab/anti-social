@@ -171,7 +171,7 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
             LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST,LocalSourceKind.LIVEWHALE,LocalSourceKind.SPACEAPI,LocalSourceKind.LINKED_EVENTS->"application/json"
             else->"text/html,application/xhtml+xml,application/ld+json;q=0.9,application/rss+xml;q=0.8,*/*;q=0.5"
         }
-        val raw=repo.gateway.extractorDocument(LocalCalendarPlatforms.request(source,query),maxBytes=LocalStructuredData.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to accept),route=if(source.kind==LocalSourceKind.LINKED_EVENTS)NetworkRoute.TOR else NetworkRoute.DEFAULT)
+        val raw=repo.gateway.extractorDocument(LocalCalendarPlatforms.request(source,query),purpose=if(source.kind in setOf(LocalSourceKind.TRIBE,LocalSourceKind.LOCALIST,LocalSourceKind.LIVEWHALE,LocalSourceKind.SPACEAPI,LocalSourceKind.LINKED_EVENTS))FetchPurpose.API else FetchPurpose.SUPPLEMENTAL,maxBytes=LocalStructuredData.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to accept),route=if(source.kind==LocalSourceKind.LINKED_EVENTS)NetworkRoute.TOR else NetworkRoute.DEFAULT)
         val payload=Payload(raw.text,raw.finalUrl,raw.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),raw.status)
         if(payload.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"This publisher is temporarily unavailable",httpStatus=payload.status)
         val at=System.currentTimeMillis();val body=payload.text

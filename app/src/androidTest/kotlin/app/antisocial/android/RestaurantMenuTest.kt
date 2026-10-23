@@ -51,9 +51,9 @@ class RestaurantMenuTest {
         ui.runOnIdle {model.localSearch.saved(true)}
         ui.waitUntil(8000){model.localSearch.state.value.businesses.any {it.id==place.id}}
         ui.onNodeWithTag("Business ${place.id}").performClick();ui.onNodeWithTag("Read restaurant menu").performClick()
-        ui.onNodeWithText("Mushroom sandwich").assertIsDisplayed();ui.onNodeWithText("USD 12.50").assertIsDisplayed();ui.onNodeWithText("Listed allergens: wheat",substring=true).assertIsDisplayed();screenshot("pickup")
-        ui.onNodeWithText("Delivery",useUnmergedTree=true).performClick();ui.onNodeWithText("USD 15.00").assertIsDisplayed();ui.onAllNodesWithText("USD 12.50").assertCountEquals(0);screenshot("delivery")
-        ui.onNodeWithText("Pickup · Menu").performClick();ui.onNodeWithTag("Find menu dish").performTextInput("espresso")
+        ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Mushroom sandwich"));ui.onNodeWithText("Mushroom sandwich").assertIsDisplayed();ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("USD 12.50"));ui.onNodeWithText("USD 12.50").assertIsDisplayed();ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Listed allergens: wheat",substring=true));ui.onNodeWithText("Listed allergens: wheat",substring=true).assertIsDisplayed();screenshot("pickup")
+        ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Delivery"));ui.onNodeWithText("Delivery",useUnmergedTree=true).performClick();ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("USD 15.00"));ui.onNodeWithText("USD 15.00").assertIsDisplayed();ui.onAllNodesWithText("USD 12.50").assertCountEquals(0);screenshot("delivery")
+        ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Pickup · Menu"));ui.onNodeWithText("Pickup · Menu").performClick();ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasTestTag("Find menu dish"));ui.onNodeWithTag("Find menu dish").performTextInput("espresso")
         ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Espresso"))
         ui.onNodeWithText("Espresso").assertIsDisplayed();ui.onAllNodesWithText("Mushroom sandwich").assertCountEquals(0);screenshot("search")
     }
@@ -137,9 +137,9 @@ class RestaurantMenuTest {
         val value=place.copy(menus=listOf(menu().copy(items=listOf(menu().items.last()))),evidence=listOf(LocalDiscoveryIdentity.evidence("menu",original,place.websites.single(),at,LocalEvidenceKind.PUBLISHER)))
         val opened=java.util.concurrent.atomic.AtomicReference<String>()
         ui.runOnIdle {ui.activity.setContent {MaterialTheme {RestaurantMenuSheet(value,false,{}, {}, {opened.set(it)})}}}
-        ui.onNodeWithText("Other published menus").performScrollTo().performClick()
-        ui.onNodeWithText("Menu document 1").performScrollTo().performClick()
-        assertEquals(original,opened.get());ui.onNodeWithText("Espresso").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Other published menus"));ui.onNodeWithText("Other published menus").performClick()
+        ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Menu document 1"));ui.onNodeWithText("Menu document 1").performClick()
+        assertEquals(original,opened.get());ui.onNodeWithTag("Restaurant menu").performScrollToNode(hasText("Espresso"));ui.onNodeWithText("Espresso").assertIsDisplayed()
     }
     @Test fun aCrowdedColdDiscoveryGraphStillReadsTheVerifiedFullMenuFirst() {
         val full="https://examplecoffee.fixture.invalid/coffee/menu/?lid=1"

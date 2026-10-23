@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.junit.*
 import org.junit.Assert.*
@@ -49,6 +50,7 @@ class SavedMediaTest {
         ui.runOnIdle {ui.activity.setContent {Text("Saved media fixture")}}
         repo.gateway.onNetworkEvent={event->if(event.host==host)events+=event;originalEvents?.invoke(event)}
         // Cached files must be usable even when the selected network cannot connect.
+        withContext(kotlinx.coroutines.Dispatchers.Main.immediate){repo.tor.enable(false,false)}
         repo.gateway.configure(NetworkPolicy(tor=true))
     }
     @After fun restore()=runBlocking {
@@ -167,13 +169,13 @@ class SavedMediaTest {
         val bad=listOf("<!DOCTYPE html><html><body>Sign in to see this media</body></html>","{\"error\":\"login_required\"}","Please log in to continue")
         bad.forEachIndexed {index,text->
             val file=File(fixtureDir,"not-media-$index").apply {writeText(text)}
-            assertNotNull(SavedAssetValidation.problem(file,"image"));assertNotNull(SavedAssetValidation.problem(file,"video"))
+            assertNotNull(SavedAssetValidation.problem(file,"image",repo.contentSandbox));assertNotNull(SavedAssetValidation.problem(file,"video",repo.contentSandbox))
         }
         val png=File(fixtureDir,"actual.png").apply {writeBytes(imageBytes())}
         val mp4=File(fixtureDir,"actual.mp4").apply {writeBytes(videoBytes())}
-        assertNull(SavedAssetValidation.problem(png,"image"));assertNull(SavedAssetValidation.problem(mp4,"video"))
+        assertNull(SavedAssetValidation.problem(png,"image",repo.contentSandbox));assertNull(SavedAssetValidation.problem(mp4,"video",repo.contentSandbox))
         val playlist=File(fixtureDir,"response-without-extension").apply {writeText("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nclip.m3u8")}
-        assertTrue(SavedAssetValidation.problem(playlist,"video").orEmpty().contains("playlists"))
+        assertTrue(SavedAssetValidation.problem(playlist,"video",repo.contentSandbox).orEmpty().contains("playlists"))
         // Previously cached 200 HTML must not be certified as a completed copy.
         val image="https://$host/login-image.png";val video="https://$host/login-video.mp4"
         val post=post(Media(image),Media(video,"video"));val token=manifest(post)

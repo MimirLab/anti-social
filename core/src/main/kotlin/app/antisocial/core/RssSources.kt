@@ -84,6 +84,7 @@ object RssSources {
         val finalUrl=requireNotNull(feedUrl(payload.finalUrl)){"Feed redirected to an unsupported URL"}
         val body=payload.text.trimStart('\uFEFF').trim()
         if(body.length>4*1024*1024||body.contains('\u0000')||Regex("<!\\s*(?:DOCTYPE|ENTITY)\\b",RegexOption.IGNORE_CASE).containsMatchIn(body))throw SourceFailure(HealthStatus.UNSUPPORTED,"Feed declarations and external entities are not supported")
+        HtmlAdmission.check(body)
         val document=Jsoup.parse(body,finalUrl,Parser.xmlParser())
         val root=document.children().singleOrNull() ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"This URL did not return an RSS or Atom feed")
         val atom=local(root)=="feed"&&namespace(root)==ATOM

@@ -197,7 +197,7 @@ class ReaderPortability(private val repo: Repository) {
                             val detail=incoming.copy(token=UUID.randomUUID().toString())
                             repo.dao.putSavedDetail(SavedDetailRow(key,gson.toJson(detail)))
                             detail.selectedAssets.forEach {asset->
-                                val file=repo.savedMedia(asset.url);val problem=file?.let {SavedAssetValidation.problem(it,asset.type)}
+                                val file=repo.savedMedia(asset.url);val problem=file?.let {SavedAssetValidation.problem(it,asset.type,repo.contentSandbox)}
                                 repo.dao.putSavedAsset(SavedAssetRow(key,asset.key,detail.token,asset.url,asset.sourceUrl,asset.type,
                                     if(file==null)"MISSING"else if(problem==null)"COMPLETE"else "UNSUPPORTED",file?.length() ?: 0,
                                     problem ?: if(file==null)"Media files are not included in reader-state exports"else null,System.currentTimeMillis()))

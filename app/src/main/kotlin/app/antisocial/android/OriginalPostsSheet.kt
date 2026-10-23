@@ -1,6 +1,8 @@
 /* AntiSocial, GPL-3.0-or-later. Darwin remains the routing donor. */
 package app.antisocial.android
 
+import app.antisocial.core.IdentityDisplay
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -70,7 +72,7 @@ import java.time.format.DateTimeFormatter
                             MentionText(caption,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),networkAllowed=false,fontSize=14.sp,lineHeight=21.sp,maxLines=if(expanded)Int.MAX_VALUE else 4,overflow=TextOverflow.Ellipsis,onTextLayout={overflowing=it.hasVisualOverflow},modifier=Modifier.testTag("Original caption $key"))
                         }else Text("No caption was supplied.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Original caption $key"))
                         if(overflowing||expanded)TextButton(onClick={expanded=!expanded},contentPadding=PaddingValues(0.dp),modifier=Modifier.testTag("Expand original caption $key")){Text(if(expanded)"Collapse caption"else "Read full caption",fontSize=12.sp)}
-                        SelectionContainer {Text(url,fontSize=11.sp,lineHeight=17.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Original URL $key"))}
+                        SelectionContainer {Text(IdentityDisplay.destination(url),fontSize=11.sp,lineHeight=17.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Original URL $key"))}
                         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick={outgoing.copy(post,originals)},modifier=Modifier.testTag("Copy original $key")){Icon(Icons.Rounded.Link,null,Modifier.size(17.dp));Spacer(Modifier.width(6.dp));Text("Copy link",fontSize=12.sp)}
                             TextButton(onClick={onDismiss();vm.discussions.open(listOf(post))},modifier=Modifier.testTag("Original comments $key")){Icon(Icons.Rounded.Forum,null,Modifier.size(17.dp));Spacer(Modifier.width(6.dp));Text("Comments",fontSize=12.sp)}

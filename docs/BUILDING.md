@@ -71,6 +71,23 @@ serialized. Fixture tests that clear graph/cache state require the explicit
 against a personal reader installation. Live-source and model-download tests have
 separate opt-ins; ordinary unit tests do not establish provider availability.
 
+For instrumentation against the non-debuggable shipping variant, compile its
+matching test APK:
+
+```bash
+scripts/gradle.sh -PantisocialTestBuildType=release :app:assembleRelease :app:assembleReleaseAndroidTest
+```
+
+Install the release APK and `outputs/app/outputs/apk/androidTest/release/app-release-androidTest.apk`
+from the external build root on a disposable test device before invoking the
+runner. Debug test APKs cannot call Kotlin's variant-mangled internal test hooks
+in a release target. This property changes the test variant, not production
+signing or debuggability. Debug remains the default for ordinary development.
+Select release-compatible cases when invoking the runner (for example
+`BrandIdentityTest`, `ArticleReaderTest`, `RestaurantMenuTest`, and `HardeningUiTest`).
+The descriptor PROBE/STALL cases intentionally require the debug build; their
+operations are disabled in the shipping app.
+
 For the laptop preview, run `python3 scripts/bootstrap.py` without `--no-emulator`,
 then `python3 scripts/preview.py`. KVM acceleration is recommended. Read the
 preview script's `--help` and `--doctor` output before changing its hardware profile.
