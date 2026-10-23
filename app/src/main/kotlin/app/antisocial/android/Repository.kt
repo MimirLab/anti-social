@@ -81,6 +81,14 @@ class Repository(val context: Context) {
             catch(_: Exception){}
         }
     }
+    private fun rememberAccountHints(hints:List<AccountNameHint>,epoch:Long=accountDiscoveryCache.epoch()) {
+        if(hints.isEmpty())return
+        scope.launch {
+            try {if(epoch==accountDiscoveryCache.epoch())mentionNames.seed(hints)}
+            catch(e:CancellationException){throw e}
+            catch(_:Exception){}
+        }
+    }
     val sponsorBlock by lazy {SponsorBlockStore(this)}
     val youtube by lazy {YouTubeStore(this)}
     val images by lazy {ImageLoader(this)}
@@ -504,33 +512,85 @@ class Repository(val context: Context) {
         feedMemory.syncFollows(dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}.filter(ReaderScope::active).map {it.id})
         follow
     }
-    suspend fun discoverAccounts(target: Target): AccountDiscovery=withContext(Dispatchers.IO) {
+    private val accountCacheStore=lazy {AccountDiscoveryCache(File(context.cacheDir,"account-links"))}
+    internal val accountDiscoveryCache get()=accountCacheStore.value
+    private val accountWarmLock=Any()
+    private val accountWarmAttempts=linkedMapOf<String,Long>()
+    /** One idle, cancellable website read after a deliberate profile open. The
+     * cache retains typed account links only, never the HTML page husk. */
+    suspend fun prefetchAccountLinks(profile:Profile)=withContext(Dispatchers.IO) {
+        awaitReady();gateway.originalFallback=prefs.originalFallback
+        if(!AccountLinkage.valid(profile.target)||pool.hasForegroundReads||gateway.hasForegroundRequests||feedRefresh.value.running)return@withContext
+        val website=AccountLinkage.websites(profile.links.orEmpty()+Subscriptions.urls(profile.description.take(16_384)),routes).firstOrNull() ?: return@withContext
+        val policy=gateway.currentPolicy();val key=policy.toString()+"|"+website
+        if(accountDiscoveryCache.website(key)!=null)return@withContext
+        val now=System.currentTimeMillis()
+        val admitted=synchronized(accountWarmLock) {
+            val last=accountWarmAttempts[key] ?: 0L
+            if(now-last<15*60_000L||accountWarmAttempts.values.any {now-it<10_000L})false else {
+                accountWarmAttempts.remove(key);accountWarmAttempts[key]=now
+                while(accountWarmAttempts.size>64)accountWarmAttempts.remove(accountWarmAttempts.keys.first())
+                true
+            }
+        }
+        if(!admitted)return@withContext
+        val epoch=accountDiscoveryCache.epoch()
+        try {withTimeout(if(policy.tor)5_000L else 3_000L) {
+            gateway.deferredRead {gateway.boundedMediaRead(maxBytes=256*1024L,maxRequests=2) {
+                val payload=gateway.text(website,profile.target.canonicalUrl,maxBytes=256*1024L,headers=mapOf("Accept" to "text/html,application/xhtml+xml;q=0.9"))
+                val result=AccountLinkage.website(payload,routes,System.currentTimeMillis())
+                currentCoroutineContext().ensureActive()
+                if(policy==gateway.currentPolicy()) {
+                    accountDiscoveryCache.rememberWebsite(key,result,epoch)
+                    rememberAccountHints(result.nameHints,epoch)
+                }
+            }}
+        }}catch(e:CancellationException){if(e !is TimeoutCancellationException)throw e}catch(_:Exception){}
+    }
+    suspend fun discoverAccounts(target: Target,knownProfile: Profile?=null,matchingNames:Boolean=false,onUpdate:(AccountDiscovery)->Unit={}): AccountDiscovery=withContext(Dispatchers.IO) {
         require(ReaderScope.isFeedSource(target.platform)){ReaderScope.VIDEO_ONLY}
         awaitReady();gateway.originalFallback=prefs.originalFallback
-        val seed=AccountCandidate(target,"Account you entered")
-        if(target.kind!=TargetKind.PROFILE)return@withContext AccountDiscovery(target.identity,listOf(seed),"Cross-platform discovery is available for people and organizations.")
-        val page=try {withTimeout(30_000){pool.load(target,originalFallback=prefs.originalFallback,requestedCapability=Capability.PROFILE)}}
-        catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;null}catch(_: Exception){null}
-        val profile=page?.profile
-        if(profile==null)return@withContext AccountDiscovery(target.identity,listOf(seed),"Profile links could not be read. You can still subscribe or add another account manually.")
-        val links=(profile.links.orEmpty()+Subscriptions.urls(profile.description)).distinct()
-        val direct=Subscriptions.candidates(links,routes,"Linked from ${target.platform.label} profile")
-        val website=links.firstOrNull {Subscriptions.publicHttps(it)&&routes.recognize(it)==null}
-        var websiteUnavailable=false
-        val elsewhere=if(website==null)emptyList()else try {
-            val data=withTimeout(8_000){gateway.text(website,target.canonicalUrl,maxBytes=1024*1024)}
-            Subscriptions.candidates(Subscriptions.websiteLinks(data.text,data.finalUrl),routes,"Linked from ${java.net.URI(data.finalUrl).host}")
-        }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;websiteUnavailable=true;emptyList()}catch(_: Exception){websiteUnavailable=true;emptyList()}
-        val candidates=(listOf(seed)+direct+elsewhere).distinctBy {it.target.canonicalUrl.lowercase().trimEnd('/')}.take(20)
-        AccountDiscovery(profile.name.ifBlank {target.identity},candidates,when {websiteUnavailable->"The linked website could not be read. Check suggested accounts before adding them.";candidates.size==1->"No other account links were supplied. Matching usernames are not treated as the same person.";else->"These are public links, not proof of ownership. Choose the accounts that belong together."})
+        if(!AccountLinkage.valid(target))return@withContext AccountDiscovery(target.identity,listOf(AccountCandidate(target,"Account you opened")),"Cross-platform discovery is available for people and organizations.")
+        val policy=gateway.currentPolicy()
+        val platforms=if(matchingNames)(prefs.selected+PlatformOrder.popular).distinct()else emptyList()
+        val cacheKey="v2|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
+        val epoch=accountDiscoveryCache.epoch()
+        val local=dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}
+        // Cached observations keep their original checkedAt. Local subscription
+        // membership is always recomputed rather than persisted in this cache.
+        accountDiscoveryCache.get(cacheKey)?.let {cached->
+            val owners=local.filter {AccountLinkage.same(it.target,target,routes)}.map(Subscriptions::id).toSet()
+            val additions=local.filter {Subscriptions.id(it) in owners}.map {AccountCandidate(it.target,"Already linked in your subscriptions",AccountLinkKind.LOCAL,it.target.canonicalUrl,System.currentTimeMillis())}
+            return@withContext cached.copy(candidates=(additions+cached.candidates.filter {it.kind!=AccountLinkKind.LOCAL}).distinctBy {AccountLinkage.key(it.target,routes)}.take(20)).also {
+                rememberAccountHints(it.nameHints,epoch);onUpdate(it)
+            }
+        }
+        val known=knownProfile ?: cachedPage(target)?.profile
+        known?.takeIf {AccountLinkage.same(it.target,target,routes)}?.let {rememberAccountNames(Page(emptyList(),profile=it))}
+        val engine=AccountDiscoveryEngine(routes,
+            profile={account->
+                val p=pool.load(account,originalFallback=prefs.originalFallback,requestedCapability=Capability.PROFILE,progress={},profileNameOnly=!AccountLinkage.same(account,target,routes)).profile
+                    ?.takeIf {AccountLinkage.same(it.target,account,routes)}
+                p?.let {rememberAccountNames(Page(emptyList(),profile=it))};p
+            },
+            web={url,source->gateway.text(url,source,maxBytes=AccountLinkage.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to if(url.startsWith("https://www.wikidata.org/w/api.php")||url.startsWith("https://keybase.io/_/api/"))"application/json"else "text/html,application/xhtml+xml;q=0.9"))},
+            laneTimeout=if(policy.tor)10_000 else 6_000,totalTimeout=if(policy.tor)30_000 else 20_000,
+            cachedWebsite={url->accountDiscoveryCache.website(policy.toString()+"|"+url)},
+            rememberWebsite={url,result->if(policy==gateway.currentPolicy())accountDiscoveryCache.rememberWebsite(policy.toString()+"|"+url,result,epoch)})
+        val result=gateway.boundedMediaRead(maxBytes=4L*1024*1024,maxRequests=8) {
+            engine.discover(target,known,local,platforms) {update->rememberAccountHints(update.nameHints,epoch);onUpdate(update)}
+        }
+        currentCoroutineContext().ensureActive()
+        if(policy==gateway.currentPolicy())accountDiscoveryCache.put(cacheKey,result,epoch)
+        result
     }
     suspend fun saveSubscription(name: String,targets: List<Target>,personId: String?=null)=withContext(Dispatchers.IO) {
         require(name.isNotBlank()&&targets.isNotEmpty()&&targets.size<=20)
         require(targets.all {ReaderScope.isFeedSource(it.platform)}){ReaderScope.VIDEO_ONLY}
-        db.withTransaction {
+        val accepted=db.withTransaction {
             val old=dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}
             // Keep one local subscription per canonical account, including existing feed settings.
-            fun accountKey(target: Target)=target.platform.id+":"+(target.canonicalUrl.toHttpUrlOrNull()?.toString() ?: target.canonicalUrl)
+            fun accountKey(target: Target)=if(AccountLinkage.valid(target))AccountLinkage.key(target,routes)else target.platform.id+":"+(target.canonicalUrl.toHttpUrlOrNull()?.toString() ?: target.canonicalUrl)
             val chosen=targets.distinctBy(::accountKey)
             val existing=old.filter {f->chosen.any {accountKey(it)==accountKey(f.target)}}
             val id=personId ?: existing.firstNotNullOfOrNull {it.personId} ?: "person:"+java.util.UUID.randomUUID()
@@ -544,7 +604,14 @@ class Repository(val context: Context) {
                 val follow=(previous ?: Follow(if(target.platform==Platform.RSS)RssSources.followId(target.canonicalUrl)else "${target.platform.id}:${target.canonicalUrl}",target,target.identity,feedUrl=target.canonicalUrl.takeIf {target.platform==Platform.RSS})).copy(personId=id,personName=name.trim())
                 dao.putFollow(FollowRow(follow.id,target.platform.id,gson.toJson(follow)))
             }
+            accounts
         }
+        try {mentionNames.linkAccounts(accepted)}catch(e:CancellationException){throw e}catch(_:Exception){}
+    }
+    internal suspend fun linkedSubscriptionAccounts(target:Target):List<Target> {
+        val local=follows.first()
+        val owners=local.filter {AccountLinkage.same(it.target,target,routes)}.map(Subscriptions::id).toSet()
+        return local.filter {Subscriptions.id(it) in owners}.map {it.target}.take(40)
     }
     suspend fun refreshSubscription(id: String) {refresh(personId=id)}
     suspend fun discussion(post: Post,previous: Page?=null,order: ReadingOrder=ReadingOrder.CHRONOLOGICAL): Page {
@@ -753,6 +820,7 @@ class Repository(val context: Context) {
         // Never sweep an in-progress writer's temporary files or delay ordinary
         // cache eviction behind a network update. The next pass can prune them.
         if(filterMutex.tryLock())try {pruneFilterFiles()}finally {filterMutex.unlock()}
+        if(accountCacheStore.isInitialized())accountDiscoveryCache.cleanup(clearAll)
         articleReadingCache.cleanup(clearAll)
         LocalMenuReader.cleanup(context.cacheDir,clearAll)
         if(clearAll)evidenceReader.clearArticleMemory()
@@ -771,7 +839,7 @@ class Repository(val context: Context) {
         if(clearAll){sponsorBlock.clear();youtube.clear()}else sponsorBlock.cleanup(now)
         val entries=posts.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,false,activeKeys.containsKey(it.key))}+media.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,it.saved,activeKeys.containsKey(it.key))}
         val free=StatFs(context.filesDir.path).availableBytes
-        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()).coerceAtLeast(0)
+        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()-(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)).coerceAtLeast(0)
         val evict=CachePolicy.eviction(entries,now,budget,prefs.unseenDays,prefs.viewedDays)
         val postKeys=posts.filter {it.key in evict}.map {it.key};val mediaRows=media.filter {it.key in evict}
         if(postKeys.isNotEmpty()){db.withTransaction {dao.markPurged(postKeys);dao.removePosts(postKeys)}}
@@ -785,7 +853,7 @@ class Repository(val context: Context) {
         val savedBytes=(if(localDiscoveryStore.isInitialized())localDiscovery.bytes(true)else 0)+dao.bookmarkBytes()+dao.savedDetailBytes()+dao.mediaBytes(true)+contextReader.store.logicalBytes(true)
         val videoKeys=dao.allSavedAssets().filter {it.type!="image"}.map {it.assetKey}.toSet()+dao.allBookmarks().mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.flatMap {p->(p.media+p.archivedVersion?.snapshot?.media.orEmpty()).filter {it.type!="image"}.map {hash(it.url)}}
         val videoBytes=dao.allMedia().filter {it.saved&&it.key in videoKeys}.sumOf {it.bytes}
-        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes(),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
+        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes()+(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
     }
     suspend fun exportBackup(): ByteArray=withContext(Dispatchers.IO) {val backup=Backup(settings=JsonParser.parseString(prefs.export().toString()).asJsonObject,follows=dao.allFollows(),bookmarks=dao.allBookmarks(),history=dao.allHistory(),savedDetails=dao.allSavedDetails(),collections=dao.allCollections(),collectionLinks=dao.allCollectionLinks(),retainedHistory=dao.allRetainedHistory());gson.toJson(backup).toByteArray()}
     suspend fun importBackup(bytes: ByteArray) {

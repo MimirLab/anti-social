@@ -106,6 +106,54 @@ class SubscriptionsTest {
         ui.onNodeWithText("Discussions").assertIsDisplayed();evidence("person-feed-grouped")
         ui.onNodeWithContentDescription("Back").performClick();assertEquals("follows",model().screen.value.section)
     }
+    @Test fun accountCaseAliasesReuseTheExistingSourceAndItsCustomFeedSettings()=runBlocking {
+        val upper=repo.routes.target(Platform.X,"https://x.com/ANTI_ALIAS")
+        val lower=repo.routes.target(Platform.X,"anti_alias")
+        assertTrue(AccountLinkage.valid(upper));assertTrue(AccountLinkage.valid(lower))
+        val original=Follow("alias:$handle",upper,"$handle alias","Projects",feedUrl="https://example.org/$handle/feed")
+        repo.dao.putFollow(FollowRow(original.id,upper.platform.id,repo.gson.toJson(original)))
+        repo.saveSubscription("Alias fixture $handle",listOf(lower))
+        val matching=repo.dao.allFollows().map {repo.gson.fromJson(it.payload,Follow::class.java)}.filter {AccountLinkage.same(it.target,lower,repo.routes)}
+        assertEquals(1,matching.size);assertEquals(upper,matching.single().target)
+        assertEquals(original.id,matching.single().id)
+        assertEquals("Projects",matching.single().group);assertEquals("https://example.org/$handle/feed",matching.single().feedUrl)
+        assertNotNull(matching.single().personId)
+    }
+    @Test fun subscribingDoesNotWaitForAStalledDiscoveryAndCancelsIt() {
+        val seed=target(Platform.X);val started=CompletableDeferred<Unit>();val cancelled=CompletableDeferred<Unit>()
+        val vm=AntiSocialViewModel(repo);custom=vm
+        ui.runOnUiThread {repo.tor.enable(false);repo.gateway.configure(NetworkPolicy(tor=true));ui.activity.setContent {
+            var visible by remember {mutableStateOf(true)}
+            MaterialTheme {if(visible)SubscriptionDialog(vm,Platform.X,autoDiscover=true,initialTarget=seed,
+                discoverAccounts={started.complete(Unit);try {awaitCancellation()}finally {cancelled.complete(Unit)}},onDismiss={visible=false})}
+        }}
+        ui.waitUntil(10_000){started.isCompleted&&ui.onAllNodesWithTag("Account candidate ${seed.canonicalUrl}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Save subscription").assertIsEnabled()
+        ui.onNodeWithTag("Account candidate ${seed.canonicalUrl}").assertIsOn()
+        evidence("discovery-seed-ready-while-sources-load")
+        ui.onNodeWithTag("Save subscription").performClick()
+        ui.waitUntil(10_000){cancelled.isCompleted&&runBlocking {repo.dao.allFollows().any {it.payload.contains(handle)}}}
+        ui.onNodeWithTag("Subscription dialog").assertDoesNotExist()
+    }
+    @Test fun delayedSuggestionsKeepTheReadersEditedNameAndCheckboxChoice() {
+        val seed=target(Platform.X);val elsewhere=target(Platform.BLUESKY);val release=CompletableDeferred<Unit>()
+        val vm=AntiSocialViewModel(repo);custom=vm
+        ui.runOnUiThread {ui.activity.setContent {
+            var visible by remember {mutableStateOf(true)}
+            MaterialTheme {if(visible)SubscriptionDialog(vm,Platform.X,autoDiscover=true,initialTarget=seed,
+                discoverAccounts={release.await();AccountDiscovery("Fetched name",listOf(AccountCandidate(seed,"Account you opened"),AccountCandidate(elsewhere,"Linked from profile")))},onDismiss={visible=false})}
+        }}
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Account candidate ${seed.canonicalUrl}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Subscription name").performTextReplacement("My workshop")
+        ui.onNodeWithTag("Account candidate ${seed.canonicalUrl}").performClick().assertIsOff()
+        release.complete(Unit)
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Account candidate ${elsewhere.canonicalUrl}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Subscription name").assertTextContains("My workshop")
+        ui.onNodeWithTag("Account candidate ${seed.canonicalUrl}").assertIsOff()
+        ui.onNodeWithTag("Account candidate ${elsewhere.canonicalUrl}").assertIsOff()
+        ui.onNodeWithTag("Account candidate ${elsewhere.canonicalUrl}").performClick().assertIsOn()
+        evidence("discovery-late-suggestions-preserve-reader-choices")
+    }
     @Test fun discoveryReviewRequiresChosenAccountsAndRetainsTheSeed() {
         val seed=target(Platform.X);val elsewhere=target(Platform.BLUESKY)
         val vm=AntiSocialViewModel(repo);custom=vm

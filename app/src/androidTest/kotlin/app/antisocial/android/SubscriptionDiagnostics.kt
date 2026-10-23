@@ -16,6 +16,32 @@ import java.io.File
 @RunWith(AndroidJUnit4::class)
 class SubscriptionDiagnostics {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
+    @Test fun livePublicIdentityEndpointsThroughTheGateway()=runBlocking {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialLiveAccountLinks")=="true")
+        val repo=(ui.activity.application as AntiSocialApplication).repo;repo.awaitReady()
+        val old=repo.gateway.currentPolicy();val oldOriginal=repo.gateway.originalFallback
+        val dir=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"account-link-live").apply {mkdirs()}
+        try {
+            withContext(Dispatchers.Main){repo.tor.enable(false)}
+            repo.gateway.configure(NetworkPolicy());repo.gateway.originalFallback=true
+            val seed=repo.routes.target(Platform.X,"WhiteHouse");val started=System.nanoTime()
+            val result=repo.gateway.boundedMediaRead(maxBytes=2L*1024*1024,maxRequests=4) {
+                withTimeout(20_000) {
+                    val search=repo.gateway.text(AccountLinkage.wikidataUrl(seed)!!,seed.canonicalUrl,maxBytes=512*1024,headers=mapOf("Accept" to "application/json"))
+                    val payload=repo.gateway.text(AccountLinkage.wikidataEntitiesUrl(search.text)!!,seed.canonicalUrl,maxBytes=512*1024,headers=mapOf("Accept" to "application/json"))
+                    AccountLinkage.wikidata(payload.text,seed,repo.routes,System.currentTimeMillis())
+                }
+            }
+            File(dir,"wikidata.json").writeText(repo.gson.toJson(mapOf("elapsedMs" to (System.nanoTime()-started)/1_000_000,"result" to result)))
+            assertTrue("Wikidata should supply supported public account links",result.accounts.size>=5)
+            assertTrue("The matched entity should supply reusable proper nouns",result.nameHints.isNotEmpty())
+            val kb=repo.routes.target(Platform.X,"maxtaco")
+            val payload=withTimeout(10_000){repo.gateway.text(AccountLinkage.keybaseUrl(kb)!!,kb.canonicalUrl,maxBytes=512*1024,headers=mapOf("Accept" to "application/json"))}
+            val associated=AccountLinkage.keybase(payload.text,kb,repo.routes,System.currentTimeMillis())
+            File(dir,"keybase.json").writeText(repo.gson.toJson(associated))
+            assertEquals(setOf(Platform.X,Platform.REDDIT),associated.map {it.target.platform}.toSet())
+        }finally {repo.gateway.originalFallback=oldOriginal;repo.gateway.configure(old)}
+    }
     @Test fun liveAccountDiscoveryAndPublicDiscussions()=runBlocking {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialLiveSubscriptions")=="true")
         val repo=(ui.activity.application as AntiSocialApplication).repo;repo.awaitReady()

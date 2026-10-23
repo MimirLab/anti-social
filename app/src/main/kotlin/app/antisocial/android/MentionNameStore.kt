@@ -2,6 +2,7 @@
 package app.antisocial.android
 
 import app.antisocial.core.*
+import app.antisocial.core.Target
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +32,8 @@ class MentionNameStore internal constructor(
     private val quietMs: Long=1_200L,
     private val pollMs: Long=150L,
     private val maxEntries: Int=MAX_ENTRIES,
-    private val maxBytes: Long=MAX_BYTES
+    private val maxBytes: Long=MAX_BYTES,
+    private val relatedAccounts:suspend (Target)->List<Target> = {emptyList()}
 ): MentionNameSource {
     constructor(repo: Repository): this(
         MentionNameDatabase.open(repo.context),repo.routes,repo.scope,
@@ -42,7 +44,8 @@ class MentionNameStore internal constructor(
         lookup={account->repo.gateway.deferredRead {repo.gateway.boundedHealthRead(maxBytes=512*1024L,maxRequests=8) {
             repo.pool.load(account.target,originalFallback=repo.prefs.originalFallback,
                 progress={},requestedCapability=Capability.PROFILE,background=true,profileNameOnly=true).profile
-        }}}
+        }}},
+        relatedAccounts={repo.linkedSubscriptionAccounts(it)}
     )
 
     private val mutableNames=MutableStateFlow<Map<String,String>>(emptyMap())
@@ -145,6 +148,7 @@ class MentionNameStore internal constructor(
             rows[row.key]=row;dao.put(listOf(row));pruneLocked(now)
         }
         wake.trySend(Unit)
+        seedRelated(profile.target)
         return true
     }
 
@@ -152,6 +156,50 @@ class MentionNameStore internal constructor(
         // These are already retrieved public profile records. Names invented
         // by the reader, post author strings and guessed handles are excluded.
         (listOfNotNull(page.profile)+page.accounts).take(MAX_DEMANDS).distinctBy {it.target}.forEach {seed(it)}
+    }
+
+    /** Reuse public identity labels when an account's own name is unavailable.
+     * Hints never become successful profile checks or override observed names. */
+    suspend fun seed(hints:List<AccountNameHint>) {
+        ready.await()
+        gate.withLock {
+            val now=clock();val changed=mutableListOf<MentionNameRow>()
+            hints.take(40).forEach {hint->
+                val origin=when(hint.kind) {
+                    AccountLinkKind.RECIPROCAL->"linked:reciprocal"
+                    AccountLinkKind.LOCAL->"linked:local"
+                    AccountLinkKind.WEBSITE->"linked:website"
+                    AccountLinkKind.DIRECTORY->"linked:directory"
+                    else->return@forEach
+                }
+                if(!MentionNamePolicy.validTimestamp(hint.checkedAt,now)||MentionNamePolicy.stale(hint.checkedAt,now))return@forEach
+                val source=AccountLinkage.webUrl(hint.sourceUrl)?.takeIf {it.length<=2_048} ?: return@forEach
+                val account=MentionNames.account(hint.target,routes) ?: return@forEach
+                val name=MentionNames.sanitizeDisplayName(hint.name,account.key) ?: return@forEach
+                val old=rows[account.key.id]
+                if(old?.displayName!=null&&(nameRank(old.nameOrigin)<nameRank(origin)||nameRank(old.nameOrigin)==nameRank(origin)&&old.nameSource!=source))return@forEach
+                if(old?.displayName==name&&old.nameOrigin==origin&&old.nameSource==source)return@forEach
+                val row=record(account,name,old?.checkedAt ?: now,old?.lastViewedAt ?: now,old?.viewCount ?: 1,
+                    old?.failures ?: 0,old?.retryAt ?: 0,old?.failurePolicy,origin,source)
+                rows[row.key]=row;changed+=row
+            }
+            if(changed.isNotEmpty()){dao.put(changed);pruneLocked(now)}
+        }
+        wake.trySend(Unit)
+    }
+
+    /** The reader just confirmed these accounts belong together. The chosen
+     * subscription title is deliberately absent: only banked public names move. */
+    suspend fun linkAccounts(targets:List<Target>) {
+        ready.await()
+        val accounts=targets.take(40).mapNotNull {MentionNames.account(it,routes)}.distinctBy {it.key.id}
+        val donor=gate.withLock {accounts.firstNotNullOfOrNull {account->rows[account.key.id]?.takeIf {it.nameOrigin=="profile"&&it.displayName!=null}}} ?: return
+        seed(accounts.map {AccountNameHint(it.target,donor.displayName!!,AccountLinkKind.LOCAL,donor.canonicalUrl,donor.checkedAt)})
+    }
+    private suspend fun seedRelated(target:Target) {
+        try {linkAccounts(relatedAccounts(target))}
+        catch(e:CancellationException){throw e}
+        catch(_:Exception){}
     }
 
     private fun demands(): List<MentionAccount> = synchronized(demandLock) {
@@ -182,7 +230,7 @@ class MentionNameStore internal constructor(
             val now=clock()
             current.firstOrNull {account->
                 val old=rows[account.key.id]
-                old==null||now<old.checkedAt||(if(old.failures>0||old.displayName==null)old.failurePolicy!=failurePolicy||now>=old.retryAt else MentionNamePolicy.stale(old.checkedAt,now))
+                old==null||now<old.checkedAt||(if(old.nameOrigin!="profile"||old.failures>0||old.displayName==null)old.failurePolicy!=failurePolicy||now>=old.retryAt else MentionNamePolicy.stale(old.checkedAt,now))
             }
         }
     }
@@ -224,17 +272,23 @@ class MentionNameStore internal constructor(
             val previousFailures=old?.takeIf {it.failurePolicy==failurePolicy}?.failures ?: 0
             val failures=if(name==null)previousFailures+1 else 0
             val retry=if(name==null)now+MentionNamePolicy.retryDelay(failures)else 0
-            val row=record(account,name ?: old?.displayName,now,old?.lastViewedAt ?: now,old?.viewCount ?: 1,failures,retry,failurePolicy)
+            val row=record(account,name ?: old?.displayName,now,old?.lastViewedAt ?: now,old?.viewCount ?: 1,failures,retry,failurePolicy,
+                if(name!=null)"profile"else old?.nameOrigin ?: "profile",if(name!=null)null else old?.nameSource)
             rows[row.key]=row;dao.put(listOf(row));pruneLocked(now)
         }
+        if(name!=null)seedRelated(account.target)
     }
 
-    private fun record(account: MentionAccount,name: String?,checked: Long,viewed: Long,count: Long,failures: Int,retry: Long,failurePolicy: String?): MentionNameRow {
+    private fun nameRank(origin:String)=when(origin){"profile"->0;"linked:reciprocal","linked:local"->1;"linked:website"->2;"linked:directory"->3;else->Int.MAX_VALUE}
+    private fun record(account: MentionAccount,name: String?,checked: Long,viewed: Long,count: Long,failures: Int,retry: Long,failurePolicy: String?,origin:String="profile",source:String?=null): MentionNameRow {
         val key=account.key
-        val bytes=listOf(key.id,key.platform.id,key.authority,key.username,account.target.canonicalUrl,name.orEmpty(),failurePolicy.orEmpty()).sumOf {it.toByteArray(Charsets.UTF_8).size}.toLong()+96
-        return MentionNameRow(key.id,key.platform.id,key.authority,key.username,account.target.canonicalUrl,name,checked,viewed,count,failures.coerceIn(0,32),retry,failurePolicy,bytes)
+        val bytes=listOf(key.id,key.platform.id,key.authority,key.username,account.target.canonicalUrl,name.orEmpty(),failurePolicy.orEmpty(),source.orEmpty()).sumOf {it.toByteArray(Charsets.UTF_8).size}.toLong()+96
+        return MentionNameRow(key.id,key.platform.id,key.authority,key.username,account.target.canonicalUrl,name,checked,viewed,count,failures.coerceIn(0,32),retry,failurePolicy,bytes,origin,source)
     }
     private fun valid(row: MentionNameRow): Boolean {
+        if(nameRank(row.nameOrigin)==Int.MAX_VALUE)return false
+        if(row.nameOrigin!="profile"&&(row.displayName==null||row.nameSource==null||row.nameSource.length>2_048||AccountLinkage.webUrl(row.nameSource)!=row.nameSource))return false
+        if(row.nameOrigin=="profile"&&row.nameSource!=null)return false
         if(row.bytes !in 1..maxBytes||row.viewCount !in 0..1_000_000||row.failures !in 0..32)return false
         if(row.canonicalUrl.length>2_048||row.retryAt<0||row.retryAt>row.checkedAt+MentionNamePolicy.MAX_MISS_BACKOFF_MS)return false
         if(row.failures==0&&row.retryAt!=0L||row.displayName==null&&row.failures==0)return false
@@ -245,7 +299,7 @@ class MentionNameStore internal constructor(
         val target=routes.recognize(row.canonicalUrl,platform) ?: return false
         val account=MentionNames.account(target,routes) ?: return false
         return account.key.id==row.key&&account.key.authority==row.authority&&account.key.username==row.username&&
-            record(account,row.displayName,row.checkedAt,row.lastViewedAt,row.viewCount,row.failures,row.retryAt,row.failurePolicy).bytes==row.bytes&&
+            record(account,row.displayName,row.checkedAt,row.lastViewedAt,row.viewCount,row.failures,row.retryAt,row.failurePolicy,row.nameOrigin,row.nameSource).bytes==row.bytes&&
             (row.displayName==null||MentionNames.sanitizeDisplayName(row.displayName,account.key)==row.displayName)
     }
 

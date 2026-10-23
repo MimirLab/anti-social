@@ -37,10 +37,15 @@ import kotlinx.coroutines.delay
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         page.notice?.let {Text(vm.repo.publicText(it),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         page.profile?.let {profile->
+            LaunchedEffect(state.target,profile.target,profile.links,profile.description) {
+                if(state.target?.kind!=TargetKind.PROFILE)return@LaunchedEffect
+                delay(900)
+                vm.repo.prefetchAccountLinks(profile)
+            }
             var subscribe by remember(profile.target){mutableStateOf(false)}
             var accountDetails by remember(profile.target){mutableStateOf(false)}
             if(accountDetails)SourceDetailsSheet(vm.repo,listOf(profile.target.canonicalUrl)+profile.links.orEmpty(),profile,onOpen={vm.openLink(it)},onDismiss={accountDetails=false})
-            if(subscribe)SubscriptionDialog(vm,profile.target.platform,autoDiscover=true,initialTarget=profile.target,onDismiss={subscribe=false})
+            if(subscribe)SubscriptionDialog(vm,profile.target.platform,autoDiscover=true,initialTarget=profile.target,initialProfile=profile,onDismiss={subscribe=false})
             Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
                 profile.avatar?.let {RemoteImage(it,profile.target.canonicalUrl,vm.repo,Modifier.size(72.dp).clip(CircleShape),"${profile.name} profile picture",maxEdge=256)}
                 Column(Modifier.weight(1f).padding(start=16.dp)) {

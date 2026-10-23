@@ -7,6 +7,13 @@ RSS/Atom feeds in Subscriptions. Channels can combine sources with explicit rule
 Your accepted feed remains chronological. Open a shared link or search from a
 site's icon; the app chooses a public route behind the scenes.
 
+On a profile, Subscribe locally keeps the opened account ready to save while
+other account suggestions arrive. Choose the additional accounts yourself;
+Find more accounts checks matching names if the linked sources missed one.
+Linked accounts also help fill missing readable names in posts. An account's own
+published name takes priority. See [account discovery](ACCOUNT_LINKAGE.md) for
+sources, limits and caching.
+
 Use Continue reading to resume, or Jump to newest to skip missed material.
 Incoming posts wait for deliberate adoption. A caught-up boundary means the
 relevant refresh succeeded; unavailable sources remain visibly pending.

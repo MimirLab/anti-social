@@ -46,11 +46,11 @@ class MentionNameStoreTest {
         val url=when(platform){Platform.INSTAGRAM->"https://www.instagram.com/$name/";else->"https://x.com/$name"}
         return MentionNames.account(routes.recognize(url)!!,routes)!!
     }
-    private fun store(maxEntries: Int=1024,maxBytes: Long=1024L*1024,database: MentionNameDatabase?=null): MentionNameStore {
+    private fun store(maxEntries: Int=1024,maxBytes: Long=1024L*1024,database: MentionNameDatabase?=null,related:suspend (Target)->List<Target> = {emptyList()}): MentionNameStore {
         val db=database ?: Room.inMemoryDatabaseBuilder(context,MentionNameDatabase::class.java).build().also {databases+=it}
         val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO).also {scopes+=it}
         return MentionNameStore(db,routes,scope,{readable.get()},{remote.get()},{foreground.get()},{mode},{},
-            {calls.incrementAndGet();retrieve(it)},now::get,quietMs=15,pollMs=5,maxEntries=maxEntries,maxBytes=maxBytes)
+            {calls.incrementAndGet();retrieve(it)},now::get,quietMs=15,pollMs=5,maxEntries=maxEntries,maxBytes=maxBytes,relatedAccounts=related)
     }
     private suspend fun eventually(condition: ()->Boolean) {
         withTimeout(5_000){while(!condition())delay(10)}
@@ -87,6 +87,62 @@ class MentionNameStoreTest {
         eventually {bank.names.value[a.key.id]=="A public display name"}
         stable();assertEquals(1,calls.get());assertEquals(1,bank.requestedCount)
         first.close();assertEquals(1,bank.requestedCount);second.close();assertEquals(0,bank.requestedCount)
+    }
+    @Test fun linkedProperNounsRescueAMissWithoutResettingItsBackoffAndDirectNamesWin(): Unit=runBlocking {
+        retrieve={null};val bank=store();bank.awaitReady();val a=account();val lease=bank.observe(listOf(a))
+        eventually {bank.stats.value.entries==1};stable();assertEquals(1,calls.get())
+        val hint=AccountNameHint(a.target,"Space agency",AccountLinkKind.DIRECTORY,"https://www.wikidata.org/wiki/Q23548",now.get())
+        bank.seed(listOf(hint));assertEquals("Space agency",bank.names.value[a.key.id])
+        repeat(3){bank.seed(listOf(hint));bank.changed()};stable();assertEquals(1,calls.get())
+        now.addAndGet(6*60*60_000L);retrieve={suppliedProfile(it.target,"NASA official account")};bank.changed()
+        eventually {bank.names.value[a.key.id]=="NASA official account"}
+        bank.seed(listOf(hint.copy(name="Another entity label",checkedAt=now.get())))
+        assertEquals("NASA official account",bank.names.value[a.key.id]);lease.close()
+    }
+    @Test fun weakStaleAndUnattributedHintsNeverRenameAnAccount(): Unit=runBlocking {
+        val bank=store();bank.awaitReady();val a=account()
+        val hint=AccountNameHint(a.target,"Space agency",AccountLinkKind.USERNAME,"https://x.com/nasa",now.get())
+        bank.seed(listOf(hint,hint.copy(kind=AccountLinkKind.ENTERED),hint.copy(kind=AccountLinkKind.PROFILE),
+            hint.copy(kind=AccountLinkKind.WEBSITE,checkedAt=now.get()-8*86_400_000L),hint.copy(kind=AccountLinkKind.DIRECTORY,sourceUrl="javascript:bad")))
+        assertTrue(bank.names.value.isEmpty());assertEquals(0,bank.stats.value.entries)
+    }
+    @Test fun confirmedAccountsReusePublicNamesAndKeepTheirOwnNamesWhenThoseArrive(): Unit=runBlocking {
+        remote.set(false);val a=account();val b=account("space_photos",Platform.INSTAGRAM)
+        val bank=store(related={if(AccountLinkage.same(it,a.target,routes))listOf(a.target,b.target)else emptyList()});bank.awaitReady()
+        bank.seed(suppliedProfile(a.target,"National space agency"))
+        assertEquals("National space agency",bank.names.value[b.key.id]);assertEquals(0,calls.get())
+        bank.seed(suppliedProfile(b.target,"Space agency photographs"));bank.linkAccounts(listOf(a.target,b.target))
+        assertEquals("Space agency photographs",bank.names.value[b.key.id])
+        val raw="Photos by @space_photos"
+        val view=MentionNames.present(raw,MentionNames.find(raw,Platform.INSTAGRAM,b.target.canonicalUrl,routes),bank.names.value)
+        assertEquals("Photos by Space agency photographs",view.text)
+        assertEquals(b.target,view.mentions.single().original.target)
+    }
+    @Test fun fallbackNamesPersistWithTheirEvidenceAndStillTryTheRealProfileAfterRestart(): Unit=runBlocking {
+        val filename="mention-hints-${UUID.randomUUID()}.db";files+=filename
+        val firstDb=MentionNameDatabase.open(context,filename).also {databases+=it};val first=store(database=firstDb);first.awaitReady();val a=account()
+        first.seed(listOf(AccountNameHint(a.target,"Space agency",AccountLinkKind.WEBSITE,"https://nasa.gov/",now.get())))
+        assertEquals("linked:website",firstDb.names().all().single().nameOrigin)
+        assertEquals("https://nasa.gov/",firstDb.names().all().single().nameSource)
+        scopes.last().coroutineContext[Job]?.cancelAndJoin();firstDb.close();databases.remove(firstDb)
+        val db=MentionNameDatabase.open(context,filename).also {databases+=it};val bank=store(database=db);bank.awaitReady()
+        assertEquals("Space agency",bank.names.value[a.key.id]);val lease=bank.observe(listOf(a))
+        eventually {bank.names.value[a.key.id]=="A public display name"};assertEquals(1,calls.get())
+        assertEquals("profile",db.names().all().single().nameOrigin);assertNull(db.names().all().single().nameSource)
+        lease.close();now.addAndGet(30*86_400_000L);bank.cleanup();assertTrue(bank.names.value.isEmpty())
+    }
+    @Test fun versionOneNameBankMigratesWithoutLosingObservedNames(): Unit=runBlocking {
+        val filename="mention-migration-${UUID.randomUUID()}.db";files+=filename;val a=account();val title="NASA public organization"
+        val bytes=listOf(a.key.id,a.key.platform.id,a.key.authority,a.key.username,a.target.canonicalUrl,title,"").sumOf {it.toByteArray().size}+96L
+        context.openOrCreateDatabase(filename,Context.MODE_PRIVATE,null).use {db->
+            db.execSQL("CREATE TABLE mention_names (`key` TEXT NOT NULL PRIMARY KEY,platform TEXT NOT NULL,authority TEXT NOT NULL,username TEXT NOT NULL,canonicalUrl TEXT NOT NULL,displayName TEXT,checkedAt INTEGER NOT NULL,lastViewedAt INTEGER NOT NULL,viewCount INTEGER NOT NULL,failures INTEGER NOT NULL,retryAt INTEGER NOT NULL,failurePolicy TEXT,bytes INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX index_mention_names_lastViewedAt ON mention_names(lastViewedAt)")
+            db.execSQL("INSERT INTO mention_names VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",arrayOf(a.key.id,a.key.platform.id,a.key.authority,a.key.username,a.target.canonicalUrl,title,now.get(),now.get(),1L,0,0L,null,bytes))
+            db.version=1
+        }
+        val db=MentionNameDatabase.open(context,filename).also {databases+=it};val bank=store(database=db);bank.awaitReady()
+        assertEquals(title,bank.names.value[a.key.id]);assertEquals("profile",db.names().all().single().nameOrigin)
+        assertNull(db.names().all().single().nameSource);assertEquals(0,calls.get())
     }
     @Test fun existingPublicProfileMetadataSeedsTheOfflineBank(): Unit=runBlocking {
         val bank=store();bank.awaitReady();val a=account()

@@ -90,7 +90,7 @@ import kotlinx.coroutines.*
     ChronologicalFeed(vm,posts,scoped,savedKeys,person?.let {"person:$it"} ?: "all",title,subtitle,grouped=true,onAdd=onAdd,counterparts=counterparts,counterpartsReady=counterpartsReady)
 }
 
-@Composable internal fun SubscriptionDialog(vm: AntiSocialViewModel,initial: Platform,existing: Subscription?=null,autoDiscover: Boolean=false,initialTarget: Target?=null,discoverAccounts: suspend (Target)->AccountDiscovery=vm.repo::discoverAccounts,onDismiss: ()->Unit) {
+@Composable internal fun SubscriptionDialog(vm: AntiSocialViewModel,initial: Platform,existing: Subscription?=null,autoDiscover: Boolean=false,initialTarget: Target?=null,initialProfile:Profile?=null,discoverAccounts: (suspend (Target)->AccountDiscovery)?=null,onDismiss: ()->Unit) {
     val scope=rememberCoroutineScope()
     var platform by remember {mutableStateOf(initial.takeIf(ReaderScope::isFeedSource) ?: vm.repo.prefs.activePlatform)}
     var value by remember {mutableStateOf(initialTarget?.takeIf {ReaderScope.isFeedSource(it.platform)}?.let {vm.repo.publicUrl(it.canonicalUrl,it.platform)} ?: if(autoDiscover)existing?.accounts?.firstOrNull {it.target.kind==TargetKind.PROFILE}?.target?.let {vm.repo.publicUrl(it.canonicalUrl,it.platform)}.orEmpty()else "")}
@@ -100,22 +100,35 @@ import kotlinx.coroutines.*
     var loading by remember {mutableStateOf(false)}
     var error by remember {mutableStateOf<String?>(null)}
     var advanced by remember {mutableStateOf(false)}
+    var saving by remember {mutableStateOf(false)}
+    var nameTouched by remember {mutableStateOf(false)}
+    var generation by remember {mutableIntStateOf(0)}
     var group by remember {mutableStateOf("")};var feed by remember {mutableStateOf("")}
     var job by remember {mutableStateOf<Job?>(null)}
     val dismiss={job?.cancel();onDismiss()}
-    val find: ()->Unit={
+    val find: (Boolean)->Unit={matchingNames->
+        val request=++generation;job?.cancel()
         job=scope.launch {
             loading=true;error=null
             try {
                 val target=withContext(Dispatchers.Default){vm.repo.routes.target(platform,value.trim())}
-                val found=discoverAccounts(target);discovery=found
-                if(name.isBlank())name=found.name
-                // Discovery suggests; only the entered account is selected automatically.
-                selected=setOf(target.canonicalUrl)
-            }catch(e: CancellationException){throw e}catch(e: Exception){error=e.message ?: "Account links could not be read"}finally {loading=false}
+                if(discovery==null)selected=(existing?.accounts?.map {AccountLinkage.key(it.target,vm.repo.routes)}.orEmpty()+AccountLinkage.key(target,vm.repo.routes)).toSet()
+                val retained=discovery?.candidates.orEmpty().associateBy {AccountLinkage.key(it.target,vm.repo.routes)}.toMutableMap()
+                fun update(found:AccountDiscovery) {
+                    if(request!=generation)return
+                    found.candidates.forEach {c->val key=AccountLinkage.key(c.target,vm.repo.routes);val old=retained[key];if(old==null||c.kind.ordinal<old.kind.ordinal)retained[key]=c}
+                    discovery=found.copy(candidates=retained.values.take(20))
+                    if(!nameTouched&&existing==null)name=found.name
+                }
+                // The opened account is usable immediately. Slow or unavailable
+                // discovery lanes never disable subscribing to it.
+                update(AccountDiscovery(initialProfile?.name ?: existing?.name ?: target.identity,listOf(AccountCandidate(target,"Account you opened",AccountLinkKind.ENTERED)),complete=false))
+                val found=if(discoverAccounts!=null)discoverAccounts(target)else vm.repo.discoverAccounts(target,initialProfile,matchingNames,::update)
+                update(found)
+            }catch(e: CancellationException){throw e}catch(e: Exception){if(request==generation)error="Other account suggestions are unavailable. You can still subscribe to the account you opened."}finally {if(request==generation)loading=false}
         }
     }
-    LaunchedEffect(Unit){if(autoDiscover)find()}
+    LaunchedEffect(Unit){if(autoDiscover)find(false)}
     AlertDialog(onDismissRequest=dismiss,containerColor=MaterialTheme.colorScheme.surface,title={Text(if(existing==null)"Add a subscription"else "Link accounts")},text={Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("Subscription dialog"),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(discovery==null) {
             Text("Start with one public account. anti social looks for other platforms linked from its profile and website.",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -125,31 +138,34 @@ import kotlinx.coroutines.*
             if(existing==null)TextButton(onClick={advanced=!advanced},enabled=!loading){Text(if(advanced)"Hide source options"else "Community, tag or RSS options")}
             if(advanced){OutlinedTextField(group,{group=it},label={Text("Group (optional)")},singleLine=true,enabled=!loading);OutlinedTextField(feed,{feed=it},label={Text("Alternate RSS/Atom URL (optional)")},singleLine=true,enabled=!loading)}
         }else {
-            OutlinedTextField(name,{name=it},label={Text("Person or organization")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("Subscription name"))
+            OutlinedTextField(name,{name=it;nameTouched=true},label={Text("Person or organization")},singleLine=true,modifier=Modifier.fillMaxWidth().testTag("Subscription name"))
             discovery!!.notice?.let {Text(vm.repo.publicText(it),fontSize=12.sp,lineHeight=18.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-            discovery!!.candidates.filter {ReaderScope.isFeedSource(it.target.platform)}.forEach {candidate->val url=candidate.target.canonicalUrl
+            discovery!!.candidates.filter {ReaderScope.isFeedSource(it.target.platform)}.forEach {candidate->val url=candidate.target.canonicalUrl;val accountKey=AccountLinkage.key(candidate.target,vm.repo.routes)
                 Surface(shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.surfaceVariant) {
-                    Row(Modifier.fillMaxWidth().testTag("Account candidate $url").toggleable(value=url in selected,role=Role.Checkbox,onValueChange={selected=if(it)selected+url else selected-url}).padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Checkbox(url in selected,null);PlatformMark(candidate.target.platform,24.dp)
-                        Column(Modifier.weight(1f).padding(start=10.dp)){MentionText(candidate.target.identity.removePrefix("profile/"),vm.repo,candidate.target.platform,candidate.target.canonicalUrl,accountLabel=true,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis);Text(vm.repo.publicText(candidate.evidence,candidate.target.platform),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                    Row(Modifier.fillMaxWidth().testTag("Account candidate $url").toggleable(value=accountKey in selected,enabled=!saving,role=Role.Checkbox,onValueChange={selected=if(it)selected+accountKey else selected-accountKey}).padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
+                        Checkbox(accountKey in selected,null);PlatformMark(candidate.target.platform,24.dp)
+                        Column(Modifier.weight(1f).padding(start=10.dp)){MentionText(candidate.target.identity.removePrefix("profile/"),vm.repo,candidate.target.platform,candidate.target.canonicalUrl,accountLabel=true,networkAllowed=false,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis);Text(vm.repo.publicText(candidate.evidence,candidate.target.platform),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                     }
                 }
             }
         }
-        if(loading){LinearProgressIndicator(Modifier.fillMaxWidth());Text("Reading public profile links…",fontSize=12.sp)}
+        if(loading&&!saving){LinearProgressIndicator(Modifier.fillMaxWidth());Text("Finding linked accounts… You can subscribe now.",fontSize=12.sp)}
+        if(discovery!=null&&!loading&&!saving)TextButton(onClick={find(true)},modifier=Modifier.testTag("Find more accounts")){Icon(Icons.Rounded.Search,null);Spacer(Modifier.width(6.dp));Text("Find more accounts")}
         error?.let {Text(vm.repo.publicText(it),fontSize=12.sp,color=MaterialTheme.colorScheme.error)}
     }},confirmButton={
-        TextButton(enabled=!loading&&if(discovery==null)value.isNotBlank()else name.isNotBlank()&&selected.isNotEmpty(),onClick={
-            if(discovery==null&&feed.isBlank()&&!advanced)find()else {
+        TextButton(enabled=!saving&&if(discovery==null)!loading&&value.isNotBlank()else name.isNotBlank()&&selected.isNotEmpty(),onClick={
+            if(discovery==null&&feed.isBlank()&&!advanced)find(false)else {
+                val accepted=discovery
+                generation++;job?.cancel()
                 job=scope.launch {
-                    loading=true;error=null
+                    loading=true;saving=true;error=null
                     try {
-                        if(discovery==null)vm.repo.follow(platform,value.trim(),group.trim(),feed.trim().takeIf {it.isNotBlank()})
-                        else vm.repo.saveSubscription(name,discovery!!.candidates.filter {it.target.canonicalUrl in selected}.map {it.target},existing?.id)
+                        if(accepted==null)vm.repo.follow(platform,value.trim(),group.trim(),feed.trim().takeIf {it.isNotBlank()})
+                        else vm.repo.saveSubscription(name,accepted.candidates.filter {AccountLinkage.key(it.target,vm.repo.routes) in selected}.map {it.target},existing?.id)
                         onDismiss()
                         // Refresh belongs to the view model; closing the dialog cannot cancel it.
                         vm.launch {if(existing==null)vm.repo.refresh()else vm.repo.refreshSubscription(existing.id)}
-                    }catch(e: CancellationException){throw e}catch(e: Exception){error=e.message ?: "Subscription could not be saved"}finally {loading=false}
+                    }catch(e: CancellationException){throw e}catch(e: Exception){error=e.message ?: "Subscription could not be saved"}finally {loading=false;saving=false}
                 }
             }
         },modifier=Modifier.testTag("Save subscription")){Text(if(discovery==null&&!advanced)"Find accounts"else if(existing==null)"Subscribe"else "Link selected")}

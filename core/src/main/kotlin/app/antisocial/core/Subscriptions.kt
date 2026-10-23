@@ -6,8 +6,10 @@ import java.text.Normalizer
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class Subscription(val id: String,val name: String,val accounts: List<Follow>)
-data class AccountCandidate(val target: Target,val evidence: String)
-data class AccountDiscovery(val name: String,val candidates: List<AccountCandidate>,val notice: String?=null)
+data class AccountCandidate(val target: Target,val evidence: String,val kind:AccountLinkKind=AccountLinkKind.PROFILE,val sourceUrl:String?=null,val checkedAt:Long?=null)
+/** A public identity label is a fallback, separate from the account's own name. */
+data class AccountNameHint(val target:Target,val name:String,val kind:AccountLinkKind,val sourceUrl:String,val checkedAt:Long)
+data class AccountDiscovery(val name: String,val candidates: List<AccountCandidate>,val notice: String?=null,val complete:Boolean=true,val nameHints:List<AccountNameHint> = emptyList())
 data class PostGroup(val posts: List<Post>) { val primary get()=posts.first() }
 
 /** Local, explicitly linked identities. A matching handle is never identity evidence. */

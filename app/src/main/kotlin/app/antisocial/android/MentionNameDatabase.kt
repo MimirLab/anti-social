@@ -3,6 +3,7 @@ package app.antisocial.android
 
 import android.content.Context
 import androidx.room.Dao
+import androidx.room.ColumnInfo
 import androidx.room.Database
 import androidx.room.Entity
 import androidx.room.Index
@@ -11,6 +12,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** Ordinary cache only: independent of subscriptions, saved records and their
@@ -29,7 +31,9 @@ internal data class MentionNameRow(
     val failures: Int,
     val retryAt: Long,
     val failurePolicy: String?,
-    val bytes: Long
+    val bytes: Long,
+    @ColumnInfo(defaultValue="'profile'") val nameOrigin:String="profile",
+    val nameSource:String?=null
 )
 
 @Dao internal interface MentionNameDao {
@@ -39,13 +43,18 @@ internal data class MentionNameRow(
     @Query("DELETE FROM mention_names") suspend fun clear()
 }
 
-@Database(entities=[MentionNameRow::class],version=1,exportSchema=false)
+@Database(entities=[MentionNameRow::class],version=2,exportSchema=false)
 internal abstract class MentionNameDatabase: RoomDatabase() {
     abstract fun names(): MentionNameDao
     companion object {
         fun open(context: Context,name: String="mention-names.db"): MentionNameDatabase = Room.databaseBuilder(
             context.applicationContext,MentionNameDatabase::class.java,name
-        ).setJournalMode(JournalMode.TRUNCATE).addCallback(object: Callback() {
+        ).addMigrations(object:Migration(1,2) {
+            override fun migrate(db:SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE mention_names ADD COLUMN nameOrigin TEXT NOT NULL DEFAULT 'profile'")
+                db.execSQL("ALTER TABLE mention_names ADD COLUMN nameSource TEXT")
+            }
+        }).setJournalMode(JournalMode.TRUNCATE).addCallback(object: Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 // A name lookup must not leave an ever-growing journal behind.
                 // This assignment returns a row. Android 15 rejects execSQL
