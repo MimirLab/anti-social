@@ -161,8 +161,10 @@ object CrossPostFusion {
     private fun preparePost(post: Post): Prepared? {
         if(post.body.length.toLong()+post.title.length>MAX_TEXT)return null
         val fields=PostPresentation.text(post)
-        val boundary=fields.title.takeIf {it.isNotBlank()&&fields.body.isNotBlank()}?.length
-        val text=listOf(fields.title,fields.body).filter(String::isNotBlank).joinToString("\n")
+        fun decoded(value:String):String {var result=value;repeat(2){result=org.jsoup.parser.Parser.unescapeEntities(result,false)};return result}
+        val title=decoded(fields.title);val body=decoded(fields.body)
+        val boundary=title.takeIf {it.isNotBlank()&&body.isNotBlank()}?.length
+        val text=listOf(title,body).filter(String::isNotBlank).joinToString("\n")
         return prepare(text,boundary,post.links.orEmpty().take(32))
     }
 
@@ -423,6 +425,7 @@ object CrossPostFusion {
      */
     fun compose(posts: List<Post>): PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        CaptionAliases.compose(posts)?.let {return it}
         // Grouping proves timing/content/corroboration independently; a copy
         // never certifies that its distinct publishers are the same person.
         // A fully equivalent short caption needs no partial-span alignment, but

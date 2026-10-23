@@ -1,5 +1,17 @@
 # Next-release qualification
 
+## 0.38.0 subscription, search and collection qualification
+
+Full JVM suite: **1,837 cases, zero failures/errors, one optional skip**. The
+API35 native regression passed **78 checks**, with two opt-in checks skipped.
+Release assembly and release lint passed. Native subscription controls and
+collected-image screens were visually inspected. Live Gateway checks retrieved
+Instagram and TikTok post cards; individual upstream failures remain documented
+in [the qualification record](PRODUCT_POLISH.md). Physical-phone performance,
+battery and GPU qualification remain separate.
+
+## Previous 0.36 qualification
+
 Status: the 0.36 implementation and emulator qualification are complete. On
 October 23, 2026, the owner explicitly requested publishing the tested build as
 0.36.0 through the permanent download link for phone use. Physical-phone

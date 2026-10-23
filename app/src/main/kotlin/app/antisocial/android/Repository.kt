@@ -675,6 +675,13 @@ class Repository(val context: Context) {
         val owners=local.filter {AccountLinkage.same(it.target,target,routes)}.map(Subscriptions::id).toSet()
         return local.filter {Subscriptions.id(it) in owners}.map {it.target}.take(40)
     }
+    /** Remove only this local bundle's memberships. Saved material and source
+     * records remain available; the same accounts can be subscribed again. */
+    suspend fun unsubscribeAll(subscriptionId:String)=withContext(Dispatchers.IO) {
+        db.withTransaction {
+            dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}.filter {Subscriptions.id(it)==subscriptionId}.forEach {dao.removeFollow(it.id)}
+        }
+    }
     suspend fun refreshSubscription(id: String) {refresh(personId=id)}
     suspend fun discussion(post: Post,previous: Page?=null,order: ReadingOrder=ReadingOrder.CHRONOLOGICAL): Page {
         awaitReady();gateway.originalFallback=prefs.originalFallback

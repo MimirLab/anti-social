@@ -27,6 +27,7 @@ fun largePlatformDiscoveryAdapter(source: Source, gateway: NetworkGateway, route
     source.platform==Platform.TIKTOK && source.frontend=="tiktok-creator-embed" -> TikTokCreatorEmbedAdapter(source,gateway,routes)
     source.platform==Platform.TIKTOK && source.frontend=="tikwm" -> ScopedDiscoveryPostAdapter(source,gateway,routes)
     source.platform==Platform.TIKTOK && source.frontend=="tikwm-comments" -> TikWmCommentsAdapter(source,gateway,routes)
+    source.platform==Platform.TIKTOK && source.frontend in setOf("tikwm-search","tikwm-photo-search") -> TikWmSearchAdapter(source,gateway,routes)
     source.platform==Platform.SNAPCHAT && source.frontend=="snapchat-embed" -> ScopedDiscoveryPostAdapter(source,gateway,routes)
     source.platform in setOf(Platform.INSTAGRAM,Platform.THREADS,Platform.FACEBOOK) && source.frontend=="meta-oembed" -> ScopedDiscoveryPostAdapter(source,gateway,routes)
     else -> null

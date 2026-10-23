@@ -27,6 +27,7 @@ import kotlinx.coroutines.*
     var adding by remember {mutableStateOf<Subscription?>(null)}
     var addingRss by remember {mutableStateOf(false)}
     var related by remember {mutableStateOf<Subscription?>(null)}
+    LaunchedEffect(managing,subscriptions){if(managing!=null&&subscriptions.none {it.id==managing})managing=null}
     val legacyVideos by vm.repo.legacyVideoFollows.collectAsState(emptyList())
     var showLegacyVideos by remember {mutableStateOf(false)}
     LazyColumn(Modifier.fillMaxSize().testTag("Subscriptions list"),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -75,10 +76,13 @@ import kotlinx.coroutines.*
                 PlatformMark(account.target.platform,24.dp)
                 Column(Modifier.weight(1f).padding(8.dp)){Text(account.target.platform.label,fontWeight=FontWeight.Medium);Text(account.target.identity,fontSize=12.sp,maxLines=2,overflow=TextOverflow.Ellipsis)}
                 IconButton(onClick={managing=null;vm.open(account.target)}){Icon(Icons.AutoMirrored.Rounded.OpenInNew,"Open ${account.target.platform.label} account")}
-                IconButton(onClick={vm.launch {vm.repo.dao.removeFollow(account.id)}}){Icon(Icons.Rounded.Close,"Unsubscribe ${account.target.platform.label} account")}
+                IconButton(onClick={if(subscription.accounts.size==1)managing=null;vm.launch {vm.repo.dao.removeFollow(account.id)}}){Icon(Icons.Rounded.Close,"Unsubscribe ${account.target.platform.label} account")}
             }}
             TextButton(onClick={managing=null;adding=subscription}){Icon(Icons.Rounded.Add,null);Text("Add an account manually")}
-        }},confirmButton={TextButton(onClick={managing=null}){Text("Done")}})
+        }},confirmButton={Row {
+            TextButton(onClick={managing=null;vm.launch {vm.repo.unsubscribeAll(subscription.id)}},modifier=Modifier.testTag("Unsubscribe all"),colors=ButtonDefaults.textButtonColors(contentColor=MaterialTheme.colorScheme.error)){Text("Unsubscribe all")}
+            TextButton(onClick={managing=null}){Text("Done")}
+        }})
     }
     related?.let {subscription->subscription.accounts.firstOrNull {AdjacentDiscovery.valid(it.target)}?.let {account->AdjacentDialog(vm,Profile(account.target,subscription.name,displayNameSupplied=false),null,onDismiss={related=null})}}
     discovering?.let {subscription->SubscriptionDialog(vm,subscription.accounts.first().target.platform,subscription,autoDiscover=true,onDismiss={discovering=null})}
@@ -131,6 +135,19 @@ import kotlinx.coroutines.*
             }catch(e: CancellationException){throw e}catch(e: Exception){if(request==generation)error="Other account suggestions are unavailable. You can still subscribe to the account you opened."}finally {if(request==generation)loading=false}
         }
     }
+    val save:(Set<String>)->Unit={chosen->
+        val accepted=discovery;val acceptedName=name
+        generation++;job?.cancel()
+        job=scope.launch {
+            loading=true;saving=true;error=null
+            try {
+                if(accepted==null)vm.repo.follow(platform,value.trim(),group.trim(),feed.trim().takeIf {it.isNotBlank()})
+                else vm.repo.saveSubscription(acceptedName,accepted.candidates.filter {AccountLinkage.key(it.target,vm.repo.routes) in chosen}.map {it.target},existing?.id)
+                onDismiss()
+                vm.launch {if(existing==null)vm.repo.refresh()else vm.repo.refreshSubscription(existing.id)}
+            }catch(e:CancellationException){throw e}catch(e:Exception){error=e.message ?: "Subscription could not be saved"}finally {loading=false;saving=false}
+        }
+    }
     LaunchedEffect(Unit){if(autoDiscover)find(false)}
     AlertDialog(onDismissRequest=dismiss,containerColor=MaterialTheme.colorScheme.surface,title={Text(if(existing==null)"Add a subscription"else "Link accounts")},text={Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("Subscription dialog"),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(discovery==null) {
@@ -155,22 +172,11 @@ import kotlinx.coroutines.*
         if(loading&&!saving){LinearProgressIndicator(Modifier.fillMaxWidth());Text("Finding linked accounts… You can subscribe now.",fontSize=12.sp)}
         if(discovery!=null&&!loading&&!saving)TextButton(onClick={find(true)},modifier=Modifier.testTag("Find more accounts")){Icon(Icons.Rounded.Search,null);Spacer(Modifier.width(6.dp));Text("Find more accounts")}
         error?.let {Text(vm.repo.publicText(it),fontSize=12.sp,color=MaterialTheme.colorScheme.error)}
-    }},confirmButton={
+    }},confirmButton={Row {
+        val all=discovery?.candidates.orEmpty().filter {ReaderScope.isFeedSource(it.target.platform)}.map {AccountLinkage.key(it.target,vm.repo.routes)}.toSet()
+        if(all.size>1)TextButton(enabled=!saving&&name.isNotBlank(),onClick={save(all)},modifier=Modifier.testTag("Subscribe all")){Text("Subscribe all")}
         TextButton(enabled=!saving&&if(discovery==null)!loading&&value.isNotBlank()else name.isNotBlank()&&selected.isNotEmpty(),onClick={
-            if(discovery==null&&feed.isBlank()&&!advanced)find(false)else {
-                val accepted=discovery
-                generation++;job?.cancel()
-                job=scope.launch {
-                    loading=true;saving=true;error=null
-                    try {
-                        if(accepted==null)vm.repo.follow(platform,value.trim(),group.trim(),feed.trim().takeIf {it.isNotBlank()})
-                        else vm.repo.saveSubscription(name,accepted.candidates.filter {AccountLinkage.key(it.target,vm.repo.routes) in selected}.map {it.target},existing?.id)
-                        onDismiss()
-                        // Refresh belongs to the view model; closing the dialog cannot cancel it.
-                        vm.launch {if(existing==null)vm.repo.refresh()else vm.repo.refreshSubscription(existing.id)}
-                    }catch(e: CancellationException){throw e}catch(e: Exception){error=e.message ?: "Subscription could not be saved"}finally {loading=false;saving=false}
-                }
-            }
+            if(discovery==null&&feed.isBlank()&&!advanced)find(false)else save(selected)
         },modifier=Modifier.testTag("Save subscription")){Text(if(discovery==null&&!advanced)"Find accounts"else if(existing==null)"Subscribe"else "Link selected")}
-    },dismissButton={TextButton(onClick=dismiss){Text("Cancel")}})
+    }},dismissButton={TextButton(onClick=dismiss){Text("Cancel")}})
 }

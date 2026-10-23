@@ -580,7 +580,12 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             val actual=MentionNames.account(supplied.target,routes) ?: return false
             return expected.key==actual.key&&MentionNames.sanitizeDisplayName(supplied.name,actual.key)!=null
         }
-        fun usableProgress(page: Page)=searchProgress(page,capability,target)&&usableProfileName(page)
+        // An account result is useful for the people shelf, but must not cancel
+        // the routes that can answer the reader's site-wide post search.
+        fun directoryOnly(page: Page)=capability==Capability.SEARCH&&target.kind==TargetKind.SEARCH&&SearchScopes.from(target)==null&&
+            page.posts.isEmpty()&&page.collections.none {it.target.kind==TargetKind.POST}&&
+            (page.accounts.isNotEmpty()||page.collections.any {PublicSearchAdapter.entityAllowed(it.target)})
+        fun usableProgress(page: Page)=searchProgress(page,capability,target)&&usableProfileName(page)&&!directoryOnly(page)
         progress("Preparing a secure connection")
         gateway.prepare()
         if(target.platform==Platform.RSS&&target.kind!=TargetKind.FEED)throw SourceFailure(HealthStatus.UNSUPPORTED,"Open the saved feed entry; article pages are not downloaded automatically")
@@ -605,7 +610,13 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             val candidate=if(capability==Capability.POST)page.copy(posts=page.posts.filter {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)},profile=null,collections=emptyList(),accounts=emptyList())else page
             if(candidate.posts.isEmpty()&&candidate.profile==null&&candidate.collections.isEmpty()&&candidate.accounts.isEmpty())return
             if(partial==null||previewOnly(candidate)&&partial!!.posts.isEmpty())partial=candidate
+            else if(capability==Capability.SEARCH&&directoryOnly(candidate))partial=partial!!.copy(
+                accounts=(partial!!.accounts+candidate.accounts).distinctBy {PublicSearchAdapter.entityKey(it.target)},
+                collections=(partial!!.collections+candidate.collections).distinctBy {ContentIdentity.key(it.target.platform,it.target.canonicalUrl)})
         }
+        fun includeDirectory(page:Page)=if(capability==Capability.SEARCH&&partial!=null)page.copy(
+            accounts=(page.accounts+partial!!.accounts).distinctBy {PublicSearchAdapter.entityKey(it.target)},
+            collections=(page.collections+partial!!.collections.filter {PublicSearchAdapter.entityAllowed(it.target)}).distinctBy {ContentIdentity.key(it.target.platform,it.target.canonicalUrl)})else page
         val indexes=candidates.filter {it.frontend=="librey"}
         val native=candidates.filter {it.frontend!="librey"}
         fun healthy(source: Source)=routeTier(source,capability)==0
@@ -674,10 +685,10 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             null
         }
         if(alternate!=null) {
-            if(indexFallback&&alternate.posts.isEmpty()&&alternate.accounts.isNotEmpty())partial=alternate else return@withContext delivered(target,capability,alternate,originalFallback)
+            return@withContext delivered(target,capability,includeDirectory(alternate),originalFallback)
         }
         }
-        if(originalFallback&&originalRedirect!=null)return@withContext delivered(target,capability,originalRedirect!!,originalFallback)
+        if(originalFallback&&originalRedirect!=null)return@withContext delivered(target,capability,includeDirectory(originalRedirect!!),originalFallback)
         if(originalFallback)for(source in fallbackSources(target.platform,capability,target).let {paths->if(capability==Capability.SEARCH)paths else paths.sortedWith(compareBy<Source> {learning.score(it,capability,usesTor(it))}.thenBy {pathways.priority(it)})}) {
             val a=adapter(source);val started=System.nanoTime()
             val originalTor=usesTor(source)
@@ -697,20 +708,19 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 val page=withTimeout(if(indexFallback&&source.frontend=="original"){if(target.platform==Platform.FACEBOOK){if(originalTor)40_000 else 20_000}else if(originalTor)8_000 else 4_000}else if(originalTor)55_000 else 20_000){
                 if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else try {a.fetch(target,cursor)}catch(e: CancellationException){throw e}catch(e: Exception){
                     e.respectRetryDelay()
-                    if(cursor==null&&(target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)||target.kind==TargetKind.SEARCH&&target.platform==Platform.REDDIT)&&target.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST))a.feed(target)else throw e
+                    if(source.frontend !in PublicSearchAdapter.frontends&&cursor==null&&(target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)||target.kind==TargetKind.SEARCH&&target.platform==Platform.REDDIT)&&target.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST))a.feed(target)else throw e
                 }
                 }
                 if(feed&&page.posts.none {it.publishedAt!=null})throw SourceFailure(HealthStatus.EMPTY,"Original has no dated feed entries")
                 val content=content(page,capability,target)&&!previewOnly(page)
                 report(if(content)HealthStatus.HEALTHY else HealthStatus.EMPTY,if(content)"Requested public content extracted"else if(usableProgress(page))"No matching content on this index page; continuation available"else "Profile information only; no timeline entries")
-                if(indexFallback&&source.frontend=="original"&&page.posts.isEmpty()&&page.accounts.isNotEmpty()){partial=page;continue}
                 if(!usableProgress(page)) {
                     // Keep a real preview/profile for a possible partial result,
                     // but exhaust eligible formats/providers before returning it.
                     retainPartial(page)
                     continue
                 }
-                return@withContext delivered(target,capability,if(capability==Capability.SEARCH&&partial!=null)page.copy(accounts=(partial!!.accounts+page.accounts).distinctBy {it.target.canonicalUrl})else page,originalFallback)
+                return@withContext delivered(target,capability,includeDirectory(page),originalFallback)
             }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();last=e;report(HealthStatus.UNAVAILABLE,"Timed out")}
             catch(e: Exception){last=e;report((e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,e.message.orEmpty(),(e as? SourceFailure)?.retryAfterMs)}
         }

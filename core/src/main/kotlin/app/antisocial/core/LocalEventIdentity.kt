@@ -3,6 +3,7 @@ package app.antisocial.core
 
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
+import java.time.Duration
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 object LocalEventIdentity {
@@ -29,8 +30,9 @@ object LocalEventIdentity {
         // one-hour tolerance that would swallow a separate performance.
         val calendarMismatch=shared&&!a.start.allDay&&!b.start.allDay&&wall(a.start)!=null&&wall(a.start)==wall(b.start)&&
             (a.evidence.any {it.field=="start"&&it.kind==LocalEvidenceKind.CALENDAR}||b.evidence.any {it.field=="start"&&it.kind==LocalEvidenceKind.CALENDAR})
-        if(!exact&&!calendarMismatch)return false
         val distance=if(a.point!=null&&b.point!=null)a.point.distanceKm(b.point)else null
+        if(districtOccurrence(a,b,distance))return true
+        if(!exact&&!calendarMismatch)return false
         if(distance!=null&&distance>.2)return false
         val av=LocalDiscoveryMerge.businessName(a.venue.substringBefore(','));val bv=LocalDiscoveryMerge.businessName(b.venue.substringBefore(','))
         val venue=av.isNotBlank()&&av==bv
@@ -38,5 +40,25 @@ object LocalEventIdentity {
         val locality=a.locality.isNotBlank()&&LocalDiscoveryIdentity.name(a.locality)==LocalDiscoveryIdentity.name(b.locality)
         if(shared&&(venue||address||a.venue.isBlank()||b.venue.isBlank()||distance!=null&&distance<.1))return true
         return exact&&(distance!=null&&distance<.1||locality&&(venue||address))
+    }
+    /** District-wide celebrations are published under both the district and a
+     * participating venue. A common title alone cannot merge two performances. */
+    private fun districtOccurrence(a:LocalEvent,b:LocalEvent,distance:Double?):Boolean {
+        val name=title(a)
+        if(a.online||a.start.allDay||b.start.allDay||name.length<18||name.split(' ').size<4)return false
+        if(a.start.date()!=b.start.date()||a.locality.isBlank()||LocalDiscoveryIdentity.name(a.locality)!=LocalDiscoveryIdentity.name(b.locality))return false
+        if(distance!=null&&distance>1)return false
+        val corridorA=LocalDiscoveryMerge.street(a.address)?.substringAfter(' ')
+        val corridorB=LocalDiscoveryMerge.street(b.address)?.substringAfter(' ')
+        if(corridorA==null||corridorA!=corridorB)return false
+        val regional=setOf("district","downtown","neighborhood","neighbourhood")
+        if(listOf(a.venue,b.venue).none {LocalDiscoveryIdentity.words(it).any {w->w in regional}})return false
+        val left=a.start.instant() ?: return false;val right=b.start.instant() ?: return false
+        if(kotlin.math.abs(Duration.between(left,right).seconds)>1800)return false
+        val end=a.end?.instant() ?: return false
+        if(end!=b.end?.instant()||end<=maxOf(left,right))return false
+        val ignored=setOf("the","and","for","with","from","this","that","some","include","includes","activities","event","halloween","district","trick","treating")
+        fun detail(e:LocalEvent)=LocalDiscoveryIdentity.words(e.description.take(12_000)).filter {it.length>=4&&it !in ignored}.toSet()
+        return detail(a).intersect(detail(b)).size>=4
     }
 }

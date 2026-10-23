@@ -52,8 +52,8 @@ object PostPresentation {
             // wrapper for this equal-length case; a distinct editorial heading
             // ending in an ellipsis still participates in presentation.
             val completeAttributedEcho=heading==unwrapped&&prefix==body
-            val generatedShort=post.platform==Platform.INSTAGRAM&&post.provenance?.source?.frontend in setOf("rss-bridge","rsshub")&&
-                prefix!=null&&prefix.length>=16&&captionWords.findAll(prefix).count()>=4
+            val generatedShort=post.platform in setOf(Platform.INSTAGRAM,Platform.FACEBOOK)&&post.provenance?.source?.frontend in setOf("rss-bridge","rsshub")&&
+                prefix!=null&&prefix.length>=12&&captionWords.findAll(prefix).count()>=3
             val truncatedEcho=prefix!=null&&(prefix.length>=24||generatedShort)&&
                 (body.length>prefix.length&&body.startsWith(prefix)||completeAttributedEcho)
             val fullPrefix=heading.length>=40&&captionWords.findAll(heading).count()>=6&&body.startsWith("$heading ")&&

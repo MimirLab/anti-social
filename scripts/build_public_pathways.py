@@ -51,6 +51,8 @@ add("instagram", "oginstagram-activity", "https://oginstagram.com", priority=-6,
 add("tiktok", "tiktok-creator-embed", "https://www.tiktok.com", "ORIGINAL", priority=-5,
     references=("https://developers.tiktok.com/doc/embed-creator-profiles/",), note="One public creator document; undated cards are on-demand only, never feed refresh proof.")
 add("tiktok", "tikwm", "https://www.tikwm.com", priority=-6, fallback=False, references=("https://www.tikwm.com/",), note="Individual public posts only; profile API returned 403. Honors quota backoff.")
+for frontend in ("tikwm-search", "tikwm-photo-search"):
+    add("tiktok", frontend, "https://www.tikwm.com", priority=-6, fallback=False, references=("https://www.tikwm.com/",), note="Public keyword search with query-bound cursors; separate photo/video route health. Source-selected results, locally chronological. Challenges and quotas remain failures.")
 add("tiktok", "tikwm-comments", "https://www.tikwm.com", priority=-6, fallback=False,
     references=("https://github.com/AndreyQq/Tiktok-Video-No-Watermark",), note="On-demand public comments for an exact post; separate from the post reader. No unverified nested-reply or popularity-order claim.")
 add("snapchat", "snapchat-embed", "https://www.snapchat.com", "ORIGINAL", priority=-4,

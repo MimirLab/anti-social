@@ -34,10 +34,15 @@ import kotlinx.coroutines.delay
 
 @Composable internal fun PageIntro(vm: AntiSocialViewModel) {
     val state by vm.screen.collectAsState()
-    val page=state.page ?: return
+    val page=state.page ?: Page(emptyList())
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         page.notice?.let {Text(vm.repo.publicText(it),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-        page.profile?.let {profile->
+        // Following is a local action on a known source address. A frontend
+        // omitting optional profile metadata must never remove that action.
+        val sourceProfile=page.profile ?: state.target?.takeIf {ReaderScope.isFeedSource(it.platform)&&it.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY,TargetKind.TAG,TargetKind.FEED)}?.let {
+            Profile(it,it.identity.removePrefix("profile/"),displayNameSupplied=false)
+        }
+        sourceProfile?.let {profile->
             LaunchedEffect(state.target,profile.target,profile.links,profile.description) {
                 if(state.target?.kind!=TargetKind.PROFILE)return@LaunchedEffect
                 delay(900)
@@ -60,7 +65,7 @@ import kotlinx.coroutines.delay
             if(profile.description.isNotBlank())MentionText(profile.description,vm.repo,profile.target.platform,profile.target.canonicalUrl,explicitProfileLinks=profile.links.orEmpty(),fontSize=14.sp,lineHeight=21.sp)
             if(profile.persistentId!=null||!profile.verifiedWebsites.isNullOrEmpty())TextButton(onClick={accountDetails=true},modifier=Modifier.testTag("Account details")){Text("Account details")}
             if(ReaderScope.isFeedSource(profile.target.platform))Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                FilledTonalButton(onClick={subscribe=true},modifier=Modifier.weight(1f)) {Text("Subscribe locally")}
+                FilledTonalButton(onClick={subscribe=true},modifier=Modifier.weight(1f).testTag("Subscribe locally")) {Text("Subscribe locally")}
                 if(AdjacentDiscovery.valid(profile.target))IconButton(onClick={adjacent=true},modifier=Modifier.testTag("Discover related accounts")){Icon(Icons.Rounded.Explore,"Discover related accounts")}
             }
         }

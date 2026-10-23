@@ -33,13 +33,15 @@ class ImageLoader(private val repo: Repository) {
         for(url in urls) {
             coroutineContext.ensureActive()
             if(identities.knows(url))continue
-            while(repo.pool.hasForegroundReads||repo.gateway.hasForegroundRequests||repo.feedRefresh.value.running)delay(250)
+            // Local comparison must not wait for an unrelated unavailable
+            // subscription to finish its network timeout. Share the bounded
+            // decoder pool with visible images and yield between cached files.
             repo.availableMedia(url)?.let {file->
                 try {val bitmap=decode(file,512);try {identities.observe(url,bitmap)}finally {bitmap.recycle()}}
                 catch(e: kotlinx.coroutines.CancellationException){throw e}
                 catch(_: Exception){/* Missing or undecodable ordinary cache is not evidence. */}
             }
-            yield()
+            delay(40);yield()
         }
     }
     suspend fun load(url: String,source: String,maxEdge: Int,localOnly: Boolean=false,localFile: File?=null): Bitmap=withContext(Dispatchers.IO) {

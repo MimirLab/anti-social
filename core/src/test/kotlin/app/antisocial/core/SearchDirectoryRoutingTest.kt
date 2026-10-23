@@ -21,6 +21,25 @@ class SearchDirectoryRoutingTest {
         override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false,rewrittenUrl=rewrite(url))
     },true)
 
+    @Test fun aFastAccountOnlyFrontendCannotCancelThePostSearchRoute(): Unit=runBlocking {
+        MockWebServer().use {server->
+            server.start()
+            val catalog=JsonParser.parseReader(javaClass.getResourceAsStream("/darwin-routes.json")!!.reader()).asJsonObject
+            catalog.add("sources",JsonParser.parseString("""[{"platform":"reddit","frontend":"redlib","fallbackOnly":false,"root":"${server.url("/people").toString().trimEnd('/')}"},{"platform":"reddit","frontend":"teddit","fallbackOnly":false,"root":"${server.url("/posts").toString().trimEnd('/')}"}]""").asJsonArray)
+            catalog.add("searchSources",JsonArray())
+            server.dispatcher=object:okhttp3.mockwebserver.Dispatcher(){override fun dispatch(request:okhttp3.mockwebserver.RecordedRequest):MockResponse=MockResponse().setBody(
+                if(request.path!!.startsWith("/people"))"""<div id="search_subreddits"><a class="search_subreddit" href="https://www.reddit.com/r/space"><span class="search_subreddit_name">r/space</span><p class="search_subreddit_description">Space community</p></a></div>"""
+                else """<div class="post"><a class="post_title" href="https://www.reddit.com/r/space/comments/abc123/news">Actual discovery</a><div class="post_body">New information from space</div></div>""")}
+            val routes=DarwinRoutes(catalog,cleaner);val gateway=gateway();val pool=SourcePool(gateway,routes)
+            try {
+                val page=pool.load(routes.search(Platform.REDDIT,"space"),originalFallback=false)
+                assertEquals("New information from space",page.posts.single().body)
+                assertTrue(page.accounts.any {it.target.kind==TargetKind.COMMUNITY});assertEquals(2,server.requestCount)
+                assertFalse(pool.hasActiveReads)
+            }finally {gateway.client().dispatcher.executorService.shutdown();gateway.client().connectionPool.evictAll()}
+        }
+    }
+
     @Test fun genuineFacebookEntitiesDoNotConsumePostCursorsOrCertifyPostHealth(): Unit=runBlocking {
         MockWebServer().use {server->
             server.start()

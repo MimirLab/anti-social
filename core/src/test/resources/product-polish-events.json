@@ -1,0 +1,217 @@
+[
+  {
+    "id": "event:b24f6d387bb9a5e40a5c9acc6a9a6a3ab946304a392aff78fb2403f3ce7b34f6",
+    "title": "Halloween in the District 2026",
+    "start": {
+      "value": "2026-10-24T16:00:00-04:00",
+      "zoneId": "America/New_York",
+      "allDay": false
+    },
+    "end": {
+      "value": "2026-10-24T20:00:00-04:00",
+      "zoneId": "America/New_York",
+      "allDay": false
+    },
+    "description": "Hayrides, cotton candy, cider, trick-or-treating \u0026 a costume contest with prizes in EGAD!",
+    "venue": "Rossetter House Museum",
+    "address": "1320 Highland Avenue, Melbourne, FL 32935, Melbourne, FL, US",
+    "locality": "Melbourne",
+    "organizer": "",
+    "organizerUrl": "https://www.eventbrite.com/o/121783818806",
+    "urls": [
+      "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063"
+    ],
+    "registrationUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+    "price": "",
+    "age": "",
+    "status": "scheduled",
+    "online": false,
+    "sourceIds": [
+      "event:https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063#931bd47767a34352831fbbf6d4f45c9485de9b7ef4849d24c45e27a8e29c1557|2026-10-24T20:00:00Z"
+    ],
+    "evidence": [
+      {
+        "field": "title",
+        "value": "Halloween in the District 2026",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Halloween in the District 2026"
+      },
+      {
+        "field": "start",
+        "value": "2026-10-24T16:00:00-04:00",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "2026-10-24T16:00:00-04:00"
+      },
+      {
+        "field": "venue",
+        "value": "Rossetter House Museum",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Rossetter House Museum"
+      },
+      {
+        "field": "address",
+        "value": "1320 Highland Avenue, Melbourne, FL 32935, Melbourne, FL, US",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "1320 Highland Avenue, Melbourne, FL 32935, Melbourne, FL, US"
+      },
+      {
+        "field": "locality",
+        "value": "Melbourne",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Melbourne"
+      },
+      {
+        "field": "country",
+        "value": "US",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "US"
+      },
+      {
+        "field": "region",
+        "value": "FL",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "FL"
+      },
+      {
+        "field": "status",
+        "value": "scheduled",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "scheduled"
+      },
+      {
+        "field": "description",
+        "value": "Hayrides, cotton candy, cider, trick-or-treating \u0026 a costume contest with prizes in EGAD!",
+        "sourceUrl": "https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Hayrides, cotton candy, cider, trick-or-treating \u0026 a costume contest with prizes in EGAD!"
+      }
+    ],
+    "checkedAt": 1792789200000,
+    "sequence": 0,
+    "occurrence": "2026-10-24T20:00:00Z",
+    "image": "https://img.evbuc.com/https%3A%2F%2Fcdn.evbuc.com%2Fimages%2F1194254536%2F473334742017%2F1%2Foriginal.20260924-043418?w\u003d940\u0026auto\u003dformat%2Ccompress\u0026q\u003d75\u0026sharp\u003d10\u0026s\u003d74c09d9c8817b2abf32a8b39a8c88ed5"
+  },
+  {
+    "id": "event:c52443542c5f24b001bc819a7323a276630ce78c7cbed3aa6a45cdf20813a54d",
+    "title": "Halloween in the District",
+    "start": {
+      "value": "2026-10-24T16:00:00-04:00",
+      "zoneId": "America/New_York",
+      "allDay": false
+    },
+    "end": {
+      "value": "2026-10-24T20:00:00-04:00",
+      "zoneId": "America/New_York",
+      "allDay": false
+    },
+    "description": "Spend some time in the District for Halloween! Activities include: spooky district hayrides, costume contest with prizes for winners in three categories, and trick or treating with EGAD businesses.",
+    "venue": "Eau Gallie Arts District",
+    "address": "1423 Highland Ave, Melbourne, FL, 32935, United States",
+    "locality": "Melbourne",
+    "organizer": "",
+    "urls": [
+      "https://www.visitspacecoast.com/event/halloween-in-the-district/"
+    ],
+    "price": "",
+    "age": "",
+    "status": "scheduled",
+    "online": false,
+    "sourceIds": [
+      "event:https://www.visitspacecoast.com/event/halloween-in-the-district/#event|2026-10-24T20:00:00Z"
+    ],
+    "evidence": [
+      {
+        "field": "title",
+        "value": "Halloween in the District",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Halloween in the District"
+      },
+      {
+        "field": "start",
+        "value": "2026-10-24T16:00:00-04:00",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "2026-10-24T16:00:00-04:00"
+      },
+      {
+        "field": "venue",
+        "value": "Eau Gallie Arts District",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Eau Gallie Arts District"
+      },
+      {
+        "field": "address",
+        "value": "1423 Highland Ave, Melbourne, FL, 32935, United States",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "1423 Highland Ave, Melbourne, FL, 32935, United States"
+      },
+      {
+        "field": "locality",
+        "value": "Melbourne",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Melbourne"
+      },
+      {
+        "field": "country",
+        "value": "United States",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "United States"
+      },
+      {
+        "field": "region",
+        "value": "FL",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "FL"
+      },
+      {
+        "field": "status",
+        "value": "scheduled",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "scheduled"
+      },
+      {
+        "field": "description",
+        "value": "Spend some time in the District for Halloween! Activities include: spooky district hayrides, costume contest with prizes for winners in three categories, and trick or treating with EGAD businesses.",
+        "sourceUrl": "https://www.visitspacecoast.com/event/halloween-in-the-district/",
+        "checkedAt": 1792789200000,
+        "kind": "PUBLISHER",
+        "excerpt": "Spend some time in the District for Halloween! Activities include: spooky district hayrides, costume contest with prizes for winners in three categories, and trick or treating with EGAD businesses."
+      }
+    ],
+    "checkedAt": 1792789200000,
+    "sequence": 0,
+    "occurrence": "2026-10-24T20:00:00Z"
+  }
+]

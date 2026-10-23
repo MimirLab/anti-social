@@ -26,6 +26,15 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun detailedDarkAstronomyPictureDeduplicatesAfterReencoding() {
+        val source=InstrumentationRegistry.getInstrumentation().context.assets.open("nasa-thats-our-jam.jpg").use(BitmapFactory::decodeStream)
+        val small=Bitmap.createScaledBitmap(source,360,268,true)
+        val copy=ByteArrayOutputStream().use {out->small.compress(Bitmap.CompressFormat.JPEG,80,out);BitmapFactory.decodeByteArray(out.toByteArray(),0,out.size())}
+        try {
+            val store=MediaIdentityStore();store.observe(a,source);store.observe(b,copy)
+            assertTrue(store.knows(a));assertEquals(1,collectedMedia(listOf(post(a),post(b)),store).size)
+        }finally {source.recycle();small.recycle();copy.recycle()}
+    }
     private val a="https://one.invalid/photo.jpg?version=one"
     private val b="https://two.invalid/independently-encoded.webp"
     private fun post(url: String,platform: Platform=Platform.X)=Post("fixture",platform,"https://fixture.invalid/post","Fixture author","A substantial shared caption",media=listOf(Media(url)))

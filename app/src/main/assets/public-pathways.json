@@ -330,6 +330,36 @@
     },
     {
       "platform": "tiktok",
+      "frontend": "tikwm-search",
+      "root": "https://www.tikwm.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -6,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://www.tikwm.com/"
+      ],
+      "limitations": "Public keyword search with query-bound cursors; separate photo/video route health. Source-selected results, locally chronological. Challenges and quotas remain failures."
+    },
+    {
+      "platform": "tiktok",
+      "frontend": "tikwm-photo-search",
+      "root": "https://www.tikwm.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -6,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://www.tikwm.com/"
+      ],
+      "limitations": "Public keyword search with query-bound cursors; separate photo/video route health. Source-selected results, locally chronological. Challenges and quotas remain failures."
+    },
+    {
+      "platform": "tiktok",
       "frontend": "tikwm-comments",
       "root": "https://www.tikwm.com",
       "role": "ALTERNATE",

@@ -26,6 +26,27 @@ class PublicSearchDiscoveryTest {
     private fun result(url: String,title: String="Organic food")="""<div class="text-result-wrapper"><a href="$url"><h2>$title</h2></a><span>Index description, never a fabricated post.</span></div>"""
     private fun close(gateway: NetworkGateway) {gateway.client().dispatcher.executorService.shutdown();gateway.client().connectionPool.evictAll()}
 
+    @Test fun instagramAndTikTokSearchAllSupportedPostShapesAlongsideTheBroadQuery(): Unit=runBlocking {
+        for(platform in listOf(Platform.INSTAGRAM,Platform.TIKTOK))MockWebServer().use {server->
+            val ready=CountDownLatch(3)
+            val urls=if(platform==Platform.INSTAGRAM)listOf("https://www.instagram.com/p/ABC123","https://www.instagram.com/reel/DEF456","https://www.instagram.com/nasa")
+                else listOf("https://www.tiktok.com/@nasa/video/1234567890","https://www.tiktok.com/@nasa/photo/2234567890","https://www.tiktok.com/@nasa")
+            val queries=PublicSearchAdapter.postQueries(routes.search(platform,"nasa"))
+            server.dispatcher=object:Dispatcher(){override fun dispatch(request:RecordedRequest):MockResponse {
+                ready.countDown();if(!ready.await(3,TimeUnit.SECONDS))return MockResponse().setResponseCode(503)
+                return MockResponse().setBody(result(urls[queries.indexOf(request.requestUrl!!.queryParameter("q"))]))
+            }}
+            server.start();val gateway=gateway()
+            try {
+                val source=Source(platform,"librey",server.url("/").toString().trimEnd('/'))
+                val page=PublicSearchAdapter(source,gateway,routes).fetch(routes.search(platform,"nasa"))
+                assertEquals(3,server.requestCount);assertEquals(2,page.collections.count {it.target.kind==TargetKind.POST})
+                assertEquals(1,page.collections.count {it.target.kind==TargetKind.PROFILE});assertTrue(page.posts.isEmpty())
+                assertEquals(queries.toSet(),List(3){server.takeRequest().requestUrl!!.queryParameter("q")}.toSet())
+            }finally {close(gateway)}
+        }
+    }
+
     @Test fun facebookSearchUsesTwoConcurrentQueriesOnOnlyTheSelectedProviderAndPrefersPosts(): Unit=runBlocking {
         MockWebServer().use {server->
             val both=CountDownLatch(2)

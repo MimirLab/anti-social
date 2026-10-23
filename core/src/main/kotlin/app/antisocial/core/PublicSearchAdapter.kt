@@ -17,7 +17,7 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
     override val capabilities=setOf(Capability.SEARCH)
     override suspend fun fetch(target: Target,cursor: String?): Page {
         require(target.kind==TargetKind.SEARCH) {"Public index discovery requires a search"}
-        return if(target.platform==Platform.FACEBOOK&&SearchScopes.from(target)==null)facebook(target,cursor)else fetchQuery(target,query(target),cursor)
+        return if(target.platform in setOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK)&&SearchScopes.from(target)==null)indexedPosts(target,cursor)else fetchQuery(target,query(target),cursor)
     }
     /** Independent entity lookup through this already-selected index. The caller
      * must hydrate destinations before showing account/community metadata. */
@@ -70,8 +70,8 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
      * Try a post-oriented query alongside the broad query, through the selected
      * provider only. A fast post result need not wait for its slower companion;
      * profiles alone must not keep cancelling a slower post-oriented lane. */
-    private suspend fun facebook(target: Target,cursor: String?): Page=coroutineScope {
-        val queries=facebookQueries(target)
+    private suspend fun indexedPosts(target: Target,cursor: String?): Page=coroutineScope {
+        val queries=postQueries(target)
         val binding=java.security.MessageDigest.getInstance("SHA-256").digest((source.key+"\n"+target.canonicalUrl+"\n"+queries.joinToString("\n")).toByteArray(Charsets.UTF_8)).joinToString(""){"%02x".format(it)}
         val lanes=if(cursor==null)queries.indices.map {IndexLane(it)}else readPlan(cursor,binding,queries)
         // Validate every lane before launching any request. A forged second lane
@@ -157,6 +157,15 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         internal fun facebookQueries(target: Target): List<String> {
             require(target.platform==Platform.FACEBOOK&&SearchScopes.from(target)==null)
             return listOf("site:facebook.com inurl:posts ${target.identity}",query(target)).distinct()
+        }
+        internal fun postQueries(target: Target): List<String> {
+            if(SearchScopes.from(target)!=null)return listOf(query(target))
+            return when(target.platform) {
+                Platform.FACEBOOK->facebookQueries(target)
+                Platform.INSTAGRAM->listOf("site:instagram.com/p/ ${target.identity}","site:instagram.com/reel/ ${target.identity}",query(target))
+                Platform.TIKTOK->listOf(query(target),"site:tiktok.com inurl:photo ${target.identity}","site:tiktok.com ${target.identity}")
+                else->listOf(query(target))
+            }.distinct()
         }
         fun query(target: Target)=SearchScopes.publicIndexQuery(target) ?: "site:${target.platform.searchDomain} "+when(target.platform) {
             Platform.BLUESKY,Platform.THREADS->"inurl:post "

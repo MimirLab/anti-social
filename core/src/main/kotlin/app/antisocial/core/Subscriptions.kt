@@ -70,7 +70,7 @@ object CrossPosts {
     private val negations=setOf("no","not","never","without","cannot","can't","don't","doesn't","didn't","won't","wouldn't","shouldn't","isn't","aren't","wasn't","weren't","hasn't","haven't","hadn't","mustn't","couldn't")
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
-        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>) {
+        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>) {
     }
     private fun uri(value: String)=runCatching {URI(value)}.getOrNull()?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
     private fun origin(value: URI)=value.host.lowercase()+":"+(if(value.port==-1)443 else value.port)
@@ -401,7 +401,7 @@ object CrossPosts {
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
             urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain),
-            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post))
+            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post),eligible.filter {it.second.id in sources}.mapTo(linkedSetOf()){it.second.id})
     }
     private fun explicit(a: Features,b: Features): Boolean {
         return a.urls.any {linksToOriginal(it,b.post)}||b.urls.any {linksToOriginal(it,a.post)}
@@ -448,6 +448,7 @@ object CrossPosts {
         // Hashtag-only presentation adaptations are permitted for linked accounts.
         // Arbitrary word substitutions (including opposite claims) never qualify.
         if(linked&&a.base==b.base&&a.base.length>=80&&tokens(a.base).size>=10)return true
+        if(linked&&distance<=600_000uL&&CaptionAliases.equivalent(a.post,b.post))return true
         if(!corroborated)return false
         val short=if(a.tokens.size<=b.tokens.size)a else b;val long=if(short===a)b else a
         // A public reader can visibly truncate a post. Require an explicit marker,
@@ -520,7 +521,13 @@ object CrossPosts {
     }
     private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(a.post.platform!=b.post.platform||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated)return false
-        if(!(a.account!=null&&a.account==b.account||(a.curator ?: a.account)?.let {it==(b.curator ?: b.account)}==true))return false
+        val sameAccount=a.account!=null&&a.account==b.account||(a.curator ?: a.account)?.let {it==(b.curator ?: b.account)}==true
+        // Facebook commonly exposes both numeric and pfbid editions. The
+        // exact same subscribed feed, timestamp and distinctive complete text
+        // prove a repeat without pretending either URL is the other's ID.
+        val feedAlias=a.post.platform==Platform.FACEBOOK&&a.suppliedBy.intersect(b.suppliedBy).isNotEmpty()&&
+            a.post.publishedAt!=null&&a.post.publishedAt==b.post.publishedAt&&completeCopyText(a,b)&&a.text.length>=80&&a.tokens.size>=12&&a.tokens.toSet().size>=8
+        if(!sameAccount&&!feedAlias)return false
         val timeA=a.post.publishedAt?.takeIf {it>0} ?: return false;val timeB=b.post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>MAX_REPEAT_WINDOW.toULong())return false

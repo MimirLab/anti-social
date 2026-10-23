@@ -136,7 +136,7 @@ class MediaIdentityStore(
         if(opaque<pixels.size*.98)return null
         val mean=sum/pixels.size
         val contrast=sqrt((squares/pixels.size-mean*mean).coerceAtLeast(0.0))
-        if(contrast<20||histogram.maxOrNull()!!>pixels.size*.62)return null
+        if(contrast<20)return null
         var entropy=0.0
         histogram.filter {it>0}.forEach {count->val p=count.toDouble()/pixels.size;entropy-=p*ln(p)/ln(2.0)}
         // RGB's coarse histogram has only eight possible bins for a grayscale
@@ -146,13 +146,19 @@ class MediaIdentityStore(
         var grayEntropy=0.0
         grayHistogram.filter {it>0}.forEach {count->val p=count.toDouble()/pixels.size;grayEntropy-=p*ln(p)/ln(2.0)}
         val detailedGray=grayEntropy>=2.3&&grayHistogram.count {it>=3}>=6
-        if((entropy<2.5||histogram.count {it>=3}<12)&&!detailedGray)return null
         for(y in 0 until 32)for(x in 0 until 32) {
             val index=y*32+x
             if(x>0&&abs(luminance[index]-luminance[index-1])>=8)edges++
             if(y>0&&abs(luminance[index]-luminance[index-32])>=8)edges++
         }
         if(edges<160)return null
+        // Detailed astronomy photographs can be mostly black. Admit that
+        // narrow case through spatial detail and color diversity, while simple
+        // dark logos, placeholders and flat backgrounds remain ineligible.
+        val detailedDark=mean<65&&contrast>=25&&histogram.maxOrNull()!!<=pixels.size*.8&&
+            histogram.count {it>=3}>=16&&edges>=400
+        if(histogram.maxOrNull()!!>pixels.size*.62&&!detailedDark)return null
+        if((entropy<2.5||histogram.count {it>=3}<12)&&!detailedGray&&!detailedDark)return null
         val cells=ArrayList<Int>(48)
         for(cellY in 0 until 4)for(cellX in 0 until 4) {
             var red=0;var green=0;var blue=0

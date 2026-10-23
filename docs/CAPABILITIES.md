@@ -1,7 +1,8 @@
 # Capabilities and limits
 
-This describes the development branch. The latest official APK may precede its
-announcement/OCR and search improvements; consult its release notes.
+This describes the development branch; consult the installed release's notes.
+The [0.38 subscription/search qualification](PRODUCT_POLISH.md) records both
+successful live paths and unavailable sources.
 
 | Capability | What the reader gets | Limits |
 |---|---|---|
