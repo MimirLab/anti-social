@@ -228,3 +228,20 @@ source cooldown and ordinary-cache cleanup have dedicated checks. Saved copies,
 subscription data, application ID and signing compatibility retain their existing
 protection. Source, APK, preview backup and publication receipts stay under the
 external build root; credentials and private reader state are excluded.
+
+## 0.37.1: startup-independent discovery-cache cleanup
+
+Final integration review found that the ordinary-cache cleanup and storage-usage
+hooks skipped uninitialized discovery stores. A process that had not opened
+Discover related could leave its previous neighborhood and participant files
+outside Clear cache and the byte total. Both lightweight stores now participate
+in those IO hooks independently of whether the screen was opened. Parsing and
+cleanup remain bounded; no network work is added.
+
+A separate API 35 release instrumentation invocation opens no Activity or
+discovery screen, writes both cache files, saves a text-only post, checks byte
+accounting, clears ordinary cache, and confirms the files are gone while the saved
+post is still readable. It passes, followed by all seven discovery checks. Release
+assembly and lint pass. The 0.37.0 candidate APK, source archive and immutable tag
+are retained; 0.37.1 is the corrected publication candidate. Earlier qualification
+above applies to the unchanged graph algorithms, native UI and source adapters.
