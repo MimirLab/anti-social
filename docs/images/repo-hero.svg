@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="800" viewBox="0 0 1600 800" role="img" aria-labelledby="title desc">
+<title id="title">anti social — Your attention. Returned.</title>
+<desc id="desc">An Android reader for getting the useful parts out of social media and getting on with your life. Get the post. Get the point. Get out. Zero social logins required, your feed and rules, and an actual stopping point.</desc>
+<defs>
+ <radialGradient id="glow" cx="79%" cy="37%" r="66%"><stop stop-color="#1a4936"/><stop offset=".65" stop-color="#0c1814"/><stop offset="1" stop-color="#0b100f"/></radialGradient>
+ <linearGradient id="edge"><stop stop-color="#9ef4c8"/><stop offset="1" stop-color="#293c33"/></linearGradient>
+ <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#8fdab3" stroke-opacity=".045"/></pattern>
+</defs>
+<rect x="1" y="1" width="1598" height="798" rx="30" fill="url(#glow)" stroke="#2b4135" stroke-width="2"/>
+<rect x="2" y="2" width="1596" height="796" rx="30" fill="url(#grid)"/>
+<g fill="#f5f8f3" transform="translate(68 63) scale(.39)"><g transform="translate(0 139) scale(.1 -.1)"><path d="M8247 1384 c-4 -4 -7 -308 -7 -676 l0 -668 160 0 160 0 -3 672 -2 673 -151 3 c-82 1 -153 -1 -157 -4z"/><path d="M3114 1369 c-18 -5 -48 -27 -67 -48 -111 -123 1 -318 162 -282 83 18 135 85 134 172 -2 119 -109 193 -229 158z"/><path d="M6774 1361 c-95 -43 -128 -155 -72 -248 60 -101 226 -101 286 0 39 65 35 144 -10 202 -26 33 -91 65 -133 65 -16 0 -48 -9 -71 -19z"/><path d="M2420 1110 l0 -109 -62 -3 -63 -3 -1 -70 c-1 -38 0 -100 3 -137 l5 -68 58 0 58 0 4 -227 c5 -259 12 -290 80 -368 84 -96 231 -133 396 -99 21 4 22 7 22 139 l0 134 -59 -2 c-66 -1 -106 18 -121 59 -6 14 -10 101 -10 194 l0 169 98 3 97 3 0 135 0 135 -97 3 -98 3 0 109 0 110 -155 0 -155 0 0 -110z"/><path d="M388 1004 c-377 -91 -514 -570 -241 -843 167 -166 473 -200 635 -71 l38 31 0 -40 0 -40 151 -3 c95 -2 153 1 155 7 2 6 3 221 2 480 l-3 470 -150 0 -150 0 -3 -37 c-3 -41 -12 -47 -33 -22 -20 24 -98 60 -157 73 -70 15 -173 13 -244 -5z m256 -266 c26 -8 60 -31 92 -63 81 -80 94 -176 38 -273 -94 -161 -351 -158 -436 7 -100 192 88 393 306 329z"/><path d="M1737 1010 c-51 -13 -110 -44 -152 -81 l-35 -31 0 51 0 52 -152 -3 -153 -3 -3 -477 -2 -478 155 0 155 0 0 253 c0 148 5 268 11 292 27 100 113 162 212 152 54 -5 91 -28 125 -77 22 -32 22 -39 22 -326 l0 -294 161 0 160 0 -3 348 c-3 338 -4 348 -27 407 -33 82 -115 164 -196 195 -67 26 -212 36 -278 20z"/><path d="M4055 1006 c-208 -50 -321 -222 -260 -395 37 -105 114 -154 322 -207 76 -19 146 -42 156 -51 28 -26 18 -65 -23 -86 -65 -34 -186 -5 -274 65 l-38 31 -94 -94 -95 -94 38 -33 c91 -78 248 -132 388 -132 142 0 255 39 333 114 69 65 86 106 87 206 0 75 -3 90 -27 131 -55 93 -114 125 -318 176 -133 32 -170 51 -170 88 0 23 39 47 85 52 60 7 125 -12 183 -54 l47 -34 88 93 88 93 -33 28 c-48 41 -138 85 -210 102 -75 18 -203 18 -273 1z"/><path d="M5012 1000 c-102 -27 -166 -64 -242 -140 -185 -185 -199 -464 -32 -668 43 -52 147 -122 227 -152 76 -28 228 -38 317 -21 197 38 356 184 408 374 l16 59 17 -62 c50 -178 173 -304 352 -360 126 -40 313 -27 423 29 45 23 162 110 162 120 0 4 -47 49 -105 100 l-106 92 -32 -27 c-80 -68 -182 -83 -273 -40 -118 55 -165 184 -110 302 64 138 243 176 370 79 l45 -34 106 96 106 97 -28 27 c-44 44 -142 98 -218 121 -83 25 -221 29 -305 9 -196 -48 -352 -203 -391 -390 l-12 -56 -13 62 c-59 286 -375 463 -682 383z m258 -280 c162 -83 175 -305 22 -396 -68 -41 -127 -50 -195 -30 -155 45 -219 215 -132 348 26 39 96 86 148 99 43 10 114 1 157 -21z"/><path d="M7433 1005 c-236 -64 -383 -252 -383 -490 0 -217 127 -397 334 -474 143 -53 349 -30 434 49 28 27 30 26 34 -17 l3 -38 70 -1 c39 -1 107 1 153 4 l82 5 -2 476 -3 476 -150 0 -150 0 -3 -37 -3 -37 -52 34 c-93 61 -244 82 -364 50z m250 -269 c141 -51 200 -216 121 -342 -20 -32 -46 -57 -84 -78 -47 -27 -65 -31 -125 -31 -141 1 -239 96 -239 230 0 163 169 277 327 221z"/><path d="M3019 573 c-1 -418 0 -526 5 -530 1 -2 70 -4 152 -5 l149 -3 0 480 0 480 -152 3 -153 3 -1 -428z"/><path d="M6690 521 l0 -478 148 -5 c81 -3 150 -3 155 -1 4 2 7 220 7 484 l0 479 -155 0 -155 0 0 -479z"/></g></g>
+<rect x="1144" y="65" width="386" height="44" rx="22" fill="#13271e" stroke="#385742"/>
+<circle cx="1170" cy="87" r="5" fill="#a5f4c7"/>
+<text x="1190" y="94" fill="#b7dfc6" font-family="monospace" font-size="17" letter-spacing="1.5">INTRODUCING: LESS.</text>
+<text x="68" y="212" fill="#9dc3ad" font-family="monospace" font-size="17" letter-spacing="2">THE NEXT BIG THING IN CLOSING THE APP.</text>
+<g font-family="Noto Sans, sans-serif" font-weight="900" letter-spacing="-5">
+ <text x="62" y="328" fill="#f5f8f3" font-size="100">Your attention.</text>
+ <text x="62" y="450" fill="#a5f4c7" font-size="120">Returned.</text>
+</g>
+<text x="70" y="520" fill="#c8d7cc" font-family="Noto Sans, sans-serif" font-size="28">Get the post. Get the point. Get out.</text>
+<g transform="translate(1050 190)">
+ <circle cx="206" cy="203" r="222" fill="none" stroke="#9af0bf" stroke-opacity=".07" stroke-width="1"/>
+ <circle cx="206" cy="203" r="194" fill="none" stroke="#9af0bf" stroke-opacity=".12" stroke-width="1"/>
+ <circle cx="206" cy="203" r="160" fill="#9af0bf" fill-opacity=".025" stroke="#9af0bf" stroke-opacity=".1"/>
+ <g transform="translate(-14 -14) scale(4.1)"><g xmlns="http://www.w3.org/2000/svg" fill="#fff" transform="translate(23.999999999999996 83.14556962025317) scale(0.009493670886075951 -0.009493670886075951)"><path d="M5015 6121 c-240 -67 -433 -251 -509 -486 -89 -274 26 -600 271 -766 21 -15 19 -16 -55 -33 -96 -22 -234 -76 -329 -128 -173 -94 -364 -260 -402 -349 -31 -71 -37 -148 -17 -210 33 -101 50 -117 335 -305 438 -292 894 -590 931 -610 33 -18 61 -19 435 -19 390 0 401 1 447 22 70 32 141 103 172 174 l28 60 -4 307 c-4 288 -5 311 -27 377 -32 96 -89 208 -146 282 -134 179 -385 346 -595 396 -27 6 -50 14 -50 17 0 3 30 25 66 49 120 81 219 215 267 359 118 355 -71 725 -432 849 -105 36 -283 42 -386 14z" /><path d="M1091 4779 c-465 -50 -864 -364 -1023 -809 -10 -30 -29 -93 -41 -140 -21 -84 -21 -96 -25 -1370 -2 -909 0 -1314 8 -1384 46 -399 310 -769 675 -946 116 -57 187 -81 305 -107 80 -17 169 -18 1570 -18 1376 0 1491 1 1571 18 258 52 446 154 635 341 206 205 315 421 353 699 7 50 11 362 11 858 0 660 -2 785 -15 815 -12 30 -72 73 -442 317 -567 374 -555 367 -587 367 -15 0 -37 -10 -51 -25 l-25 -24 0 -903 c0 -990 0 -976 -60 -1100 -84 -173 -229 -291 -418 -339 -72 -18 -118 -19 -986 -19 -1012 0 -974 -2 -1116 68 -110 54 -224 169 -278 283 -70 147 -67 103 -67 1044 0 781 1 855 18 914 45 166 171 321 323 399 146 75 88 72 1234 72 806 0 1030 3 1050 13 35 18 55 63 42 92 -6 13 -129 167 -273 342 -393 476 -428 517 -457 533 -23 13 -148 15 -937 16 -500 1 -948 -2 -994 -7z" /></g></g>
+</g>
+<g transform="translate(1040 538) rotate(-7)">
+ <rect width="436" height="48" rx="6" fill="#a5f4c7"/>
+ <text x="218" y="31" text-anchor="middle" fill="#0e1b14" font-family="monospace" font-size="18" font-weight="700" letter-spacing="1">OPTIMIZED FOR LOGGING OFF.</text>
+</g>
+<path d="M68 618H1532" stroke="url(#edge)" stroke-opacity=".6"/>
+<g font-family="Noto Sans, sans-serif">
+ <text x="70" y="694" fill="#f5f8f3" font-size="34" font-weight="800">0 social logins.</text>
+ <text x="70" y="732" fill="#9ab7a6" font-size="21">The post should be enough.</text>
+ <text x="586" y="694" fill="#f5f8f3" font-size="34" font-weight="800">Your feed. Your rules.</text>
+ <text x="586" y="732" fill="#9ab7a6" font-size="21">A novel concept, apparently.</text>
+ <text x="1144" y="694" fill="#f5f8f3" font-size="34" font-weight="800">Actually caught up.</text>
+ <text x="1144" y="732" fill="#9ab7a6" font-size="21">Go be a person again.</text>
+</g>
+</svg>

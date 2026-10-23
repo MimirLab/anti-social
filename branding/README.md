@@ -13,6 +13,12 @@ external build volume. The PNG is retained unchanged as a reproducible reference
 This artwork is part of the project's GPL-3.0-or-later distribution; third-party
 platform icons retain their separate notices.
 
+The repository's `docs/images/repo-hero.svg` composes those same approved emblem
+and wordmark paths with the reader's mint/charcoal palette and separate headline
+type. The PNG is its rendered counterpart for consistent GitHub display; the
+Android download button likewise has SVG source and a PNG rendering. These are
+repository presentation assets, not app screenshots or replacement app branding.
+
 Release identity: `app.antisocial.android`. Kotlin packages are
 `app.antisocial.android` and `app.antisocial.core`. Own native libraries, JNI entry
 points, catalogs, backup formats, local storage and build variables use
