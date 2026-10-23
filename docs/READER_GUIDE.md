@@ -70,3 +70,13 @@ Context aims to condense concrete useful information, including substantive
 corrections found among noisy replies. It can miss details. Source evidence stays
 available, and an unavailable article or thread is not silently replaced with
 invented information. A noise-only update should not rewrite a useful cached brief.
+
+## Card activity and Library discoveries
+
+Updating… means the card has background work underway. Ready means there are no
+current updates to wait for. Tap the status to see what is being added; you can
+keep reading or move on while it works.
+
+Saved businesses and events now live in Library. Use Businesses or Events, or
+search across All. Opening a saved card reads its local snapshot; following a
+source or social link is a separate action.

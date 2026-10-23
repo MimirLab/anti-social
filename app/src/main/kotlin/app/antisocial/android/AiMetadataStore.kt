@@ -22,11 +22,12 @@ class AiMetadataStore(
     private val maxEntries: Int=256,
     private val ttlMs: Long=7*CachePolicy.DAY,
     private val clock: ()->Long=System::currentTimeMillis,
+    private val onWork:(String)->AutoCloseable={AutoCloseable {}},
 ) {
-    private data class Request(val url: String,val file: File,val id: String,val generation: Long)
+    private data class Request(val url: String,val file: File,val id: String,val generation: Long,val work:AutoCloseable)
     private data class Entry(val stamp: String,val at: Long,val base: AiMetadata,val picture: String?,val families: Set<String>)
     private val pending=ConcurrentHashMap.newKeySet<String>()
-    private val requests=Channel<Request>(16,BufferOverflow.DROP_OLDEST,onUndeliveredElement={pending.remove(it.id)})
+    private val requests=Channel<Request>(16,BufferOverflow.DROP_OLDEST,onUndeliveredElement={pending.remove(it.id);it.work.close()})
     private val gate=Mutex()
     private val generation=AtomicLong()
     private val entries=LinkedHashMap<String,Entry>()
@@ -35,13 +36,13 @@ class AiMetadataStore(
     init {
         require(maxEntries>0&&ttlMs>0)
         scope.launch(Dispatchers.IO) {
-            for(request in requests)try {inspectInternal(request.url,request.file,request.generation)}catch(e: CancellationException){throw e}catch(_: Exception){}finally {pending.remove(request.id)}
-        }
+            try {for(request in requests)try {inspectInternal(request.url,request.file,request.generation)}catch(e: CancellationException){throw e}catch(_: Exception){}finally {pending.remove(request.id);request.work.close()}}finally {requests.cancel()}
+        }.invokeOnCompletion {requests.cancel()}
     }
     fun observe(url: String,file: File) {
         if(url.isBlank()||url.length>8192||!file.isFile)return
         val epoch=generation.get();val id="$epoch:$url:${stamp(file)}"
-        if(pending.add(id)&&requests.trySend(Request(url,file,id,epoch)).isFailure)pending.remove(id)
+        if(pending.add(id)) {val work=onWork(url);if(requests.trySend(Request(url,file,id,epoch,work)).isFailure){pending.remove(id);work.close()}}
     }
     /** Used by explicit saving to retain the declarations present in already available bytes. */
     suspend fun inspect(url: String,file: File): AiMetadata?=inspectInternal(url,file,null)

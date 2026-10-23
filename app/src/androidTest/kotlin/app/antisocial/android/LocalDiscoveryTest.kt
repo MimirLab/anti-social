@@ -66,7 +66,7 @@ class LocalDiscoveryTest {
         ui.onNodeWithTag("Search mode EVENTS").performClick();ui.waitUntil {model.localSearch.state.value.events.any {it.id==session.id}}
         ui.onNodeWithText("Puppet storytime").assertIsDisplayed();ui.onNodeWithText("Community Library · Melbourne · Free").assertIsDisplayed();evidence("events")
         ui.onNodeWithContentDescription("Save Puppet storytime").performClick();ui.waitUntil {session.id in model.localSearch.state.value.saved}
-        ui.onNodeWithText("Saved",useUnmergedTree=true).performClick();ui.waitUntil {model.localSearch.state.value.savedOnly};ui.onNodeWithText("Puppet storytime").assertIsDisplayed()
+        ui.onNodeWithContentDescription("Library",useUnmergedTree=true).performClick();ui.onNodeWithTag("Library scope events").performClick();ui.waitUntil {ui.onAllNodesWithTag("Event ${session.id}").fetchSemanticsNodes().isNotEmpty()};ui.onNodeWithText("Puppet storytime").assertIsDisplayed()
     }
     @Test fun savedSnapshotSurvivesExpiryAndOrdinaryDirectoryCorrections()=runBlocking {
         var clock=System.currentTimeMillis();val dbName="local-fixture-${System.nanoTime()}.db"

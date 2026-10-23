@@ -248,6 +248,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         if(menuRequest?.isActive==true&&state.value.menuLoading==value.id)return
         stopMenu();val bound=generation;val menuBound=menuGeneration
         menuRequest=scope.launch {
+            val activity=repo.cardWork.begin(listOf(businessWorkKey(value.id)),"Menu")
             state.update {it.copy(menuLoading=value.id)}
             try {withTimeout(35_000) {withContext(Dispatchers.IO) {
                 val visited=mutableSetOf<String>()
@@ -278,7 +279,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                 }
             }}}catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive()}
             catch(e:CancellationException){throw e}
-            finally {if(bound==generation&&menuBound==menuGeneration)state.update {it.copy(menuLoading=null)}}
+            finally {activity.close();if(bound==generation&&menuBound==menuGeneration)state.update {it.copy(menuLoading=null)}}
         }
     }
     fun close(){stopAreaObserver();stop();lookup?.cancel();repo.localSearchConnection(false)}
@@ -362,7 +363,8 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         }
                     }
                     suspend fun checkAccounts()=coroutineScope {
-                        val perBusiness=relevant().take(12).map {owner->(owner.socials+owner.related.orEmpty().filter {it.role!="source publisher"}.flatMap {it.accounts})
+                        val accountOwners=relevant().take(12)
+                        val perBusiness=accountOwners.map {owner->(owner.socials+owner.related.orEmpty().filter {it.role!="source publisher"}.flatMap {it.accounts})
                             .distinctBy(::accountKey).sortedBy {url->if(url.toHttpUrlOrNull()?.pathSegments?.firstOrNull()?.all(Char::isDigit)==true)1 else 0}}
                         // Check one account per business before spending the
                         // entire budget on one business's platform/ID aliases.
@@ -370,14 +372,15 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         urls.map {url->launch {
                             val key=accountKey(url)
                             if(store.cache(key)!=null||!accountChecks.add(key)||accountAttempts.incrementAndGet()>8)return@launch
-                            accountPermits.withPermit {
+                            val owners=accountOwners.filter {owner->url in owner.socials||owner.related.orEmpty().any {url in it.accounts}}
+                            repo.cardWork.track(owners.map {businessWorkKey(it.id)},"Social accounts") {accountPermits.withPermit {
                                 try {val usable=withTimeout(16_000){backend.account(url)};store.cache(key,if(usable)"usable"else "unavailable",if(usable)6*3600000 else 30*60000)}
                                 catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();store.cache(key,"unavailable",2*60000)}
                                 catch(e:CancellationException){throw e}
                                 catch(_:Exception){store.cache(key,"unavailable",10*60000)}
                                 if(store.cache(key)=="unavailable")note("Some published social accounts are unavailable from the current public routes. Their source records are retained for a later retry.")
                                 if(current())publish()
-                            }
+                            }}
                         }}.joinAll()
                     }
                     fun history(source:LocalPublisherSource)=store.cache(LocalBusinessEnrichment.key(source))?.let {runCatching {gson.fromJson(it,LocalRouteYield::class.java)}.getOrNull()}
@@ -387,7 +390,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             source.url !in visited&&LocalOpportunityRouting.allowed(source,query)&&(source.kind!=LocalSourceKind.MENU||deep&&query.mode==LocalSearchMode.BUSINESSES&&owners[source.businessId]?.let {b->LocalMenuRouting.known(b).any {it.url==source.url}}==true)&&(force||source.nextCheckAt<=System.currentTimeMillis()||source.failures==0&&LocalCalendarPlatforms.window(source,query)?.let {it!=source.window}==true)&&
                                 (source.url in currentSources||source.businessId?.let {owners[it]?.let {p->query.mode==LocalSearchMode.EVENTS||LocalBusinessRouting.relevance(query.text,p)<9}}==true||query.mode==LocalSearchMode.EVENTS&&LocalCalendarPlatforms.isCalendar(source))
                         }.sortedBy {LocalBusinessRouting.sourcePriority(it,query,owners[it.businessId],currentSources)+LocalBusinessEnrichment.priority(it,owners[it.businessId],history(it))-(if(deep&&it.url in detailSources)30 else 0)}.take(limit)
-                        coroutineScope {candidates.map {source->launch {permits.withPermit {
+                        coroutineScope {candidates.map {source->launch {repo.cardWork.track(listOfNotNull(source.businessId?.let(::businessWorkKey))+localSourceWorkKeys(source.url),"Public details") {permits.withPermit {
                             if(!visited.add(source.url))return@withPermit
                             val phase=if(deep)deepAttempts else initialAttempts
                             if(!claim(phase,if(deep)10 else 8)){visited.remove(source.url);return@withPermit}
@@ -428,7 +431,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                 catch(e:Exception){val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.cache(LocalBusinessEnrichment.key(source),gson.toJson(failed),14L*86400000);store.source(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures));throw e}
                                 finally {val read=reads.incrementAndGet();if(current())state.update {it.copy(checked=read)}}
                             }
-                        }}}.joinAll()}
+                        }}}}.joinAll()}
                     }
                     suspend fun overtureAt(point:LocalPoint)=lane("Overture business links") {
                         val key="overture:${kotlin.math.round(point.latitude*1000)},${kotlin.math.round(point.longitude*1000)}"
@@ -497,13 +500,13 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                               // behind every slow supplemental page read.
                               launch {checkAccounts()}
                               launch {readSources(2,deep=true)}
-                              if(query.mode==LocalSearchMode.BUSINESSES)launch {permits.withPermit {lane("Published business locations") {
+                              if(query.mode==LocalSearchMode.BUSINESSES)launch {repo.cardWork.track(owners.map {businessWorkKey(it.id)},"Business details"){permits.withPermit {lane("Published business locations") {
                                 withTimeout(35_000){backend.enrich(query,owners){data->ingest(data);queueRelevant()}}
-                              }}}
+                              }}}}
                               if(query.mode==LocalSearchMode.BUSINESSES&&query.text.isNotBlank())launch {
                                 owners.filter {LocalBusinessEnrichment.query(it,area)!=null}.distinctBy {LocalDiscoveryMerge.businessName(it.name)}.take(2).forEach {owner->
                                   lane("Additional business details") {
-                                    val hits=permits.withPermit {withTimeout(18_000){backend.refine(query,owner)}}
+                                    val hits=repo.cardWork.track(listOf(businessWorkKey(owner.id)),"Business details"){permits.withPermit {withTimeout(18_000){backend.refine(query,owner)}}}
                                     hits.take(4).forEach {hit->
                                       val url=LocalDiscoveryIdentity.url(hit.url) ?: return@forEach
                                       if(url in visited)return@forEach

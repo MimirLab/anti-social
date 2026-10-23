@@ -33,7 +33,8 @@ class MentionNameStore internal constructor(
     private val pollMs: Long=150L,
     private val maxEntries: Int=MAX_ENTRIES,
     private val maxBytes: Long=MAX_BYTES,
-    private val relatedAccounts:suspend (Target)->List<Target> = {emptyList()}
+    private val relatedAccounts:suspend (Target)->List<Target> = {emptyList()},
+    private val onWork:(String)->AutoCloseable={AutoCloseable {}}
 ): MentionNameSource {
     constructor(repo: Repository): this(
         MentionNameDatabase.open(repo.context),repo.routes,repo.scope,
@@ -45,7 +46,8 @@ class MentionNameStore internal constructor(
             repo.pool.load(account.target,originalFallback=repo.prefs.originalFallback,
                 progress={},requestedCapability=Capability.PROFILE,background=true,profileNameOnly=true).profile
         }}},
-        relatedAccounts={repo.linkedSubscriptionAccounts(it)}
+        relatedAccounts={repo.linkedSubscriptionAccounts(it)},
+        onWork={key->repo.cardWork.begin(listOf("mention:$key"),"Account names")}
     )
 
     private val mutableNames=MutableStateFlow<Map<String,String>>(emptyMap())
@@ -83,6 +85,8 @@ class MentionNameStore internal constructor(
                         applyTouches()
                         val candidate=nextDemand()
                         if(candidate==null)break
+                        val activity=onWork(candidate.key.id)
+                        try {
                         if(!canStart()) {
                             // Poll only while a real visible, due demand exists.
                             delay(pollMs.coerceAtLeast(500));continue
@@ -92,6 +96,7 @@ class MentionNameStore internal constructor(
                         delay(quietMs.coerceAtLeast(0))
                         if(!canStart()||policy()!=snapshot||clock()<quietStart||!demanded(candidate.key.id))continue
                         resolve(candidate,snapshot)
+                        }finally {activity.close()}
                     }
                 }
             }catch(e: CancellationException){ready.cancel(e);throw e}

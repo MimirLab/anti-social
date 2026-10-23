@@ -4,6 +4,8 @@ package app.antisocial.android
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,9 +35,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.collect
 
 /** Library searches and capture readers resolve only local records and selected local files. */
-@Composable internal fun LibraryScreen(repo: Repository,onOpenOriginal: (Post)->Unit,onStorage: ()->Unit={},onLocalDiscovery:(()->Unit)?=null) {
+@Composable internal fun LibraryScreen(repo: Repository,onOpenOriginal: (Post)->Unit,onStorage: ()->Unit={},onOpenLink:(String)->Unit={},onReadLink:(String)->Unit={}) {
     val focus=LocalFocusManager.current;val keyboard=LocalSoftwareKeyboardController.current
     var query by rememberSaveable {mutableStateOf("")}
     var filter by rememberSaveable {mutableStateOf("all")}
@@ -48,8 +55,22 @@ import kotlinx.coroutines.launch
     var manageCollections by remember {mutableStateOf(false)}
     var removeCollection by remember {mutableStateOf<LibraryCollectionRow?>(null)}
     val collections by repo.library.collections.collectAsState(emptyList())
-    val entriesFlow=remember(repo,query,filter,collectionId){repo.library.entries(query,filter,collectionId)}
+    val entriesFlow=remember(repo,query,filter,collectionId){if(filter in setOf("businesses","events"))flowOf(emptyList())else repo.library.entries(query,filter,collectionId)}
     val entries by entriesFlow.collectAsState(emptyList())
+    val areas=remember(repo.prefs.localAreas){runCatching {LocalAreaCodec.decode(repo.prefs.localAreas)}.getOrDefault(emptyList())}
+    fun eventArea(event:LocalEvent):LocalArea?=if(event.start.zoneId!=null)null else event.point?.let {point->
+        areas.minByOrNull {it.point.distanceKm(point)}?.takeIf {it.point.distanceKm(point)<=it.radiusKm}
+    }
+    var localSelected by remember {mutableStateOf<LocalSavedDiscovery?>(null)}
+    var flyer by remember {mutableStateOf<Pair<String,String>?>(null)}
+    val discoveries by produceState<List<LocalSavedDiscovery>>(emptyList(),repo,query,filter,collectionId) {
+        if(collectionId!=null||filter !in setOf("all","businesses","events"))return@produceState
+        if(query.isNotBlank())delay(160)
+        repo.localDiscovery.revision.collect {
+            value=withContext(Dispatchers.IO){repo.localDiscovery.savedDiscoveries(query).filter {item->filter=="all"||filter=="businesses"&&item.business!=null||filter=="events"&&item.event!=null}}
+        }
+    }
+    val cards=remember(entries,discoveries){(entries.map {LibraryCard(it.savedAt,post=it)}+discoveries.map {LibraryCard(it.savedAt,discovery=it)}).sortedByDescending {it.savedAt}}
     val revision by repo.library.revision.collectAsState()
     var selected by remember {mutableStateOf<LibraryEntry?>(null)}
     var loading by remember {mutableStateOf(false)}
@@ -72,35 +93,50 @@ import kotlinx.coroutines.launch
         Column(Modifier.padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Text("Your library",Modifier.weight(1f),fontSize=27.sp,fontWeight=FontWeight.Bold)
-                Box {
+                if(filter !in setOf("businesses","events"))Box {
                     TextButton(onClick={menu=true},modifier=Modifier.testTag("Library collection picker")){Text(collections.firstOrNull {it.id==collectionId}?.name ?: "All collections",maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.widthIn(max=140.dp));Icon(Icons.Rounded.ExpandMore,null,Modifier.size(18.dp))}
                     DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
                         DropdownMenuItem(text={Text("All collections")},onClick={collectionId=null;menu=false})
                         collections.forEach {collection->DropdownMenuItem(text={Text(collection.name)},onClick={collectionId=collection.id;filter="saved";menu=false})}
-                        if(onLocalDiscovery!=null)DropdownMenuItem(text={Text("Saved places & events")},onClick={menu=false;onLocalDiscovery()})
                         HorizontalDivider();DropdownMenuItem(text={Text("New collection")},leadingIcon={Icon(Icons.Rounded.Add,null)},onClick={create=true;menu=false})
                         if(collections.isNotEmpty())DropdownMenuItem(text={Text("Manage collections")},onClick={manageCollections=true;menu=false})
                     }
                 }
             }
-            OutlinedTextField(query,{query=it},label={Text("Search saved copies & history")},singleLine=true,leadingIcon={Icon(Icons.Rounded.Search,null)},trailingIcon={if(query.isNotEmpty())IconButton(onClick={query=""}){Icon(Icons.Rounded.Close,"Clear library search")}},modifier=Modifier.fillMaxWidth().testTag("Library search"))
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("all" to "All","saved" to "Saved","history" to "History").forEach {(value,label)->FilterChip(selected=filter==value,onClick={filter=value;if(value=="history")collectionId=null},label={Text(label)},modifier=Modifier.testTag("Library scope $value"))}}
+            OutlinedTextField(query,{query=it},label={Text("Search your library")},singleLine=true,leadingIcon={Icon(Icons.Rounded.Search,null)},trailingIcon={if(query.isNotEmpty())IconButton(onClick={query=""}){Icon(Icons.Rounded.Close,"Clear library search")}},modifier=Modifier.fillMaxWidth().testTag("Library search"))
+            Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("all" to "All","saved" to "Posts","businesses" to "Businesses","events" to "Events","history" to "History").forEach {(value,label)->FilterChip(selected=filter==value,onClick={filter=value;if(value in setOf("history","businesses","events"))collectionId=null},label={Text(label)},modifier=Modifier.testTag("Library scope $value"))}}
         }
         CompositionLocalProvider(LocalMentionUpdatesAllowed provides !resultsList.isScrollInProgress) {
         LazyColumn(Modifier.fillMaxSize().testTag("Library results"),state=resultsList,contentPadding=PaddingValues(start=20.dp,end=20.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-            if(entries.isEmpty())item {Column(Modifier.padding(vertical=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                Text(if(query.isNotBlank())"No local matches"else if(filter=="history")"Retained reading history"else "Keep the good parts",fontSize=21.sp,fontWeight=FontWeight.SemiBold)
-                Text(when {query.isNotBlank()->"Search the text, author or original link in your saved copies and retained history.";filter=="history"&&!repo.prefs.historyFullText->"Full-text history is off. You can choose to retain the text of posts you actually read in Storage settings.";filter=="history"->"Posts you spend time reading will appear here. History expires automatically; saved copies stay until you remove them.";else->"Save a copy of a post, gallery or loaded discussion. Organize useful finds into collections such as Projects or Recipes."},fontSize=13.sp,lineHeight=20.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(cards.isEmpty())item {Column(Modifier.padding(vertical=24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Text(if(query.isNotBlank())"No local matches"else if(filter=="history")"Retained reading history"else if(filter=="businesses")"Saved businesses"else if(filter=="events")"Saved events"else "Keep the good parts",fontSize=21.sp,fontWeight=FontWeight.SemiBold)
+                Text(when {query.isNotBlank()->"Search saved posts, businesses, events and retained history.";filter=="history"&&!repo.prefs.historyFullText->"Full-text history is off. You can choose to retain the text of posts you actually read in Storage settings.";filter=="history"->"Posts you spend time reading will appear here. History expires automatically; saved copies stay until you remove them.";else->"Save posts, businesses and events as local copies. They stay useful here when a public source disappears."},fontSize=13.sp,lineHeight=20.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(filter=="history"&&!repo.prefs.historyFullText)TextButton(onClick=onStorage){Text("History settings")}
             }}
-            items(entries,key={"${it.kind}:${it.key}"}) {entry->LibraryResultCard(repo,entry,onClick={focus.clearFocus();keyboard?.hide();matched=entry.matchedPost;selectedKind=entry.kind;selectedKey=entry.key},onRemove={scope.launch {repo.library.remove(entry.key)}})}
+            items(cards,key={card->card.post?.let {"${it.kind}:${it.key}"} ?: "discovery:${card.discovery!!.id}"}) {card->
+                card.post?.let {entry->LibraryResultCard(repo,entry,onClick={focus.clearFocus();keyboard?.hide();matched=entry.matchedPost;selectedKind=entry.kind;selectedKey=entry.key},onRemove={scope.launch {repo.library.remove(entry.key)}})}
+                card.discovery?.let {item->
+                    val open={focus.clearFocus();keyboard?.hide();localSelected=item}
+                    val remove={scope.launch {withContext(Dispatchers.IO){repo.localDiscovery.removeSaved(item.id)}};Unit}
+                    item.business?.let {b->BusinessCard(b,null,repo.prefs.localDistanceUnit,true,onOpen=open,onSave=remove,onSocial=onOpenLink,activity={Text("Saved copy",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)})}
+                    item.event?.let {event->EventCard(event,eventArea(event),true,onOpen=open,onSave=remove,activity={Text("Saved copy",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)})}
+                }
+            }
         }
         }
     }
+    localSelected?.let {item->
+        val remove={scope.launch {withContext(Dispatchers.IO){repo.localDiscovery.removeSaved(item.id)};localSelected=null};Unit}
+        item.business?.let {b->BusinessDetails(b,null,repo.prefs.localDistanceUnit,true,menuLoading=false,onMenuRefresh=null,onDismiss={localSelected=null},onSave=remove,onSocial={url->localSelected=null;onOpenLink(url)},onRead={url->localSelected=null;onReadLink(url)})}
+        item.event?.let {event->EventDetails(event,eventArea(event),saved=true,onDismiss={localSelected=null},onSave=remove,onRead=onReadLink,onImage={url,source->flyer=url to source})}
+    }
+    flyer?.let {(url,source)->MediaViewer(listOf(Media(url)),0,source,repo){flyer=null}}
     if(create)CreateLibraryCollection(repo,onCreated={collectionId=it;filter="saved";create=false},onDismiss={create=false})
     if(manageCollections)AlertDialog(onDismissRequest={manageCollections=false},title={Text("Collections")},text={LazyColumn(Modifier.heightIn(max=340.dp)) {items(collections,key={it.id}) {collection->Row(verticalAlignment=Alignment.CenterVertically) {Text(collection.name,Modifier.weight(1f),maxLines=2,overflow=TextOverflow.Ellipsis);IconButton(onClick={removeCollection=collection}){Icon(Icons.Rounded.DeleteOutline,"Delete collection ${collection.name}")}}}}},confirmButton={TextButton(onClick={manageCollections=false}){Text("Done")}})
     removeCollection?.let {collection->AlertDialog(onDismissRequest={removeCollection=null},title={Text("Delete ${collection.name}?")},text={Text("Saved copies stay in your library. Only this collection is removed.")},confirmButton={TextButton(onClick={scope.launch {repo.library.deleteCollection(collection.id);if(collectionId==collection.id)collectionId=null;removeCollection=null}}){Text("Delete collection")}},dismissButton={TextButton(onClick={removeCollection=null}){Text("Cancel")}})}
 }
+
+private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val discovery:LocalSavedDiscovery?=null)
 
 @Composable private fun LibraryResultCard(repo: Repository,entry: LibraryEntry,onClick: ()->Unit,onRemove: ()->Unit) {
     val text=remember(entry.post){PostPresentation.text(entry.post)}

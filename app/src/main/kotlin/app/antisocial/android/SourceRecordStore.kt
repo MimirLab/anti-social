@@ -35,6 +35,8 @@ internal class SourceRecordStore(private val repo:Repository,private val clock:(
         val policy=repo.gateway.currentPolicy();val originals=repo.prefs.originalFallback
         val key="$policy|$originals|${request.key}"
         cached(key)?.let {return@withContext it}
+        val work=repo.cardWork.begin(listOf("source:"+request.key),"Source information")
+        try {
         (if(deferred)supplemental else requested).withPermit {
             cached(key)?.let {return@withPermit it}
             val epoch=synchronized(lock){generation}
@@ -59,6 +61,7 @@ internal class SourceRecordStore(private val repo:Repository,private val clock:(
             repo.scheduleCleanup()
             value
         }
+        }finally {work.close()}
     }
     private fun persistLocked() {
         var json=repo.gson.toJson(entries.map {Entry(it.key,it.value)})

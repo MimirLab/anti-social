@@ -10,6 +10,8 @@ import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Instant
 
+internal data class LocalSavedDiscovery(val id:String,val savedAt:Long,val business:LocalBusiness?=null,val event:LocalEvent?=null)
+
 internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,8) {
     private val gson=Gson()
     val revision=MutableStateFlow(0L)
@@ -63,6 +65,23 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         writableDatabase.insertWithOnConflict("copies",null,ContentValues().apply {put("id",id);put("kind",kind);put("payload",json);put("saved",now())},SQLiteDatabase.CONFLICT_REPLACE);changed()
     }
     @Synchronized fun removeSaved(id:String){writableDatabase.delete("copies","id=?",arrayOf(id));changed()}
+    /** Library reads captured copies directly. Never joins live records, checks
+     * accounts, reconciles discoveries or starts a menu/source request. */
+    @Synchronized fun savedDiscoveries(query:String=""):List<LocalSavedDiscovery> =
+        readableDatabase.rawQuery("SELECT id,kind,payload,saved FROM copies ORDER BY saved DESC LIMIT 2000",null).use {c->buildList {
+            while(c.moveToNext())runCatching {
+                val id=c.getString(0);val saved=c.getLong(3)
+                if(c.getString(1)=="business") {
+                    val b=LocalBusinessOwnership.repairLegacy(gson.fromJson(c.getString(2),LocalBusiness::class.java))
+                    val body=LocalBusinessRouting.text(b)+" "+(b.phones+b.emails+b.websites+b.socials).joinToString(" ")+" "+b.menus.orEmpty().joinToString(" "){m->m.title+" "+m.text+" "+m.items.joinToString(" "){it.name+" "+it.description}}
+                    if(LocalDiscoveryFilter.matches(query,body))add(LocalSavedDiscovery(id,saved,business=b))
+                }else if(c.getString(1)=="event") {
+                    val v=gson.fromJson(c.getString(2),LocalEvent::class.java)
+                    val body=listOf(v.title,v.description,v.venue,v.address,v.locality,v.organizer,v.price,v.age,v.start.value).joinToString(" ")
+                    if(LocalDiscoveryFilter.matches(query,body))add(LocalSavedDiscovery(id,saved,event=v))
+                }
+            }
+        }}
     @Synchronized fun savedIds()=rows("SELECT id FROM copies").toSet()
     @Synchronized fun sources(area:LocalArea):List<LocalPublisherSource> = rows("SELECT payload FROM sources WHERE area=? LIMIT 768",arrayOf(area.cacheKey)).mapNotNull {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
     @Synchronized fun offerSource(area:LocalArea,source:LocalPublisherSource) {

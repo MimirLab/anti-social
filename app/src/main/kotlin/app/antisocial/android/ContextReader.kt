@@ -222,7 +222,10 @@ internal class ContextReader(private val repo: Repository) {
         active.value=jobs.keys.toSet()
         val deadline=if(background)minOf(SystemClock.elapsedRealtime()+preferences.state.value.sliceSeconds*1000L,automaticDeadline)else Long.MAX_VALUE
         var roots=emptyList<Post>()
-        try {repo.gateway.contextRead {lane.withLock {
+        var cardActivity:AutoCloseable?=null
+        try {
+        store.record(id)?.snapshot?.roots?.let {cardActivity=repo.cardWork.begin(it.map(::postWorkKey),"Context")}
+        repo.gateway.contextRead {lane.withLock {
             repo.awaitReady();check(repo.ai.contextAvailable()){ "Choose a ready text model in AI settings." };repo.mediaTools.refresh()
             var record=store.record(id) ?: return@withLock
             if(record.snapshot.variant=="current") {
@@ -350,7 +353,7 @@ internal class ContextReader(private val repo: Repository) {
             if(rejected)invalidateCapabilities()
             update(id,"paused",if(rejected)"The model server rejected this reading request · progress saved. Refresh checks its capacity again."else publicError(e))
         }
-        finally {roots.forEach {repo.lease(repo.key(it),false)};jobs.remove(id,job);automatic.remove(id);aheadJobs.remove(id);active.value=jobs.keys.toSet();repo.scheduleCleanup()}
+        finally {cardActivity?.close();roots.forEach {repo.lease(repo.key(it),false)};jobs.remove(id,job);automatic.remove(id);aheadJobs.remove(id);active.value=jobs.keys.toSet();repo.scheduleCleanup()}
     }
     private fun currentCoroutineContextOrNull(job: Job){job.ensureActive()}
     private fun readyToCompose(owner:String):Boolean {

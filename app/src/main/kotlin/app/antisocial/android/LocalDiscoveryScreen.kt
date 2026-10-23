@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatter
 @Composable internal fun LocalDiscoveryScreen(vm:AntiSocialViewModel) {
     val controller=vm.localSearch;val state by controller.state.collectAsState();val context=LocalContext.current
     val focus=LocalFocusManager.current;val scope=rememberCoroutineScope()
+    LaunchedEffect(controller){if(controller.state.value.savedOnly)controller.saved(false)}
     DisposableEffect(controller){onDispose {controller.stop();vm.repo.localSearchConnection(false)}}
     var chooseArea by rememberSaveable {mutableStateOf(false)}
     var showCoverage by rememberSaveable {mutableStateOf(false)}
@@ -63,7 +64,6 @@ import java.time.format.DateTimeFormatter
                 items(vm.repo.prefs.selected.filter(ReaderScope::isFeedSource),key={it.id}) {p->Surface(onClick={selectedPlatform=p},shape=RoundedCornerShape(14.dp),color=if(selectedPlatform==p)MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,modifier=Modifier.testTag("Search site ${p.id}")){Box(Modifier.padding(10.dp)){PlatformMark(p,26.dp)}}}
             }else Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
                 AssistChip(enabled=!state.savedOnly,onClick={chooseArea=true},label={if(!state.savedOnly&&state.area!=null)Column(Modifier.padding(vertical=3.dp)){Text(state.area!!.name,fontSize=13.sp,maxLines=1,overflow=TextOverflow.Ellipsis);Text(state.unit.radius(state.area!!.radiusKm),fontSize=11.sp)}else Text(if(state.savedOnly)"All saved areas"else "Choose area",maxLines=1)},leadingIcon={Icon(Icons.Rounded.LocationOn,null,Modifier.size(17.dp))},modifier=Modifier.weight(1f,false).testTag("Discovery area"))
-                FilterChip(selected=state.savedOnly,onClick={controller.saved(!state.savedOnly)},label={Text("Saved")},leadingIcon={Icon(Icons.Rounded.BookmarkBorder,null,Modifier.size(17.dp))})
                 IconButton(onClick={showCoverage=true}){Icon(Icons.Rounded.Info,"Search coverage and sources")}
             }
             OutlinedTextField(state.text,controller::text,label={Text(when(state.mode){LocalSearchMode.POSTS->"Search posts or paste a link";LocalSearchMode.BUSINESSES->"Name, service or interest";LocalSearchMode.EVENTS->"What would you like to do?"})},singleLine=true,
@@ -85,8 +85,8 @@ import java.time.format.DateTimeFormatter
                     Text(when {state.savedOnly->"Saved places and events remain here offline until you remove them.";state.area==null->"Choose a city or area. It stays on this device; background location tracking is never needed.";state.mode==LocalSearchMode.EVENTS->"Try a topic such as markets, music or children. Only announcements with an actual event date and a matching venue or locality appear here.";else->"Try a business name, organic food or coffee. Public directories help connect its website and social accounts."},fontSize=14.sp,lineHeight=21.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     if(!state.savedOnly)TextButton(onClick={submit()}){Text(if(state.area==null)"Choose an area"else "Find ${if(state.mode==LocalSearchMode.EVENTS)"events"else "businesses"}")}
                 }}
-                if(state.mode==LocalSearchMode.BUSINESSES)items(state.businesses,key={it.id}) {place->BusinessCard(place,state.area,state.unit,place.id in state.saved,onOpen={business=place},onSave={controller.save(place)},onSocial=vm::openLink)}
-                if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,unknowns=LocalEventIntent.parse(state.text).match(session).unknowns,onOpen={event=session},onSave={controller.save(session)})}
+                if(state.mode==LocalSearchMode.BUSINESSES)items(state.businesses,key={it.id}) {place->BusinessCard(place,state.area,state.unit,place.id in state.saved,onOpen={business=place},onSave={controller.save(place)},onSocial=vm::openLink,activity={CardActivity(vm.repo.cardWork,businessWorkKeys(place),place.id)})}
+                if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,unknowns=LocalEventIntent.parse(state.text).match(session).unknowns,onOpen={event=session},onSave={controller.save(session)},activity={CardActivity(vm.repo.cardWork,eventWorkKeys(session),session.id)})}
                 if(state.mode==LocalSearchMode.EVENTS&&state.announcements.isNotEmpty()) {
                     item {TextButton(onClick={showPossible=!showPossible},modifier=Modifier.testTag("Possible events toggle")){Icon(if(showPossible)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null);Text("Possible events · ${state.announcements.size}")}}
                     if(showPossible)items(state.announcements,key={"possible:"+it.id}) {item->OutlinedCard(onClick={candidate=item},modifier=Modifier.fillMaxWidth().testTag("Possible event ${item.id}")) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text(item.title,fontWeight=FontWeight.SemiBold);Text(item.missing.joinToString(" · "),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
@@ -117,15 +117,8 @@ import java.time.format.DateTimeFormatter
     }
     event?.let {selected->
         val value=state.events.firstOrNull {it.id==selected.id} ?: state.events.firstOrNull {LocalDiscoveryMerge.sameEvent(selected,it)} ?: selected
-        ModalBottomSheet(onDismissRequest={event=null}) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-        Text(value.title,style=MaterialTheme.typography.headlineSmall);Text(eventTime(value,state.area),fontWeight=FontWeight.SemiBold)
-        listOf(value.status.takeUnless {it=="scheduled"}.orEmpty(),value.venue,value.address,value.price,value.age.takeIf(String::isNotBlank)?.let {"Ages $it"}.orEmpty(),value.organizer).filter(String::isNotBlank).distinct().forEach {Text(it)}
-        LocalEventIntent.parse(state.text).match(value).let {match->(match.reasons+match.unknowns).distinct().forEach {Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
-        if(value.description.isNotBlank())Text(value.description)
-        (listOfNotNull(value.registrationUrl)+value.urls).distinct().take(3).forEachIndexed {i,url->TextButton(onClick={vm.articles.open(url)}){Text(if(i==0&&value.registrationUrl!=null)"Registration & details"else "Read announcement")}}
-        EvidenceDetails(value.evidence,onOpen={vm.articles.open(it)},onImage={url,source->flyer=url to source})
-        TextButton(onClick={controller.save(value)}){Text(if(value.id in state.saved)"Remove saved copy"else "Save local copy")};Spacer(Modifier.height(24.dp))
-    }}}
+        EventDetails(value,state.area,state.text,onDismiss={event=null},saved=value.id in state.saved,onSave={controller.save(value)},onRead=vm.articles::open,onImage={url,source->flyer=url to source})
+    }
     candidate?.let {value->ModalBottomSheet(onDismissRequest={candidate=null}) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text(value.title,style=MaterialTheme.typography.headlineSmall)
         Text(value.missing.joinToString(" · "),color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -139,16 +132,16 @@ import java.time.format.DateTimeFormatter
     importError?.let {error->AlertDialog(onDismissRequest={importError=null},text={Text(error)},confirmButton={TextButton(onClick={importError=null}){Text("Close")}})}
 }
 
-@Composable private fun BusinessCard(place:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,onOpen:()->Unit,onSave:()->Unit,onSocial:(String)->Unit) {
+@Composable internal fun BusinessCard(place:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,onOpen:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,activity:(@Composable ()->Unit)?=null) {
     val locale=LocalConfiguration.current.locales[0]
     ElevatedCard(onClick=onOpen,modifier=Modifier.fillMaxWidth().testTag("Business ${place.id}"),shape=RoundedCornerShape(20.dp),colors=CardDefaults.elevatedCardColors(containerColor=MaterialTheme.colorScheme.surface)) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment=Alignment.CenterVertically) {Column(Modifier.weight(1f)){Text(place.name,fontSize=19.sp,fontWeight=FontWeight.SemiBold);if(place.category.isNotBlank())Text(LocalBusinessContact.category(place.category),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)};IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved ${place.name}"else "Save ${place.name}")}}
         if(place.address.isNotBlank())Text(place.address,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
         area?.let {a->place.point?.let {p->Text(unit.away(a.point.distanceKm(p),locale),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
-        SocialAccounts(place.socials,onSocial)
+        Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){SocialAccounts(place.socials,onSocial)};activity?.invoke()}
     }}
 }
-@Composable private fun EventCard(event:LocalEvent,area:LocalArea?,saved:Boolean,unknowns:List<String> = emptyList(),onOpen:()->Unit,onSave:()->Unit) {
+@Composable internal fun EventCard(event:LocalEvent,area:LocalArea?,saved:Boolean,unknowns:List<String> = emptyList(),onOpen:()->Unit,onSave:()->Unit,activity:(@Composable ()->Unit)?=null) {
     ElevatedCard(onClick=onOpen,modifier=Modifier.fillMaxWidth().testTag("Event ${event.id}"),shape=RoundedCornerShape(20.dp),colors=CardDefaults.elevatedCardColors(containerColor=MaterialTheme.colorScheme.surface)) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment=Alignment.CenterVertically) {Text(eventTime(event,area),Modifier.weight(1f),fontSize=12.sp,color=MaterialTheme.colorScheme.primary);IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved ${event.title}"else "Save ${event.title}")}}
         Text(event.title,fontSize=19.sp,fontWeight=FontWeight.SemiBold)
@@ -156,6 +149,7 @@ import java.time.format.DateTimeFormatter
         if(event.status!="scheduled")Text(event.status.replaceFirstChar(Char::titlecase),color=MaterialTheme.colorScheme.error,fontWeight=FontWeight.SemiBold)
         Text(listOf(event.venue,event.locality,event.price).filter(String::isNotBlank).distinct().joinToString(" · "),fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
         if(event.description.isNotBlank())Text(event.description,fontSize=13.sp,maxLines=3,overflow=TextOverflow.Ellipsis)
+        activity?.let {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){it()}}
     }}
 }
 @Composable private fun SocialAccounts(urls:List<String>,onOpen:(String)->Unit) {
@@ -163,7 +157,7 @@ import java.time.format.DateTimeFormatter
     if(accounts.isNotEmpty())Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)) {accounts.forEach {(platform,url)->IconButton(onClick={onOpen(url)}){PlatformMark(platform,25.dp,"Open ${platform.label} account")}}}
 }
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun BusinessDetails(value:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,menuLoading:Boolean,onMenuRefresh:(()->Unit)?,onDismiss:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,onRead:(String)->Unit) {
+@Composable internal fun BusinessDetails(value:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,menuLoading:Boolean,onMenuRefresh:(()->Unit)?,onDismiss:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,onRead:(String)->Unit) {
     val context=LocalContext.current
     var relatedSources by remember(value.id) {mutableStateOf(false)}
     var visitDetails by remember(value.id) {mutableStateOf(false)}
@@ -262,7 +256,7 @@ internal fun eventTime(event:LocalEvent,area:LocalArea?):String {
             val clock=DateTimeFormatter.ofPattern("HH:mm")
             date(start.toLocalDate())+" · "+start.format(clock)+(if(end!=null&&end!=start) {
                 if(end.toLocalDate()==start.toLocalDate())"–"+end.format(clock)else " – "+date(end.toLocalDate())+" · "+end.format(clock)
-            }else "")+(if(zone==null&&event.start.instant()==null)" · Local time"else "")
+            }else "")+(if(zone==null)if(event.start.instant()==null)" · Local time"else " · UTC"else "")
         }
     }.getOrDefault(event.start.value)
 }
@@ -286,5 +280,18 @@ internal fun eventTime(event:LocalEvent,area:LocalArea?):String {
         item {Text("Area lookup uses GeoNames through Open-Meteo over Tor.",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         if(state.area!=null)item {TextButton(onClick={onClose();onImport()}){Text("Import a regional place pack")}}
         item {Spacer(Modifier.height(24.dp))}
+    }}
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable internal fun EventDetails(value:LocalEvent,area:LocalArea?,query:String="",saved:Boolean,onDismiss:()->Unit,onSave:()->Unit,onRead:(String)->Unit,onImage:(String,String)->Unit) {
+        ModalBottomSheet(onDismissRequest=onDismiss) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+        Text(value.title,style=MaterialTheme.typography.headlineSmall);Text(eventTime(value,area),fontWeight=FontWeight.SemiBold)
+        listOf(value.status.takeUnless {it=="scheduled"}.orEmpty(),value.venue,value.address,value.price,value.age.takeIf(String::isNotBlank)?.let {"Ages $it"}.orEmpty(),value.organizer).filter(String::isNotBlank).distinct().forEach {Text(it)}
+        LocalEventIntent.parse(query).match(value).let {match->(match.reasons+match.unknowns).distinct().forEach {Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+        if(value.description.isNotBlank())Text(value.description)
+        (listOfNotNull(value.registrationUrl)+value.urls).distinct().take(3).forEachIndexed {i,url->TextButton(onClick={onRead(url)}){Text(if(i==0&&value.registrationUrl!=null)"Registration & details"else "Read announcement")}}
+        EvidenceDetails(value.evidence,onOpen={onRead(it)},onImage={url,source->onImage(url,source)})
+        TextButton(onClick={onSave()}){Text(if(saved)"Remove saved copy"else "Save local copy")};Spacer(Modifier.height(24.dp))
     }}
 }

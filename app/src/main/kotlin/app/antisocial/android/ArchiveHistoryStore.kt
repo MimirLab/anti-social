@@ -73,6 +73,7 @@ internal class ArchiveHistoryStore(private val repo: Repository,private val poli
         }
         if(!policy.claim(repo.key(post),sig,tor))return
         saveBudget()
+        val work=repo.cardWork.begin(listOf(postWorkKey(post)),"Archive history")
         var outcome=ArchiveCheckOutcome.FAILED
         try {
             val found=withTimeout(if(tor)40_000 else 24_000){lookup(post)}
@@ -88,7 +89,7 @@ internal class ArchiveHistoryStore(private val repo: Repository,private val poli
         }catch(e: Exception) {
             outcome=if((e as? SourceFailure)?.status==HealthStatus.RATE_LIMITED)ArchiveCheckOutcome.RATE_LIMITED else ArchiveCheckOutcome.FAILED
             writeRecord(post,ArchiveLookupRecord(sig,System.currentTimeMillis(),tor,outcome))
-        }finally {policy.complete(repo.key(post),sig,tor,outcome);saveBudget()}
+        }finally {work.close();policy.complete(repo.key(post),sig,tor,outcome);saveBudget()}
     }
     private suspend fun readRecord(post: Post): ArchiveLookupRecord? {
         val row=repo.dao.media(lookupKey(post)) ?: return null

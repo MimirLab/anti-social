@@ -34,12 +34,15 @@ internal fun sourceRequests(urls:List<String>,profile:Profile?=null):List<Source
  * cancel a supplemental read; retry only while this UI still needs it. */
 @Composable private fun rememberSourceRecord(repo:Repository,request:SourceRecordRequest,settleMs:Long=0,automatic:Boolean=true):State<PublicSourceRecord?> =
     produceState<PublicSourceRecord?>(null,repo,request,repo.gateway.currentPolicy(),repo.prefs.originalFallback) {
+        val activity=repo.cardWork.begin(listOf("source:"+request.key),"Source information")
+        try {
         delay(settleMs)
         while(isActive) {
             try {value=repo.sourceRecords.lookup(request,deferred=automatic){value=it};break}
             catch(e:CancellationException){currentCoroutineContext().ensureActive();delay(700)}
             catch(_:Exception){value=PublicSourceRecord(request,emptyList(),System.currentTimeMillis(),false,"Reopen this panel after the network mode changes.");break}
         }
+        }finally {activity.close()}
     }
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)

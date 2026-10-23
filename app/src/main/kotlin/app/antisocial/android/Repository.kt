@@ -94,8 +94,9 @@ class Repository(val context: Context) {
     }
     val sponsorBlock by lazy {SponsorBlockStore(this)}
     val youtube by lazy {YouTubeStore(this)}
+    val cardWork=CardWork()
     val images by lazy {ImageLoader(this)}
-    val aiMetadata by lazy {AiMetadataStore(scope)}
+    val aiMetadata by lazy {AiMetadataStore(scope,onWork={url->cardWork.begin(listOf(mediaWorkKey(url)),"Image information")})}
     private val mediaInfoStore=lazy {MediaInfoStore(this)}
     internal val mediaInfo get()=mediaInfoStore.value
     val ai by lazy {AiModelManager(this)}

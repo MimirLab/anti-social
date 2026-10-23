@@ -42,6 +42,8 @@ class ImageLoader(private val repo: Repository) {
         }
     }
     suspend fun load(url: String,source: String,maxEdge: Int,localOnly: Boolean=false,localFile: File?=null): Bitmap=withContext(Dispatchers.IO) {
+        val work=repo.cardWork.begin(listOf(mediaWorkKey(url)),"Images")
+        try {
         if(localFile!=null)return@withContext loadLocal(localFile,maxEdge,url)
         if(localOnly)return@withContext loadLocal(repo.savedMedia(url) ?: error("Image is not downloaded"),maxEdge,url)
         val edge=maxEdge.coerceIn(128,2048)
@@ -53,6 +55,7 @@ class ImageLoader(private val repo: Repository) {
             repo.aiMetadata.observe(url,file)
             decode(file,edge).also {memory.put(key,it);identities.observe(url,it)}
         }
+        }finally {work.close()}
     }
     /** A decoded bitmap can outlive a bounded metadata report, never the authority of its bytes. */
     private suspend fun observeAvailable(url: String) {
