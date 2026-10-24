@@ -138,6 +138,12 @@ and give unfinished query shapes their turn. The ordinary search feed can also
 receive available pages while that work continues, through a selected-source,
 checkpointed progress path. The plan preserves the chosen source/query, privacy
 session and existing attempt allowance; stopping cancels its children.
+Useful delivery and provider availability are learned separately: a late
+refusal keeps the delivered cards while pausing further work at that index.
+The pause covers its post search, account directory and probes across platforms,
+with endpoint/transport scope. An in-flight success cannot erase it. Other
+eligible methods remain subject to the same provider, original-access and
+Gateway rules. See the [provider-pause path](SEARCH_SCHEDULING.md#useful-content-and-a-provider-pause-can-coexist).
 
 ## Acquisition, decoding, interpretation and retention are separate boundaries
 

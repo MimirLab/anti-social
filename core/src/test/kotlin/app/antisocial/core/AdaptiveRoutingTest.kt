@@ -46,6 +46,48 @@ class AdaptiveRoutingTest {
         val recovered=routing.observe(result(HealthStatus.HEALTHY,250),second)
         assertEquals(0L,recovered.cooldownUntil);assertEquals(0,recovered.consecutiveFailures)
     }
+    @Test fun aPublicIndexPauseAppliesAcrossPlatformsButNotOtherRoutesOrTransports() {
+        val routing=policy();val index=Source(Platform.INSTAGRAM,"librey","https://index.example")
+        val sibling=index.copy(platform=Platform.FACEBOOK)
+        routing.observe(result(HealthStatus.RATE_LIMITED,cap=Capability.SEARCH,selected=index).copy(retryAfterMs=120_000))
+        assertFalse(routing.eligible(sibling,Capability.SEARCH,false))
+        assertTrue(routing.eligible(sibling,Capability.SEARCH,true))
+        assertTrue(routing.eligible(sibling,Capability.PROFILE,false))
+        assertTrue(routing.eligible(sibling.copy(root="https://independent.example"),Capability.SEARCH,false))
+        now+=120_001;assertTrue(routing.eligible(sibling,Capability.SEARCH,false))
+    }
+    @Test fun inFlightSuccessDoesNotEraseAPublicIndexPauseAndSnapshotsPreserveIt() {
+        val routing=policy();val index=Source(Platform.INSTAGRAM,"librey","https://index.example")
+        val sibling=index.copy(platform=Platform.FACEBOOK)
+        routing.observe(result(HealthStatus.RATE_LIMITED,cap=Capability.SEARCH,selected=index).copy(retryAfterMs=120_000))
+        routing.observe(result(HealthStatus.HEALTHY,100,cap=Capability.SEARCH,selected=index))
+        routing.observe(result(HealthStatus.HEALTHY,100,cap=Capability.SEARCH,selected=sibling))
+        assertFalse("A response already in flight does not revoke Retry-After",routing.eligible(index,Capability.SEARCH,false))
+        assertFalse(routing.eligible(sibling,Capability.SEARCH,false))
+        val restored=policy();restored.restore(routing.snapshot())
+        assertFalse(restored.eligible(index,Capability.SEARCH,false));assertFalse(restored.eligible(sibling,Capability.SEARCH,false))
+        assertEquals(1,routing.get(index,Capability.SEARCH,false)!!.deliverySamples)
+    }
+    @Test fun partialDeliveryKeepsOneUsefulSampleAndAnIncreasingProviderBackoff() {
+        val routing=policy();val index=Source(Platform.INSTAGRAM,"librey","https://index.example")
+        val refusal=result(HealthStatus.RATE_LIMITED,900,cap=Capability.SEARCH,selected=index)
+        val first=routing.observePartial(refusal,200)
+        assertEquals(1,first.samples);assertEquals(1,first.successes);assertEquals(1,first.deliverySamples)
+        assertEquals(200.0,first.deliveryMs,0.0);assertEquals(1,first.consecutiveFailures)
+        now+=60_001
+        val second=routing.observePartial(refusal.copy(checkedAt=now),220)
+        assertEquals(now+120_000,second.cooldownUntil);assertEquals(2,second.consecutiveFailures)
+        now+=120_001
+        val healthy=routing.observe(result(HealthStatus.HEALTHY,200,cap=Capability.SEARCH,selected=index))
+        assertEquals(0L,healthy.cooldownUntil);assertEquals(0,healthy.consecutiveFailures)
+    }
+    @Test fun publicIndexLoginPausesTheProviderButOrdinaryAccountLoginRemainsTargetSpecific() {
+        val routing=policy();val index=Source(Platform.INSTAGRAM,"librey","https://index.example")
+        routing.observe(result(HealthStatus.LOGIN_REQUIRED,cap=Capability.SEARCH,selected=index),first)
+        assertFalse(routing.eligible(index.copy(platform=Platform.FACEBOOK),Capability.SEARCH,false))
+        assertTrue(routing.eligible(index.copy(root="https://other.example"),Capability.SEARCH,false))
+        assertTrue(routing.eligible(index,Capability.PROFILE,false))
+    }
     @Test fun unavailableContentIsScopedButDnsAndServerOutagesAreGlobal() {
         val routing=policy();routing.observe(result(HealthStatus.UNAVAILABLE,detail="Source returned 404"),first)
         assertTrue(routing.eligible(source,Capability.TIMELINE,false,second))

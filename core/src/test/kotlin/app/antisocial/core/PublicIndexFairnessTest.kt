@@ -185,6 +185,30 @@ class PublicIndexFairnessTest {
             assertEquals(2,f.reelReads.get())
         }
     }
+    @Test fun usefulPartialResultsPreserveTheProvidersRateLimitAndRetryAfter():Unit=runBlocking {
+        ReelFixture {MockResponse().setHeadersDelay(600,TimeUnit.MILLISECONDS).setResponseCode(429).setHeader("Retry-After","120")}.use {f->
+            val partials=mutableListOf<Page>()
+            val page=withTimeout(2_000){updates(f){p,check->check();partials+=p}}
+            assertTrue(page.collections.any {it.target.canonicalUrl.contains("/p/Fast2")})
+            assertEquals(1,partials.size);assertNull(page.next);assertNotNull(page.notice)
+            val probe=f.pool.results(f.target.platform).single()
+            assertEquals("A delivered page must not erase the provider's refusal",HealthStatus.RATE_LIMITED,probe.status)
+            assertEquals(120_000L,probe.retryAfterMs)
+            assertTrue(f.pool.learning.eligibleAt(f.source,Capability.SEARCH,false,f.target)-System.currentTimeMillis()>110_000)
+            assertTrue(f.pool.learning.get(f.source,Capability.SEARCH,false)!!.deliverySamples>0)
+        }
+    }
+    @Test fun aSavedContinuationCannotSendRequestsDuringAKnownProviderCooldown():Unit=runBlocking {
+        ReelFixture {MockResponse().setBody(hit("https://www.instagram.com/reel/SlowReel/"))}.use {f->
+            val previous=Page(emptyList(),next=f.plan(),provenance=Provenance(f.source,0,f.source.root))
+            f.pool.learning.observe(ProbeResult(f.source,Capability.SEARCH,HealthStatus.RATE_LIMITED,10,System.currentTimeMillis(),false,"Source is rate limited",120_000))
+            val before=f.server.requestCount
+            val result=runCatching {withTimeout(2_000){f.pool.continuePage(f.target,previous,false)}}
+            assertEquals("A saved cursor does not authorize another request during the pause",before,f.server.requestCount)
+            assertTrue(result.exceptionOrNull() is SourceFailure)
+            assertTrue((result.exceptionOrNull() as SourceFailure).retryAfterMs!!>110_000)
+        }
+    }
 
     @Test fun availablePagesReachTheReaderWhileADeferredQueryIsStillWaiting():Unit=runBlocking {
         val release=CountDownLatch(1);val tailStarted=CompletableDeferred<Unit>()

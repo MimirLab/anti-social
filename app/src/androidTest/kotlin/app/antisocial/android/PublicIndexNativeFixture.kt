@@ -16,7 +16,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-internal class PublicIndexNativeFixture(routes:DarwinRoutes,val target:Target,val fast:String,val slower:String,private val third:String?=null):Closeable {
+internal class PublicIndexNativeFixture(routes:DarwinRoutes,val target:Target,val fast:String,val slower:String,private val third:String?=null,private val terminalStatus:Int?=null):Closeable {
     private val socket=ServerSocket(0,8,InetAddress.getByName("127.0.0.1"))
     // A cancelled response can still occupy a server worker. Twelve bounds all
     // four-by-three fixture operations without making those leftovers stall an
@@ -57,13 +57,15 @@ internal class PublicIndexNativeFixture(routes:DarwinRoutes,val target:Target,va
                     }
                     check(ended);requests+=path
                     val query=path.substringAfter('?',"").split('&').map {it.substringBefore('=') to URLDecoder.decode(it.substringAfter('=',""),"UTF-8")}.toMap()["q"]
+                    var status=200
                     val body=when(query) {
                         postQuery->hit(if(fastReads.incrementAndGet()==1||third!=null)fast else fast+"More")
-                        reelQuery->{val call=reelReads.incrementAndGet();if(third!=null)Thread.sleep(450)else if(call==1)Thread.sleep(5_000)else {check(release.await(8,TimeUnit.SECONDS));Thread.sleep(700)};hit(slower)}
+                        reelQuery->{val call=reelReads.incrementAndGet();if(call>1&&terminalStatus!=null)status=terminalStatus;if(third!=null)Thread.sleep(450)else if(call==1)Thread.sleep(5_000)else {check(release.await(8,TimeUnit.SECONDS));Thread.sleep(700)};if(status==200)hit(slower)else "The source asked to pause"}
                         broadQuery->{broadReads.incrementAndGet();if(third!=null){Thread.sleep(900);hit(third)}else hit("https://www.instagram.com/nativefixture")}
                         else->error("Unknown fixture query")
                     }.toByteArray()
-                    c.getOutputStream().apply {write("HTTP/1.1 200 Fixture\r\nContent-Type: text/html\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray());write(body);flush()}
+                    val retry=if(status==200)""else "Retry-After: 120\r\n"
+                    c.getOutputStream().apply {write("HTTP/1.1 $status Fixture\r\n${retry}Content-Type: text/html\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray());write(body);flush()}
                 }}catch(_:java.io.IOException){/* The reader cancels a losing request. */}
                 catch(_:InterruptedException){Thread.currentThread().interrupt()}
                 finally {connections.remove(connection)}

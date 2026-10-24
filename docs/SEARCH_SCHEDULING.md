@@ -1,4 +1,4 @@
-# Public-index search continuation, 0.38.11
+# Public-index search continuation, 0.38.12
 
 Unscoped Instagram, TikTok and Facebook search can ask the selected public index several
 different questions concurrently: ordinary posts, Reels/photos, and a broad
@@ -70,6 +70,45 @@ delivery rather than the time spent waiting for the tail or reader acknowledgmen
 A refusal received before the parked hedge prevents those requests. If it arrives
 after a parked request started, existing usable results remain available and the
 plan ends; a request already sent cannot be undone.
+
+## Useful content and a provider pause can coexist
+
+Since 0.38.12, a multi-query read that returns useful destinations and later
+receives a rate limit, challenge, login demand or temporary refusal with
+Retry-After retains both observations. The reader keeps the retrieved material;
+caller-owned `PublicIndexFeedback` carries the refusal to SourcePool. It is
+scoped to the actual source/session, rather than stored in imported Page fields
+or a detached task registry. A connection change rejects stale feedback.
+
+AdaptiveRouting records one sample. The first useful delivery trains latency;
+the refusal trains availability and backoff. It does not record a healthy sample
+followed by a second failure or lose the provider's requested wait. Existing
+[Retry-After parsing](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3)
+accepts a date or delay and retains its bounded wait alongside local backoff.
+
+The pause belongs to that public-index endpoint and transport across platforms.
+An Instagram query cannot be followed immediately by a Facebook query to the
+same paused index. Another endpoint, transport or unrelated capability retains
+its own eligibility. Search continuations, account-directory reads and probes
+check this shared pause before requests; forcing a probe does not override it.
+Skipped work adds no fabricated failure sample and does not extend the deadline.
+An already-running successful response cannot clear an active provider pause.
+The bounded state survives restoration through the existing RouteStats snapshot;
+no new reader/export schema is introduced.
+
+Provider failures remain different from target-specific failures. A login
+response from an ordinary account route does not pause every account on that
+service. The pool can still choose other eligible routes permitted by the
+selected provider and original-access policy. Refusal handling never changes
+the connection policy or bypasses NetworkGateway.
+
+The [new regressions](../core/src/test/kotlin/app/antisocial/core/PublicIndexCooldownTest.kt)
+cover initial mixed delivery, directory refusals, skipped probes, cross-platform
+reuse and internal cancellation. A session-change response-hook test confirms
+an existing Gateway rejection; it is not evidence of a newly fixed Tor bypass.
+The identical native harness fails on retained 0.38.11 when the late refusal is
+mistaken for health. See [release qualification](RELEASE_QUALIFICATION.md) for
+the candidate results and exact scope.
 
 ## Retain completed results and validate the whole plan
 

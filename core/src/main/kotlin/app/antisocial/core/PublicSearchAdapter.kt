@@ -89,16 +89,18 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         // must not cause the first lane to disclose a query as a side effect.
         lanes.forEach {request(queries[it.index],it.cursor)}
         val session=gateway.sessionFor(source.root)
+        val feedback=currentCoroutineContext()[PublicIndexFeedback]?.takeIf {it.source==source}
         val completed=linkedMapOf<Int,LaneResult>()
         val attempted=mutableSetOf<Int>()
-        fun refusal(reply: LaneResult)=(reply.result.exceptionOrNull() as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)
+        fun refusal(reply: LaneResult)=PublicIndexFeedback.isRefusal(reply.result.exceptionOrNull())
         val deferred=lanes.filter {it.deferred}
         var refused=false
         fun snapshot(delta:Page?=null):Page {
             val pages=completed.values.mapNotNull {it.result.getOrNull()}
             if(pages.isEmpty())throw (completed.values.mapNotNull {it.result.exceptionOrNull()}.let {failures->
-                failures.firstOrNull {(it as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)} ?: failures.firstOrNull()
+                failures.firstOrNull {PublicIndexFeedback.isRefusal(it)} ?: failures.firstOrNull()
             } ?: SourceFailure(HealthStatus.EMPTY,"The selected public search index returned no readable destinations"))
+            feedback?.observe(completed.values.mapNotNull {it.result.exceptionOrNull()})
             val remaining=if(refused)emptyList()else lanes.mapNotNull {lane->
                 if(lane.index !in attempted)return@mapNotNull lane
                 val result=completed[lane.index]?.result

@@ -15,7 +15,17 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     private val stats=linkedMapOf<String,RouteStats>()
     private data class TargetFailure(val until: Long,val status: HealthStatus,val detail: String)
     private val targetFailures=linkedMapOf<String,TargetFailure>()
+    // Provider capacity belongs to its endpoint and transport, not the platform
+    // whose query happened to receive the refusal. No query text is retained.
+    private val providerCooldowns=linkedMapOf<String,Long>()
     private fun key(s: Source,c: Capability,t: Boolean)="${s.key}|$c|$t"
+    private fun providerKey(s:Source,c:Capability,t:Boolean):String?=
+        if(c==Capability.SEARCH&&s.frontend in PublicSearchAdapter.frontends)"${s.frontend}|${s.root}|$t"else null
+    private fun providerUntil(s:Source,c:Capability,t:Boolean)=providerKey(s,c,t)?.let {providerCooldowns[it]} ?: 0L
+    private fun effective(value:RouteStats):RouteStats {
+        val until=maxOf(value.cooldownUntil,providerUntil(value.source,value.capability,value.tor))
+        return if(until==value.cooldownUntil)value else value.copy(cooldownUntil=until)
+    }
     private fun scope(s: Source,c: Capability,t: Boolean,target: Target): String {
         val value=if(target.kind==TargetKind.SEARCH)target.canonicalUrl else target.canonicalUrl.substringBefore('#')
         val hash=MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).take(12).joinToString(""){"%02x".format(it)}
@@ -24,19 +34,25 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     @Synchronized fun restore(values: List<RouteStats>) {
         val now=clock()
         values.takeLast(512).filter {it.lastObservedAt in (now-7*DAY)..(now+60_000)&&it.samples in 1..1_000_000&&it.successes in 0..it.samples&&it.deliverySamples in 0..it.successes&&it.deliveryMs.isFinite()&&it.deviationMs.isFinite()&&it.deliveryMs in 0.0..180_000.0&&it.deviationMs in 0.0..180_000.0}.forEach {stats[key(it.source,it.capability,it.tor)]=it.copy(cooldownUntil=it.cooldownUntil.coerceIn(0,now+DAY),consecutiveFailures=it.consecutiveFailures.coerceIn(0,100))}
+        stats.values.forEach {value->providerKey(value.source,value.capability,value.tor)?.let {k->
+            if(value.cooldownUntil>now)providerCooldowns[k]=maxOf(providerCooldowns[k] ?: 0,value.cooldownUntil)
+        }}
         trim()
     }
-    @Synchronized fun snapshot(): List<RouteStats> {trim();return stats.values.toList()}
-    @Synchronized fun get(s: Source,c: Capability,t: Boolean)=stats[key(s,c,t)]
+    @Synchronized fun snapshot(): List<RouteStats> {trim();return stats.values.map(::effective)}
+    @Synchronized fun get(s: Source,c: Capability,t: Boolean)=stats[key(s,c,t)]?.let(::effective)
     @Synchronized fun eligible(s: Source,c: Capability,t: Boolean,target: Target?=null): Boolean {
         return eligibleAt(s,c,t,target)<=clock()
     }
     /** Local earliest retry only; no probe is necessary to discover a cooldown. */
     @Synchronized fun eligibleAt(s: Source,c: Capability,t: Boolean,target: Target?=null): Long {
-        return maxOf(clock(),stats[key(s,c,t)]?.cooldownUntil ?: 0,
+        return maxOf(clock(),stats[key(s,c,t)]?.cooldownUntil ?: 0,providerUntil(s,c,t),
             if(target==null)0 else targetFailures[scope(s,c,t,target)]?.until ?: 0)
     }
     @Synchronized fun failure(s: Source,c: Capability,t: Boolean,target: Target): SourceFailure? {
+        val now=clock()
+        val pause=maxOf(providerUntil(s,c,t),if(providerKey(s,c,t)!=null)stats[key(s,c,t)]?.cooldownUntil ?: 0 else 0)
+        if(pause>now)return SourceFailure(HealthStatus.UNAVAILABLE,"Public search source is paused; try again later.",pause-now)
         val value=targetFailures[scope(s,c,t,target)]?.takeIf {it.until>clock()} ?: return null
         return SourceFailure(value.status,value.detail)
     }
@@ -49,10 +65,14 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
         val v=stats[key(s,c,t)]?.takeIf {it.deliverySamples>0}
         return ((v?.deliveryMs ?: if(t)1400.0 else 500.0)+(v?.deviationMs ?: 100.0)).toLong().coerceIn(if(t)700L else 250L,if(t)3500L else 1500L)
     }
-    @Synchronized fun observe(result: ProbeResult,target: Target?=null,delivery: Boolean=true): RouteStats {
+    @Synchronized fun observe(result: ProbeResult,target: Target?=null,delivery: Boolean=true): RouteStats = observeResult(result,target,delivery,null)
+    /** One read can deliver content and also establish a provider pause. Keep
+     * both observations without two samples, two writes or lost delivery time. */
+    @Synchronized fun observePartial(result:ProbeResult,deliveryMs:Long,target:Target?=null,delivery:Boolean=true):RouteStats = observeResult(result,target,delivery,deliveryMs)
+    private fun observeResult(result:ProbeResult,target:Target?,delivery:Boolean,partialMs:Long?):RouteStats {
         val now=clock();val k=key(result.source,result.capability,result.tor)
         val old=stats[k] ?: RouteStats(result.source,result.capability,result.tor)
-        val success=result.status==HealthStatus.HEALTHY
+        val success=result.status==HealthStatus.HEALTHY||partialMs!=null
         val sizeFailure=result.detail.contains("health-check budget",true)
         if(sizeFailure)return old // A bounded sounding is inconclusive, never a source outage.
         val global=isGlobalFailure(result)
@@ -66,10 +86,14 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
             // on the same endpoint; preserve its successful routing evidence.
             return old
         }
-        val failures=if(success)0 else old.consecutiveFailures+1
+        val holding=providerUntil(result.source,result.capability,result.tor)>now
+        val failures=if(global)old.consecutiveFailures+1 else if(success){if(holding)old.consecutiveFailures else 0}else old.consecutiveFailures+1
         val serverDelay=result.retryAfterMs?.coerceIn(0,DAY) ?: 0L
-        val cooldown=if(global)maxOf(old.cooldownUntil,now+(if(result.status in setOf(HealthStatus.RATE_LIMITED,HealthStatus.CHALLENGE))60_000L else 15_000L)*(1L shl (failures-1).coerceIn(0,3)),now+serverDelay) else if(success)0 else old.cooldownUntil
-        val sample=result.latencyMs.coerceIn(1,180_000).toDouble()
+        val cooldown=if(global)maxOf(old.cooldownUntil,now+(if(result.status in setOf(HealthStatus.RATE_LIMITED,HealthStatus.CHALLENGE)||providerKey(result.source,result.capability,result.tor)!=null&&result.status==HealthStatus.LOGIN_REQUIRED)60_000L else 15_000L)*(1L shl (failures-1).coerceIn(0,3)),now+serverDelay) else if(success)providerUntil(result.source,result.capability,result.tor).takeIf {it>now} ?: 0 else old.cooldownUntil
+        if(global)providerKey(result.source,result.capability,result.tor)?.let {k->
+            val until=maxOf(providerCooldowns[k] ?: 0,cooldown);providerCooldowns.remove(k);providerCooldowns[k]=until
+        }
+        val sample=(partialMs ?: result.latencyMs).coerceIn(1,180_000).toDouble()
         val delivered=success&&delivery
         val deliveryMs=if(delivered){if(old.deliverySamples==0)sample else old.deliveryMs*.75+sample*.25}else old.deliveryMs
         val deviation=if(delivered){if(old.deliverySamples==0)sample*.25 else old.deviationMs*.75+kotlin.math.abs(sample-old.deliveryMs)*.25}else old.deviationMs
@@ -88,10 +112,12 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     @Synchronized private fun trim() {
         val now=clock();stats.entries.removeAll {now-it.value.lastObservedAt>7*DAY};while(stats.size>512)stats.remove(stats.keys.first())
         targetFailures.entries.removeAll {it.value.until<=now};while(targetFailures.size>1024)targetFailures.remove(targetFailures.keys.first())
+        providerCooldowns.entries.removeAll {it.value<=now};while(providerCooldowns.size>512)providerCooldowns.remove(providerCooldowns.keys.first())
     }
     companion object {
         private const val DAY=86_400_000L
-        private fun isGlobalFailure(result: ProbeResult)=result.status==HealthStatus.RATE_LIMITED||result.status==HealthStatus.CHALLENGE||
+        private fun isGlobalFailure(result: ProbeResult)=result.capability==Capability.SEARCH&&result.source.frontend in PublicSearchAdapter.frontends&&
+            (result.status==HealthStatus.LOGIN_REQUIRED||result.status==HealthStatus.UNAVAILABLE&&result.retryAfterMs!=null)||result.status==HealthStatus.RATE_LIMITED||result.status==HealthStatus.CHALLENGE||
             result.status==HealthStatus.UNAVAILABLE&&(result.detail.contains("resolve",true)||result.detail.contains("timeout",true)||result.detail.contains("timed out",true)||result.detail.contains("connect",true)||Regex("\\b5[0-9]{2}\\b").containsMatchIn(result.detail))
         fun isTargetSpecific(result: ProbeResult)=!isGlobalFailure(result)&&(result.status in setOf(HealthStatus.EMPTY,HealthStatus.LOGIN_REQUIRED)||
             result.status==HealthStatus.UNAVAILABLE&&Regex("\\b(?:404|410)\\b").containsMatchIn(result.detail))

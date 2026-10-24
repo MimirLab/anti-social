@@ -118,13 +118,15 @@ The app is the product. AI is an option in the settings.
 
 ### Your reader, your records
 
-Settings, subscriptions and reading history stay local. App requests pass through the same protection gateway, including media and redirects. Tor is optional for ordinary reading and fails closed when selected; regional lookup and public-index searches use Tor. Direct public reads reveal your IP to their hosts. See the [hardening guide](docs/HARDENING.md).
+Settings, subscriptions and reading history stay local. **Settings → Privacy & connection → Tor for all traffic** puts the app's reading, photos, videos and updates through embedded Tor on stock Android. Selected Tor fails closed. Regional lookup and public-index searches also have their own Tor-required connection. All app requests use the same protection gateway, including redirects. See the [connection modes and protection layers](docs/ARCHITECTURE.md); direct reading exposes your IP to the destination.
 
 Public-source access varies. A login wall, an empty frontend and unavailable comments remain failures. Collection and AI briefs can miss information; original sources remain available for inspection. The app works on stock, unrooted Android phones; current optional local text, translation and OCR tools require a supported 64-bit device. See [capabilities and limits](docs/CAPABILITIES.md) and [release qualification](docs/RELEASE_QUALIFICATION.md).
 
 ### For the curious and the builders
 
 - [Reader guide](docs/READER_GUIDE.md)
+- [Architecture and protection layers](docs/ARCHITECTURE.md)
+- [Review the implementation and its evidence](docs/REVIEWING.md)
 - [Related-account discovery](docs/ADJACENT_DISCOVERY.md)
 - [Public Instagram preview route and limits](docs/INSTAGRAM_PUBLIC_PREVIEWS.md)
 - [Build from a clean checkout](docs/BUILDING.md)

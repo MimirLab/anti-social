@@ -1,5 +1,56 @@
 # Release qualification
 
+This is a dated engineering record for released increments and their candidates.
+The owner also uses the app on an Android phone and reports reader defects;
+those reports have driven fixes across feeds, search, discovery and Context.
+References below to missing physical-phone qualification mean the specified
+controlled performance, energy, GPU or hardware matrix has not been measured.
+They do not mean the app has never run on a phone. Likewise, a local artifact
+named `preview` can contain the same non-debuggable APK as an official release.
+See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
+
+## 0.38.12 useful results with provider backoff
+
+The full JVM suite covered **1,993 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. The selected API 35 Android batch covered **54 named checks**:
+52 passed and two opt-in live-source/Tor checks were skipped. All expected
+method identities across its seven classes were accounted for.
+
+Four new JVM regressions first failed against unchanged 0.38.11: useful mixed
+results lost a later refusal, saved continuation ignored a known pause, another
+platform could use the same paused index, and in-flight success cleared the pause.
+The identical native test APK also failed on byte-verified retained 0.38.11 debug:
+both useful cards were present, but the recorded source status was HEALTHY
+instead of RATE_LIMITED. On the candidate it retains both cards, records the
+120-second Retry-After and makes zero follow-up directory/probe requests during
+the pause. The native result screen was inspected. These are authored Gateway
+and emulator observations, not a live-provider quota or phone-latency claim.
+
+Additional regressions cover directory-to-post pause sharing, forced probes,
+platform/endpoint/transport scope, snapshot restoration, useful latency learning,
+increasing backoff, login scope, and cancellation without a stranded collector.
+A response-hook mode-change check passed before the production changes: it
+confirms existing Gateway session enforcement, rather than a newly repaired
+privacy bypass. One new mixed-response fixture initially allowed its refusal
+to arrive before the useful answer. A 100 ms fixture delay supplies the intended
+late-refusal ordering; production admission and assertions were preserved.
+
+The reader keeps useful material while the router learns provider availability
+separately. One mixed operation produces one learning sample. Shared pauses
+apply only to the public-index endpoint/transport and SEARCH capability; other
+eligible methods retain their policy checks. No provider, runtime, model, setting,
+background poll or reader/export schema is added. The candidate grows by about
+7 KiB over 0.38.11 with native/runtime payloads unchanged. See
+[search scheduling](SEARCH_SCHEDULING.md#useful-content-and-a-provider-pause-can-coexist)
+for the exact mechanism and bounds.
+
+The documentation also makes the shipped app-wide Tor control discoverable from
+the existing README technical details, links the complete protection path, and
+separates owner phone use from controlled hardware qualification. The satirical
+product presentation remains intact. No new live-Tor, physical-phone hardware
+matrix or independent security audit is claimed for this increment.
+
 ## 0.38.11 streamed public-index continuations
 
 The full JVM suite covered **1,983 cases**, zero failures/errors and one optional

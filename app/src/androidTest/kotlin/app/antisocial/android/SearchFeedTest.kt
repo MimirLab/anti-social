@@ -88,6 +88,44 @@ class SearchFeedTest {
             evidence(name)
         }.onFailure {error->android.util.Log.w("AntiSocialSearchFeed","Search failure capture was incomplete",error)}
     }
+    @Test fun usefulNativeCardsSurviveAProviderPauseWithoutSendingFollowupReads() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        repo.prefs.selected=(repo.prefs.selected+Platform.INSTAGRAM).distinct();repo.prefs.activePlatform=Platform.INSTAGRAM
+        val query=repo.routes.search(Platform.INSTAGRAM,"native-pause-$suffix")
+        val fastUrl="https://www.instagram.com/p/NativePause$suffix"
+        val reelUrl="https://www.instagram.com/reel/NativePauseReel$suffix"
+        val directory=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"search-provider-pauses").apply {mkdirs()}
+        PublicIndexNativeFixture(repo.routes,query,fastUrl,reelUrl,terminalStatus=429).use {f->
+            val first=Post("pause-first-$suffix",Platform.INSTAGRAM,fastUrl,"Native fixture","Useful first result stays readable.",publishedAt=System.currentTimeMillis())
+            val next=first.copy(id="pause-next-$suffix",canonicalUrl=fastUrl+"More",body="This available page stays readable while its source takes a break.",publishedAt=first.publishedAt!!-1_000)
+            extraPosts+=listOf(first,next)
+            val vm=model {opened->SearchFeed(opened,discover={previous->if(previous==null)f.firstPlan(f.reader.fetch(opened))else f.pool.continuePage(opened,previous,false)},read={destination->
+                val post=listOf(first,next).firstOrNull {it.canonicalUrl==destination.canonicalUrl}
+                if(post!=null)Page(listOf(post))else Page(emptyList(),profile=Profile(destination,"Fixture account"))
+            },maxPages=2)}
+            var failure:String?=null
+            try {
+                show(vm,query)
+                ui.waitUntil(10_000){vm.screen.value.page?.posts?.any {it.canonicalUrl==next.canonicalUrl}==true}
+                assertTrue(vm.screen.value.loading)
+                f.release.countDown();ui.waitUntil(10_000){vm.screen.value.searchFeed?.loading==false}
+                val feed=requireNotNull(vm.screen.value.searchFeed)
+                assertEquals(setOf(first.canonicalUrl,next.canonicalUrl),feed.page.posts.map {it.canonicalUrl}.toSet());assertNull(feed.error)
+                val probe=f.pool.results(Platform.INSTAGRAM).single()
+                assertEquals("Useful content must not hide the provider's rate limit",HealthStatus.RATE_LIMITED,probe.status)
+                assertEquals(120_000L,probe.retryAfterMs)
+                assertFalse(f.pool.learning.eligible(f.source.copy(platform=Platform.FACEBOOK),Capability.SEARCH,false))
+                val before=f.requests.size
+                runBlocking {withTimeout(1_000){f.pool.searchDirectory(query,false);f.pool.probe(f.source,Capability.SEARCH,force=true)}}
+                assertEquals("Directory and forced probes respect the known pause",before,f.requests.size)
+                ui.onNodeWithTag("Search feed").performScrollToNode(hasText(next.body));ui.onNodeWithText(next.body).assertIsDisplayed()
+                ui.mainClock.advanceTimeBy(500);ui.waitForIdle();android.os.SystemClock.sleep(250)
+                evidence("search-provider-paused-native")
+                File(directory,"provider-pause.json").writeText(repo.gson.toJson(mapOf("failure" to failure,"posts" to feed.page.posts.map {it.canonicalUrl},"probe" to probe,"stats" to f.pool.learning.snapshot(),"requests" to f.requests,"followupRequests" to (f.requests.size-before),"scope" to "Authored HTTP 429/Retry-After on the selected native Gateway source, not a live provider quota measurement.")))
+            }catch(e:Throwable){failure=e.message;failureEvidence("search-provider-pause-failure",vm,f.requests.toList());File(directory,"failure.json").writeText(repo.gson.toJson(mapOf("failure" to failure,"requests" to f.requests,"probe" to f.pool.results(Platform.INSTAGRAM))));throw e}
+            finally {clean(vm)}
+        }
+    }
     @Test fun availableNativePagesStreamWhileTheDeferredQueryKeepsWorking() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         repo.prefs.selected=(repo.prefs.selected+Platform.INSTAGRAM).distinct();repo.prefs.activePlatform=Platform.INSTAGRAM
