@@ -102,6 +102,11 @@ An assembled release variant is a candidate until its qualification gates pass.
 
 ## Current validation record
 
+Use [reviewing and evidence](REVIEWING.md) and the matching
+[release qualification](RELEASE_QUALIFICATION.md) when assessing test status.
+The laptop's `preview` artifact name identifies the installation target;
+official releases are published separately with matching source and signer checks.
+
 The dependency-ordered entrypoint completed an all-ABI debug/release build from
 an independent checkout and an initially empty external root on 2026-10-22.
 It downloaded and verified the tools, built every native prerequisite, passed JVM

@@ -57,6 +57,12 @@ class AntiSocialTorService: TorService() {
     override fun onDestroy() {finishProcess()}
 }
 data class TorState(val enabled: Boolean=false,val ready: Boolean=false,val progress: Int=0,val message: String="Direct connection",val allTraffic: Boolean=false)
+/** Owns embedded Tor for two distinct consumers: optional app-wide traffic and
+ * Tor-required searches. Settings' "Tor for all traffic" drives enable(enabled);
+ * searches can keep their separate Tor session warm with allTraffic=false.
+ * That state is not evidence the all-traffic control is absent. Both modes keep
+ * Gateway's filtering/session checks and fail closed for Tor-selected requests.
+ * See docs/ARCHITECTURE.md for the setting -> Repository -> Gateway path. */
 class TorController(private val context: Context,private val gateway: NetworkGateway,private val scope: CoroutineScope) {
     val state=MutableStateFlow(TorState())
     private var remote: Messenger?=null

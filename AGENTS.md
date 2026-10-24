@@ -6,6 +6,10 @@ Call the donor Darwin in product language, documentation and user-facing updates
 anti social must run on stock, unrooted Android. Do not require root, ADB, a custom ROM,
 or privileged system installation for any user-facing feature.
 
+For architecture and review, start with docs/ARCHITECTURE.md and docs/REVIEWING.md.
+They connect the app-wide Tor setting, shared gateway, source pools, worker boundaries
+and dated validation; follow those paths when assessing an individual component.
+
 All app networking must use NetworkGateway, including media, feeds, probes,
 redirects and updates. Tor is optional but fails closed when selected. Alternate
 sources precede accountless original fallback. Never pretend a login wall or a

@@ -23,6 +23,18 @@ available streams, while platform tabs let you inspect each stream. Community
 participation belongs to All or its community tab; the app does not post into an
 unconnected social account.
 
+## Choose the connection
+
+Open **Settings → Privacy & connection → Tor for all traffic** to route the app's
+content, photos, videos and updates through its embedded Tor connection. Requests
+pause if that connection is unavailable. Commercial public-index searches and
+regional discovery use Tor even when ordinary reading connects directly. The
+status card distinguishes these modes. No root or separate Tor app is needed.
+
+Network protection, URL cleaning and safe extraction apply in both modes. The
+toggle controls this app; an explicit handoff to another app uses that app's
+connection. See [the architecture](ARCHITECTURE.md) for the technical path.
+
 ## Find related accounts and communities
 
 Tap the compass beside Subscribe locally on a public profile, or choose Discover

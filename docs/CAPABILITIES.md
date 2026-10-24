@@ -1,6 +1,10 @@
 # Capabilities and limits
 
-This describes the development branch; consult the installed release's notes.
+anti social has public Android releases for stock, unrooted devices. This page
+describes the current checkout; select the installed release's tag for its exact
+source and qualification. [Architecture](ARCHITECTURE.md) connects the implemented
+protection and routing layers; [reviewing](REVIEWING.md) distinguishes automated
+qualification, dated live checks and ongoing user-reported phone testing.
 The [0.38 subscription/search qualification](PRODUCT_POLISH.md) records both
 successful live paths and unavailable sources.
 
@@ -20,6 +24,13 @@ successful live paths and unavailable sources.
 | Video links | In-app playback, SponsorBlock where supported and recovery routes | Hosting, captions and surviving copies are source dependent. YouTube is a controlled linked-video medium, not a new social-feed tab. |
 
 ## Connection behavior
+
+**Settings → Privacy & connection → Tor for all traffic** applies Tor to the
+app's ordinary content, photos, videos, probes, archives, downloads and updates.
+The embedded transport needs no root or separate Tor app. This is an app-wide
+control in addition to the Tor-required search connection; selecting another
+frontend does not change the selected privacy mode. See the
+[connection matrix](ARCHITECTURE.md#connection-policy-the-all-traffic-tor-control-exists).
 
 Every app request uses NetworkGateway, including redirects, images and updates.
 Regional discovery and public-index search use Tor. Reading follows the selected

@@ -1,5 +1,12 @@
 # Content boundaries in anti social
 
+This guide details the content-processing layer of the wider protection system.
+Start with [architecture](ARCHITECTURE.md) for the **Tor for all traffic** control,
+separate Tor-required searches, gateway filters, source routing and how these
+layers interact. [Reviewing and evidence](REVIEWING.md) maps claims to code and
+dated tests, including user-reported device use. The protections below operate
+on content retrieved through that shared gateway in either connection mode.
+
 This pass contains hostile content without replacing the reader, source routing,
 or extraction algorithms. It requires stock Android, without root or a companion
 installation. NetworkGateway still owns all app networking, including redirects,

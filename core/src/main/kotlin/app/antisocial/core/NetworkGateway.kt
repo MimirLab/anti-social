@@ -57,7 +57,14 @@ private val bookmarkPattern=Regex("[A-Za-z0-9_~.%+/=:-]{1,8192}")
 data class ProtectionStats(val checked: Long,val blocked: Long)
 data class NetworkEvent(val host: String,val stage: String,val elapsedMs: Long)
 
-/** The single network path for extraction, feeds, artwork, media and updates. */
+/** Shared enforcement path for extraction, feeds, artwork, media and updates.
+ * DEFAULT follows the user's app-wide "Tor for all traffic" preference; TOR
+ * requires Tor even when ordinary content is direct. configureTor updates only
+ * the search session unless DEFAULT already uses Tor. Neither source failover
+ * nor a redirect authorizes direct fallback from a Tor-selected session.
+ * Destination/credential checks, filters, purpose and session guards are shared
+ * by both modes. See docs/ARCHITECTURE.md and docs/REVIEWING.md for consumers,
+ * the native settings control, narrow service exceptions and dated evidence. */
 class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilter, private val allowHttpForTests: Boolean = false) {
     private val filter=AtomicReference(initialFilter)
     private val checkedRequests=java.util.concurrent.atomic.AtomicLong()

@@ -219,6 +219,13 @@ class OriginalAdapter(override val source: Source, private val gateway: NetworkG
     override fun sentinel(capability: Capability)=FrontendAdapter(source,gateway,routes).sentinel(capability)
 }
 
+/** Capability-aware orchestration over Darwin instances AND PublicPathways.
+ * An individual adapter is one method, not the full retrieval fallback plan.
+ * Learned eligibility, bounded rolling hedges, accountless-original policy and
+ * exact cursor ownership compose with Gateway protection; route failover never
+ * changes the selected Tor policy. Empty shells are not healthy content, and
+ * undated previews cannot certify chronological feed freshness. Architecture,
+ * source scope and dated qualification are mapped in docs/ARCHITECTURE.md. */
 class SourcePool(private val gateway: NetworkGateway, private val routes: DarwinRoutes, private val pathways: PublicPathways=PublicPathways(), private val clock: ()->Long=System::currentTimeMillis, private val onProbe: suspend (ProbeResult)->Unit = {}) {
     init {routes.registerPathwayAliases(pathways.entries.map {it.source})}
     private fun content(page: Page,capability: Capability,target: Target)=when(capability){
