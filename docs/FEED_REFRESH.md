@@ -29,6 +29,11 @@ no extra request is made and no incomplete gap becomes a successful refresh.
 If the first page never arrives, the source fails normally. Retrying still targets
 the persisted original frontier, even though newer partial pages are now cached.
 
+[Feed coverage](FEED_COVERAGE.md) keeps finite RSS/Atom relay windows pending
+when they miss that frontier. Ordinary feeds can follow declared, source-bound
+history links within the same catch-up budget; initial or overlapping windows
+do not crawl older pages.
+
 Cancelling a refresh retains source windows that finished before cancellation,
 while interrupted sources remain pending. A failed database transaction rolls
 back its whole batch. If scratch cannot be prepared, acquisition does not start;

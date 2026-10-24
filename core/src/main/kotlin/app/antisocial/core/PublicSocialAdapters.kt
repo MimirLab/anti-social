@@ -245,7 +245,7 @@ private class MastodonRssDataAdapter(source: Source,gateway: NetworkGateway,rout
         val avatar=channel.selectFirst("image > url")?.text()?.let {safeUrl(it,target.canonicalUrl)}
         val posts=page.posts.filter {p->val url=p.canonicalUrl.toHttpUrlOrNull();url!=null&&url.host==canonical.host&&url.port==canonical.port&&url.pathSegments.size==2&&url.pathSegments[0]=="@$username"&&url.pathSegments[1].matches(Regex("[A-Za-z0-9_-]{1,160}"))&&(p.body.isNotBlank()||p.media.isNotEmpty())}.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),author=channel.children().firstOrNull {e->e.normalName()=="title"}?.text().orEmpty().ifBlank {username},avatar=avatar,provenance=provenance)}
         val profile=Profile(target,channel.children().firstOrNull {it.normalName()=="title"}?.text().orEmpty().ifBlank {username},channel.children().firstOrNull {it.normalName()=="description"}?.text().orEmpty(),avatar)
-        usable(Page(chronological(posts),profile=profile,provenance=provenance,notice="Public RSS backup from the selected server. Comments and older-page retrieval are unavailable on this format."))
+        usable(Page(chronological(posts),profile=profile,provenance=provenance,limitedTimeline=true,notice="Public RSS backup from the selected server. Comments and older-page retrieval are unavailable on this format."))
         }
     }
 }
@@ -349,7 +349,7 @@ private class PixelfedDataAdapter(source: Source,gateway: NetworkGateway,routes:
         val avatar=feed?.children()?.firstOrNull {it.normalName()=="icon"}?.text()?.let {safeUrl(it,root)}
         val profile=Profile(target,author.ifBlank {username},feed?.children()?.firstOrNull {it.normalName()=="subtitle"}?.text().orEmpty(),avatar)
         val posts=page.posts.filter {it.canonicalUrl.toHttpUrlOrNull()?.host==target.canonicalUrl.toHttpUrlOrNull()?.host}.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),avatar=avatar,provenance=provenance)}
-        usable(Page(chronological(posts),page.next?.let {bookmark(source,target,"atom",it)},profile,provenance,notice="Public Atom feed; availability depends on server and account settings. Comments are unavailable."))
+        usable(Page(chronological(posts),page.next?.let {bookmark(source,target,"atom",it)},profile,provenance,limitedTimeline=true,notice="Public Atom feed; availability depends on server and account settings. Comments are unavailable."))
         }
     }
 }

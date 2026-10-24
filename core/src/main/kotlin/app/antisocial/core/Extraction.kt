@@ -100,7 +100,7 @@ object Extraction {
             Post(canonical,target.platform,canonical,tag("dc:creator","name","author").ifBlank { if(target.kind==TargetKind.PROFILE)target.identity else "" },plain(content),tag("title"),timestamp(tag("pubDate","published","updated")),media=media,provenance=provenance,links=markup.select("a[href]").mapNotNull {safe(it.attr("href"),provenance.finalUrl)}.filter {it!=canonical})
         }
         val next=document.getAllElements().firstOrNull {local(it)=="link"&&it.attr("rel")=="next"&&it.parent()?.let {parent->local(parent) in setOf("feed","channel")}==true}?.attr("href")?.let {safe(it,provenance.finalUrl)}
-        return Page(posts,next=next)
+        return Page(posts,next=next,limitedTimeline=true)
     }
     private fun redditProfile(node: JsonObject,routes: DarwinRoutes): Profile? {
         val data=node["data"]?.takeIf {it.isJsonObject}?.asJsonObject ?: return null

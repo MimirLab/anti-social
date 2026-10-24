@@ -123,7 +123,10 @@ class Repository(val context: Context) {
     internal var directLoader: suspend (Target,(String)->Unit)->Page = {target,progress->pool.load(target,originalFallback=prefs.originalFallback,progress=progress)}
     internal var feedMemory=FeedMemoryStore(context,scope)
     internal var followLoader: suspend (Follow)->Page = {loadFollow(it)}
-    internal var followPageLoader: suspend (Follow,Page)->Page = {follow,page->pool.continuePage(follow.target,page,prefs.originalFallback)}
+    internal var followPageLoader: suspend (Follow,Page)->Page = {follow,page->
+        if(follow.target.platform==Platform.RSS&&follow.feedUrl!=null)pool.continueExternalFeed(follow,page)
+        else pool.continuePage(follow.target,page,prefs.originalFallback)
+    }
     val feedRefresh=MutableStateFlow(FeedRefreshState())
     private val refreshMutex=Mutex()
     private val routingFile=File(context.cacheDir,"route-observations.json")

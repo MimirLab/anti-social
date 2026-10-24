@@ -22,6 +22,9 @@ object AutomaticLinks {
         val query=url.queryParameterNames.associateWith {url.queryParameter(it).orEmpty()}
         val signed=query.keys.any {it.lowercase(java.util.Locale.ROOT).let {key->key in tokens||key.endsWith("_token")||key.endsWith("_code")}}
         if(parts.any {it in actions}&&(signed||parts.none {it in content}))return false
+        if(parts.none {it in content}&&parts.zipWithNext().any {(owner,action)->
+            owner in setOf("account","accounts")&&action in setOf("delete","remove","deactivate")
+        })return false
         if(query.keys.any {key->key.lowercase(java.util.Locale.ROOT) in setOf("action","do","operation","cmd")&&url.queryParameterValues(key).any {it?.trim()?.lowercase(java.util.Locale.ROOT) in verbs}})return false
         val confirmations=setOf("confirm","confirmation","verify","activate","activation","accept")
         if(parts.any {it in confirmations}&&parts.none {it in content}&&(signed||parts.size<=2||parts.any {it in setOf("account","accounts","auth","invitation","invitations","invite","login-actions","action-token")}))return false

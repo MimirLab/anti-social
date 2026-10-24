@@ -9,6 +9,68 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.15 feed-window coverage and published history routes
+
+The full JVM suite covered **2,053 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. The final API 35 Android batch accounted for **111 named checks**
+across fourteen classes: 109 passed and two opt-in live-source/Tor checks were
+skipped. Native mixed RSS/social, pending-source and restored reading-position
+screens were inspected. The reading-scope case also passed separately.
+
+Four regressions first failed on unchanged 0.38.14: ordinary sliding RSS, generic
+social RSS and an RSSHub snapshot could close a missing previous window, and
+ordinary RSS navigation was discarded. Candidate checks cover RSS-Bridge too.
+The identical final native test APK failed on byte-verified retained 0.38.14
+debug because its readable finite relay window incorrectly closed missing
+history. The candidate retains the post, makes one owned request and stays
+pending. Other native checks cover Atom continuation, logical subscription
+identity, qualified Blogger reads, unavailable-Tor rejection, persisted gaps,
+deadline retention, atomic publication, source removal, channels and anchors.
+
+Additional tests found query-only Java URI resolution dropping the filename,
+an unrecognized exact account-deletion path, and HTML-style case folding
+confusing XML namespace declarations. The existing HTTP URL resolver preserves
+the filename; supplemental policy recognizes the scoped account action while
+keeping documentation readable. Namespace lookup now preserves case and empty
+undeclarations. Complete-feed markers must be feed-level, properly namespaced,
+empty and untruncated. Valid uppercase prefixes remain supported.
+
+Live research found a custom-domain feed publishing an HTTP Blogger next link
+with its exact Atom blog ID. A new regression failed on that unhandled link.
+The qualified route uses only the matching known HTTPS feed operation, bounds
+and validates parameters, pins its provider origin, and verifies the returned
+publication ID before extracting posts. Wrong/missing identities, other
+operations, unsafe origins and legacy Pages without that identity cannot grant
+the route. The optional bounded `Page.syndicationId` adds no database migration
+or account-ownership assertion. Ordinary pages retain their existing origin rules.
+
+An October 24 production-Gateway audit read 25 posts from Righto's custom
+domain and 25 different posts through its published Blogger endpoint over HTTPS.
+Both retained the original subscription and exact blog ID. An earlier direct
+provider audit also read two pages successfully. Android's old Blogger feed
+redirected to its replacement and supplied a finite twenty-post window; another
+old Blogger source hit the insecure-destination guard and was not retried.
+These are dated target-specific observations, not full-history, live-Tor or phone
+performance qualification. No article bodies were saved as audit evidence.
+
+The initial broader native batch had 107 passes, two opt-in skips and one
+reading-scope fixture failure, repeated alone. A composition wait alone did not
+repair it. The captured screen showed Reddit selected while the fixture assumed
+X/Bluesky without enabling them. Explicit fixture-platform selection, retained
+composition gates and unchanged group/anchor assertions pass in the final
+focused and full runs. Production platform-selection behavior was preserved.
+Initial harness syntax and audit-library setup failures are retained separately
+from actual source observations.
+
+The implementation uses the existing eight-page/300-post/source-deadline budget;
+initial subscriptions and overlapping windows do not crawl history. It adds no
+polling job, setting, model or runtime. The qualified APK adds **4,176 bytes**
+over 0.38.14, with all 497 non-generated native/data members unchanged. See
+[feed coverage](FEED_COVERAGE.md) for exact scope, provider qualification and
+reproduction. No new physical-phone hardware matrix or independent security
+audit is claimed for this increment.
+
 ## 0.38.14 protected feed revalidation and parsed-page reuse
 
 The full JVM suite covered **2,029 cases**, zero failures/errors and one optional

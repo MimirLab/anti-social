@@ -202,3 +202,10 @@ current network response. Direct-only, session-bound validators can avoid the
 body transfer too. Tor always fetches the body and sends no retained validator.
 This bounded memory belongs to ordinary cache, and never supplies a successful
 refresh when the network request failed.
+
+[Feed coverage](FEED_COVERAGE.md) separately checks whether that fresh window
+reaches the retained previous head. Finite syndication windows cannot certify a
+missing interval. Ordinary RSS/Atom can follow declared history links within the
+existing catch-up bounds. A Blogger-specific path qualifies a published provider
+link with its exact Atom blog ID, pins the HTTPS read and checks that identifier
+before extracting returned posts; it does not grant generic cross-origin access.

@@ -27,6 +27,15 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 tasks.test { systemProperty("antisocial.native.path", "${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so") }
+tasks.register<JavaExec>("feedPaginationAudit") {
+    dependsOn(tasks.testClasses)
+    classpath=sourceSets.test.get().runtimeClasspath
+    mainClass.set("app.antisocial.core.FeedPaginationAuditKt")
+    systemProperty("antisocial.native.path","${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
+    systemProperty("antisocial.buildRoot",providers.gradleProperty("antisocialBuildRoot").get())
+    systemProperty("antisocial.feedEvidence",providers.gradleProperty("antisocialFeedEvidence").getOrElse(""))
+    systemProperty("antisocial.feedUrl",providers.gradleProperty("antisocialFeedUrl").getOrElse(""))
+}
 tasks.register<JavaExec>("publicArticleAudit") {
     dependsOn(tasks.testClasses)
     classpath=sourceSets.test.get().runtimeClasspath

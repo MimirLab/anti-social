@@ -165,7 +165,7 @@ private class PublicFeedPathwayAdapter(override val source: Source,private val g
             identity?.platform==target.platform&&identity.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&(post.publishedAt!=null||undatedSnapshot)&&(post.body.isNotBlank()||post.title.isNotBlank()||post.media.isNotEmpty())&&PublicFeedPathways.entryMatches(target,post,feedVerified)
         }.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),publishedAt=if(undatedSnapshot)null else it.publishedAt)}.distinctBy {it.id}.sortedByDescending {it.publishedAt}.take(100)
         if(posts.isEmpty())throw SourceFailure(HealthStatus.EMPTY,if(undatedSnapshot)"The pathway returned no readable posts for this selected account"else "The feed pathway returned no dated readable posts for this selected account or community")
-        Page(posts,provenance=provenance,notice=if(undatedSnapshot)"Publication dates are unavailable. These posts appear only in this profile snapshot, outside the chronological feed."else "Public feed snapshot; earlier pages and comments may need another source.")
+        Page(posts,provenance=provenance,limitedTimeline=true,notice=if(undatedSnapshot)"Publication dates are unavailable. These posts appear only in this profile snapshot, outside the chronological feed."else "Public feed snapshot; earlier pages and comments may need another source.")
         }
     }
 }

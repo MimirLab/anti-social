@@ -770,6 +770,9 @@ class FeedMemoryTest {
         val allAnchor=xRows[4];val personAnchor=blueRows[8];val groupAnchor=xRows[7]
         val following="following:${Platform.X.id}:group:${Repository.hash("")}"
         val groupFeed="following:${Platform.X.id}:group:${Repository.hash(group)}"
+        // Fresh models honor selected platforms. Seed both fixture platforms
+        // rather than inheriting this isolated device's previous selection.
+        repo.prefs.selected=listOf(Platform.X,Platform.BLUESKY)
         repo.prefs.activePlatform=Platform.X;repo.prefs.theme="dark";repo.prefs.readingGroup(Platform.X,"")
         runBlocking {
             listOf(x,blue).forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
@@ -824,6 +827,8 @@ class FeedMemoryTest {
             assertEquals(0,targetOpens.get());assertEquals(person,personReader.screen.value.subscriptionId)
             evidence("native-person-view-restored-after-new-model")
             ui.runOnIdle {personReader.following()}
+            // Open the menu after the requested reader has been composed.
+            ui.waitUntil(5_000){ui.onAllNodesWithTag("Following feed").fetchSemanticsNodes().isNotEmpty()}
             ui.onNodeWithTag("Feed options").performClick()
             ui.waitUntil(5_000){ui.onAllNodesWithText(group).fetchSemanticsNodes().isNotEmpty()}
             ui.onNodeWithText(group).performScrollTo().performClick()
@@ -833,6 +838,7 @@ class FeedMemoryTest {
             repo.prefs.lastUrl(Platform.X,stale.canonicalUrl)
             hide(personReader)
             val grouped=fresh("following")
+            ui.waitUntil(5_000){ui.onAllNodesWithTag("Following feed").fetchSemanticsNodes().isNotEmpty()}
             ui.onNodeWithTag("Feed options").performClick()
             ui.waitUntil(5_000){ui.onAllNodesWithText(group).fetchSemanticsNodes().isNotEmpty()}
             ui.onNodeWithText(group).assertIsSelected()
@@ -840,6 +846,9 @@ class FeedMemoryTest {
             waitForRow(groupAnchor);ui.waitUntil(5_000){abs(top(groupAnchor)-groupTop)<=2f}
             assertNull(grouped.screen.value.target);assertEquals(0,targetOpens.get())
             evidence("native-following-group-restored-after-new-model")
+        }catch(e:Throwable) {
+            runCatching {evidence("native-reading-scope-transition-failure")}
+            throw e
         }finally {
             models.forEach {it.viewModelScope.cancel()}
             repo.directLoader=direct

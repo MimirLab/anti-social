@@ -14,6 +14,7 @@ object RssSources {
     private const val ATOM="http://www.w3.org/2005/Atom"
     private const val RSS1="http://purl.org/rss/1.0/"
     private const val RDF="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    private const val HISTORY="http://purl.org/syndication/history/1.0"
     private const val MAX_ITEMS=200
     private fun hash(value: String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString(""){"%02x".format(it)}
     private fun publicHost(host: String): Boolean {
@@ -45,10 +46,13 @@ object RssSources {
         return Source(Platform.RSS,"rss",root,role=SourceRole.ORIGINAL)
     }
     private fun local(e: Element)=e.normalName().substringAfter(':')
+    private fun xmlAttr(e:Element,name:String)=e.attributes().firstOrNull {it.key==name}?.value.orEmpty()
     private fun namespace(e: Element): String {
-        val prefix=e.normalName().substringBefore(':',"")
+        val prefix=e.tagName().substringBefore(':',"")
         val field=if(prefix.isEmpty())"xmlns"else "xmlns:$prefix"
-        return generateSequence(e){it.parent()}.map {it.attr(field)}.firstOrNull {it.isNotEmpty()}.orEmpty()
+        // A present empty declaration shadows the parent too. HTML-style
+        // case folding or skipping an undeclaration changes the XML identity.
+        return generateSequence(e){it.parent()}.mapNotNull {node->node.attributes().firstOrNull {it.key==field}?.value}.firstOrNull().orEmpty()
     }
     private fun children(e: Element,vararg names: String)=e.children().filter {it.normalName() in names||local(it) in names}
     private fun text(e: Element,vararg names: String)=names.firstNotNullOfOrNull {name->
@@ -58,12 +62,32 @@ object RssSources {
     private fun base(e: Element,fallback: String): String {
         var value=fallback
         generateSequence(e){it.parent()}.toList().asReversed().forEach {node->
-            node.attr("xml:base").takeIf(String::isNotBlank)?.let {raw->resolve(raw,value)?.let {value=it}}
+            xmlAttr(node,"xml:base").takeIf(String::isNotBlank)?.let {raw->resolve(raw,value)?.let {value=it}}
         }
         return value
     }
     private fun resolve(raw: String,base: String): String?=raw.trim().takeIf {it.isNotEmpty()&&it.length<=8192&&!it.any(Char::isISOControl)}?.let {value->
-        runCatching {URI(base).resolve(value).toString()}.getOrNull()?.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&publicHost(it.host)}?.toString()
+        base.toHttpUrlOrNull()?.resolve(value)?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&publicHost(it.host)}?.toString()
+    }
+    private fun sameOrigin(a:String,b:String):Boolean {
+        val one=a.toHttpUrlOrNull() ?: return false;val two=b.toHttpUrlOrNull() ?: return false
+        return one.scheme==two.scheme&&one.host==two.host&&one.port==two.port
+    }
+    /** Generic continuations bind feed/origin; Blogger requires its qualified HTTPS operation and matching ID.
+     * Callers pin the admitted origin and retain Gateway supplemental checks. */
+    suspend fun continuePage(target:Target,previous:Page,read:suspend (String,String)->Payload):Page {
+        require(target.platform==Platform.RSS&&target.kind==TargetKind.FEED&&feedUrl(target.canonicalUrl)==target.canonicalUrl){"Expected the selected ordinary feed"}
+        require(previous.profile?.target==target){"Feed pagination changed its subscription"}
+        val provenance=requireNotNull(previous.provenance){"Missing feed pagination source"}
+        require(!provenance.cached&&provenance.source==source(provenance.finalUrl)){"Feed pagination requires a current ordinary feed"}
+        val next=requireNotNull(previous.next?.let(::feedUrl)){"No supported feed continuation"}
+        val blogger=BloggerFeedHistory.next(next,previous.syndicationId)==next
+        require(!BloggerFeedHistory.host(next.toHttpUrlOrNull()!!.host)||blogger){"Feed pagination changed its Blogger identity or operation"}
+        require((sameOrigin(next,provenance.finalUrl)||blogger)&&AutomaticLinks.mayRead(next.toHttpUrlOrNull()!!)){"Feed pagination left its safe source"}
+        val payload=read(next,if(blogger)next else provenance.finalUrl)
+        require(sameOrigin(payload.finalUrl,next)){"Feed pagination redirected outside its source"}
+        if(payload.status!=200)throw SourceFailure(HealthStatus.EMPTY,"An incomplete feed page cannot finish catch-up")
+        return parse(payload,target,System.currentTimeMillis(),previous.syndicationId?.takeIf {BloggerFeedHistory.blogId(it)!=null})
     }
     private fun markup(e: Element?): String {
         if(e==null)return ""
@@ -78,7 +102,8 @@ object RssSources {
         }
     }
     /** No external entities, discovery crawl, pagination request, scripts or article scraping. */
-    fun parse(payload: Payload,target: Target,now: Long=System.currentTimeMillis()): Page {
+    fun parse(payload: Payload,target: Target,now: Long=System.currentTimeMillis()): Page = parse(payload,target,now,null)
+    private fun parse(payload:Payload,target:Target,now:Long,expectedId:String?):Page {
         require(target.platform==Platform.RSS&&target.kind==TargetKind.FEED){"Expected an ordinary feed target"}
         val feed=requireNotNull(feedUrl(target.canonicalUrl)){"Use a public HTTPS RSS or Atom feed URL"}
         val finalUrl=requireNotNull(feedUrl(payload.finalUrl)){"Feed redirected to an unsupported URL"}
@@ -92,6 +117,9 @@ object RssSources {
         val rdf=local(root)=="rdf"&&namespace(root)==RDF&&root.children().any {local(it)=="channel"&&namespace(it)==RSS1}
         if(!atom&&!rss&&!rdf)throw SourceFailure(HealthStatus.UNSUPPORTED,"This URL did not return an RSS or Atom feed")
         val channel=if(atom)root else root.children().first {local(it)=="channel"}
+        val syndicationId=if(atom)channel.children().filter {it.tagName().substringAfter(':')=="id"&&namespace(it)==ATOM}.singleOrNull()?.wholeText()?.trim()
+            ?.takeIf {it.length in 1..1024&&!it.any(Char::isISOControl)}else null
+        if(expectedId!=null&&syndicationId!=expectedId)throw SourceFailure(HealthStatus.EMPTY,"The feed page did not identify the selected Blogger publication")
         val feedName=(if(atom)atomText(children(channel,"title").firstOrNull())else Extraction.plain(text(channel,"title"))).ifBlank {URI(feed).host}
         val feedAuthor=children(channel,"author").firstOrNull()?.let {text(it,"name").ifBlank {it.wholeText().trim()}}.orEmpty()
         val description=if(atom)atomText(children(channel,"subtitle").firstOrNull())else Extraction.plain(text(channel,"description"))
@@ -130,6 +158,16 @@ object RssSources {
             Post(ContentIdentity.key(Platform.RSS,canonical),Platform.RSS,canonical,author.ifBlank {feedName},plain,title,published,media=selected,provenance=provenance,links=html.select("a[href]").mapNotNull {resolve(it.attr("href"),contentBase)}.filter {it!=canonical}.distinct().take(24))
         }.distinctBy {it.id}.sortedWith(compareByDescending<Post>{it.publishedAt ?: Long.MIN_VALUE}.thenBy {it.id})
         if(posts.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"This feed has no readable entries yet")
-        return Page(posts,profile=Profile(target,feedName,description),provenance=provenance,notice="Showing the text and media supplied by this feed; full articles may contain more.")
+        // Only feed-level Atom links navigate. Item links and similarly named
+        // elements in another namespace cannot turn into background requests.
+        val links=channel.children().filter {it.tagName().substringAfter(':')=="link"&&namespace(it)==ATOM}
+        val declared=links.firstOrNull {xmlAttr(it,"rel")=="next"} ?: links.firstOrNull {xmlAttr(it,"rel")=="prev-archive"}
+        val rawNext=declared?.let {node->xmlAttr(node,"href").takeIf {it.length in 1..8192&&!it.any(Char::isISOControl)}?.let {base(node,finalUrl).toHttpUrlOrNull()?.resolve(it)}}
+        val blogger=rawNext?.let {BloggerFeedHistory.next(it.toString(),syndicationId)}
+        val next=if(rawNext?.host?.let(BloggerFeedHistory::host)==true)blogger else declared?.let {resolve(xmlAttr(it,"href"),base(it,finalUrl))}
+            ?.takeIf {feedUrl(it)!=null&&sameOrigin(it,finalUrl)&&AutomaticLinks.mayRead(it.toHttpUrlOrNull()!!)}
+        val complete=declared==null&&nodes.size<=MAX_ITEMS&&channel.children().any {it.tagName().substringAfter(':')=="complete"&&namespace(it)==HISTORY&&it.children().isEmpty()&&it.wholeText().isBlank()}
+        return Page(posts,next=next,profile=Profile(target,feedName,description),provenance=provenance,limitedTimeline=!complete,syndicationId=syndicationId,
+            notice="Showing the text and media supplied by this feed; full articles may contain more.")
     }
 }

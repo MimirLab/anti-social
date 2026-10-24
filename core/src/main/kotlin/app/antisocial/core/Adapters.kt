@@ -934,6 +934,22 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Timed out"));throw SourceFailure(HealthStatus.UNAVAILABLE,"Public source timed out")}catch(e: Exception){if((e as? SourceFailure)?.status!=HealthStatus.EMPTY)record(ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs));throw e}
         }finally {readFinished()}
     }
+    suspend fun continueExternalFeed(follow:Follow,previous:Page):Page=withContext(Dispatchers.IO) {
+        readStarted()
+        try {
+            require(follow.feedUrl?.let {RssSources.target(it)}==follow.target){"Feed continuation changed its subscription"}
+            val checkAccess=readPolicy();val source=requireNotNull(previous.provenance?.source)
+            val session=gateway.sessionFor(requireNotNull(previous.provenance).finalUrl)
+            checkAccess(source)
+            val page=RssSources.continuePage(follow.target,previous){url,parent->
+                checkAccess(source)
+                gateway.text(url,follow.target.canonicalUrl,allowedOrigins=setOf(parent),purpose=FetchPurpose.SUPPLEMENTAL,expectedSession=session)
+            }
+            checkAccess(source)
+            if(gateway.sessionFor(requireNotNull(previous.provenance).finalUrl)!==session)throw CancellationException("Feed connection changed; retry this read")
+            page
+        }finally {readFinished()}
+    }
     suspend fun externalFeed(follow: Follow): Page = withContext(Dispatchers.IO) {
         readStarted()
         try {

@@ -50,12 +50,12 @@ and a search-only Tor client alone does not describe the all-traffic setting.
 | Release/artifact checks | Matching source/tag, signer, APK integrity, preview state preservation and the anonymous permanent download where recorded. |
 | Explicit missing qualification | The named unmeasured behavior, hardware or source remains unmeasured. Its scope does not erase the other evidence. |
 
-For **0.38.14**, the full JVM run covered **2,029 cases**,
+For **0.38.15**, the full JVM run covered **2,053 cases**,
 with zero failures/errors and one optional weight-dependent skip. Its selected
-Android batch covered **67 named checks**: 65 passed and two opt-in live-source/Tor
-checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03814-protected-feed-revalidation-and-parsed-page-reuse)
+Android batch covered **111 named checks**: 109 passed and two opt-in live-source/Tor
+checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03815-feed-window-coverage-and-published-history-routes)
 describes the exact increment, baseline failures and native screen checks.
-The preceding 0.38.13 batch covered 56 named Android checks, with 54 passes and
+The preceding 0.38.14 batch covered 67 named Android checks, with 65 passes and
 two opt-in skips. Counts from different releases should
 not be combined into a new run or treated as interchangeable coverage.
 
