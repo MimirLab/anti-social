@@ -27,6 +27,17 @@ import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
 class ArticleReaderTest {
+    @Test fun canonicalPublisherCopyKeepsTheAuthenticOriginalInTheNativeReader() {
+        val canonical="https://publisher.example/reports/battery"
+        reader.fetch={ContextArticleFetch.Ready(ContextArticleEvidence(original,canonical,"A practical repair",null,null,null,listOf(ContextArticleBlock(body)),1234,access=ArticleAccess("Original publisher",original,canonical)))}
+        ui.runOnIdle {reader.open(original)};ui.waitUntil(10_000){reader.state.value?.document!=null}
+        ui.onNodeWithText(body).assertIsDisplayed();ui.onNodeWithTag("Copy article link").performClick()
+        val clipboard=ui.activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        ui.runOnIdle {assertEquals(original,clipboard.primaryClip!!.getItemAt(0).text.toString())}
+        ui.onNodeWithTag("Article source").performClick()
+        ui.onNodeWithText("Read from: $canonical",substring=true).assertExists()
+        SystemClock.sleep(6500);evidence("canonical-publisher-source")
+    }
     @Test fun structuredScientificCopyReadsCleanlyWithoutAi() {
         val xml=InstrumentationRegistry.getInstrumentation().context.assets.open("jats-repair.xml").reader().use {it.readText()}
         val url="https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12345/fullTextXML"

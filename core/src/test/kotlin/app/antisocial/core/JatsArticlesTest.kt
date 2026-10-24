@@ -52,6 +52,14 @@ class JatsArticlesTest {
     @Test fun incompletePublicationDatesDoNotInventAMonthOrDay() {
         assertNull(read(fixture().replace("<pub-date publication-format=\"electronic\" iso-8601-date=\"2026-10-20\"/>","<pub-date><year>2026</year></pub-date>")).publishedAt)
     }
+    @Test fun providerCanonicalAliasesRetainIdentityWithoutConflatingCopiesOrHttpValidators() {
+        assertEquals("10.1234/repair",read(origin="https://europepmc.org/article/PMC/12345").publicationDoi)
+        assertTrue(JatsArticles.samePage("https://europepmc.org/articles/PMC12345","https://europepmc.org/article/PMC/12345"))
+        assertTrue(JatsArticles.samePage("https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12345/","https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"))
+        assertFalse(JatsArticles.samePage("https://europepmc.org/article/PMC/12345","https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"))
+        assertFalse(JatsArticles.samePage("https://europepmc.org/article/PMC/12345","https://europepmc.org/article/PMC/54321"))
+        assertFalse(JatsArticles.samePage("https://europepmc.org/article/PMC/12345",url))
+    }
     @Test fun rootIdentifiersMustAgreeWithTheRequestNotWithACitation() {
         rejected(origin="https://doi.org/10.1234/guide")
         rejected(origin="https://pubmed.ncbi.nlm.nih.gov/654321/")

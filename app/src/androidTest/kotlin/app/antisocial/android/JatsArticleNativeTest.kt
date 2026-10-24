@@ -68,12 +68,13 @@ class JatsArticleNativeTest {
         try {
             gateway.configure(NetworkPolicy());gateway.originalFallback=false;gateway.onNetworkEvent={events+=it}
             val start=System.nanoTime()
-            val result=PublicArticleResolver(gateway,extract=repo.documentSandbox::article).conditional("https://pmc.ncbi.nlm.nih.gov/articles/PMC11168924/","https://pmc.ncbi.nlm.nih.gov/articles/PMC11168924/")
+            val original=args.getString("antisocialJatsOriginal") ?: "https://pmc.ncbi.nlm.nih.gov/articles/PMC11168924/"
+            val result=PublicArticleResolver(gateway,extract=repo.documentSandbox::article).conditional(original,original)
             assertTrue(result is ContextArticleFetch.Ready);val document=(result as ContextArticleFetch.Ready).document
             assertEquals("https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11168924/fullTextXML",document.finalUrl)
             assertEquals("10.1038/s41586-024-07487-w",document.publicationDoi);assertFalse(document.truncated)
             val out=File(requireNotNull(context.getExternalFilesDir("validation")),"jats").apply {mkdirs()}
-            File(out,"live-route.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(mapOf("elapsedMs" to (System.nanoTime()-start)/1_000_000,"originalAccess" to false,"events" to synchronized(events){events.toList()},"doi" to document.publicationDoi,"characters" to document.text.length,"scope" to "One dated direct Android gateway acquisition, not provider uptime or physical-phone performance.")))
+            File(out,"live-route.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(mapOf("original" to original,"elapsedMs" to (System.nanoTime()-start)/1_000_000,"originalAccess" to false,"events" to synchronized(events){events.toList()},"doi" to document.publicationDoi,"characters" to document.text.length,"scope" to "One dated direct Android gateway acquisition, not provider uptime or physical-phone performance.")))
         }finally {gateway.onNetworkEvent=listener;gateway.originalFallback=originalAllowed;gateway.configure(policy)}
     }
 }

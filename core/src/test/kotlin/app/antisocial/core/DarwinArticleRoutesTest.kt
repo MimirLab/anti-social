@@ -65,7 +65,7 @@ class DarwinArticleRoutesTest {
         assertTrue(routes.europePmc(d,ScientificArticle("unknown")).isEmpty())
     }
     @Test fun knownPmcIdentifiersNeedNoSearchAndNeverComeFromLookalikeHosts() {
-        for(url in listOf("https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/","https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12345/","https://europepmc.org/articles/PMC12345","https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12345/fullTextXML"))
+        for(url in listOf("https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/","https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12345/","https://europepmc.org/articles/PMC12345","https://europepmc.org/article/PMC/12345","https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12345/fullTextXML"))
             assertEquals(url,"PMC12345",routes.scientific(url)?.pmcid)
         for(url in listOf("https://pmc.ncbi.nlm.nih.gov.evil.example/articles/PMC12345/","https://europepmc.org/articles/PMC12345?token=secret","https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/supplement","https://pmc.ncbi.nlm.nih.gov/articles/PMC0/"))assertNull(url,routes.scientific(url))
     }

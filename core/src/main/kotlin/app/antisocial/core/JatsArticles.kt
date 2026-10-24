@@ -23,6 +23,7 @@ internal object JatsArticles {
     private val pmcid=Regex("PMC[1-9][0-9]{0,11}")
     private val endpointPath=Regex("^/europepmc/webservices/rest/(PMC[1-9][0-9]{0,11})/fullTextXML$")
     private val articlePath=Regex("^/articles/(PMC[1-9][0-9]{0,11})/?$")
+    private val europePath=Regex("^/article/PMC/([1-9][0-9]{0,11})/?$")
     private val legacyPath=Regex("^/pmc/articles/(PMC[1-9][0-9]{0,11})/?$")
     private val space=Regex("[\\s\\p{Z}]+")
     private val identities by lazy {DarwinArticleRoutes()}
@@ -36,12 +37,24 @@ internal object JatsArticles {
         val u=raw.toHttpUrlOrNull() ?: return null
         endpointId(u)?.let {return it}
         if(!u.isHttps||u.port!=443||u.username.isNotEmpty()||u.password.isNotEmpty()||u.query!=null)return null
+        if(u.host in setOf("europepmc.org","www.europepmc.org"))europePath.matchEntire(u.encodedPath)?.let {return "PMC"+it.groupValues[1]}
         val pattern=when(u.host) {
             "pmc.ncbi.nlm.nih.gov","europepmc.org","www.europepmc.org"->articlePath
             "www.ncbi.nlm.nih.gov"->legacyPath
             else->return null
         }
         return pattern.matchEntire(u.encodedPath)?.groupValues?.get(1)
+    }
+    /** Recognized HTML aliases on one provider, not an HTTP validator identity
+     * and not equivalence between a publisher and an independent public copy. */
+    fun samePage(a:String,b:String):Boolean {
+        fun provider(raw:String)=when(raw.toHttpUrlOrNull()?.host) {
+            "europepmc.org","www.europepmc.org"->"europe"
+            "pmc.ncbi.nlm.nih.gov","www.ncbi.nlm.nih.gov"->"ncbi"
+            else->null
+        }
+        val first=provider(a) ?: return false
+        return first==provider(b)&&pageId(a)?.let {it==pageId(b)}==true
     }
     private fun fail(message:String,status:HealthStatus=HealthStatus.UNSUPPORTED):Nothing=throw SourceFailure(status,message)
     private fun direct(node:Element,tag:String)=node.children().filter {it.normalName()==tag}

@@ -47,8 +47,10 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     @Synchronized internal fun clearValidationMemory(){validationGeneration++;validators.clear()}
     @Synchronized private fun validationGeneration()=validationGeneration
     @Synchronized private fun allowedValidators(url:String,session:NetworkSession,generation:Long,supplied:ContextArticleValidators):ValidatorRecord? {
-        validators.entries.removeAll {it.value.session!==session||clock()-it.value.at !in 0..30*60_000L}
         if(session.policy.tor||transport.session!==session||validationGeneration!=generation)return null
+        // Reject an obsolete caller before it can prune bindings installed by
+        // a newer reader frame after a network-policy round trip.
+        validators.entries.removeAll {it.value.session!==session||clock()-it.value.at !in 0..30*60_000L}
         val record=validators[representation(url)] ?: return null
         if(supplied.etag==null&&supplied.lastModified==null)return null
         if(supplied.etag!=null&&supplied.etag!=record.validators.etag||supplied.lastModified!=null&&supplied.lastModified!=record.validators.lastModified)return null
@@ -92,7 +94,9 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
         val attempted=mutableSetOf<String>();var requests=0;var last:Exception?=null
         fun checkMode(){if(transport.session!==session)throw CancellationException("Network mode changed")}
         suspend fun attempt(path:ArticlePath):ContextArticleFetch? {
-            checkMode();if(requests>=10||requests>=9&&path.route!="Original publisher"||!attempted.add(path.url)||!eligible(path.url,mode))return null
+            checkMode()
+            if(path.route=="Original publisher"&&!transport.originalAllowed||path.route!="Original publisher"&&(routes.sameArticle(path.url,original)||JatsArticles.samePage(path.url,original)))return null
+            if(requests>=10||requests>=9&&path.route!="Original publisher"||!attempted.add(path.url)||!eligible(path.url,mode))return null
             requests++;val started=clock()
             try {
                 val result=withTimeout(if(mode.tor)40_000L else 15_000L) {
@@ -101,7 +105,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                     val headers=permitted?.validators?.let {v->buildMap {v.etag?.let {put("If-None-Match",it)};v.lastModified?.let {put("If-Modified-Since",it)}}}.orEmpty()
                     val response=transport.document(path.url,source,headers,path.pdf,path.route!="Original publisher"||headers.isNotEmpty(),purpose,session)
                     checkMode()
-                    if(path.route!="Original publisher"&&!routes.sameArticle(path.url,response.finalUrl))
+                    if(path.route!="Original publisher"&&!routes.sameArticle(path.url,response.finalUrl)&&!JatsArticles.samePage(path.url,response.finalUrl))
                         throw SourceFailure(HealthStatus.EMPTY,"The reader route did not return its requested article")
                     if(path.route=="Original publisher"&&url.toHttpUrlOrNull()?.encodedPath!="/"&&response.finalUrl.toHttpUrlOrNull()?.encodedPath=="/")
                         throw SourceFailure(HealthStatus.EMPTY,"The publisher returned its home page instead of this article")
@@ -143,11 +147,15 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                         }
                     }
                 }
-                checkMode();report(path.url,mode,started,true);remember(cacheKey,path);return result
+                val retrieved=when(result){is ContextArticleFetch.Ready->result.document.finalUrl;is ContextArticleFetch.NotModified->result.finalUrl;is ContextArticleFetch.PublicPdf->result.url}
+                // Learn only an accepted public article destination. Keep its
+                // route role: a publisher redirect remains original access.
+                val learned=if(routes.canRead(retrieved))path.copy(url=representation(retrieved) ?: path.url,pdf=path.pdf||result is ContextArticleFetch.PublicPdf)else path
+                checkMode();report(path.url,mode,started,true);remember(cacheKey,learned);return result
             }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e}
             catch(e:CancellationException){throw e}
             catch(e:Exception){last=e}
-            if((last as? SourceFailure)?.httpStatus in setOf(404,410))rejectUrl(path.url,mode)else report(path.url,mode,started,false)
+            if((last as? SourceFailure)?.httpStatus in setOf(404,410)||path.route=="Original publisher"&&path.url!=original)rejectUrl(path.url,mode)else report(path.url,mode,started,false)
             checkMode();return null
         }
         suspend fun json(endpoint:String):com.google.gson.JsonObject? {
@@ -189,7 +197,8 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             }
             return null
         }
-        hint(cacheKey)?.let {if(it.url!=original||transport.originalAllowed)attempt(it)?.let {result->return result}}
+        val remembered=hint(cacheKey)
+        remembered?.takeIf {it.route!="Original publisher"}?.let {attempt(it)?.let {result->return result}}
         routes.publisherEdition(original)?.let {attempt(it)?.let {result->return result}}
         val medium=routes.medium(original).groupBy {it.route}.values.toList()
         mediumLoop@for(i in 0 until (medium.maxOfOrNull {it.size} ?: 0))for(group in medium) {
@@ -202,12 +211,24 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             catch(e:CancellationException){throw e}catch(e:Exception){last=e}
         }
         science?.let {article->
+            fun pmcPaths(id:String,declared:ArticlePath?=null):List<ArticlePath> {
+                val doi=declared?.doi ?: article.doi
+                val retracted=declared?.retracted ?: false
+                val xml=ArticlePath(JatsArticles.endpoint(id),"Europe PMC full text",retracted=retracted,jats=true,doi=doi)
+                // Each provider is a bounded path to this same stable archive
+                // identifier. Preserve a declared location's own edition, but
+                // do not transfer its edition/rights to a different endpoint.
+                val declaredHtml=declared?.takeIf {JatsArticles.endpointId(it.url)==null}
+                val html=listOf(
+                    ArticlePath("https://pmc.ncbi.nlm.nih.gov/articles/$id/","PubMed Central public copy",retracted=retracted,doi=doi),
+                    ArticlePath("https://europepmc.org/article/PMC/${id.removePrefix("PMC")}","Europe PMC public copy",retracted=retracted,doi=doi))
+                    .map {candidate->declaredHtml?.takeIf {JatsArticles.samePage(it.url,candidate.url)} ?: candidate}
+                return listOf(xml)+html
+            }
             article.pmcid?.let {id->
                 // A stable PMC identifier already gives an exact structured
                 // route. No metadata search or publisher visit is necessary.
-                attempt(ArticlePath(JatsArticles.endpoint(id),"Europe PMC full text",jats=true))?.let {return it}
-                val html="https://europepmc.org/articles/$id"
-                if(transport.originalAllowed||!routes.sameArticle(original,html))attempt(ArticlePath(html,"Europe PMC public copy"))?.let {return it}
+                for(path in pmcPaths(id))attempt(path)?.let {return it}
             }
             var paths=emptyList<ArticlePath>()
             article.doi?.let {doi->json("https://api.openalex.org/works/https://doi.org/"+encode(doi)+"?select=doi,title,is_retracted,locations,best_oa_location")?.let {paths+=runCatching {routes.openAlex(it,doi)}.getOrDefault(emptyList())}}
@@ -215,10 +236,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                 val u=path.url.toHttpUrlOrNull()
                 val pmc=if(!path.pdf)JatsArticles.pageId(path.url)else null
                 when {
-                    // A landing page's edition/rights describe that location.
-                    // The structured endpoint must supply its own license; an
-                    // unknown edition must not inherit a preprint label.
-                    pmc!=null&&JatsArticles.endpointId(path.url)==null->listOf(path.copy(url=JatsArticles.endpoint(pmc),route="Europe PMC full text",version=null,license=null,jats=true,doi=path.doi ?: article.doi),path)
+                    pmc!=null->pmcPaths(pmc,path)
                     !path.pdf&&u?.host=="arxiv.org"&&u.encodedPath.startsWith("/abs/")->listOf(path.copy(url=path.url.replace("arxiv.org/abs/","arxiv.org/html/")),path)
                     else->listOf(path)
                 }
@@ -227,7 +245,6 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             // Try already discovered full HTML immediately; another metadata
             // request cannot improve latency when this route already works.
             for(path in expanded(paths).filterNot {it.pdf||abstract(it)}) {
-                if(routes.sameArticle(original,path.url)&&!transport.originalAllowed)continue
                 attempt(path)?.let {return it}
             }
             val query=article.pmid?.let {"EXT_ID:$it AND SRC:MED"} ?: article.doi?.let {"DOI:\"$it\""}
@@ -238,13 +255,15 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                 }
             }
             for(path in expanded(paths).sortedWith(compareBy<ArticlePath>{abstract(it)}.thenBy {it.pdf})) {
-                if(routes.sameArticle(original,path.url)&&!transport.originalAllowed)continue
                 attempt(path)?.let {return it}
             }
         }
         val prefer=routes.preferArchives(original)
         if(prefer)archives()?.let {return it}
-        if(transport.originalAllowed)attempt(ArticlePath(original,"Original publisher",pdf=original.substringBefore('?').endsWith(".pdf",true)))?.let {return it}
+        if(transport.originalAllowed) {
+            remembered?.takeIf {it.route=="Original publisher"}?.let {attempt(it)?.let {result->return result}}
+            attempt(ArticlePath(original,"Original publisher",pdf=original.substringBefore('?').endsWith(".pdf",true)))?.let {return it}
+        }
         if(!prefer)archives()?.let {return it}
         throw SourceFailure((last as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,
             "No readable public copy was available"+(if(!transport.originalAllowed)" · original access is off"else "")).also {if(last!=null)it.initCause(last)}

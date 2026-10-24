@@ -1,5 +1,50 @@
 # Release qualification
 
+## 0.38.7 article fallback tiers and canonical revalidation
+
+The full JVM suite covered **1,945 cases, zero failures/errors and one optional
+weight-dependent skip**. Debug, instrumentation and release APK assembly and
+release lint passed; warnings remain. The API 35 native batch passed **46 checks
+with three opt-in checks skipped**. A separate live canonical-PMC check passed
+through the production Gateway and isolated reader with original access disabled.
+Installed native-test application bytes matched the staged candidate. Source
+panels, original-link copying and the actual reader screen were inspected.
+
+Six new JVM regressions fail before the fixes. They cover the missing NCBI HTML
+fallback, repeated redirect/full-body retrieval, remembered originals preempting
+recovered alternatives, an original URL mislabeled by metadata as an alternate,
+a stale canonical target and an obsolete frame deleting newer validator bindings.
+The latter is an efficiency failure, not evidence of cross-session ETag disclosure.
+Other checks cover same-provider PMC aliases, directly discovered XML DOI identity,
+sensitive final URLs and original access disabled after learning a redirect.
+
+The new native canonical-routing test also fails against the retained 0.38.6 app.
+With the candidate, the first read makes two local HTTP requests (redirect plus
+body), and revalidation adds only one request. The fixture serves **519 body bytes
+in total**, invokes the actual isolated extractor once, and makes no document
+request after original access is disabled. Its logical HTTPS article URLs map to
+loopback HTTP using a test-only core transport seam: this qualifies resolver,
+Gateway and worker composition, not public TLS identity or physical-phone speed.
+Original/canonical URL distinctions and original clipboard value remain visible.
+
+Actual protected Gateway probes retrieved NCBI's full HTML paper while Europe
+PMC's HTML redirected to a script-only shell. Frozen native extraction returns
+the same paper metadata/reading blocks as the JVM and rejects the shell. A live
+Android read starting from Europe PMC's current `/article/PMC/…` URL obtained the
+exact XML paper in one request to EBI, without first fetching the HTML shell.
+These are dated direct reads, not source-wide availability or live Tor/phone
+performance guarantees. The NASA three-platform collected-card check still passes.
+
+A test-fixture editing error initially split an existing `gateway` statement and
+stopped instrumentation compilation. It was corrected before native qualification;
+production code was unaffected. The test-only internal transport access produces
+a pinned-compiler visibility warning and is not part of the release application.
+
+[Validation policy](ARTICLE_VALIDATION.md) and [PMC paths](SCIENTIFIC_FULL_TEXT.md)
+record the changes. [Further route research](ARTICLE_ROUTE_RESEARCH.md) retains
+working BioC/OAI-PMH body leads and format/recall cautions; neither new format is
+activated in this release. No native runtime, model or background polling is added.
+
 ## 0.38.6 structured scientific full text
 
 The final full JVM suite covered **1,934 cases, zero failures/errors and one

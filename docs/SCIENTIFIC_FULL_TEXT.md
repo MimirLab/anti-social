@@ -59,3 +59,25 @@ retention measure on one paper, not a semantic-quality or all-JATS guarantee.
 The complete published fixture stays outside the repository and APK. Synthetic
 fixtures cover adversarial parsing, identity and native presentation. See
 [release qualification](RELEASE_QUALIFICATION.md) for final checks and limits.
+
+## PMC paths and canonical addresses, 0.38.7
+
+Both Europe PMC's older `/articles/PMC…` address and its current
+`/article/PMC/…` address provide the same stable PMC identifier to routing. The
+structured endpoint is tried first. If it fails, known NCBI and Europe PMC HTML
+paths can be tried without another search. NCBI's readable full text precedes
+Europe PMC's HTML by default; an explicitly discovered location keeps its own
+metadata when that provider is reached. Edition and license claims are not
+transferred to a different provider.
+
+Recognized aliases on the same HTML provider remain the original source for
+access-policy purposes. They do not become a workaround for disabling original
+access. Cross-provider copies stay separate routes, and exact HTTP retrieval
+URIs still control conditional validators. Archive matching retains its existing
+URL rules. All candidates must still deliver a substantial readable body.
+
+In the dated Gateway check, NCBI delivered the full paper while Europe PMC's HTML
+redirected to a JavaScript application shell. The shell was rejected; HTTP 200
+was not recorded as useful content. Recognizing that shell's canonical URL still
+helps: an incoming link can go directly to the structured API instead of needing
+the page's scripts. See [route research](ARTICLE_ROUTE_RESEARCH.md).

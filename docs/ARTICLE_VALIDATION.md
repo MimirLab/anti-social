@@ -48,3 +48,27 @@ not be forwarded as cache state for a redirect target.
 Qualification details and device/source limits are recorded in
 [release qualification](RELEASE_QUALIFICATION.md). This is not a claim of Tor
 circuit monitoring or protection against every form of website fingerprinting.
+
+## Learned destinations and fallback order, 0.38.7
+
+An accepted public article's final retrieval URI can become its next route hint.
+Revalidation then contacts that exact resource directly, avoiding the old redirect
+and another full-body transfer. The route keeps its original role: a canonical
+publisher destination remains original access, even on a different hostname.
+Remembered publisher routes wait until the original fallback tier, after eligible
+known alternatives. A metadata listing cannot turn a normalized original article
+URL into an alternate simply by calling it an open copy. The original-access
+setting is checked again at attempt admission, including on remembered paths.
+
+Sensitive or otherwise ineligible final URLs are not learned as new destinations.
+Validators still use exact HTTP URI/session identity; a recognized article alias
+is not permission to send a validator to another URI. A failed learned publisher
+target receives URL backoff, allowing the original URL to reveal a moved article
+without treating the whole publisher as down. Other source health, count/byte
+bounds, expiry, cancellation and Tor rules remain in force.
+
+A stale reader frame is rejected before pruning validator memory. Previously an
+obsolete admission could remove a newer session's approved binding before noticing
+that its own session was no longer current. A controlled concurrency regression
+reproduces the extra unconditional read; the fix leaves the new session's valid
+conditional fast path intact.
