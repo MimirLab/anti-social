@@ -133,9 +133,11 @@ poll every registered source. Foreground reading takes priority. See
 [scheduling](ROUTE_SCHEDULING.md), [measurements](ROUTE_LATENCY.md) and
 [local-discovery routing](LOCAL_DISCOVERY_ROUTING.md).
 
-[Public-index continuations](SEARCH_SCHEDULING.md) retain a fast first answer,
-then give unfinished query shapes their turn before paging the winner again.
-The plan preserves the chosen source/query and the existing attempt allowance.
+[Public-index continuations](SEARCH_SCHEDULING.md) retain a fast first answer
+and give unfinished query shapes their turn. The ordinary search feed can also
+receive available pages while that work continues, through a selected-source,
+checkpointed progress path. The plan preserves the chosen source/query, privacy
+session and existing attempt allowance; stopping cancels its children.
 
 ## Acquisition, decoding, interpretation and retention are separate boundaries
 

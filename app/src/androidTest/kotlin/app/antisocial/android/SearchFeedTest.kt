@@ -88,6 +88,59 @@ class SearchFeedTest {
             evidence(name)
         }.onFailure {error->android.util.Log.w("AntiSocialSearchFeed","Search failure capture was incomplete",error)}
     }
+    @Test fun availableNativePagesStreamWhileTheDeferredQueryKeepsWorking() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        repo.prefs.selected=(repo.prefs.selected+Platform.INSTAGRAM).distinct();repo.prefs.activePlatform=Platform.INSTAGRAM
+        val query=repo.routes.search(Platform.INSTAGRAM,"native-tail-$suffix")
+        val fastUrl="https://www.instagram.com/p/NativeTail$suffix"
+        // /p/ID and /reel/ID are aliases of one Instagram post, not two results.
+        val reelUrl="https://www.instagram.com/reel/NativeReelTail$suffix"
+        val directory=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"search-tail-streaming").apply {mkdirs()}
+        PublicIndexNativeFixture(repo.routes,query,fastUrl,reelUrl).use {f->
+            val clock=System.nanoTime();val arrivals=CopyOnWriteArrayList<Map<String,Any>>()
+            val fast=Post("tail-first-$suffix",Platform.INSTAGRAM,fastUrl,"Native fixture","First native search result stays available.",publishedAt=System.currentTimeMillis())
+            val additional=fast.copy(id="tail-more-$suffix",canonicalUrl=fastUrl+"More",body="The next page arrives while the slower query is still working.",publishedAt=fast.publishedAt!!-1_000)
+            val slower=fast.copy(id="tail-slower-$suffix",canonicalUrl=reelUrl,body="The slower Reel joins without losing either earlier result.",publishedAt=fast.publishedAt!!-2_000)
+            extraPosts+=listOf(fast,additional,slower)
+            val discoveryReads=AtomicInteger()
+            val vm=model {opened->SearchFeed(opened,discover={previous->
+                discoveryReads.incrementAndGet()
+                if(previous==null)f.firstPlan(f.reader.fetch(opened))else f.pool.continuePage(opened,previous,false)
+            },read={destination->
+                val post=listOf(fast,additional,slower).firstOrNull {it.canonicalUrl==destination.canonicalUrl}
+                if(post!=null) {
+                    arrivals+=mapOf("atMs" to (System.nanoTime()-clock)/1_000_000,"url" to post.canonicalUrl)
+                    Page(listOf(post))
+                }else Page(emptyList(),profile=Profile(destination,"Fixture account"))
+            },maxPages=2)}
+            var failure:String?=null
+            try {
+                show(vm,query)
+                ui.waitUntil(10_000){vm.screen.value.page?.posts?.any {it.canonicalUrl==fastUrl}==true&&f.reelReads.get()==2}
+                runCatching {ui.waitUntil(3_000){vm.screen.value.page?.posts?.any {it.canonicalUrl==additional.canonicalUrl}==true}}
+                assertTrue("An available page must arrive before the held query completes",vm.screen.value.page?.posts?.any {it.canonicalUrl==additional.canonicalUrl}==true)
+                assertTrue(vm.screen.value.loading);assertEquals(1L,f.release.count)
+                assertFalse(vm.screen.value.page!!.posts.any {it.canonicalUrl==reelUrl})
+                ui.onNodeWithTag("Search feed").performScrollToNode(hasText(additional.body))
+                ui.onNodeWithText(additional.body).assertIsDisplayed()
+                ui.mainClock.advanceTimeBy(500)
+                ui.runOnUiThread {ui.activity.window.decorView.requestLayout();ui.activity.window.decorView.invalidate()}
+                ui.waitForIdle();android.os.SystemClock.sleep(250)
+                evidence("search-tail-available-native")
+                File(directory,"checkpoint.json").writeText(repo.gson.toJson(mapOf("arrivals" to arrivals,"requests" to f.requests,"fastReads" to f.fastReads.get(),"reelReads" to f.reelReads.get(),"loading" to vm.screen.value.loading,"tailStillHeld" to (f.release.count==1L))))
+                f.release.countDown()
+                ui.waitUntil(10_000){vm.screen.value.searchFeed?.loading==false}
+                assertEquals(setOf(fastUrl,additional.canonicalUrl,reelUrl),vm.screen.value.page!!.posts.map {it.canonicalUrl}.toSet())
+                assertEquals(2,discoveryReads.get());assertEquals(2,f.fastReads.get());assertEquals(2,f.reelReads.get())
+                ui.onNodeWithTag("Search feed").performScrollToNode(hasText(slower.body));ui.onNodeWithText(slower.body).assertIsDisplayed()
+                evidence("search-tail-complete-native")
+            }catch(e:Throwable){failure=e.message;failureEvidence("search-tail-failure",vm,f.requests.toList());throw e}
+            finally {
+                File(directory,"streaming.json").writeText(repo.gson.toJson(mapOf("failure" to failure,"arrivals" to arrivals,"requests" to f.requests,"fastReads" to f.fastReads.get(),"reelReads" to f.reelReads.get(),"posts" to vm.screen.value.page?.posts?.map {it.canonicalUrl},"scope" to "Selected SourcePool continuation, authored loopback Gateway and actual native search cards; no live-provider or phone-latency claim.")))
+                clean(vm)
+            }
+        }
+    }
     @Test fun deferredPublicIndexResultsStreamBehindTheFirstNativeCard() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         repo.prefs.selected=(repo.prefs.selected+Platform.INSTAGRAM).distinct();repo.prefs.activePlatform=Platform.INSTAGRAM

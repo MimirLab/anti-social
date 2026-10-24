@@ -57,6 +57,7 @@ class PublicGatewayTest {
             assertNotSame(before,gateway.currentSession());val url=server.url("/article").toString()
             assertThrows(IOException::class.java){client.newCall(Request.Builder().url(url).build()).execute()}
             assertThrows(kotlinx.coroutines.CancellationException::class.java){runBlocking {gateway.extractorDocument(url,expectedSession=before)}}
+            assertThrows(kotlinx.coroutines.CancellationException::class.java){runBlocking {gateway.formInSession(url,mapOf("q" to "fixture"),url,expectedSession=before)}}
             assertEquals(0,server.requestCount)
             assertEquals("Fresh session",gateway.text(url).text);assertEquals(1,server.requestCount)
         }

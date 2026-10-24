@@ -1,5 +1,48 @@
 # Release qualification
 
+## 0.38.11 streamed public-index continuations
+
+The full JVM suite covered **1,983 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. The selected Android batch covered **53 named checks**: 51 passed
+and two opt-in live-source/Tor checks were skipped. All expected method identities
+across the seven classes were accounted for.
+
+The new test first failed on the unchanged JVM implementation: a deferred query
+was active, but an available fast page did not arrive within the controlled
+two-second observation. The corrected identical native test APK also fails its
+available-page assertion against byte-verified 0.38.10. On the candidate, the
+native checkpoint contains both earlier pages while the Reel remains held and
+the loading/Stop controls remain visible. Releasing it leaves all three posts.
+That fixture makes five request starts, with two fast-query reads, two Reel
+reads and one broad query. These are authored Gateway/reader observations, not
+public-provider or physical-phone performance measurements.
+
+Checks cover checkpointed Stop/retry without refetching a completed page,
+early/late refusals, provider and permission changes while awaiting transport,
+privacy-session round trips, unchanged direct reads during search-only Tor
+readiness updates, source identity, 90 destinations across per-query deltas, identical
+partial/terminal checkpoints and internal cancellation without stranded loading.
+Another new regression caught an unnecessary hedge after a slow consumer had
+allowed priority results to finish. Biased selection now consumes ready replies
+before the expired hedge timer. Source latency learning uses first usable delivery.
+
+The first native fixture mistakenly reused one Instagram shortcode for `/p/`
+and `/reel/`; the reader correctly treated them as aliases. Distinct fixture IDs
+fix that final assertion. An existing scope-dialog assertion passed unchanged
+alone after failing in the batch; it now waits for the IME transitions, as the
+surrounding tests already do, retaining the same validation assertions. The full
+selected batch then passed. The initial native-fixture compilation also needed
+explicit property types to avoid recursive Kotlin inference. These harness
+corrections did not change production merging, scope validation or extraction.
+Actual partial and completed native screens were inspected.
+
+No source, model, runtime, setting or detached background job is added. The
+candidate APK adds approximately 10 KiB over 0.38.10; native/model payloads are
+unchanged. Query attempts, concurrency, cursor limits, shared reader limits and
+Tor/original-access policy remain bounded. See [search scheduling](SEARCH_SCHEDULING.md)
+for the selected-source progress path and its legacy page-at-a-time behavior.
+
 ## 0.38.10 fair public-index continuations
 
 The full JVM suite covered **1,970 cases**, zero failures/errors and one optional

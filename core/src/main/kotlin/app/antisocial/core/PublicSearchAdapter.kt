@@ -21,6 +21,10 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         require(target.kind==TargetKind.SEARCH) {"Public index discovery requires a search"}
         return if(target.platform in setOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK)&&SearchScopes.from(target)==null)indexedPosts(target,cursor)else fetchQuery(target,query(target),cursor)
     }
+    override suspend fun searchUpdates(target:Target,cursor:String,onPartial:suspend (Page)->Unit):Page {
+        require(target.kind==TargetKind.SEARCH&&target.platform==source.platform){"Search update changed its selected platform"}
+        return if(target.platform in setOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK)&&SearchScopes.from(target)==null)indexedPosts(target,cursor,onPartial)else fetch(target,cursor)
+    }
     /** Independent entity lookup through this already-selected index. The caller
      * must hydrate destinations before showing account/community metadata. */
     override suspend fun directory(target: Target,cursor: String?): Page {
@@ -55,15 +59,17 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
             SearchRequest(cursor)
         }
     }
-    private suspend fun fetchQuery(target: Target,query: String,cursor: String?,entitiesOnly: Boolean=false): Page {
+    private suspend fun fetchQuery(target: Target,query: String,cursor: String?,entitiesOnly: Boolean=false,session:NetworkSession?=null): Page {
+        currentCoroutineContext()[SearchContinuationPolicy]?.validate?.invoke()
         val request=request(query,cursor)
-        val payload=if(request.fields==null)gateway.text(request.url,target.canonicalUrl)else gateway.form(request.url,request.fields,target.canonicalUrl)
+        val payload=if(request.fields==null)gateway.text(request.url,target.canonicalUrl,expectedSession=session)else gateway.formInSession(request.url,request.fields,target.canonicalUrl,expectedSession=session)
         return try {Extraction.parse(payload,target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)}catch(e: SourceFailure) {
             // The HTML endpoint sometimes returns its own HTTP-200 server-error
             // page. Retry once using its ordinary form, with the same provider,
             // query and protected route. Challenges and refusals are not retried.
             if(cursor!=null||source.frontend!="duckduckgo"||e.status!=HealthStatus.UNAVAILABLE||!e.message.orEmpty().startsWith("DuckDuckGo returned a server error"))throw e
-            Extraction.parse(gateway.form(source.root.trimEnd('/')+"/html/",mapOf("q" to query),target.canonicalUrl),target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)
+            currentCoroutineContext()[SearchContinuationPolicy]?.validate?.invoke()
+            Extraction.parse(gateway.formInSession(source.root.trimEnd('/')+"/html/",mapOf("q" to query),target.canonicalUrl,expectedSession=session),target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)
         }
     }
     private data class IndexLane(val index: Int,val cursor: String?=null,val attempts: Int=0,val deferred: Boolean=false)
@@ -75,19 +81,90 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
      * Resume deferred queries before paginating winners, so a steady stream of
      * fast pages cannot spend every slower query's allowance on cancellation. */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun indexedPosts(target: Target,cursor: String?): Page=coroutineScope {
+    private suspend fun indexedPosts(target: Target,cursor: String?,onPartial:(suspend (Page)->Unit)?=null): Page=coroutineScope {
         val queries=postQueries(target)
         val binding=java.security.MessageDigest.getInstance("SHA-256").digest((source.key+"\n"+target.canonicalUrl+"\n"+queries.joinToString("\n")).toByteArray(Charsets.UTF_8)).joinToString(""){"%02x".format(it)}
         val lanes=if(cursor==null)queries.indices.map {IndexLane(it)}else readPlan(cursor,binding,queries)
         // Validate every lane before launching any request. A forged second lane
         // must not cause the first lane to disclose a query as a side effect.
         lanes.forEach {request(queries[it.index],it.cursor)}
+        val session=gateway.sessionFor(source.root)
         val completed=linkedMapOf<Int,LaneResult>()
         val attempted=mutableSetOf<Int>()
         fun refusal(reply: LaneResult)=(reply.result.exceptionOrNull() as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)
         val deferred=lanes.filter {it.deferred}
-        val batches=if(deferred.isEmpty())listOf(lanes)else listOf(deferred,lanes.filterNot {it.deferred}).filter {it.isNotEmpty()}
         var refused=false
+        fun snapshot(delta:Page?=null):Page {
+            val pages=completed.values.mapNotNull {it.result.getOrNull()}
+            if(pages.isEmpty())throw (completed.values.mapNotNull {it.result.exceptionOrNull()}.let {failures->
+                failures.firstOrNull {(it as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)} ?: failures.firstOrNull()
+            } ?: SourceFailure(HealthStatus.EMPTY,"The selected public search index returned no readable destinations"))
+            val remaining=if(refused)emptyList()else lanes.mapNotNull {lane->
+                if(lane.index !in attempted)return@mapNotNull lane
+                val result=completed[lane.index]?.result
+                val attempts=lane.attempts+1
+                if(attempts>=MAX_INDEX_ATTEMPTS)null
+                else if(result?.isSuccess==true)result.getOrThrow().next?.takeIf {it!=lane.cursor}?.let {IndexLane(lane.index,it,attempts)}
+                else IndexLane(lane.index,lane.cursor,attempts,deferred=result==null)
+            }
+            var encodable=remaining
+            var next=encodePlan(binding,encodable)
+            while(next!=null&&next.length>MAX_INDEX_CURSOR) {
+                encodable=encodable.sortedBy {it.cursor.orEmpty().length}.dropLast(1)
+                next=encodePlan(binding,encodable)
+            }
+            val results=(delta?.collections ?: pages.flatMap {it.collections}).distinctBy {ContentIdentity.key(it.target.platform,it.target.canonicalUrl)}
+                .sortedBy {if(it.target.kind==TargetKind.POST)0 else 1}.take(60)
+            val partial=refused||completed.values.any {it.result.isFailure}||remaining.size!=encodable.size
+            return Page(emptyList(),next=next,collections=results,provenance=pages.firstOrNull {it.collections.isNotEmpty()}?.provenance ?: pages.first().provenance,
+                notice=if(partial)"Some public-index results were unavailable; any retrieved destinations are shown."else null)
+        }
+        suspend fun readLane(lane:IndexLane):LaneResult {
+            val result=try {Result.success(withTimeout(INDEX_LANE_TIMEOUT){fetchQuery(target,queries[lane.index],lane.cursor,session=session)})}
+            catch(e: CancellationException){currentCoroutineContext().ensureActive();Result.failure(if(e is TimeoutCancellationException)SourceFailure(HealthStatus.UNAVAILABLE,"The selected public search index timed out")else e)}
+            catch(e: Exception){Result.failure(e)}
+            return LaneResult(lane,result)
+        }
+        if(onPartial!=null&&deferred.isNotEmpty()) {
+            val replies=Channel<LaneResult>(lanes.size)
+            val jobs=mutableListOf<Job>();val active=mutableSetOf<Int>()
+            val finished=java.util.concurrent.ConcurrentHashMap<Int,LaneResult>()
+            val parked=lanes.filterNot {it.deferred};var parkedStarted=false
+            fun launchQueries(batch:List<IndexLane>) {
+                batch.forEach {lane->
+                    attempted+=lane.index;active+=lane.index
+                    jobs+=launch {
+                        val reply=readLane(lane);finished[lane.index]=reply;replies.send(reply)
+                    }
+                }
+            }
+            val began=System.nanoTime()
+            launchQueries(deferred)
+            try {
+                while(active.isNotEmpty()) {
+                    val grace=INDEX_COMPANION_GRACE-(System.nanoTime()-began)/1_000_000
+                    val reply=if(!parkedStarted&&parked.isNotEmpty())select<LaneResult?> {
+                        replies.onReceive {it}
+                        onTimeout(grace.coerceAtLeast(0)){null}
+                    }else replies.receive()
+                    if(reply==null) {parkedStarted=true;launchQueries(parked);continue}
+                    (reply.result.exceptionOrNull() as? CancellationException)?.let {throw it}
+                    active-=reply.lane.index;completed[reply.lane.index]=reply
+                    refused=refused||refusal(reply)
+                    if(reply.result.isSuccess)onPartial(snapshot(reply.result.getOrThrow()))
+                    if(refused)break
+                    if(active.isEmpty()&&!parkedStarted&&completed.values.none {it.result.isSuccess}) {parkedStarted=true;launchQueries(parked)}
+                }
+            }finally {
+                jobs.forEach {it.cancel()}
+                try {jobs.joinAll()}finally {replies.cancel()}
+            }
+            // Parsed results cannot disappear at cancellation/grace boundaries.
+            lanes.forEach {lane->finished[lane.index]?.let {completed.putIfAbsent(lane.index,it)}}
+            refused=refused||completed.values.any(::refusal)
+            return@coroutineScope snapshot()
+        }
+        val batches=if(deferred.isEmpty())listOf(lanes)else listOf(deferred,lanes.filterNot {it.deferred}).filter {it.isNotEmpty()}
         for(batch in batches) {
             val replies=Channel<LaneResult>(batch.size)
             // Record finished work before its cancellable notification. A grace
@@ -96,10 +173,7 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
             val jobs=batch.map {lane->
                 attempted+=lane.index
                 launch {
-                    val result=try {Result.success(withTimeout(INDEX_LANE_TIMEOUT){fetchQuery(target,queries[lane.index],lane.cursor)})}
-                    catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();Result.failure(SourceFailure(HealthStatus.UNAVAILABLE,"The selected public search index timed out"))}
-                    catch(e: Exception){Result.failure(e)}
-                    val reply=LaneResult(lane,result);finished[lane.index]=reply;replies.send(reply)
+                    val reply=readLane(lane);finished[lane.index]=reply;replies.send(reply)
                 }
             }
             var useful=false;var received=0
@@ -110,6 +184,7 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
                         onTimeout(INDEX_COMPANION_GRACE){null}
                     }else replies.receive()
                     if(reply==null)break
+                    (reply.result.exceptionOrNull() as? CancellationException)?.let {throw it}
                     received++;completed[reply.lane.index]=reply
                     useful=useful||reply.result.getOrNull()?.collections?.any {it.target.kind==TargetKind.POST}==true
                     if(refusal(reply)){refused=true;break}
@@ -124,29 +199,7 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
             // continuations. A refusal ends the provider without another query.
             if(refused||completed.values.any {it.result.isSuccess})break
         }
-        val pages=completed.values.mapNotNull {it.result.getOrNull()}
-        if(pages.isEmpty())throw (completed.values.mapNotNull {it.result.exceptionOrNull()}.let {failures->
-            failures.firstOrNull {(it as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)} ?: failures.firstOrNull()
-        } ?: SourceFailure(HealthStatus.EMPTY,"The selected public search index returned no readable destinations"))
-        val remaining=if(refused)emptyList()else lanes.mapNotNull {lane->
-            if(lane.index !in attempted)return@mapNotNull lane
-            val result=completed[lane.index]?.result
-            val attempts=lane.attempts+1
-            if(attempts>=MAX_INDEX_ATTEMPTS)null
-            else if(result?.isSuccess==true)result.getOrThrow().next?.takeIf {it!=lane.cursor}?.let {IndexLane(lane.index,it,attempts)}
-            else IndexLane(lane.index,lane.cursor,attempts,deferred=result==null)
-        }
-        var encodable=remaining
-        var next=encodePlan(binding,encodable)
-        while(next!=null&&next.length>MAX_INDEX_CURSOR) {
-            encodable=encodable.sortedBy {it.cursor.orEmpty().length}.dropLast(1)
-            next=encodePlan(binding,encodable)
-        }
-        val results=pages.flatMap {it.collections}.distinctBy {ContentIdentity.key(it.target.platform,it.target.canonicalUrl)}
-            .sortedBy {if(it.target.kind==TargetKind.POST)0 else 1}.take(60)
-        val partial=refused||completed.values.any {it.result.isFailure}||remaining.size!=encodable.size
-        Page(emptyList(),next=next,collections=results,provenance=pages.firstOrNull {it.collections.isNotEmpty()}?.provenance ?: pages.first().provenance,
-            notice=if(partial)"Some public-index results were unavailable; any retrieved destinations are shown."else null)
+        snapshot()
     }
     private fun encodePlan(binding: String,lanes: List<IndexLane>): String? {
         if(lanes.isEmpty())return null

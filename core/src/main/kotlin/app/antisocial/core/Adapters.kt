@@ -280,6 +280,8 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             override val capabilities=delegate.capabilities
             override fun accepts(target: Target)=delegate.accepts(target)
             override suspend fun fetch(target: Target,cursor: String?)=SearchScopes.scopePage(target,delegate.fetch(target,cursor))
+            override suspend fun searchUpdates(target:Target,cursor:String,onPartial:suspend (Page)->Unit)=
+                SearchScopes.scopePage(target,delegate.searchUpdates(target,cursor){onPartial(SearchScopes.scopePage(target,it))})
             override suspend fun feed(target: Target)=SearchScopes.scopePage(target,delegate.feed(target))
             override suspend fun profile(target: Target)=delegate.profile(target)
             override suspend fun comments(target: Target,cursor: String?)=delegate.comments(target,cursor)
@@ -812,19 +814,38 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         try {
         val source=requireNotNull(previous.provenance?.source){"Missing pagination source"}
         val cursor=requireNotNull(previous.next){"No further page"}
+        val selected=searchProvider;val originalPermission=gateway.originalFallback
         require(source.platform==target.platform){"Pagination changed platform"}
         if(source.role==SourceRole.ORIGINAL&&!originalFallback)throw SourceFailure(HealthStatus.UNAVAILABLE,"Original-site access is disabled")
         if(source.frontend in PublicSearchAdapter.frontends) {
-            require(if(searchProvider==SearchProvider.DARWIN)source.frontend=="librey" else source.frontend==searchProvider.frontend&&source.root==searchProvider.root){"Search provider changed; refresh this search"}
+            require(if(selected==SearchProvider.DARWIN)source.frontend=="librey" else source.frontend==selected.frontend&&source.root==selected.root){"Search provider changed; refresh this search"}
         }
         val known=source in routes.sources||source in pathways.sources(target)||source in routes.searchSources.map {it.copy(platform=target.platform)}||source in fallbackSources(target.platform,if(target.kind==TargetKind.SEARCH)Capability.SEARCH else Capability.TIMELINE,target)
         require(known){"Unrecognized pagination source"}
         if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
         val capability=requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
+        val updates=currentCoroutineContext()[SearchDiscoveryUpdates]?.takeIf {it.target==target&&capability==Capability.SEARCH&&source.frontend in PublicSearchAdapter.frontends}
+        val session=gateway.sessionFor(source.root)
+        fun checkPolicy() {
+            if(gateway.sessionFor(source.root)!==session||source.frontend in PublicSearchAdapter.frontends&&searchProvider!=selected||gateway.originalFallback!=originalPermission)
+                throw CancellationException("Search connection or provider changed; refresh this search")
+        }
+        checkPolicy()
         val started=System.nanoTime()
+        var firstDelivery:Long?=null
         try {
-            val page=withTimeout(if(usesTor(source))55_000 else 20_000){if(capability==Capability.COMMENTS)adapter(source).comments(target,cursor)else adapter(source).fetch(target,cursor)}
-            if(content(page,capability,target))record(ProbeResult(source,capability,HealthStatus.HEALTHY,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Continuation data checked"),delivery=source.role!=SourceRole.CACHE)
+            val page=withTimeout(if(usesTor(source))55_000 else 20_000){withContext(SearchContinuationPolicy(::checkPolicy)){
+                if(updates!=null)adapter(source).searchUpdates(target,cursor){partial->
+                    checkPolicy()
+                    require(partial.provenance?.source==source){"Search update changed its selected source"}
+                    require(partial.next==null||partial.next.isNotBlank()&&partial.next.length<=24*1024){"Invalid search update checkpoint"}
+                    if(firstDelivery==null&&content(partial,capability,target))firstDelivery=(System.nanoTime()-started)/1_000_000
+                    updates.publish(partial,::checkPolicy)
+                    checkPolicy()
+                }else if(capability==Capability.COMMENTS)adapter(source).comments(target,cursor)else adapter(source).fetch(target,cursor)
+            }}
+            checkPolicy()
+            if(content(page,capability,target))record(ProbeResult(source,capability,HealthStatus.HEALTHY,firstDelivery ?: (System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Continuation data checked"),delivery=source.role!=SourceRole.CACHE)
             delivered(target,capability,page,originalFallback)
         }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Timed out"));throw SourceFailure(HealthStatus.UNAVAILABLE,"Public source timed out")}catch(e: Exception){if((e as? SourceFailure)?.status!=HealthStatus.EMPTY)record(ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs));throw e}
         }finally {readFinished()}

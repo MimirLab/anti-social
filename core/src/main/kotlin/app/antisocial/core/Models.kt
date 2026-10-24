@@ -92,6 +92,10 @@ interface DataAdapter {
     /** Some data paths serve only particular target forms or an explicitly scoped account. */
     fun accepts(target: Target): Boolean = target.platform==source.platform
     suspend fun fetch(target: Target, cursor: String? = null): Page
+    /** Selected-source continuation only. Partials are checkpointed discovery
+     * deltas, not completed pages or fabricated post bodies. The caller owns
+     * all work and can apply backpressure or cancel the complete operation. */
+    suspend fun searchUpdates(target: Target,cursor: String,onPartial: suspend (Page)->Unit): Page = fetch(target,cursor)
     suspend fun profile(target: Target): Page = fetch(target)
     suspend fun comments(target: Target,cursor: String?=null): Page = fetch(target,cursor)
     /** Independent directory discovery; it must not consume a post-search cursor. */

@@ -135,8 +135,10 @@ class SearchScopeUiTest {
     @Test fun invalidScopeStaysInlineAndDismissingKeepsTheOriginal() {
         val submitted=dialog(Platform.REDDIT)
         ui.onNodeWithTag("Search scope").performClick()
+        waitForKeyboard(false)
         ui.onNodeWithTag("Search scope option COMMUNITY").performClick()
         ui.onNodeWithTag("Search scope value").performTextInput("r/android OR cats")
+        waitForKeyboard(true)
         ui.onNodeWithTag("Apply search scope").performScrollTo().performClick()
         ui.onNodeWithText("Enter a subreddit name such as r/Android").assertIsDisplayed()
         assertNull(submitted.get())

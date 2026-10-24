@@ -181,6 +181,9 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         throw IOException("Filter rewrite loop was stopped")
     }
     internal fun currentSession(route:NetworkRoute=NetworkRoute.DEFAULT):NetworkSession=if(route==NetworkRoute.TOR)torPolicy.get()else policy.get()
+    /** Use the session the actual source host would select, including mandatory
+     * Tor search hosts. Unrelated search readiness must not cancel direct reads. */
+    internal fun sessionFor(url:String):NetworkSession=currentSession(routeFor(Request.Builder().url(url).build()))
     fun currentPolicy(route: NetworkRoute=NetworkRoute.DEFAULT): NetworkPolicy = currentSession(route).policy
     suspend fun prepare(route: NetworkRoute=NetworkRoute.DEFAULT)=withContext(Dispatchers.IO){client(route);Unit}
     @Synchronized fun configure(next: NetworkPolicy) {
@@ -388,11 +391,13 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         readText(Request.Builder().url(destination).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).tag(PageBookmark::class.java,PageBookmark(destination,bookmark)).build(),4L*1024*1024)
     }
     /** Public search forms use the same filtering, Tor and cancellation path. */
-    suspend fun form(url: String,fields: Map<String,String>,sourceUrl: String=url,headers: Map<String,String> = emptyMap()): Payload=withContext(Dispatchers.IO) {
+    suspend fun form(url: String,fields: Map<String,String>,sourceUrl: String=url,headers: Map<String,String> = emptyMap()): Payload=
+        formInSession(url,fields,sourceUrl,headers,null)
+    internal suspend fun formInSession(url:String,fields:Map<String,String>,sourceUrl:String,headers:Map<String,String> = emptyMap(),expectedSession:NetworkSession?):Payload=withContext(Dispatchers.IO) {
         require(fields.size<=16&&fields.entries.sumOf {it.key.length+it.value.length}<=16*1024){"Pagination form is too large"}
         val body=FormBody.Builder().apply {fields.forEach {(key,value)->add(key,value)}}.build()
         require(headers.size<=12&&headers.entries.sumOf {it.key.length+it.value.length}<=4096){"Source headers are too large"}
-        readText(Request.Builder().url(url).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).apply {headers.forEach {(k,v)->header(k,v)}}.post(body).build(),4L*1024*1024)
+        readText(Request.Builder().url(url).tag(NetworkSession::class.java,expectedSession).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).apply {headers.forEach {(k,v)->header(k,v)}}.post(body).build(),4L*1024*1024)
     }
     /** An explicit image search submits a bounded, metadata-stripped copy to a
      * public search form. Images never leave Tor or the selected upload origin;

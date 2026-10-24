@@ -30,8 +30,13 @@ internal class PublicIndexNativeFixture(routes:DarwinRoutes,val target:Target,va
     // Retain before fail-closed tests: acquiring a client while Tor is unavailable
     // must not be used as a cleanup shortcut.
     private val client=gateway.client()
-    val source=Source(target.platform,"librey","http://127.0.0.1:${socket.localPort}")
-    val reader=SourcePool(gateway,routes).sourceReader(source)
+    val source:Source=Source(target.platform,"librey","http://127.0.0.1:${socket.localPort}")
+    private val localRoutes:DarwinRoutes=DarwinRoutes(JsonParser.parseReader(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.assets.open("darwin-routes.json").reader()).asJsonObject.apply {
+        add("sources",JsonParser.parseString("""[{"platform":"${target.platform.id}","frontend":"librey","root":"${source.root}","fallbackOnly":false}]"""))
+        add("searchSources",com.google.gson.JsonArray())
+    },cleaner)
+    val pool:SourcePool=SourcePool(gateway,localRoutes).apply {searchProvider=SearchProvider.DARWIN}
+    val reader:DataAdapter=pool.sourceReader(source)
     private val postQuery=if(third==null)"site:instagram.com/p/ ${target.identity}"else PublicSearchAdapter.query(target)
     private val reelQuery=if(third==null)"site:instagram.com/reel/ ${target.identity}"else "site:tiktok.com inurl:photo ${target.identity}"
     private val broadQuery=if(third==null)PublicSearchAdapter.query(target)else "site:tiktok.com ${target.identity}"

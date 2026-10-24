@@ -34,20 +34,20 @@ and a search-only Tor client alone does not describe the all-traffic setting.
 | Release/artifact checks | Matching source/tag, signer, APK integrity, preview state preservation and the anonymous permanent download where recorded. |
 | Explicit missing qualification | The named unmeasured behavior, hardware or source remains unmeasured. Its scope does not erase the other evidence. |
 
-For the published **0.38.10** release, the full JVM run covered **1,970 cases**,
+For **0.38.11**, the full JVM run covered **1,983 cases**,
 with zero failures/errors and one optional weight-dependent skip. Its selected
-Android batch covered **52 named checks**: 50 passed and two opt-in live-source/Tor
-checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03810-fair-public-index-continuations)
+Android batch covered **53 named checks**: 51 passed and two opt-in live-source/Tor
+checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03811-streamed-public-index-continuations)
 describes the exact increment, corrected fixture issues and native screen checks.
-The preceding 0.38.9 batch covered a different selection of 68 unique Android
-checks, with 67 passes and one opt-in skip. Counts from different releases should
+The preceding 0.38.10 batch covered 52 named Android checks, with 50 passes and
+two opt-in skips. Counts from different releases should
 not be combined into a new run or treated as interchangeable coverage.
 
 These are release-specific regression records, not a count of every test ever
-written or a claim of an independent security audit. The public APK, matching
-source and fixed-name download were verified; the laptop preview was promoted
-after preserving its retained reader state. See [publishing](PUBLISHING.md) for
-the artifact checks required for each release.
+written or a claim of an independent security audit. Publication and retained
+preview-state checks are recorded separately from test runs. See
+[publishing](PUBLISHING.md) for source, signer, fixed-name download and promotion
+checks required for each release.
 
 User phone testing and emulator instrumentation both exist. A statement such as
 “this comparison does not measure phone battery use” identifies an unmeasured

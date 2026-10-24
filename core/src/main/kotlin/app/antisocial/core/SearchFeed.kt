@@ -3,6 +3,19 @@ package app.antisocial.core
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+
+/** Only the selected SourcePool continuation may publish. Acknowledgment keeps
+ * checkpoint acceptance inside the reader's owner, before more work is started. */
+internal class SearchDiscoveryUpdates(val target:Target,val publish:suspend (Page,()->Unit)->Unit):AbstractCoroutineContextElement(Key) {
+    companion object Key:CoroutineContext.Key<SearchDiscoveryUpdates>
+}
+/** Provider/permission changes must stop a later hedge before its request,
+ * even when no partial result has reached the consumer yet. */
+internal class SearchContinuationPolicy(val validate:()->Unit):AbstractCoroutineContextElement(Key) {
+    companion object Key:CoroutineContext.Key<SearchContinuationPolicy>
+}
 
 data class SearchFeedState(val page: Page=Page(emptyList()),val loading: Boolean=false,val hasMore: Boolean=true,val error: String?=null,val unavailable: Int=0,val limited: Boolean=false,val paused: Boolean=false,val revision: Long=0)
 
@@ -55,6 +68,7 @@ class SearchFeed(
     private val directoryMutex=Mutex()
     private sealed interface Event {
         data class Discovered(val result: Result<Page>): Event
+        data class Partial(val page:Page,val validate:()->Unit,val accepted:CompletableDeferred<Unit>):Event
         data class Read(val candidate: Collection,val result: Result<Page>): Event
     }
     init {require(blockSize>0&&maxPosts>0&&maxAccounts>=0&&maxPages>0&&maxCharacters>0&&maxCandidates>0&&maxConcurrentReads in 1..4)}
@@ -119,6 +133,27 @@ class SearchFeed(
                 var finding: Job?=null
                 var discoveryReads=0
                 var contentReads=0
+                fun accept(incoming:Page,complete:Boolean) {
+                    val previous=discovery
+                    if(!complete)require(previous?.provenance?.source!=null&&incoming.provenance?.source==previous.provenance.source){"Search update changed its selected source"}
+                    started=true
+                    if(complete)blocks++
+                    val next=incoming.next?.takeIf {it.isNotBlank()&&it.length<=24*1024&&(!complete||cursors.add(it))}
+                    exhaustedBudget=exhaustedBudget||blocks>=maxPages
+                    val nativeScopeEnd=complete&&previous!=null&&SearchScopes.from(target)!=null&&!allowEmptyDiscoveryPages()&&
+                        incoming.provenance?.source?.frontend !in PublicSearchAdapter.frontends&&
+                        incoming.posts.isEmpty()&&incoming.accounts.isEmpty()&&incoming.collections.isEmpty()
+                    ended=next==null||exhaustedBudget||nativeScopeEnd
+                    discovery=incoming.copy(next=if(ended)null else next)
+                    contentState=contentState.copy(page=contentState.page.copy(provenance=incoming.provenance,notice=incoming.notice))
+                    merge(incoming.posts,incoming.accounts)
+                    val candidates=incoming.collections.filter {it.target.platform==target.platform&&(it.target.kind==TargetKind.POST||PublicSearchAdapter.entityAllowed(it.target))}
+                        .sortedBy {if(it.target.kind==TargetKind.POST)0 else 1}.take(60)
+                    for(candidate in candidates) {
+                        if(seen.size>=maxCandidates) {exhaustedBudget=true;ended=true;break}
+                        if(seen.add(key(candidate.target)))pending.addLast(candidate)
+                    }
+                }
                 fun pump() {
                     // One continuation may overlap destination reads. Its cursor
                     // comes from the real previous response, never a guessed offset.
@@ -129,7 +164,11 @@ class SearchFeed(
                     if(finding==null&&!ended&&!contentState.limited&&failure==null&&discoveryReads<2&&backlog<=blockSize&&nativeBuffered<blockSize*2) {
                         val previous=discovery;discoveryReads++
                         finding=launch {
-                            val result=try {Result.success(discover(previous))}catch(e: CancellationException){throw e}catch(e: Exception){Result.failure(e)}
+                            val updates=SearchDiscoveryUpdates(target){page,validate->
+                                val accepted=CompletableDeferred<Unit>()
+                                replies.send(Event.Partial(page,validate,accepted));accepted.await()
+                            }
+                            val result=try {Result.success(withContext(updates){discover(previous)})}catch(e: CancellationException){currentCoroutineContext().ensureActive();Result.failure(e)}catch(e: Exception){Result.failure(e)}
                             replies.send(Event.Discovered(result))
                         }
                     }
@@ -139,7 +178,7 @@ class SearchFeed(
                             .minByOrNull {if(it.target.kind==TargetKind.POST)0 else 1} ?: break
                         val identity=key(candidate.target);contentReads++
                         active[identity]=launch {
-                            val result=try {Result.success(read(candidate.target))}catch(e: CancellationException){throw e}catch(e: Exception){Result.failure(e)}
+                            val result=try {Result.success(read(candidate.target))}catch(e: CancellationException){currentCoroutineContext().ensureActive();Result.failure(e)}catch(e: Exception){Result.failure(e)}
                             replies.send(Event.Read(candidate,result))
                         }
                     }
@@ -149,32 +188,21 @@ class SearchFeed(
                     pump()
                     while(finding!=null||active.isNotEmpty()) {
                         when(val event=replies.receive()) {
+                            is Event.Partial->{
+                                try {
+                                    event.validate()
+                                    accept(event.page,complete=false)
+                                    event.accepted.complete(Unit)
+                                }catch(e: Exception) {
+                                    currentCoroutineContext().ensureActive()
+                                    failure=e;event.accepted.completeExceptionally(e)
+                                }
+                            }
                             is Event.Discovered->{
                                 finding=null
                                 val incoming=event.result.getOrNull()
                                 if(incoming==null)failure=event.result.exceptionOrNull() as? Exception ?: Exception("Search is unavailable")
-                                else {
-                                    started=true;blocks++
-                                    val next=incoming.next?.takeIf {it.isNotBlank()&&it.length<=24*1024&&cursors.add(it)}
-                                    exhaustedBudget=exhaustedBudget||blocks>=maxPages
-                                    // A native scoped search's empty continuation
-                                    // still ends that native source. Explicit feed
-                                    // scanners and validated public-index cursors
-                                    // retain their own bounded navigation progress.
-                                    val nativeScopeEnd=discovery!=null&&SearchScopes.from(target)!=null&&!allowEmptyDiscoveryPages()&&
-                                        incoming.provenance?.source?.frontend !in PublicSearchAdapter.frontends&&
-                                        incoming.posts.isEmpty()&&incoming.accounts.isEmpty()&&incoming.collections.isEmpty()
-                                    ended=next==null||exhaustedBudget||nativeScopeEnd
-                                    discovery=incoming.copy(next=if(ended)null else next)
-                                    contentState=contentState.copy(page=contentState.page.copy(provenance=incoming.provenance,notice=incoming.notice))
-                                    merge(incoming.posts,incoming.accounts)
-                                    val candidates=incoming.collections.filter {it.target.platform==target.platform&&(it.target.kind==TargetKind.POST||PublicSearchAdapter.entityAllowed(it.target))}
-                                        .sortedBy {if(it.target.kind==TargetKind.POST)0 else 1}.take(60)
-                                    for(candidate in candidates) {
-                                        if(seen.size>=maxCandidates) {exhaustedBudget=true;ended=true;break}
-                                        if(seen.add(key(candidate.target)))pending.addLast(candidate)
-                                    }
-                                }
+                                else accept(incoming,complete=true)
                             }
                             is Event.Read->{
                                 val candidate=event.candidate;active.remove(key(candidate.target));pending.remove(candidate)
