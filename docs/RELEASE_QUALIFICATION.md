@@ -1,5 +1,55 @@
 # Release qualification
 
+## 0.38.8 requested route diversity and rolling hedges
+
+The full JVM suite covered **1,953 cases, zero failures/errors and one optional
+weight-dependent skip**. Debug, instrumentation and release APK assembly and
+release lint passed; existing warnings remain. The API 35 native batch passed
+**42 checks with one opt-in live Tor check skipped**. All 43 named methods across
+six selected classes were accounted for, including source scheduling, search
+privacy, heartbeat, discovery refresh, repository catch-up and collected feeds.
+Installed application bytes matched the completed candidate. Native NASA,
+saved-thread and reading-position screens were inspected.
+
+Four of the six initial scheduling regressions fail against the retained JVM
+implementation. They reproduce visiting more failed mirrors before a different
+feed method, and a stalled operation holding later candidates behind a batch
+boundary. The added cooldown regression checks eligibility again after an
+operation has waited. Existing fast-first, failure-advances-one-successor and
+immediate-failure tests still pass. Controlled checks also retain a maximum of
+three active candidate operations, reject undated feeds, preserve known working
+route priority and close cancelled Gateway calls without outage training.
+
+The new Android scheduling fixtures were first run against verified installed
+0.38.7 bytes: two failed and the cancellation check passed. All three pass on the
+candidate with actual loopback Gateway requests. This qualifies native scheduler,
+adapter, parser and cancellation composition, not public TLS, phone battery use
+or source-wide availability. The former scheduler's three-second fixture timeout
+and the new native timing are controlled examples, not a general speedup ratio.
+
+The first broader native batch passed 40 checks and failed two existing feed UI
+checks, with one skip. Their retained test selection contained only Reddit, so
+setting X as active correctly fell back to the selected site. The fixtures now
+explicitly select their X/Bluesky/Instagram/Facebook sources and still restore
+the original preferences exactly. The full repeated batch passes, retaining the
+same saved-alias, comment-stream, reading-position and incoming-banner assertions.
+Production selection behavior was unchanged. The first JVM fixture iteration
+also blocked a same-thread async job while waiting for its request; the qualified
+negative run uses an IO dispatcher and accounts for a frontend's RSS/HTML attempts.
+
+A bounded public TikTok check returned ten dated roots in 4,361 ms and 12 request
+starts after the previously observed retry delay had elapsed. Earlier observations
+were 14,242 ms/33 starts and 9,082 ms/three starts with different winners and a
+rate limit. These are dated observations, not a controlled before/after benchmark;
+[route measurements](ROUTE_LATENCY.md) records their limits. The diagnostic now
+supports one fresh read; an invalid read count is rejected before transport setup.
+
+[Scheduling policy](ROUTE_SCHEDULING.md) documents the shared ranking, three-job
+bound and pinned coroutine timeout/select API. No source, AI runtime, persistent
+cache, background poll or user setting is added. Original-access tiers, Tor
+fail-closed behavior, Gateway protection and protected saved state remain intact.
+No new physical-phone or API 26 qualification is claimed.
+
 ## 0.38.7 article fallback tiers and canonical revalidation
 
 The full JVM suite covered **1,946 cases, zero failures/errors and one optional

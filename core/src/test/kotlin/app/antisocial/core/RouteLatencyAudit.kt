@@ -17,6 +17,7 @@ fun main()=runBlocking {
     val cleaner=UrlCleaner(asset("clean-links.json")).also {it.prepare()}
     val directory=File(System.getProperty("antisocial.routeLatencyEvidence")).apply {mkdirs()}
     val selected=System.getProperty("antisocial.routeLatencyTargets").split(',').filter(String::isNotBlank)
+    val reads=System.getProperty("antisocial.routeLatencyReads","2").toInt().also {require(it in 1..2){"Choose one fresh read or a fresh/learned pair"}}
     val gson=GsonBuilder().setPrettyPrinting().create();val permits=Semaphore(2)
     NativeFilter.restore(loader.getResourceAsStream("/network-rules.compiled")!!.use {it.readBytes()}).use {filter->
         val results=selected.mapIndexed {index,url->async(Dispatchers.IO){permits.withPermit {
@@ -32,7 +33,7 @@ fun main()=runBlocking {
             val pool=SourcePool(gateway,routes,PublicPathways(asset("public-pathways.json")),onProbe={probe->observations+=mapOf("phase" to phase,"atMs" to (System.nanoTime()-started)/1_000_000,"probe" to probe)})
             val rows=mutableListOf<Map<String,Any?>>()
             try {
-                for(mode in listOf("cold","warm")) {
+                for(mode in listOf("cold","warm").take(reads)) {
                     phase=mode;started=System.nanoTime();val previousBytes=bytes.get();val priorEvents=events.size
                     val row=linkedMapOf<String,Any?>("phase" to mode,"goal" to "public feed head, no cached frontier")
                     try {

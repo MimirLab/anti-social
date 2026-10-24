@@ -138,6 +138,7 @@ tasks.register<JavaExec>("routeLatencyAudit") {
     systemProperty("antisocial.native.path","${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
     systemProperty("antisocial.routeLatencyEvidence",providers.gradleProperty("antisocialRouteLatencyEvidence").getOrElse("${providers.gradleProperty("antisocialBuildRoot").get()}/evidence/route-latency-20261024"))
     systemProperty("antisocial.routeLatencyTargets",providers.gradleProperty("antisocialRouteLatencyTargets").getOrElse("https://x.com/NASA,https://www.instagram.com/nasa,https://t.me/telegram,https://www.reddit.com/r/technology,https://bsky.app/profile/bsky.app"))
+    systemProperty("antisocial.routeLatencyReads",providers.gradleProperty("antisocialRouteLatencyReads").getOrElse("2"))
 }
 tasks.register<JavaExec>("networkAudit") {
     dependsOn(tasks.testClasses)

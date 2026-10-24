@@ -2,6 +2,8 @@ package app.antisocial.core
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.net.URI
@@ -385,11 +387,25 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             capability==Capability.SEARCH&&(h.status==HealthStatus.UNSUPPORTED&&h.detail=="Search disabled"&&age<3_600_000||
                 h.status==HealthStatus.UNAVAILABLE&&(h.detail=="Source returned 403"||h.detail=="Source returned 451"||h.detail.startsWith("Unable to resolve host"))&&age<600_000))
     }
+    /** Preserve observed winners. For unproven paths, try another extraction
+     * method before sweeping more mirrors of the same frontend. Every path
+     * remains available, and original-source privacy tiers stay separate. */
+    private data class RequestedSource(val source:Source,val tier:Int,val score:Double,val priority:Int)
+    private fun requestedOrder(paths:List<Source>,capability:Capability):List<Source> = paths
+        // Snapshot each observation once: other reads can train shared health
+        // while this list is being sorted and divided into freshness tiers.
+        .map {RequestedSource(it,routeTier(it,capability),learning.score(it,capability,usesTor(it)),pathways.priority(it))}
+        .sortedWith(compareBy<RequestedSource> {it.source.role==SourceRole.ORIGINAL}.thenBy {it.tier}.thenBy {it.source.fallbackOnly}.thenBy {it.score}.thenBy {it.priority})
+        .groupBy {(it.source.role==SourceRole.ORIGINAL) to it.tier}.flatMap {(tier,group)->
+            if(tier.first||tier.second!=1)group else {
+                val methods=group.groupBy {it.source.frontend}.values.toList()
+                buildList {for(i in 0 until (methods.maxOfOrNull {it.size} ?: 0))for(method in methods)method.getOrNull(i)?.let {add(it)}}
+            }
+        }.map {it.source}
     /** Same privacy tiers and eligible ordering as a requested read. Only the
      * two leading pipes form a plan; tiny timing noise is not an outage. */
     private fun plan(target: Target,capability: Capability,originalFallback: Boolean): String =
-        sourcesFor(target,capability,originalFallback).filter {it.role!=SourceRole.CACHE&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it))}
-            .sortedWith(compareBy<Source> {it.role==SourceRole.ORIGINAL}.thenBy {routeTier(it,capability)}.thenBy {it.fallbackOnly}.thenBy {learning.score(it,capability,usesTor(it))}.thenBy {pathways.priority(it)})
+        requestedOrder(sourcesFor(target,capability,originalFallback).filter {it.role!=SourceRole.CACHE&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it))},capability)
             .take(2).joinToString("\n") {"${it.role}|${it.key}"}
     /** A small shortlist of promising paths, never a sweep of the imported pool.
      * A formerly fast path remains eligible for a recovery test after backoff. */
@@ -566,6 +582,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             if(!samePolicy())Page(emptyList())else result ?: Page(emptyList(),accounts=retained.get(),provenance=retainedProvenance.get())
         }finally {readFinished()}
     }
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun load(target: Target, feed: Boolean=false, cursor: String?=null, originalFallback: Boolean=true,progress: (String)->Unit=onProgress,requestedCapability: Capability?=null,background: Boolean=false,profileNameOnly: Boolean=false): Page = withContext(Dispatchers.IO) {
         val supplementalJob=if(background)currentCoroutineContext()[Job]else null
         readStarted(background,supplementalJob)
@@ -599,9 +616,9 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         val tor=gateway.currentPolicy().tor
         val now=clock()
-        val candidates=sourcesFor(target,capability).filter {
+        val candidates=requestedOrder(sourcesFor(target,capability).filter {
             it.role!=SourceRole.CACHE&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)
-        }.sortedWith(compareBy<Source> {routeTier(it,capability)}.thenBy {it.fallbackOnly}.thenBy {learning.score(it,capability,usesTor(it))}.thenBy {pathways.priority(it)})
+        },capability)
         var last: Exception?=sourcesFor(target,capability,originalFallback).firstNotNullOfOrNull {learning.failure(it,capability,usesTor(it),target)}
         var partial: Page?=null
         var originalRedirect: Page?=null
@@ -628,26 +645,21 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             val indexGroup=indexes to if(tor)45_000L else 24_000L
             if(indexes.any(::healthy)&&native.none(::healthy))listOf(indexGroup,nativeGroup)else listOf(nativeGroup,indexGroup)
         }
-        // Start the best path immediately; hedge only when it stalls. Cancellation
-        // closes losing gateway calls. Continue through later imported sources.
+        // Keep at most three trials active. A failed latest trial advances one
+        // successor immediately; each new trial gets its own hedge interval.
+        // A freed slot can reach later paths without awaiting a stalled batch.
         for((group,budget) in groups) {
         val alternate=withTimeoutOrNull(budget) {
-            for(batch in group.chunked(3)) {
-                val winner=coroutineScope {
-                    val completed=Channel<Pair<Page?,Exception?>>(batch.size)
-                    val startedAttempts=List(batch.size){CompletableDeferred<Unit>()}
-                    val advance=List(batch.size){CompletableDeferred<Unit>()}
-                    val jobs=batch.mapIndexed {index,source->launch {
-                        if(index>0) {
-                            // A failure releases one successor. Each successor gets
-                            // its own stall interval; one failed path must not wake
-                            // every waiting backup at once.
-                            startedAttempts[index-1].await()
-                            withTimeoutOrNull(learning.hedgeDelay(batch[index-1],capability,usesTor(batch[index-1]))){advance[index-1].await()}
-                        }
-                        startedAttempts[index].complete(Unit)
+            coroutineScope {
+                val completed=Channel<Triple<Int,Page?,Exception?>>(3)
+                val running=linkedMapOf<Int,Job>()
+                var next=0;var latest=-1;var startedAt=0L;var hedgeMs=0L;var advance=true
+                fun startNext() {
+                    val index=next++;val source=group[index]
+                    latest=index;startedAt=System.nanoTime();hedgeMs=learning.hedgeDelay(source,capability,usesTor(source));advance=false
+                    running[index]=launch {
                         if(!routeAllowed(source,capability)||!learning.eligible(source,capability,usesTor(source),target)) {
-                            advance[index].complete(Unit);completed.send(null to null);return@launch
+                            completed.send(Triple(index,null,null));return@launch
                         }
                         progress("Trying ${URI(source.root).host}")
                         val started=System.nanoTime()
@@ -672,12 +684,24 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             val r=ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,clock(),tor,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
                             record(r,target)
                         }
-                        if(failure!=null||page?.let {usableProgress(it)&&!previewOnly(it)&&!redirectedOriginal(source,it)}!=true)advance[index].complete(Unit)
-                        completed.send(page to failure)
-                    }}
-                    try {
-                        repeat(batch.size) {
-                            val (page,failure)=completed.receive()
+                        completed.send(Triple(index,page,failure))
+                    }
+                }
+                try {
+                    while(next<group.size||running.isNotEmpty()) {
+                        currentCoroutineContext().ensureActive()
+                        if(running.isEmpty()) {startNext();continue}
+                        val canStart=next<group.size&&running.size<3
+                        val remainingNanos=hedgeMs*1_000_000-(System.nanoTime()-startedAt)
+                        // Select atomically between a completion and its hedge
+                        // timer. A buffered completion beats even an overdue
+                        // timer, avoiding a needless new request beside a winner.
+                        val result=if(canStart)select<Triple<Int,Page?,Exception?>?> {
+                            completed.onReceive {it}
+                            onTimeout(if(advance)0 else ((remainingNanos+999_999)/1_000_000).coerceAtLeast(0)){null}
+                        }else completed.receive()
+                        if(result==null)startNext() else {
+                            val (index,page,failure)=result;running.remove(index)
                             if(failure!=null)last=failure
                             if(page!=null) {
                                 if(page.provenance?.source?.role==SourceRole.ORIGINAL) {
@@ -688,13 +712,12 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                                     retainPartial(page)
                                 }
                             }
+                            if(index==latest)advance=true
                         }
-                        null
-                    }finally {jobs.forEach {it.cancel()};completed.cancel()}
-                }
-                if(winner!=null)return@withTimeoutOrNull winner
+                    }
+                    null
+                }finally {running.values.forEach {it.cancel()};completed.cancel()}
             }
-            null
         }
         if(alternate!=null) {
             return@withContext delivered(target,capability,includeDirectory(alternate),originalFallback)

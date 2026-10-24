@@ -57,7 +57,11 @@ class CrossPostFeedTest {
         repo.outgoing.validate={ShareRouteCheck(ShareRouteStatus.READABLE,it.url)}
         repo.prefs.originalFallback=true
         repo.prefs.communityComments=false;repo.prefs.intervalMinutes=0;repo.prefs.archiveChecks=false;repo.prefs.theme="dark"
+        // An active tab must also be selected. The isolated device can retain
+        // a Reddit-only selection from other qualification journeys.
+        repo.prefs.selected=(repo.prefs.selected+listOf(Platform.X,Platform.BLUESKY,Platform.INSTAGRAM,Platform.FACEBOOK)).distinct()
         repo.prefs.activePlatform=Platform.X;repo.prefs.readingGroup(Platform.X,"")
+        check(repo.prefs.activePlatform==Platform.X)
         Platform.entries.forEach {repo.prefs.lastUrl(it,"")}
         memoryFile=File(ui.activity.cacheDir,"cross-post-memory-$suffix.json")
         memoryScope=CoroutineScope(SupervisorJob()+Dispatchers.IO)

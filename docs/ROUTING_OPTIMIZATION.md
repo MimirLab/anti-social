@@ -1,5 +1,8 @@
 # Routing and refresh maintenance, 0.38.1
 
+[0.38.8 scheduling](ROUTE_SCHEDULING.md) extends the per-attempt hedging below
+across batch boundaries and diversifies unproven frontend choices.
+
 This pass fixes avoidable work and lost results before expanding the route pool.
 Production retrieval continues through NetworkGateway and Darwin's protection
 and routing machinery. No AI or social login is required.
