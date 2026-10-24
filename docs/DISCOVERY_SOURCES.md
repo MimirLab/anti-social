@@ -89,6 +89,86 @@ browser personas or automatically renew them on refusal. Findings about a public
 preview must distinguish its available content from a login wall, and measure
 each site's actual transport/session behavior rather than claim infinite access.
 
+### First-party construction and qualification, October 24
+
+The implementation direction is a custom anti social component. External
+projects supply mechanisms to investigate, test inputs and protocol references;
+they are not installed as an extension or adopted as the app's architecture.
+[PublicPersona](../core/src/main/kotlin/app/antisocial/core/PublicPersona.kt)
+now constructs a coupled browser release, reduced UA/appVersion, client-hint
+brands, virtual device and declared wire contract. The initial mobile and desktop
+cohorts preserve their observed group/ALPS differences and HTTP/2 settings.
+Headers and their JavaScript-facing descriptor derive from the same identity;
+this descriptor does not itself implement or execute a browser realm.
+
+The component uses first-party Kotlin and existing HTTP cookie parsing. It adds
+no fingerprint-generator dependency, inference model or device interrogation.
+Its memory-only bank holds at most sixteen default sessions, eight bounded
+anonymous cookies each, with a ten-minute absolute lifetime. Source, full target,
+exact origin and the owning Gateway session bind each lease. The bank reads its
+owner's current session rather than accepting caller-supplied snapshots. A mode
+round trip, expiry, eviction, clock rollback or clear invalidates old state.
+This state is separate from service credentials, reading history and saves.
+The bank grants no permission to fetch: Gateway still owns admission and budgets.
+
+Ten new unit cases cover construction, independent contradiction checks, request
+semantics, actual Gateway mode changes, scope forgery, cookie paths/prefixes,
+deletion, bounds and absolute expiry. The full candidate JVM run covered **2,100
+cases**, zero failures/errors and one optional weight-dependent skip. A separate
+API 35 batch covered fifteen named Android checks: fourteen passed and one
+opt-in live Tor/direct-exit check was skipped. Two new Java instrumentation cases execute
+the actual core bytecode, checking sixty-four constructed profiles and disposable
+state; the others retain search privacy and RSS reading coverage. The mixed
+RSS/social native screen was inspected. These are foundation results, not a new
+public-access or complete-browser qualification.
+
+The custom packet transport and its Gateway dispatch are still being developed.
+The public APK and live laptop preview remain the qualified **0.38.17** release;
+the foundation candidate is isolated from them and is not an enabled read route.
+Applying plausible headers to an unrelated TLS stack is not considered success.
+
+### What the reference experiments established
+
+The native calibration probe relinked the hash-pinned curl-impersonate 2.3.0
+Android static archive with 16 KiB ELF alignment and static C++ linkage. Its
+stripped arm64 reference library is about four MB; the original shared object's
+LOAD alignment was 4 KiB. The probe loaded on ordinary Android 29/35 x86_64
+emulators. ELF admission is not an actual 16 KiB-device test, and this reference
+library is not the product transport.
+
+An Android 35 owned-wire harness checked four configured browser profiles,
+actual TLS ClientHello fields, HTTP/2 settings and pseudo-header order. It also
+checked hostname/CA rejection, one-hop redirects, an owned SOCKS hostname tunnel
+and a gzip expansion limit: nine cases passed. The prototype needed explicit
+decompression configuration even though its browser headers already advertised
+compression. Its corrected decoded-body callback stops the expansion; that was a
+prototype finding, not a defect in the shipping Gateway. A newly created fixture
+certificate also correctly failed for a three-second emulator clock difference;
+the fixture validity interval was repaired without weakening certificate checks.
+No public previews or actual Tor exit were tested by this wire harness.
+
+Repository metadata led to the small
+[Veilus generator](https://github.com/veilus/fingerprint-generator/tree/f0bdfe732b72c9652d3d4f766b951c26f8564f9a),
+alongside [BrowserForge](https://github.com/daijro/browserforge) and
+[Apify's suite](https://github.com/apify/fingerprint-suite). Its upstream unit
+checks passed, but an independent strict, `en-US`, seed-0-through-999 audit found
+contradictions between browser metadata, actual UA and HTTP/JS hint brands.
+Some returned Chrome profiles carried Brave brands on one surface. Rare
+constraint combinations also exhausted rejection sampling. Those findings
+motivate construction from qualified whole cohorts and independent invariants;
+they are not a reason to replay arbitrary generator output on the phone.
+
+The metadata search also found the one-star
+[fpgen-js port](https://github.com/JWriter20/fpgen-js). Its conditional generation
+and targeted projections are useful offline-catalog leads; its documented model
+expands to about 210 MB, so a small download is not evidence of a small runtime.
+[Camoufox](https://github.com/daijro/camoufox) supplies related cross-surface
+consistency mechanisms, while
+[CreepJS source](https://github.com/abrahamjuliot/creepjs) supplies independent
+contradiction checks to examine. These are references, not shipped dependencies.
+Further work follows small forks, dependency users and histories as well as
+major repositories; star counts do not replace source and runtime qualification.
+
 ## Wider discovery verification
 
 Desktop probes located twelve creator-selected channel tiles on NASA's YouTube
