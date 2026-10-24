@@ -18,16 +18,17 @@ import java.time.format.ResolverStyle
 
 internal interface ArticleTransport {
     val originalAllowed:Boolean
-    val mode:NetworkPolicy
-    suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean=false,strict:Boolean=true,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):GatewayDocument
-    suspend fun index(url:String,source:String,origins:Set<String>):Payload
+    val session:NetworkSession
+    val mode:NetworkPolicy get()=session.policy
+    suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean=false,strict:Boolean=true,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL,expectedSession:NetworkSession):GatewayDocument
+    suspend fun index(url:String,source:String,origins:Set<String>,expectedSession:NetworkSession):Payload
 }
 private class GatewayArticleTransport(private val gateway:NetworkGateway):ArticleTransport {
     override val originalAllowed get()=gateway.originalFallback
-    override val mode get()=gateway.currentPolicy()
-    override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose)=gateway.extractorDocument(url,
-        method=if(head)"HEAD"else "GET",headers=headers,sourceUrl=source,sameOrigin=strict,purpose=purpose)
-    override suspend fun index(url:String,source:String,origins:Set<String>)=gateway.text(url,source,maxBytes=1024L*1024,allowedOrigins=origins)
+    override val session get()=gateway.currentSession()
+    override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose,expectedSession:NetworkSession)=gateway.extractorDocument(url,
+        method=if(head)"HEAD"else "GET",headers=headers,sourceUrl=source,sameOrigin=strict,purpose=purpose,expectedSession=expectedSession)
+    override suspend fun index(url:String,source:String,origins:Set<String>,expectedSession:NetworkSession)=gateway.text(url,source,maxBytes=1024L*1024,allowedOrigins=origins,expectedSession=expectedSession)
 }
 
 /** One bounded acquisition policy shared by native reading and AI preparation.
@@ -39,6 +40,28 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     private val health=linkedMapOf<String,Health>()
     private val hints=linkedMapOf<String,Hint>()
     private val rejected=linkedMapOf<String,Long>()
+    private data class ValidatorRecord(val session:NetworkSession,val at:Long,val validators:ContextArticleValidators,val bytes:Int)
+    private val validators=linkedMapOf<String,ValidatorRecord>()
+    private var validationGeneration=0L
+    private fun representation(url:String)=url.toHttpUrlOrNull()?.newBuilder()?.fragment(null)?.build()?.toString()?.takeIf {it.length<=4096}
+    @Synchronized internal fun clearValidationMemory(){validationGeneration++;validators.clear()}
+    @Synchronized private fun validationGeneration()=validationGeneration
+    @Synchronized private fun allowedValidators(url:String,session:NetworkSession,generation:Long,supplied:ContextArticleValidators):ValidatorRecord? {
+        validators.entries.removeAll {it.value.session!==session||clock()-it.value.at !in 0..30*60_000L}
+        if(session.policy.tor||transport.session!==session||validationGeneration!=generation)return null
+        val record=validators[representation(url)] ?: return null
+        if(supplied.etag==null&&supplied.lastModified==null)return null
+        if(supplied.etag!=null&&supplied.etag!=record.validators.etag||supplied.lastModified!=null&&supplied.lastModified!=record.validators.lastModified)return null
+        return record.copy(validators=supplied)
+    }
+    @Synchronized private fun rememberValidators(url:String,session:NetworkSession,generation:Long,value:ContextArticleValidators,at:Long=clock()) {
+        if(transport.session!==session||session.policy.tor||validationGeneration!=generation)return
+        val key=representation(url) ?: return
+        validators.remove(key)
+        if(value.etag!=null||value.lastModified!=null)validators[key]=ValidatorRecord(session,at,value,128+(key.length+(value.etag?.length ?: 0)+(value.lastModified?.length ?: 0))*2)
+        validators.entries.removeAll {it.value.session!==session||clock()-it.value.at !in 0..30*60_000L}
+        while(validators.size>128||validators.values.sumOf {it.bytes}>256*1024)validators.remove(validators.keys.first())
+    }
     private fun key(url:String,mode:NetworkPolicy)=url.toHttpUrlOrNull()?.host.orEmpty()+"|"+mode.tor
     @Synchronized private fun eligible(url:String,mode:NetworkPolicy)=(health[key(url,mode)]?.until?.let {it<=clock()} ?: true)&&
         (rejected[mode.tor.toString()+"|"+url]?.let {it<=clock()} ?: true)
@@ -59,20 +82,21 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     private suspend fun resolve(url:String,source:String,validators:ContextArticleValidators,knownRetrieval:String?,purpose:FetchPurpose):ContextArticleFetch {
         require(url.toHttpUrlOrNull()?.let {it.username.isEmpty()&&it.password.isEmpty()}==true){"Invalid article URL"}
         if(purpose==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(url))throw SourceFailure(HealthStatus.UNSUPPORTED,"Action links require deliberate opening")
-        val mode=transport.mode
+        val session=transport.session;val mode=session.policy;val generation=validationGeneration()
         if(mode.tor&&!mode.ready)throw SourceFailure(HealthStatus.UNAVAILABLE,"Tor is not ready")
         val original=routes.identity(url) ?: url
         val cacheKey=mode.tor.toString()+"|"+original
         val attempted=mutableSetOf<String>();var requests=0;var last:Exception?=null
-        fun checkMode(){currentMode(mode)}
+        fun checkMode(){if(transport.session!==session)throw CancellationException("Network mode changed")}
         suspend fun attempt(path:ArticlePath):ContextArticleFetch? {
             checkMode();if(requests>=10||requests>=9&&path.route!="Original publisher"||!attempted.add(path.url)||!eligible(path.url,mode))return null
             requests++;val started=clock()
             try {
                 val result=withTimeout(if(mode.tor)40_000L else 15_000L) {
-                    val useValidators=knownRetrieval?.toHttpUrlOrNull()==path.url.toHttpUrlOrNull()||knownRetrieval==null&&path.url==url
-                    val headers=if(useValidators)buildMap {validators.etag?.let {put("If-None-Match",it)};validators.lastModified?.let {put("If-Modified-Since",it)}}else emptyMap()
-                    val response=transport.document(path.url,source,headers,path.pdf,path.route!="Original publisher"||headers.isNotEmpty(),purpose)
+                    val exact=knownRetrieval!=null&&representation(knownRetrieval)==representation(path.url)||knownRetrieval==null&&path.url==url
+                    val permitted=if(exact)allowedValidators(path.url,session,generation,validators)else null
+                    val headers=permitted?.validators?.let {v->buildMap {v.etag?.let {put("If-None-Match",it)};v.lastModified?.let {put("If-Modified-Since",it)}}}.orEmpty()
+                    val response=transport.document(path.url,source,headers,path.pdf,path.route!="Original publisher"||headers.isNotEmpty(),purpose,session)
                     checkMode()
                     if(path.route!="Original publisher"&&!routes.sameArticle(path.url,response.finalUrl))
                         throw SourceFailure(HealthStatus.EMPTY,"The reader route did not return its requested article")
@@ -80,10 +104,14 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                         throw SourceFailure(HealthStatus.EMPTY,"The publisher returned its home page instead of this article")
                     fun header(name:String)=response.headers.entries.firstOrNull {it.key.equals(name,true)}?.value?.firstOrNull()
                     fun clean(raw:String?,limit:Int)=raw?.takeIf {it.length<=limit&&it.all {c->c.code in 32..126}}
-                    val next=ContextArticleValidators(clean(header("ETag"),2048),clean(header("Last-Modified"),256))
+                    // Tor circuits can change without a policy/port change. Do
+                    // not echo opaque re-identifiers across those circuits.
+                    val next=if(mode.tor)ContextArticleValidators()else ContextArticleValidators(clean(header("ETag"),2048),clean(header("Last-Modified"),256))
                     if(response.status==304) {
-                        if(!useValidators||validators.etag==null&&validators.lastModified==null)throw SourceFailure(HealthStatus.EMPTY,"Unexpected unchanged article response")
-                        ContextArticleFetch.NotModified(response.finalUrl,ContextArticleValidators(next.etag ?: validators.etag,next.lastModified ?: validators.lastModified),clock())
+                        if(permitted==null||!response.conditional||representation(response.finalUrl)!=representation(path.url))throw SourceFailure(HealthStatus.EMPTY,"Unexpected unchanged article response")
+                        val unchanged=ContextArticleValidators(next.etag ?: validators.etag,next.lastModified ?: validators.lastModified)
+                        rememberValidators(response.finalUrl,session,generation,unchanged,permitted.at)
+                        ContextArticleFetch.NotModified(response.finalUrl,unchanged,clock())
                     }else {
                         if(response.status !in 200..299)throw SourceFailure(when(response.status){401->HealthStatus.LOGIN_REQUIRED;429->HealthStatus.RATE_LIMITED;else->HealthStatus.UNAVAILABLE},"Article source returned ${response.status}",httpStatus=response.status)
                         if(purpose==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(response.finalUrl))throw SourceFailure(HealthStatus.UNSUPPORTED,"Action links require deliberate opening")
@@ -103,11 +131,12 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                                 body.siteName?.lowercase() in setOf("archive.ph","archive.is","archive.today","web.archive.org")->original.toHttpUrlOrNull()?.host?.removePrefix("www.")
                                 else->body.siteName
                             }
+                            checkMode();rememberValidators(response.finalUrl,session,generation,next)
                             ContextArticleFetch.Ready(body.copy(siteName=site,etag=next.etag,lastModified=next.lastModified,access=access,truncated=body.truncated||abstractOnly))
                         }
                     }
                 }
-                report(path.url,mode,started,true);remember(cacheKey,path);return result
+                checkMode();report(path.url,mode,started,true);remember(cacheKey,path);return result
             }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e}
             catch(e:CancellationException){throw e}
             catch(e:Exception){last=e}
@@ -118,7 +147,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             if(!eligible(endpoint,mode))return null
             val started=clock()
             return try {
-            checkMode();val p=withTimeout(if(mode.tor)25_000L else 8_000L){transport.index(endpoint,source,setOf(origin(endpoint)))}
+            checkMode();val p=withTimeout(if(mode.tor)25_000L else 8_000L){transport.index(endpoint,source,setOf(origin(endpoint)),session)}
             checkMode();val value=JsonParser.parseString(p.text).asJsonObject;report(endpoint,mode,started,true);value
         }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e;report(endpoint,mode,started,false);null}
          catch(e:CancellationException){throw e}catch(e:Exception){last=e;report(endpoint,mode,started,false);null}
@@ -130,7 +159,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                 val started=clock()
                 try {
                     val query=root.toHttpUrlOrNull()!!.newBuilder().encodedPath("/search/").addQueryParameter("q",original).build().toString()
-                    val p=withTimeout(if(mode.tor)25_000L else 8_000L){transport.index(query,source,ARCHIVE_TODAY)};checkMode()
+                    val p=withTimeout(if(mode.tor)25_000L else 8_000L){transport.index(query,source,ARCHIVE_TODAY,session)};checkMode()
                     ArchiveParsing.wall(p.text)?.let {throw SourceFailure(it,"Archive requires a browser challenge")}
                     val links=archiveTodayCaptures(p,original)
                     report(root,mode,started,true)
@@ -145,7 +174,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             if(eligible(endpoint,mode)) {
                 val started=clock()
                 try {
-                    val p=withTimeout(if(mode.tor)25_000L else 8_000L){transport.index(endpoint,source,setOf("https://web.archive.org"))};checkMode()
+                    val p=withTimeout(if(mode.tor)25_000L else 8_000L){transport.index(endpoint,source,setOf("https://web.archive.org"),session)};checkMode()
                     for(link in waybackCaptures(p.text,original))attempt(ArticlePath(link,"Existing archive capture"))?.let {return it}
                     report(endpoint,mode,started,true)
                 }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e;report(endpoint,mode,started,false)}
@@ -162,7 +191,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
         }
         var science=routes.scientific(original)
         if(science==null&&routes.metadataPublisher(original)&&transport.originalAllowed) {
-            try {val p=transport.document(original,source,emptyMap());checkMode();if(p.status in 200..299)science=routes.metadataDoi(p.text)}
+            try {val p=transport.document(original,source,emptyMap(),expectedSession=session);checkMode();if(p.status in 200..299)science=routes.metadataDoi(p.text)}
             catch(e:CancellationException){throw e}catch(e:Exception){last=e}
         }
         science?.let {article->
@@ -198,7 +227,6 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
         throw SourceFailure((last as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,
             "No readable public copy was available"+(if(!transport.originalAllowed)" · original access is off"else "")).also {if(last!=null)it.initCause(last)}
     }
-    private fun currentMode(expected:NetworkPolicy) {if(transport.mode!=expected)throw CancellationException("Network mode changed")}
     internal fun waybackCaptures(raw:String,original:String):List<String> {
         val rows=JsonParser.parseString(raw).asJsonArray;require(rows.size()<=64)
         val header=rows.firstOrNull()?.asJsonArray?.map {it.asString} ?: return emptyList()

@@ -4,7 +4,7 @@ package app.antisocial.core
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.*
@@ -62,6 +62,52 @@ class ContextAcquisitionTest {
             assertTrue(response is ContextArticleFetch.NotModified);response as ContextArticleFetch.NotModified
             assertEquals(initial.etag,response.validators.etag);assertEquals(url,response.finalUrl)
             val request=server.takeRequest();assertEquals(initial.etag,request.getHeader("If-None-Match"));assertEquals(initial.lastModified,request.getHeader("If-Modified-Since"));assertEquals(2,server.requestCount)
+        }
+    }
+    @Test fun clearingArticleMemoryRevokesRetainedValidators():Unit=runBlocking {
+        MockWebServer().use {server->server.start()
+            repeat(2){server.enqueue(MockResponse().setHeader("Content-Type","text/html").setHeader("ETag","\"v1\"").setBody(article()))}
+            val (reader,_)=setup();val url=server.url("/article").toString();val initial=reader.article(url,url)
+            reader.clearArticleMemory()
+            assertTrue(reader.articleConditional(url,url,ContextArticleValidators(initial.etag),initial.finalUrl) is ContextArticleFetch.Ready)
+            server.takeRequest();assertNull(server.takeRequest().getHeader("If-None-Match"))
+        }
+    }
+    @Test fun cacheClearDuringExtractionCannotRestoreTheValidator():Unit=runBlocking {
+        MockWebServer().use {server->server.start()
+            repeat(2){server.enqueue(MockResponse().setHeader("Content-Type","text/html").setHeader("ETag","\"v1\"").setBody(article()))}
+            val entered=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>();var reads=0
+            val gateway=NetworkGateway(cleaner,allow,true)
+            val reader=ContextEvidenceReader(gateway,routes(),extract={payload,url,at->
+                if(++reads==1){entered.complete(Unit);release.await()}
+                ContextArticles.extract(payload,url,at,readerChecks=true)
+            })
+            val url=server.url("/article").toString()
+            val pending=async {reader.article(url,url)}
+            try {
+                withTimeout(5_000){entered.await()};reader.clearArticleMemory();release.complete(Unit)
+                val old=pending.await()
+                assertTrue(reader.articleConditional(url,url,ContextArticleValidators(old.etag),old.finalUrl) is ContextArticleFetch.Ready)
+                server.takeRequest();assertNull("A cleared in-flight extraction cannot restore its validator",server.takeRequest().getHeader("If-None-Match"))
+                assertEquals(2,server.requestCount)
+            }finally {release.complete(Unit);pending.cancelAndJoin()}
+        }
+    }
+    @Test fun cacheClearDuringExtractionCannotRestoreTheArticleMemo():Unit=runBlocking {
+        MockWebServer().use {server->server.start()
+            repeat(2){server.enqueue(MockResponse().setHeader("Content-Type","text/html").setBody(article()))}
+            val entered=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>();var reads=0
+            val gateway=NetworkGateway(cleaner,allow,true)
+            val reader=ContextEvidenceReader(gateway,routes(),extract={payload,url,at->
+                if(++reads==1){entered.complete(Unit);release.await()}
+                ContextArticles.extract(payload,url,at,readerChecks=true)
+            })
+            val url=server.url("/article").toString();val pending=async {reader.article(url,url)}
+            try {
+                withTimeout(5_000){entered.await()};reader.clearArticleMemory();release.complete(Unit);pending.await()
+                reader.article(url,url)
+                assertEquals("The pre-clear result must not become a new memory hit",2,server.requestCount)
+            }finally {release.complete(Unit);pending.cancelAndJoin()}
         }
     }
     @Test fun articleLoginChallengeEmptyAndWrongMediaDoNotBecomeWorkingEvidence() {

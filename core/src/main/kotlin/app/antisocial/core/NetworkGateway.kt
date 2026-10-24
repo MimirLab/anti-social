@@ -22,7 +22,10 @@ import java.util.concurrent.atomic.AtomicReference
 data class MediaPrefix(val bytes: ByteArray,val finalUrl: String,val contentType: String,val status: Int)
 data class GatewayMediaPayload(val bytes:ByteArray,val finalUrl:String,val contentType:String,val manifestUrls:List<String>)
 
-data class GatewayDocument(val status: Int,val message: String,val headers: Map<String,List<String>>,val text: String,val finalUrl: String)
+data class GatewayDocument(val status: Int,val message: String,val headers: Map<String,List<String>>,val text: String,val finalUrl: String,val conditional:Boolean=false)
+/** Ephemeral identity, never serialized or sent. Equal policy values after a
+ * mode change are still a new session; another gateway cannot recreate it. */
+class NetworkSession internal constructor(val policy:NetworkPolicy)
 
 data class Payload(val text: String, val finalUrl: String, val contentType: String, val status: Int,val pageBookmark: String?=null,val pageOffset: Int?=null)
 private data class RequestContext(val source: String,val type: String)
@@ -60,8 +63,8 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     private val checkedRequests=java.util.concurrent.atomic.AtomicLong()
     private val blockedRequests=java.util.concurrent.atomic.AtomicLong()
     fun protectionStats()=ProtectionStats(checkedRequests.get(),blockedRequests.get())
-    private val policy=AtomicReference(NetworkPolicy())
-    private val torPolicy=AtomicReference(NetworkPolicy(tor=true))
+    private val policy=AtomicReference(NetworkSession(NetworkPolicy()))
+    private val torPolicy=AtomicReference(NetworkSession(NetworkPolicy(tor=true)))
     private val clients=mutableMapOf<Pair<NetworkRoute,NetworkPolicy>,OkHttpClient>()
     private val foregroundRequests=java.util.concurrent.atomic.AtomicInteger()
     private val deferredCalls=java.util.concurrent.ConcurrentHashMap<Call,kotlinx.coroutines.Job>()
@@ -170,12 +173,17 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         }
         throw IOException("Filter rewrite loop was stopped")
     }
-    fun currentPolicy(route: NetworkRoute=NetworkRoute.DEFAULT): NetworkPolicy = if(route==NetworkRoute.TOR)torPolicy.get()else policy.get()
+    internal fun currentSession(route:NetworkRoute=NetworkRoute.DEFAULT):NetworkSession=if(route==NetworkRoute.TOR)torPolicy.get()else policy.get()
+    fun currentPolicy(route: NetworkRoute=NetworkRoute.DEFAULT): NetworkPolicy = currentSession(route).policy
     suspend fun prepare(route: NetworkRoute=NetworkRoute.DEFAULT)=withContext(Dispatchers.IO){client(route);Unit}
     @Synchronized fun configure(next: NetworkPolicy) {
-        if(next.tor)torPolicy.set(next)
-        if(policy.getAndSet(next)!=next) {
-            val previous=clients.values.toList();clients.clear()
+        val torChanged=next.tor&&torPolicy.get().policy!=next
+        val contentChanged=policy.get().policy!=next
+        if(torChanged)torPolicy.set(NetworkSession(next))
+        if(contentChanged)policy.set(NetworkSession(next))
+        if(torChanged||contentChanged) {
+            val stale=clients.keys.filter {it.first==NetworkRoute.DEFAULT&&contentChanged||it.first==NetworkRoute.TOR&&torChanged}
+            val previous=stale.mapNotNull(clients::remove)
             // TLS close-notify can write to the socket. Android forbids that on
             // the UI thread; new requests already see the new policy above.
             if(previous.isNotEmpty())cleanup.execute {previous.forEach {it.dispatcher.cancelAll();it.connectionPool.evictAll()}}
@@ -184,14 +192,15 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     /** Updating the search connection never changes direct content/media traffic. */
     @Synchronized fun configureTor(next: NetworkPolicy) {
         require(next.tor)
-        if(torPolicy.getAndSet(next)==next)return
-        if(policy.get().tor)policy.set(next)
+        if(torPolicy.get().policy==next)return
+        torPolicy.set(NetworkSession(next))
+        if(policy.get().policy.tor)policy.set(NetworkSession(next))
         val stale=clients.filterKeys {it.second.tor&&it.second!=next}.values.toList()
         clients.keys.removeAll {it.second.tor&&it.second!=next}
         if(stale.isNotEmpty())cleanup.execute {stale.forEach {it.dispatcher.cancelAll();it.connectionPool.evictAll()}}
     }
     @Synchronized fun client(route: NetworkRoute=NetworkRoute.DEFAULT): OkHttpClient {
-        val snapshot=currentPolicy(route)
+        val session=currentSession(route);val snapshot=session.policy
         if(snapshot.tor && (!snapshot.ready || snapshot.socksPort !in 1..65535)) throw IOException("Tor is connecting. Requests are paused.")
         return clients.getOrPut(route to snapshot) {
             OkHttpClient.Builder().proxy(if(snapshot.tor) Proxy(Proxy.Type.SOCKS,InetSocketAddress("127.0.0.1",snapshot.socksPort)) else Proxy.NO_PROXY)
@@ -222,6 +231,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                 .cookieJar(CookieJar.NO_COOKIES).followRedirects(false).followSslRedirects(false)
                 .connectTimeout(if(snapshot.tor) 30 else 8,TimeUnit.SECONDS).readTimeout(if(snapshot.tor) 45 else 15,TimeUnit.SECONDS)
                 .addNetworkInterceptor { chain ->
+                    if(currentSession(route)!==session||chain.request().tag(NetworkSession::class.java)?.let {it!==session}==true)throw IOException("Network mode changed; request cancelled")
                     // Count actual HTTP exchanges, including transport retries,
                     // before writing headers. ProtocolException is not retried.
                     chain.request().tag(TextReadBudget::class.java)?.request()
@@ -234,16 +244,19 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                     val type=context?.type ?: request.header("X-AntiSocial-Type") ?: "xmlhttprequest"
                     if(request.tag(AllowedOrigins::class.java)==null)requestOrigins(source)?.let {request=request.newBuilder().tag(AllowedOrigins::class.java,it).build()}
                     repeat(9) {
-                        if(currentPolicy(route)!=snapshot)throw IOException("Network mode changed; request cancelled")
+                        if(currentSession(route)!==session||request.tag(NetworkSession::class.java)?.let {it!==session}==true)throw IOException("Network mode changed; request cancelled")
                         val destination=filteredDestination(request,source,type)
+                        if(currentSession(route)!==session)throw IOException("Network mode changed; request cancelled")
                         if(searchHost(destination.host)&&!snapshot.tor)throw IOException("Search engines require Tor; the direct redirect was stopped")
                         val bookmark=request.tag(PageBookmark::class.java)
                         if(bookmark!=null&&(destination.host!=bookmark.scope.host||destination.port!=bookmark.scope.port||destination.scheme!=bookmark.scope.scheme||bookmark.value!=null&&destination.encodedPath.trimEnd('/')!=bookmark.scope.encodedPath.trimEnd('/')))throw IOException("Pagination bookmark left its source endpoint")
                         request=request.newBuilder().url(destination).removeHeader("X-AntiSocial-Source").removeHeader("X-AntiSocial-Type").removeHeader("Cookie").removeHeader("Authorization").removeHeader("X-PCA-Provider").removeHeader("x-api-key").removeHeader("anthropic-version").removeHeader("anthropic-workspace-id").header("User-Agent",request.header("User-Agent")?.takeIf {request.tag(PublicExtractor::class.java)!=null&&it.length<=512} ?: "AntiSocial/0.31 (public content reader)").apply {
+                            if(destination!=request.url){removeHeader("If-None-Match");removeHeader("If-Modified-Since")}
                             bookmark?.value?.let {header("Cookie","bookmark=$it")}
                             request.tag(ServiceScope::class.java)?.let {service->service.token?.let {header("Authorization","Bearer $it")};service.provider?.let {header("X-PCA-Provider",it)};if(service.anthropic)header("anthropic-version","2023-06-01");service.workspaceId?.let {header("anthropic-workspace-id",it)}}
                         }.build()
                         val response=chain.proceed(request)
+                        if(currentSession(route)!==session){response.close();throw IOException("Network mode changed; response discarded")}
                         if(response.code !in setOf(301,302,303,307,308)) return@addInterceptor response
                         if(request.tag(ServiceScope::class.java)!=null){response.close();throw IOException("The service redirected; the request was not repeated")}
                         val code=response.code
@@ -256,16 +269,28 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                         if(next==null)throw IOException("Invalid redirect")
                         if(request.body!=null&&(next.host!=request.url.host||next.port!=request.url.port||next.scheme!=request.url.scheme))throw IOException("Form redirect left the selected source")
                         // Redirects are a new request: clean/filter them before DNS or a socket.
-                        request=request.newBuilder().url(next).apply {if(code==303&&request.method!="HEAD"||code in setOf(301,302)&&request.method=="POST")get()}.build()
+                        request=request.newBuilder().url(next).removeHeader("If-None-Match").removeHeader("If-Modified-Since").apply {if(code==303&&request.method!="HEAD"||code in setOf(301,302)&&request.method=="POST")get()}.build()
                     }
                     throw IOException("Redirect loop was stopped")
                 }.build()
         }
     }
-    private suspend fun <T> execute(request: Request,networkTimeoutMs: Long?=null,drained: kotlinx.coroutines.CompletableDeferred<Unit>?=null,read: (Response)->T): T =
-        if(kotlinx.coroutines.currentCoroutineContext()[ContextTraffic]!=null)contextPermits.withPermit {executeNow(request,networkTimeoutMs,drained,read)}else executeNow(request,networkTimeoutMs,drained,read)
+    private suspend fun <T> execute(request: Request,networkTimeoutMs: Long?=null,drained: kotlinx.coroutines.CompletableDeferred<Unit>?=null,read: (Response)->T): T {
+        // Bind before waiting for admission. A queued request must not silently
+        // move to a different privacy session, even direct -> Tor -> direct.
+        val bound=if(request.tag(NetworkSession::class.java)!=null)request else request.newBuilder().tag(NetworkSession::class.java,currentSession(routeFor(request))).build()
+        return if(kotlinx.coroutines.currentCoroutineContext()[ContextTraffic]!=null)contextPermits.withPermit {executeNow(bound,networkTimeoutMs,drained,read)}else executeNow(bound,networkTimeoutMs,drained,read)
+    }
     private suspend fun <T> executeNow(request: Request,networkTimeoutMs: Long?,drained: kotlinx.coroutines.CompletableDeferred<Unit>?,read: (Response)->T): T=suspendCancellableCoroutine {continuation->
+        val session=request.tag(NetworkSession::class.java)
+        fun failed(error:Exception) {
+            // A user changing mode is cancellation, not evidence that this
+            // source is down. This also covers direct -> Tor -> direct.
+            val failure=if(session!==currentSession(routeFor(request)))kotlinx.coroutines.CancellationException("Network mode changed").also {it.initCause(error)}else error
+            if(continuation.isActive)continuation.resumeWithException(failure)
+        }
         try {
+        if(session!==currentSession(routeFor(request)))throw IOException("Network mode changed; request cancelled")
         validate(request.url,request);restrict(request,request.url)
         val deferred=continuation.context[DeferredTraffic]
         val tagged=if(deferred==null)request else request.newBuilder().tag(DeferredTraffic::class.java,deferred).build()
@@ -288,13 +313,18 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         if(networkTimeoutMs!=null)call.timeout().timeout(networkTimeoutMs,TimeUnit.MILLISECONDS)
         continuation.invokeOnCancellation {call.cancel()}
         call.enqueue(object: Callback {
-            override fun onFailure(call: Call,e: IOException){try {if(continuation.isActive)continuation.resumeWithException(e)}finally {drained?.complete(Unit)}}
+            override fun onFailure(call: Call,e: IOException){try {failed(e)}finally {drained?.complete(Unit)}}
             override fun onResponse(call: Call,response: Response){
                 if(!continuation.isActive){response.close();drained?.complete(Unit);return}
-                try {val value=response.use(read);if(continuation.isActive)continuation.resume(value)}catch(e: Exception){response.close();if(continuation.isActive)continuation.resumeWithException(e)}finally {drained?.complete(Unit)}
+                try {
+                    if(session!==currentSession(routeFor(request)))throw IOException("Network mode changed; response discarded")
+                    val value=response.use(read)
+                    if(session!==currentSession(routeFor(request)))throw IOException("Network mode changed; response discarded")
+                    if(continuation.isActive)continuation.resume(value)
+                }catch(e: Exception){response.close();failed(e)}finally {drained?.complete(Unit)}
             }
         })
-        }catch(e: Exception){drained?.complete(Unit);if(continuation.isActive)continuation.resumeWithException(e)}
+        }catch(e: Exception){drained?.complete(Unit);failed(e)}
     }
     /** Establish a reusable connection without a query or response body. This
      * returns HTTP status only, never evidence that a source has usable content. */
@@ -303,12 +333,12 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         require(request.url.query==null){"Connection preparation must not contain a query"}
         execute(request,10_000){it.code}
     }
-    suspend fun text(url: String, sourceUrl: String=url, type: String="xmlhttprequest", maxBytes: Long=4L*1024*1024, headers: Map<String,String> = emptyMap(), route: NetworkRoute=NetworkRoute.DEFAULT,allowedOrigins: Set<String>?=null,purpose:FetchPurpose=FetchPurpose.API): Payload = withContext(Dispatchers.IO) {
+    suspend fun text(url: String, sourceUrl: String=url, type: String="xmlhttprequest", maxBytes: Long=4L*1024*1024, headers: Map<String,String> = emptyMap(), route: NetworkRoute=NetworkRoute.DEFAULT,allowedOrigins: Set<String>?=null,purpose:FetchPurpose=FetchPurpose.API,expectedSession:NetworkSession?=null): Payload = withContext(Dispatchers.IO) {
         val pinned=allowedOrigins?.let {values->
             require(values.isNotEmpty()&&values.size<=4){"Invalid archive origin scope"}
             AllowedOrigins(values.map {value->val parsed=value.toHttpUrlOrNull() ?: error("Invalid archive origin");require(parsed.isHttps||allowHttpForTests);origin(parsed)}.toSet(),if(values.any {searchHost(it.toHttpUrlOrNull()?.host.orEmpty())})"search source"else "archive")
         } ?: requestOrigins(sourceUrl)
-        val request=Request.Builder().url(url).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,pinned).tag(NetworkRoute::class.java,route).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).apply { headers.forEach { (k,v)->header(k,v) } }.build()
+        val request=Request.Builder().url(url).tag(NetworkSession::class.java,expectedSession).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,pinned).tag(NetworkRoute::class.java,route).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).apply { headers.forEach { (k,v)->header(k,v) } }.build()
         readText(request,maxBytes)
     }
     /** NewPipe's synchronous parsers receive bounded documents through this
@@ -320,7 +350,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         val request=Request.Builder().url(parsed).tag(AllowedOrigins::class.java,pinned).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).build()
         readText(request,maxBytes)
     }
-    suspend fun extractorDocument(url: String,method: String="GET",data: ByteArray?=null,headers: Map<String,String> = emptyMap(),sourceUrl: String=url,sameOrigin: Boolean=false,maxBytes:Long=8L*1024*1024,route:NetworkRoute=NetworkRoute.DEFAULT,purpose:FetchPurpose=FetchPurpose.API): GatewayDocument=withContext(Dispatchers.IO) {
+    suspend fun extractorDocument(url: String,method: String="GET",data: ByteArray?=null,headers: Map<String,String> = emptyMap(),sourceUrl: String=url,sameOrigin: Boolean=false,maxBytes:Long=8L*1024*1024,route:NetworkRoute=NetworkRoute.DEFAULT,purpose:FetchPurpose=FetchPurpose.API,expectedSession:NetworkSession?=null): GatewayDocument=withContext(Dispatchers.IO) {
         require(maxBytes in 1..8L*1024*1024){"Invalid extraction allowance"}
         require(method in setOf("GET","HEAD","POST")) {"Unsupported extraction method"}
         require(data==null||data.size<=1024*1024) {"Extraction request exceeds its size limit"}
@@ -328,7 +358,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         require(method!="POST"||content.substringBefore(';') in setOf("application/json","application/x-www-form-urlencoded")) {"Unsupported extraction request"}
         val budget=kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]
         val pinned=if(sameOrigin)AllowedOrigins(setOf(origin(url.toHttpUrlOrNull() ?: error("Invalid extraction URL"))),"context")else requestOrigins(sourceUrl)
-        val request=Request.Builder().url(url).tag(NetworkRoute::class.java,route).tag(AllowedOrigins::class.java,pinned).tag(FetchPurpose::class.java,purpose).tag(PublicExtractor::class.java,PublicExtractor()).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).tag(TextReadBudget::class.java,budget).apply {
+        val request=Request.Builder().url(url).tag(NetworkSession::class.java,expectedSession).tag(NetworkRoute::class.java,route).tag(AllowedOrigins::class.java,pinned).tag(FetchPurpose::class.java,purpose).tag(PublicExtractor::class.java,PublicExtractor()).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).tag(TextReadBudget::class.java,budget).apply {
             headers.forEach {(key,value)->if(!key.equals("Cookie",true)&&!key.equals("Authorization",true))header(key,value)}
             method(method,if(method=="POST")(data ?: ByteArray(0)).toRequestBody(content.toMediaType())else null)
         }.build()
@@ -339,7 +369,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             if(body!=null&&budget!=null&&body.contentLength()>budget.available())throw IOException("Response exceeds the health-check budget")
             val output=java.io.ByteArrayOutputStream()
             body?.byteStream()?.use {stream->val chunk=ByteArray(8192);while(true){val n=stream.read(chunk);if(n<0)break;if(output.size()+n>max)throw IOException("Extraction response exceeds its size limit");budget?.received(n);output.write(chunk,0,n)}}
-            GatewayDocument(response.code,response.message,response.headers.toMultimap().filterKeys {!it.equals("Set-Cookie",true)},output.toString("UTF-8"),response.request.url.toString())
+            GatewayDocument(response.code,response.message,response.headers.toMultimap().filterKeys {!it.equals("Set-Cookie",true)},output.toString("UTF-8"),response.request.url.toString(),response.request.header("If-None-Match")!=null||response.request.header("If-Modified-Since")!=null)
         }
     }
     /** Pinless uses one anonymous cursor cookie instead of putting the cursor in

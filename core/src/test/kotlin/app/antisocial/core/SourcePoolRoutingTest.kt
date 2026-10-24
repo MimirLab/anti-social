@@ -17,6 +17,22 @@ class SourcePoolRoutingTest {
     }
     private fun gateway()=NetworkGateway(cleaner,object: RequestFilter {override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false)},true)
     private fun post(body: String)="""<div class="timeline-item"><a class="tweet-link" href="https://x.com/NASA/status/123"></a><div class="tweet-content">$body</div><span class="tweet-date"><a title="Oct 16, 2026 · 12:00 PM UTC"></a></span></div>"""
+    @Test fun aModeRoundTripCancelsTheProbeWithoutTrainingAnOutage():Unit=runBlocking {
+        MockWebServer().use {server->server.start();server.enqueue(MockResponse().setBody(post("Public content")))
+            lateinit var gateway:NetworkGateway
+            var changed=false
+            gateway=NetworkGateway(cleaner,object:RequestFilter {
+                override fun check(url:String,sourceUrl:String,type:String):FilterDecision {
+                    if(!changed){changed=true;gateway.configure(NetworkPolicy(tor=true));gateway.configure(NetworkPolicy())}
+                    return FilterDecision(false)
+                }
+            },true)
+            val local=routes(server.url("/").toString().trimEnd('/'));val pool=SourcePool(gateway,local)
+            assertThrows(kotlinx.coroutines.CancellationException::class.java){runBlocking {pool.probe(local.sources.single(),Capability.TIMELINE,true)}}
+            assertTrue(pool.results(Platform.X).isEmpty());assertTrue(pool.learning.snapshot().isEmpty())
+            assertEquals(0,server.requestCount)
+        }
+    }
     @Test fun aValidatedEmptyFacebookSearchPageCanAdvanceWithoutBeingMarkedHealthy(): Unit=runBlocking {
         MockWebServer().use {server->
             server.start()

@@ -13,14 +13,19 @@ class PublicArticleResolverTest {
     private data class Call(val url:String,val headers:Map<String,String> = emptyMap(),val head:Boolean=false,val strict:Boolean=true)
     private class Transport:ArticleTransport {
         override var originalAllowed=true
-        override var mode=NetworkPolicy()
+        override var session=NetworkSession(NetworkPolicy())
+        override var mode:NetworkPolicy
+            get()=session.policy
+            set(value){if(value!=session.policy)session=NetworkSession(value)}
         val calls=mutableListOf<Call>()
+        var sentConditionals=true
         var documents:(Call)->GatewayDocument={GatewayDocument(503,"unavailable",emptyMap(),"",it.url)}
         var indexes:(String)->String={if(it.startsWith("https://web.archive.org"))"[[\"timestamp\",\"original\"]]"else "<title>No results</title>"}
-        override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose):GatewayDocument {
-            val c=Call(url,headers,head,strict);calls+=c;return documents(c)
+        override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose,expectedSession:NetworkSession):GatewayDocument {
+            assertSame(expectedSession,session)
+            val c=Call(url,headers,head,strict);calls+=c;return documents(c).copy(conditional=headers.isNotEmpty()&&sentConditionals)
         }
-        override suspend fun index(url:String,source:String,origins:Set<String>):Payload {calls+=Call(url);return Payload(indexes(url),url,"application/json",200)}
+        override suspend fun index(url:String,source:String,origins:Set<String>,expectedSession:NetworkSession):Payload {assertSame(expectedSession,session);calls+=Call(url);return Payload(indexes(url),url,"application/json",200)}
     }
     private fun body(url:String,text:String=article,headers:Map<String,List<String>> = emptyMap())=GatewayDocument(200,"OK",mapOf("Content-Type" to listOf("text/html"))+headers,text,url)
     private fun resolver(t:Transport)=PublicArticleResolver(t,clock={java.time.Instant.parse("2026-10-20T00:00:00Z").toEpochMilli()})
@@ -70,6 +75,86 @@ class PublicArticleResolverTest {
         assertTrue(r.conditional(url,url,ContextArticleValidators(first.document.etag),first.document.finalUrl) is ContextArticleFetch.NotModified)
         t.calls.clear();t.documents={c->assertTrue(c.headers.isEmpty());body(c.url)}
         resolver(t).conditional(url,url,ContextArticleValidators("\"private-edition\""),"https://another.example/old")
+    }
+    @Test fun retainedValidatorsFromAnEarlierResolverAreNotSentByANewSession():Unit=runBlocking {
+        val t=Transport();val url="https://publisher.example/report"
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("\"reader-identifier\"")))}
+        val first=(resolver(t).conditional(url,url) as ContextArticleFetch.Ready).document
+        t.calls.clear();t.documents={c->assertTrue("An on-disk ETag is not a current-session validator",c.headers.isEmpty());body(c.url)}
+        assertTrue(resolver(t).conditional(url,url,ContextArticleValidators(first.etag),first.finalUrl) is ContextArticleFetch.Ready)
+    }
+    @Test fun changingToTorNeverReplaysTheEarlierDirectValidator():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val url="https://publisher.example/report"
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("\"direct-identifier\"")))}
+        val first=(r.conditional(url,url) as ContextArticleFetch.Ready).document
+        t.mode=NetworkPolicy(tor=true,socksPort=9050,ready=true);t.calls.clear()
+        t.documents={c->assertTrue("Tor must not carry a retained identifying validator",c.headers.isEmpty());body(c.url)}
+        assertTrue(r.conditional(url,url,ContextArticleValidators(first.etag),first.finalUrl) is ContextArticleFetch.Ready)
+    }
+    @Test fun returningToTheSamePolicyDoesNotReviveAnEarlierValidator():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val url="https://publisher.example/report"
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("\"old-session\"")))}
+        val first=(r.conditional(url,url) as ContextArticleFetch.Ready).document
+        t.mode=NetworkPolicy(tor=true);t.mode=NetworkPolicy()
+        t.documents={c->assertTrue(c.headers.isEmpty());body(c.url)}
+        assertTrue(r.conditional(url,url,ContextArticleValidators(first.etag),first.finalUrl) is ContextArticleFetch.Ready)
+    }
+    @Test fun torDoesNotRetainOrReplayValidatorsEvenWithinTheSamePolicy():Unit=runBlocking {
+        val t=Transport();t.mode=NetworkPolicy(tor=true,socksPort=9050,ready=true)
+        t.documents={c->assertTrue(c.headers.isEmpty());body(c.url,headers=mapOf("ETag" to listOf("\"tor-circuit-identifier\""),"Last-Modified" to listOf("Sun, 18 Oct 2026 12:30:00 GMT")))}
+        val r=resolver(t);val url="https://publisher.example/report"
+        repeat(2) {
+            val document=(r.conditional(url,url,ContextArticleValidators("\"old\""),url) as ContextArticleFetch.Ready).document
+            assertNull(document.etag);assertNull(document.lastModified)
+        }
+    }
+    @Test fun unchangedResponsesCannotExtendAValidatorsAbsoluteLifetime():Unit=runBlocking {
+        var now=1_792_454_400_000L
+        val t=Transport();val r=PublicArticleResolver(t,clock={now});val url="https://publisher.example/report"
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("W/\"v1\"")))}
+        val first=(r.conditional(url,url) as ContextArticleFetch.Ready).document
+        now+=20*60_000L;t.documents={c->assertEquals(first.etag,c.headers["If-None-Match"]);GatewayDocument(304,"Not modified",emptyMap(),"",c.url)}
+        assertTrue(r.conditional(url,url,ContextArticleValidators(first.etag),url) is ContextArticleFetch.NotModified)
+        now+=11*60_000L;t.documents={c->assertTrue("A304 must not renew an identifier indefinitely",c.headers.isEmpty());body(c.url)}
+        assertTrue(r.conditional(url,url,ContextArticleValidators(first.etag),url) is ContextArticleFetch.Ready)
+    }
+    @Test fun cacheClearAndMismatchedValidatorPairsRequireAFullRead():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val url="https://publisher.example/report"
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("\"v1\""),"Last-Modified" to listOf("Sun, 18 Oct 2026 12:30:00 GMT")))}
+        val first=(r.conditional(url,url) as ContextArticleFetch.Ready).document
+        t.documents={c->assertTrue(c.headers.isEmpty());body(c.url,headers=mapOf("ETag" to listOf("\"v1\""),"Last-Modified" to listOf("Sun, 18 Oct 2026 12:30:00 GMT")))}
+        assertTrue(r.conditional(url,url,ContextArticleValidators(first.etag,"A different date"),url) is ContextArticleFetch.Ready)
+        r.clearValidationMemory()
+        assertTrue(r.conditional(url,url,ContextArticleValidators(first.etag,first.lastModified),url) is ContextArticleFetch.Ready)
+    }
+    @Test fun anUnconditional304CannotCertifyTheRetainedDocument():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val url="https://publisher.example/report"
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("\"v1\"")))}
+        val first=(r.conditional(url,url) as ContextArticleFetch.Ready).document
+        t.sentConditionals=false;t.documents={GatewayDocument(304,"Not modified",emptyMap(),"",it.url)}
+        assertThrows(SourceFailure::class.java){runBlocking {r.conditional(url,url,ContextArticleValidators(first.etag),url)}}
+    }
+    @Test fun aModeRoundTripDuringExtractionCancelsTheResult():Unit=runBlocking {
+        val t=Transport();val url="https://publisher.example/report"
+        t.documents={c->t.mode=NetworkPolicy(tor=true);t.mode=NetworkPolicy();body(c.url)}
+        assertThrows(CancellationException::class.java){runBlocking {resolver(t).conditional(url,url)}}
+        assertEquals(1,t.calls.size)
+    }
+    @Test fun validatorMemoryEvictsOldDocumentsBeforeItCanGrowWithoutBound():Unit=runBlocking {
+        val t=Transport();val r=resolver(t)
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf("\"v1\"")))}
+        repeat(129){i->val url="https://publisher.example/report-$i";r.conditional(url,url)}
+        val old="https://publisher.example/report-0"
+        t.documents={c->assertTrue(c.headers.isEmpty());body(c.url)}
+        assertTrue(r.conditional(old,old,ContextArticleValidators("\"v1\""),old) is ContextArticleFetch.Ready)
+    }
+    @Test fun longAddressesAndTagsAlsoRespectTheByteBound():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val tag="\""+"a".repeat(2038)+"\""
+        t.documents={body(it.url,headers=mapOf("ETag" to listOf(tag)))}
+        val root="https://publisher.example/"+"b".repeat(3400)
+        repeat(30){i->r.conditional("$root/$i","$root/$i")}
+        t.documents={c->assertTrue(c.headers.isEmpty());body(c.url)}
+        assertTrue(r.conditional("$root/0","$root/0",ContextArticleValidators(tag),"$root/0") is ContextArticleFetch.Ready)
     }
     @Test fun mediumAttemptsAreFiniteAndUseMoreThanOneFrontendFamily():Unit=runBlocking {
         val t=Transport();val url="https://medium.com/@author/report-123456abcdef"

@@ -9,10 +9,69 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicInteger
+import okhttp3.Request
 
 class PublicGatewayTest {
     private val cleaner=UrlCleaner(JsonParser.parseReader(javaClass.getResourceAsStream("/clean-links.json")!!.reader()).asJsonObject)
     private val permit=object: RequestFilter {override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false)}
+    @Test fun redirectedDocumentsDoNotForwardValidatorsToAnotherResource():Unit=runBlocking {
+        MockWebServer().use {server->server.start()
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location","/another-resource"))
+            server.enqueue(MockResponse().setBody("Public replacement"))
+            val gateway=NetworkGateway(cleaner,permit,true)
+            gateway.extractorDocument(server.url("/first-resource").toString(),headers=mapOf("If-None-Match" to "\"private-tag\"","If-Modified-Since" to "Sun, 18 Oct 2026 12:30:00 GMT"))
+            val first=server.takeRequest();val second=server.takeRequest()
+            assertEquals("\"private-tag\"",first.getHeader("If-None-Match"))
+            assertNull("A redirect target has not issued this ETag",second.getHeader("If-None-Match"))
+            assertNull(second.getHeader("If-Modified-Since"))
+        }
+    }
+    @Test fun aFilterRewriteDropsValidatorsBeforeTheOnlyHttpExchange():Unit=runBlocking {
+        MockWebServer().use {server->server.start();server.enqueue(MockResponse().setBody("Read the actual destination"))
+            val gateway=NetworkGateway(cleaner,object:RequestFilter {
+                override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false,rewrittenUrl=server.url("/new-resource").toString().takeIf {url.contains("/old-resource")})
+            },true)
+            val response=gateway.extractorDocument(server.url("/old-resource").toString(),headers=mapOf("If-None-Match" to "\"old\""))
+            val request=server.takeRequest();assertEquals("/new-resource",request.path);assertNull(request.getHeader("If-None-Match"));assertFalse(response.conditional)
+            assertEquals(1,server.requestCount)
+        }
+    }
+    @Test fun aRedirectBackToTheOriginalUriStillReportsAnUnconditionalResponse():Unit=runBlocking {
+        MockWebServer().use {server->server.start()
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location","/middle"))
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location","/original"))
+            server.enqueue(MockResponse().setResponseCode(304))
+            val gateway=NetworkGateway(cleaner,permit,true)
+            val response=gateway.extractorDocument(server.url("/original").toString(),headers=mapOf("If-None-Match" to "\"old\""))
+            assertEquals(304,response.status);assertFalse(response.conditional)
+            assertNotNull(server.takeRequest().getHeader("If-None-Match"))
+            repeat(2){assertNull(server.takeRequest().getHeader("If-None-Match"))}
+        }
+    }
+    @Test fun staleClientsAndExplicitSessionsCannotReviveAfterAModeRoundTrip():Unit=runBlocking {
+        MockWebServer().use {server->server.start();server.enqueue(MockResponse().setBody("Fresh session"))
+            val gateway=NetworkGateway(cleaner,permit,true);val before=gateway.currentSession();val client=gateway.client()
+            gateway.configure(NetworkPolicy());assertSame(before,gateway.currentSession())
+            gateway.configureTor(NetworkPolicy(tor=true,socksPort=9050,ready=true));assertSame("Search Tor readiness must not invalidate direct content",before,gateway.currentSession())
+            gateway.configure(NetworkPolicy(tor=true));gateway.configure(NetworkPolicy())
+            assertNotSame(before,gateway.currentSession());val url=server.url("/article").toString()
+            assertThrows(IOException::class.java){client.newCall(Request.Builder().url(url).build()).execute()}
+            assertThrows(kotlinx.coroutines.CancellationException::class.java){runBlocking {gateway.extractorDocument(url,expectedSession=before)}}
+            assertEquals(0,server.requestCount)
+            assertEquals("Fresh session",gateway.text(url).text);assertEquals(1,server.requestCount)
+        }
+    }
+    @Test fun switchingContentModeRetainsAnUnchangedWarmTorSearchClient() {
+        val gateway=NetworkGateway(cleaner,permit,true);val tor=NetworkPolicy(tor=true,socksPort=9050,ready=true)
+        gateway.configureTor(tor)
+        val session=gateway.currentSession(NetworkRoute.TOR);val warm=gateway.client(NetworkRoute.TOR)
+        gateway.configure(tor)
+        assertSame(session,gateway.currentSession(NetworkRoute.TOR));assertSame(warm,gateway.client(NetworkRoute.TOR))
+        gateway.configure(NetworkPolicy())
+        assertSame(session,gateway.currentSession(NetworkRoute.TOR));assertSame(warm,gateway.client(NetworkRoute.TOR))
+        gateway.configureTor(tor.copy(socksPort=9051))
+        assertNotSame(session,gateway.currentSession(NetworkRoute.TOR));assertNotSame(warm,gateway.client(NetworkRoute.TOR))
+    }
     @Test fun publicJsonAndGraphqlFormCarryOnlyExplicitReadDataAndNoAccountCredentials(): Unit=runBlocking {
         MockWebServer().use {server->server.start();repeat(2){server.enqueue(MockResponse().setBody("{}"))}
             val gateway=NetworkGateway(cleaner,permit,true);val fields=JsonObject().apply {addProperty("username","alice");addProperty("limit",20)}

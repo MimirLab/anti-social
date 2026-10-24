@@ -66,13 +66,17 @@ class ContextEvidenceReader(private val gateway: NetworkGateway,private val rout
     private data class Cached(val at: Long,val value: ContextVideoMetadata)
     private val metadata=ConcurrentHashMap<String,Cached>()
     private data class ArticleMemo(val at:Long,val value:ContextArticleEvidence)
-    private val articleMemo=linkedMapOf<String,ArticleMemo>()
-    @Synchronized fun clearArticleMemory(){articleMemo.clear()}
-    @Synchronized private fun recentArticle(key:String):ContextArticleEvidence? {
+    private data class ArticleMemoKey(val session:NetworkSession,val originals:Boolean,val purpose:FetchPurpose,val url:String)
+    private val articleMemo=linkedMapOf<ArticleMemoKey,ArticleMemo>()
+    private var articleGeneration=0L
+    @Synchronized fun clearArticleMemory(){articleGeneration++;articleMemo.clear();articles.clearValidationMemory()}
+    @Synchronized private fun articleGeneration()=articleGeneration
+    @Synchronized private fun recentArticle(key:ArticleMemoKey):ContextArticleEvidence? {
         articleMemo.entries.removeAll {clock()-it.value.at !in 0..15*60_000L}
         return articleMemo[key]?.value
     }
-    @Synchronized private fun rememberArticle(key:String,value:ContextArticleEvidence) {
+    @Synchronized private fun rememberArticle(key:ArticleMemoKey,value:ContextArticleEvidence,generation:Long) {
+        if(articleGeneration!=generation||gateway.currentSession()!==key.session)return
         articleMemo.remove(key);articleMemo[key]=ArticleMemo(clock(),value)
         while(articleMemo.size>8||articleMemo.values.sumOf {it.value.text.length.toLong()}>1024*1024)articleMemo.remove(articleMemo.keys.first())
     }
@@ -83,10 +87,10 @@ class ContextEvidenceReader(private val gateway: NetworkGateway,private val rout
     }
     suspend fun articleConditional(url:String,sourceUrl:String,validators:ContextArticleValidators,knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):ContextArticleFetch=
         withContext(Dispatchers.IO){
-            val policy=gateway.currentPolicy();val key="$policy|${gateway.originalFallback}|$purpose|$url"
+            val session=gateway.currentSession();val generation=articleGeneration();val key=ArticleMemoKey(session,gateway.originalFallback,purpose,url)
             if(validators.etag==null&&validators.lastModified==null&&knownRetrieval==null)recentArticle(key)?.let {return@withContext ContextArticleFetch.Ready(it)}
             articles.conditional(url,sourceUrl,validators,knownRetrieval,purpose).also {result->
-                if(result is ContextArticleFetch.Ready&&gateway.currentPolicy()==policy)rememberArticle(key,result.document)
+                if(result is ContextArticleFetch.Ready)rememberArticle(key,result.document,generation)
             }
         }
     suspend fun captions(videoUrl: String,originalFallback: Boolean,preferredLanguages: List<String> = listOf("en"),allowAudio: Boolean=false): ContextCaptionResult {

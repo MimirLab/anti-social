@@ -24,9 +24,13 @@ class ContentSandboxTest {
     private lateinit var directory:File
     @Before fun prepare() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
-        directory=File(context.cacheDir,"sandbox-fixture-${UUID.randomUUID()}").apply {mkdirs()};sandbox=ContentSandbox(context)
+        directory=File(context.cacheDir,"sandbox-fixture-${UUID.randomUUID()}").apply {mkdirs()}
+        // A named Android service has one process. A private controller's STOP
+        // also kills a warm app-owned binding. Use the production single owner
+        // so a previous reader/image task cannot race this fixture's teardown.
+        sandbox=(context.applicationContext as AntiSocialApplication).repo.contentSandbox
     }
-    @After fun cleanup() {if(::sandbox.isInitialized)runBlocking {sandbox.close()};if(::directory.isInitialized)directory.deleteRecursively()}
+    @After fun cleanup() {if(::directory.isInitialized)directory.deleteRecursively()}
     private fun image(format:Bitmap.CompressFormat=Bitmap.CompressFormat.PNG):File {
         val file=File(directory,"image-${UUID.randomUUID()}")
         val bitmap=Bitmap.createBitmap(1537,791,Bitmap.Config.ARGB_8888)
@@ -191,6 +195,6 @@ class ContentSandboxTest {
         suspend fun isolated(){val start=SystemClock.elapsedRealtimeNanos();val bitmap=sandbox.image(file,512);times+=(SystemClock.elapsedRealtimeNanos()-start)/1000;assertEquals(384,bitmap.width);bitmap.recycle()}
         repeat(13){i->if(i%2==0){original();isolated()}else {isolated();original()}}
         val output=File(requireNotNull(context.getExternalFilesDir("validation")),"sandbox").apply {mkdirs()}
-        File(output,"decode-timings.json").writeText(com.google.gson.Gson().toJson(mapOf("unit" to "microseconds","cold" to times.first(),"warm" to times.drop(1),"baseline" to baseline.drop(1))))
+        File(output,"decode-timings.json").writeText(com.google.gson.Gson().toJson(mapOf("unit" to "microseconds","firstRead" to times.first(),"workerMayAlreadyBeWarm" to true,"warm" to times.drop(1),"baseline" to baseline.drop(1))))
     }
 }

@@ -1,5 +1,39 @@
 # Release qualification
 
+## 0.38.5 article privacy sessions and warm routing lanes
+
+The final full JVM suite covered **1,911 cases, zero failures/errors and one
+optional weight-dependent skip**. Debug, release and instrumentation APK assembly
+and release lint passed; existing warnings remain. The final API 35 batch passed
+**41 native checks with one opt-in live-Tor check skipped**, covering actual
+Gateway/sandbox article validation, native reading/cache, parser isolation,
+local-model networking, search/media privacy and route heartbeat state. Native
+structured and archived article screens were inspected.
+
+Three new regressions failed before the validator fix: a fresh resolver replayed
+a stored tag, changing to Tor replayed a direct tag, and a redirect forwarded its
+old resource’s validators. Direct same-session 304 validation remains working.
+Expiry, byte/count bounds, clear-during-extraction, unrequested 304s, changed
+retrievals and policy round trips have explicit checks. A separate source-probe
+regression failed because a mode round trip trained an outage; stale Gateway
+operations now propagate cancellation and leave route health untouched. An
+unchanged warmed Tor search client survives content-mode changes.
+
+An earlier mixed native batch encountered three EOF/dead-Binder failures in the
+worker fixtures. All 15 worker cases passed standalone. The fixtures had created
+another controller for the app’s named worker service and sent process-wide STOP
+when closing it. They now use the same single controller as production and do
+not close an app-owned worker. The full 42-case batch then finished with zero
+failures; UID/permission, malformed input, cancellation, colour/pixel and PDF
+assertions remain intact. First-read timing is explicitly labelled as possibly
+warm. Production parser isolation was unchanged.
+
+[Validator/session design](ARTICLE_VALIDATION.md) records the exact policy and
+limits. [Scientific route research](ARTICLE_ROUTE_RESEARCH.md) records three
+successful public DOI metadata probes and a matching full JATS body. The JATS
+route is not activated in this release. Emulator checks do not qualify physical
+phone performance, live Tor exits or provider-wide availability.
+
 ## 0.38.4 retain completed catch-up pages at the source deadline
 
 The full JVM suite covered **1,892 cases, zero failures/errors and one optional
