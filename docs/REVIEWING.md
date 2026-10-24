@@ -50,12 +50,12 @@ and a search-only Tor client alone does not describe the all-traffic setting.
 | Release/artifact checks | Matching source/tag, signer, APK integrity, preview state preservation and the anonymous permanent download where recorded. |
 | Explicit missing qualification | The named unmeasured behavior, hardware or source remains unmeasured. Its scope does not erase the other evidence. |
 
-For **0.38.13**, the full JVM run covered **2,008 cases**,
+For **0.38.14**, the full JVM run covered **2,029 cases**,
 with zero failures/errors and one optional weight-dependent skip. Its selected
-Android batch covered **56 named checks**: 54 passed and two opt-in live-source/Tor
-checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03813-source-admission-after-transport-startup)
+Android batch covered **67 named checks**: 65 passed and two opt-in live-source/Tor
+checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03814-protected-feed-revalidation-and-parsed-page-reuse)
 describes the exact increment, baseline failures and native screen checks.
-The preceding 0.38.12 batch covered 54 named Android checks, with 52 passes and
+The preceding 0.38.13 batch covered 56 named Android checks, with 54 passes and
 two opt-in skips. Counts from different releases should
 not be combined into a new run or treated as interchangeable coverage.
 
@@ -104,6 +104,32 @@ Report a concrete bypass, missing test or source failure with the affected
 version, path and evidence. Give implemented defenses the same specificity.
 Neither a successful happy path nor a scoped limitation establishes the status
 of the entire application.
+
+## A short review protocol
+
+1. Identify the tag/commit, operation and selected connection mode. Consult
+   [the request matrix](ARCHITECTURE.md#connection-modes-and-app-wide-tor), including
+   the app-wide switch, before describing where traffic can go.
+2. Trace the consumer's **complete eligible plan**: donor routes, PublicPathways,
+   concrete adapters, capability requirements and permitted later tiers. The
+   [route audit](ROUTE_LATENCY.md) records an actual diagnostic that omitted
+   PublicPathways and therefore misrepresented the app; its corrected run is
+   identified explicitly. A research catalogue is not proof of an active route.
+3. Follow a failure, redirect and policy change as well as a successful response.
+   [Contracts across layers](ARCHITECTURE.md#contracts-across-the-layers) distinguish
+   destination protection, transport, containment, freshness and content value.
+4. Match each conclusion to evidence of the same scope: source implementation,
+   named automated check, dated external observation or reported phone use.
+   Keep a proposed risk, a reproduced defect and an unmeasured metric distinct.
+5. State missing qualification precisely. For example, "battery use on this
+   handset was not measured" and "this public comment route was unavailable"
+   communicate useful limits. Labels such as "untested app" or "broken routing"
+   need evidence for the broader claim, including the existing regression and
+   device-use record.
+
+This protocol applies to human and automated reviews. It does not require a
+favorable verdict: a concrete counterexample should revise the relevant claim
+or implementation. The goal is a reproducible assessment of the shipped system.
 
 ## Useful starting points for specific questions
 

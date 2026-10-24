@@ -236,7 +236,7 @@ private class MastodonRssDataAdapter(source: Source,gateway: NetworkGateway,rout
         if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))throw SourceFailure(HealthStatus.UNSUPPORTED,"This RSS route supplies profile posts, not arbitrary posts or comments")
         val canonical=target.canonicalUrl.toHttpUrlOrNull() ?: error("Invalid public profile")
         val username=canonical.pathSegments.lastOrNull().orEmpty().removePrefix("@");require(username.matches(Regex("[A-Za-z0-9_.-]{1,100}"))){"A local public profile is required"}
-        val payload=gateway.text("${origin(target)}/@$username.rss",target.canonicalUrl,maxBytes=1024L*1024)
+        return gateway.feed("${origin(target)}/@$username.rss",target,source,maxBytes=1024L*1024){payload->
         if(!Regex("<rss(?:\\s|>)").containsMatchIn(payload.text))throw SourceFailure(HealthStatus.EMPTY,"The public RSS endpoint returned a shell instead of a feed")
         val provenance=provenance(payload);val page=Extraction.rss(payload.text,target,provenance,routes)
         val channel=Jsoup.parse(payload.text,"",Parser.xmlParser()).selectFirst("rss > channel") ?: throw SourceFailure(HealthStatus.EMPTY,"No public RSS channel returned")
@@ -245,7 +245,8 @@ private class MastodonRssDataAdapter(source: Source,gateway: NetworkGateway,rout
         val avatar=channel.selectFirst("image > url")?.text()?.let {safeUrl(it,target.canonicalUrl)}
         val posts=page.posts.filter {p->val url=p.canonicalUrl.toHttpUrlOrNull();url!=null&&url.host==canonical.host&&url.port==canonical.port&&url.pathSegments.size==2&&url.pathSegments[0]=="@$username"&&url.pathSegments[1].matches(Regex("[A-Za-z0-9_-]{1,160}"))&&(p.body.isNotBlank()||p.media.isNotEmpty())}.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),author=channel.children().firstOrNull {e->e.normalName()=="title"}?.text().orEmpty().ifBlank {username},avatar=avatar,provenance=provenance)}
         val profile=Profile(target,channel.children().firstOrNull {it.normalName()=="title"}?.text().orEmpty().ifBlank {username},channel.children().firstOrNull {it.normalName()=="description"}?.text().orEmpty(),avatar)
-        return usable(Page(chronological(posts),profile=profile,provenance=provenance,notice="Public RSS backup from the selected server. Comments and older-page retrieval are unavailable on this format."))
+        usable(Page(chronological(posts),profile=profile,provenance=provenance,notice="Public RSS backup from the selected server. Comments and older-page retrieval are unavailable on this format."))
+        }
     }
 }
 
@@ -340,7 +341,7 @@ private class PixelfedDataAdapter(source: Source,gateway: NetworkGateway,routes:
         val root=origin(target);val username=target.canonicalUrl.toHttpUrlOrNull()?.pathSegments?.lastOrNull().orEmpty().removePrefix("@");require(username.matches(Regex("[A-Za-z0-9_.-]{1,100}")))
         val mark=unbookmark(cursor,source,target,"atom");val url=if(mark==null)"$root/users/$username.atom"else {
             val next=mark.token.toHttpUrlOrNull();val selected=root.toHttpUrlOrNull();require(next!=null&&selected!=null&&next.host==selected.host&&next.port==selected.port&&next.scheme==selected.scheme&&next.encodedPath=="/users/$username.atom"){"Feed pagination left its selected source"};next.toString()}
-        val payload=gateway.text(url,target.canonicalUrl,maxBytes=2L*1024*1024)
+        return gateway.feed(url,target,source,maxBytes=2L*1024*1024){payload->
         if(!Regex("<feed(?:\\s|>)").containsMatchIn(payload.text))throw SourceFailure(HealthStatus.EMPTY,"The public Atom endpoint returned a page shell instead of a feed")
         val provenance=provenance(payload);val page=Extraction.rss(payload.text,target,provenance,routes);val document=Jsoup.parse(payload.text,"",Parser.xmlParser());val feed=document.selectFirst("feed")
         val author=feed?.children()?.firstOrNull {it.normalName()=="author"}?.selectFirst("name")?.text().orEmpty()
@@ -348,7 +349,8 @@ private class PixelfedDataAdapter(source: Source,gateway: NetworkGateway,routes:
         val avatar=feed?.children()?.firstOrNull {it.normalName()=="icon"}?.text()?.let {safeUrl(it,root)}
         val profile=Profile(target,author.ifBlank {username},feed?.children()?.firstOrNull {it.normalName()=="subtitle"}?.text().orEmpty(),avatar)
         val posts=page.posts.filter {it.canonicalUrl.toHttpUrlOrNull()?.host==target.canonicalUrl.toHttpUrlOrNull()?.host}.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),avatar=avatar,provenance=provenance)}
-        return usable(Page(chronological(posts),page.next?.let {bookmark(source,target,"atom",it)},profile,provenance,notice="Public Atom feed; availability depends on server and account settings. Comments are unavailable."))
+        usable(Page(chronological(posts),page.next?.let {bookmark(source,target,"atom",it)},profile,provenance,notice="Public Atom feed; availability depends on server and account settings. Comments are unavailable."))
+        }
     }
 }
 

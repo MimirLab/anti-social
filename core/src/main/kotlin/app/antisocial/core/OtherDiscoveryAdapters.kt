@@ -178,14 +178,15 @@ private class TelegramRssDiscovery(source: Source,gateway: NetworkGateway,routes
         val selected=target.kind in setOf(TargetKind.POST,TargetKind.THREAD);val id=if(selected)path.getOrNull(1)?.takeIf {it.matches(Regex("[0-9]{1,40}"))} ?: error("Invalid public message ID")else null
         val mark=discoveryCursor(cursor,source,target);if(selected)require(cursor==null){"This message has no continuation"}
         val url=source.root.trimEnd('/')+"/rss/$channel"+(if(selected)"?id=$id&limit=1"else if(mark==null)"?limit=20"else "/${mark.page}?limit=20")
-        val payload=gateway.text(url,target.canonicalUrl,maxBytes=2L*1024*1024)
+        return gateway.feed(url,target,source,maxBytes=2L*1024*1024){payload->
         val document=Jsoup.parse(payload.text,"",Parser.xmlParser());val feed=document.selectFirst("rss > channel") ?: discoveryFailure("The relay returned a page shell instead of a feed")
         val feedLink=feed.children().firstOrNull {it.normalName()=="link"}?.text().orEmpty()
         val identity=routes.recognize(feedLink)
         if(identity?.platform!=Platform.TELEGRAM||identity.canonicalUrl.toHttpUrlOrNull()?.pathSegments?.filter {it!="s"}?.firstOrNull()?.equals(channel,true)!=true)discoveryFailure("The relay returned a different public channel")
         val provenance=provenance(payload);val page=Extraction.rss(payload.text,target,provenance,routes)
         val posts=page.posts.filter {post->val p=post.canonicalUrl.toHttpUrlOrNull();p?.host in setOf("t.me","telegram.me")&&p!!.pathSegments.filter {it!="s"}.let {it.size==2&&it[0].equals(channel,true)&&it[1].matches(Regex("[0-9]{1,40}"))&&(!selected||it[1]==id)}&&post.publishedAt!=null}.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl))}.distinctBy {it.id}.sortedByDescending {it.publishedAt}
-        return usable(Page(posts,if(!selected&&posts.size>=20&&(mark?.page ?: 1)<1000)discoveryCursor(DiscoveryCursor(source.key,target.canonicalUrl,(mark?.page ?: 1)+1))else null,if(!selected)Profile(target,feed.selectFirst("title")?.text()?.take(300).orEmpty().ifBlank {channel},feed.selectFirst("description")?.text()?.take(20_000).orEmpty())else null,provenance,notice="This public channel snapshot may be delayed or incomplete. Comment threads are unavailable from this source."))
+        usable(Page(posts,if(!selected&&posts.size>=20&&(mark?.page ?: 1)<1000)discoveryCursor(DiscoveryCursor(source.key,target.canonicalUrl,(mark?.page ?: 1)+1))else null,if(!selected)Profile(target,feed.selectFirst("title")?.text()?.take(300).orEmpty().ifBlank {channel},feed.selectFirst("description")?.text()?.take(20_000).orEmpty())else null,provenance,notice="This public channel snapshot may be delayed or incomplete. Comment threads are unavailable from this source."))
+        }
     }
 }
 

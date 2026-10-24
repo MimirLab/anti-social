@@ -3,6 +3,8 @@
 anti social combines transport privacy, a shared network gateway, adaptive source
 routing, passive extraction, bounded parsing workers and local storage controls.
 Start with [the architecture map](docs/ARCHITECTURE.md) to see how they compose.
+Its [cross-layer contracts](docs/ARCHITECTURE.md#contracts-across-the-layers)
+trace what continues to apply during failover, transport startup and cached reads.
 
 **Settings → Privacy & connection → Tor for all traffic** routes the app's
 content, photos, videos and updates through embedded Tor on stock Android.

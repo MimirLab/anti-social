@@ -75,6 +75,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     private val policy=AtomicReference(NetworkSession(NetworkPolicy()))
     private val torPolicy=AtomicReference(NetworkSession(NetworkPolicy(tor=true)))
     private val selection=AtomicReference(NetworkSelection())
+    private val syndication=lazy {SyndicationReader(this)}
     private val clients=mutableMapOf<Pair<NetworkRoute,NetworkPolicy>,OkHttpClient>()
     private val foregroundRequests=java.util.concurrent.atomic.AtomicInteger()
     private val deferredCalls=java.util.concurrent.ConcurrentHashMap<Call,kotlinx.coroutines.Job>()
@@ -190,6 +191,22 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     internal fun sessionFor(url:String):NetworkSession=currentSession(routeFor(Request.Builder().url(url).build()))
     fun currentPolicy(route: NetworkRoute=NetworkRoute.DEFAULT): NetworkPolicy = currentSession(route).policy
     suspend fun prepare(route: NetworkRoute=NetworkRoute.DEFAULT)=withContext(Dispatchers.IO){client(route);Unit}
+    fun clearFeedMemory(){if(syndication.isInitialized())syndication.value.clear()}
+    fun cleanupFeedMemory(){if(syndication.isInitialized())syndication.value.cleanup()}
+    suspend fun feed(url:String,target:Target,source:Source,maxBytes:Long=4L*1024*1024,headers:Map<String,String> = emptyMap(),parse:suspend (Payload)->Page):Page=withContext(Dispatchers.IO) {
+        syndication.value.read(url,target,source,maxBytes,headers,parse)
+    }
+    internal suspend fun feedDocument(url:String,sourceUrl:String,maxBytes:Long,headers:Map<String,String>,session:NetworkSession):GatewayDocument=withContext(Dispatchers.IO) {
+        var document:GatewayDocument?=null
+        val request=Request.Builder().url(url).tag(NetworkSession::class.java,session).tag(FetchPurpose::class.java,FetchPurpose.API)
+            .tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest"))
+            .apply {headers.forEach {(name,value)->header(name,value)}}.build()
+        readText(request,maxBytes,allowNotModified=true,onResponse={response,payload->
+            document=GatewayDocument(response.code,response.message,response.headers.toMultimap().filterKeys {!it.equals("Set-Cookie",true)},payload.text,payload.finalUrl,
+                response.request.header("If-None-Match")!=null||response.request.header("If-Modified-Since")!=null)
+        })
+        requireNotNull(document)
+    }
     @Synchronized fun configure(next: NetworkPolicy) {
         if(policy.get().policy.tor!=next.tor)selection.set(NetworkSelection())
         val torChanged=next.tor&&torPolicy.get().policy!=next
@@ -488,7 +505,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             .tag(RequestContext::class.java,RequestContext(url,"xmlhttprequest")).header("Accept","application/json").get().build()
         readText(request,1024L*1024)
     }
-    private suspend fun readText(request: Request,maxBytes: Long,timeoutMs: Long?=null): Payload {
+    private suspend fun readText(request: Request,maxBytes: Long,timeoutMs: Long?=null,allowNotModified:Boolean=false,onResponse:((Response,Payload)->Unit)?=null): Payload {
         val healthBudget=kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]
         val tor=currentPolicy(routeFor(request)).tor
         val boundedRequest=if(healthBudget==null)request else request.newBuilder().tag(TextReadBudget::class.java,healthBudget).build()
@@ -503,7 +520,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                 503 -> throw SourceFailure(HealthStatus.UNAVAILABLE,"Source returned 503",retryAfter(response),response.code)
                 401 -> throw SourceFailure(HealthStatus.LOGIN_REQUIRED,"This content requires login",httpStatus=response.code)
             }
-            if(!response.isSuccessful)throw SourceFailure(HealthStatus.UNAVAILABLE,"Source returned ${response.code}",retryAfter(response),response.code)
+            if(!response.isSuccessful&&!(allowNotModified&&response.code==304))throw SourceFailure(HealthStatus.UNAVAILABLE,"Source returned ${response.code}",retryAfter(response),response.code)
             val body=response.body ?: throw IOException("Empty response")
             if(healthBudget!=null&&body.contentLength()>healthBudget.available())throw IOException("Response exceeds the health-check budget")
             if(body.contentLength()>maxBytes)throw IOException("Response exceeds its size limit")
@@ -512,7 +529,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             val bookmark=if(request.tag(PageBookmark::class.java)!=null)response.headers("Set-Cookie").mapNotNull {Cookie.parse(response.request.url,it)}.firstOrNull {it.name=="bookmark"&&bookmarkPattern.matches(it.value)&&it.expiresAt>System.currentTimeMillis()}?.value else null
             val form=request.body as? FormBody
             val offset=form?.let {fields->(0 until fields.size).firstOrNull {fields.name(it)=="s"}?.let {fields.value(it).toIntOrNull()}} ?: request.url.queryParameter("s")?.toIntOrNull()
-            Payload(buffer.toString("UTF-8"),response.request.url.toString(),body.contentType()?.toString().orEmpty(),response.code,bookmark,offset).also {payload->if(request.tag(ServiceScope::class.java)==null)onTextResponse?.let {observer->runCatching {observer(payload)}}}
+            Payload(buffer.toString("UTF-8"),response.request.url.toString(),body.contentType()?.toString().orEmpty(),response.code,bookmark,offset).also {payload->onResponse?.invoke(response,payload);if(request.tag(ServiceScope::class.java)==null)onTextResponse?.let {observer->runCatching {observer(payload)}}}
         }
     }
     /** A server-requested pause is carried to routing without retaining headers.

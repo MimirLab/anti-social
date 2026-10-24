@@ -936,6 +936,7 @@ class Repository(val context: Context) {
         scope.launch {try {delay(1000);cleanup();lastAutoCleanup=android.os.SystemClock.elapsedRealtime()}finally {cleanupQueued.set(false)}}
     }
     suspend fun cleanup(clearAll: Boolean=false)=withContext(Dispatchers.IO) {
+        if(clearAll)gateway.clearFeedMemory()else gateway.cleanupFeedMemory()
         FeedRefreshStage.cleanup(File(context.cacheDir,"feed-refresh"))
         // Never sweep an in-progress writer's temporary files or delay ordinary
         // cache eviction behind a network update. The next pass can prune them.

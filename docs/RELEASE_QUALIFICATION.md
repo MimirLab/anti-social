@@ -9,6 +9,64 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.14 protected feed revalidation and parsed-page reuse
+
+The full JVM suite covered **2,029 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. The selected API 35 Android batch accounted for **67 named checks**
+across nine classes: 65 passed and two opt-in live-source/Tor checks were skipped.
+All expected method identities were accounted for. Native chronological mixed
+RSS/social channel and cached feed-reader screens were inspected.
+
+Three new JVM regressions first failed on unchanged 0.38.13: external social
+feeds and frontend RSS did not send supplied validators on the next read, and
+an unsolicited HTTP 206 could certify a complete refresh. The identical native
+test APK then ran against byte-verified retained 0.38.13 debug. Its conditional
+fixture failed because the second request lacked If-None-Match and downloaded
+the full body again. The fixture sends 304 only when the request actually carries
+the correct validator; an earlier exploratory fixture that returned 304
+unconditionally is retained separately and is not this baseline evidence.
+
+The candidate's native source-pool fixture retains the readable posts with a
+successful current check and changes the second response from 5,676 body bytes
+to zero. Clearing its feed memory requires a full unconditional read again;
+a subsequent 503 remains unavailable instead of returning retained content as
+a successful refresh. The broader native batch also covers mixed chronological
+feeds, exact cached RSS text, saved/portable source editions, cross-posts,
+search scope, streamed results, source scheduling and transport policy.
+
+Additional JVM checks cover exact representation/header/target bindings,
+unchanged and changed 200 bodies, Last-Modified, conflicting or unsolicited
+304s, absolute expiry, cache clearing, privacy round trips, redirects/rewrites,
+no-store/Vary, bounded eviction, oversized entries and in-flight ordering.
+An owned SOCKS fixture observes two full-body requests with remote hostname
+resolution, no replayed validators/cookies/credentials, and one parser call.
+This exercises the Tor-selected Gateway path; it is not a live Tor exit test.
+An initial extra generic-closing bracket prevented that harness compiling;
+correcting the harness left production behavior and assertions unchanged.
+
+The bounded memory is shared by the major syndication paths; every refresh
+still contacts its source through NetworkGateway. Direct-only exact-session
+validators can avoid body transfer, and identical validated bodies can avoid
+repeat extraction. Tor always downloads the body and sends no retained
+validator. Source failures stay pending and historical-window coverage retains
+its separate catch-up contract. See [feed revalidation](FEED_REVALIDATION.md)
+for the 32-record/4 MiB accounting/30-minute limits and source scope.
+
+A separate October 24 public NASA RSS observation returned 200 with 249,777
+decoded body bytes, followed by 304 with zero body bytes; all ten posts remained
+and extraction ran once. The successive elapsed times, 2,947 ms and 30 ms,
+include warm effects and are not a controlled before/after or phone benchmark.
+No new provider, dependency, model, setting, background job, request allowance,
+database table or export field is added. The qualified candidate adds 12,320
+APK bytes over 0.38.13; all 497 non-generated native/data members are unchanged.
+
+The technical docs now include explicit contracts across transport, failover,
+decoding, reuse, storage and optional AI, plus a review protocol connecting
+claims to their complete consumer and dated evidence. The satirical README
+presentation remains intact. No new physical-phone hardware matrix, live-Tor
+qualification or independent security audit is claimed for this increment.
+
 ## 0.38.13 source admission after transport startup
 
 The full JVM suite covered **2,008 cases**, zero failures/errors and one optional

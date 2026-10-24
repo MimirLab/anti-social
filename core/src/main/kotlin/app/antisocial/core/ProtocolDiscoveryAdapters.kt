@@ -319,14 +319,16 @@ private class ProtocolFeedAdapter(source: Source,gateway: NetworkGateway,routes:
             Platform.BLUESKY->{require(path.size==2&&path[0]=="profile"&&path[1].matches(Regex("[A-Za-z0-9.:-]{1,253}")));profilePath="/profile/${path[1]}";endpoint="$profilePath/feed.xml?count=20"}
             else->throw SourceFailure(HealthStatus.UNSUPPORTED,"No verified public feed format")
         }
-        val payload=gateway.text(root+endpoint,target.canonicalUrl,maxBytes=2L*1024*1024);val body=payload.text.trim()
+        return gateway.feed(root+endpoint,target,source,maxBytes=2L*1024*1024){payload->
+        val body=payload.text.trim()
         if(!Regex("^(?:<\\?xml[^>]*>\\s*)?<(?:[A-Za-z0-9_]+:)?(?:rss|feed)(?:\\s|>)",RegexOption.IGNORE_CASE).containsMatchIn(body))throw SourceFailure(HealthStatus.EMPTY,"The feed returned an HTML shell instead of posts")
         val provenance=provenance(payload,root);val page=Extraction.rss(body,target,provenance,routes);val document=Jsoup.parse(body,"",Parser.xmlParser());val feed=document.selectFirst("rss > channel,feed") ?: throw SourceFailure(HealthStatus.EMPTY,"No syndication channel returned")
         val metadataLinks=feed.children().filter {it.normalName().substringAfter(':')=="link"}.filter {it.attr("rel") in setOf("","alternate")}.mapNotNull {pUrl(it.attr("href").ifBlank {it.text()},root)}
         val accepted=metadataLinks.any {link->val recognized=routes.recognize(link,source.platform);recognized?.platform==source.platform&&recognized.canonicalUrl.substringBefore('?').trimEnd('/')==target.canonicalUrl.substringBefore('?').trimEnd('/')} || source.platform in setOf(Platform.LEMMY,Platform.MISSKEY)&&metadataLinks.any {link->val parsed=link.toHttpUrlOrNull();val selected=target.canonicalUrl.toHttpUrlOrNull();parsed!=null&&selected!=null&&parsed.host==selected.host&&parsed.port==selected.port&&parsed.encodedPath.trimEnd('/')==profilePath}
         if(!accepted)throw SourceFailure(HealthStatus.EMPTY,"The source returned a different public feed")
         val posts=page.posts.filter {post->val url=post.canonicalUrl.toHttpUrlOrNull() ?: return@filter false;val selected=target.canonicalUrl.toHttpUrlOrNull()!!;val recognized=routes.recognize(post.canonicalUrl,source.platform);when(source.platform){Platform.X->recognized?.platform==source.platform&&recognized.kind==TargetKind.POST&&url.pathSegments.firstOrNull().equals(path[0],true);Platform.BLUESKY->recognized?.platform==source.platform&&recognized.kind==TargetKind.POST&&url.pathSegments.getOrNull(1).equals(path[1],true);Platform.LEMMY->url.host==selected.host&&url.port==selected.port&&url.pathSegments.size==2&&url.pathSegments[0]=="post"&&url.pathSegments[1].toLongOrNull()!=null;Platform.MISSKEY->url.host==selected.host&&url.port==selected.port&&url.pathSegments.size==2&&url.pathSegments[0]=="notes"&&url.pathSegments[1].matches(Regex("[A-Za-z0-9_-]{1,160}"));else->false}&&(post.body.isNotBlank()||post.title.isNotBlank()||post.media.isNotEmpty())}.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),provenance=provenance)}
-        return pUsable(Page(pChronological(posts),profile=Profile(target,feed.children().firstOrNull {it.normalName()=="title"}?.text().orEmpty().ifBlank {path.last()}),provenance=provenance,notice="Public syndication backup; comments and older-page retrieval are unavailable on this format."))
+        pUsable(Page(pChronological(posts),profile=Profile(target,feed.children().firstOrNull {it.normalName()=="title"}?.text().orEmpty().ifBlank {path.last()}),provenance=provenance,notice="Public syndication backup; comments and older-page retrieval are unavailable on this format."))
+        }
     }
 }
 

@@ -108,6 +108,27 @@ external-browser handoff is a separate action outside the app's transport.
 The worker/format exceptions and their tested scope are documented below and
 in [hardening](HARDENING.md#workers-and-authority).
 
+### Contracts across the layers
+
+Security review should follow both the request and the returned data. These
+contracts remain in force when the router selects a different source or the
+reader reuses previously parsed material:
+
+| Transition | Contract that still applies | Separate question |
+| --- | --- | --- |
+| Primary source → alternative → permitted original/archive | Every admitted request goes through Gateway destination, purpose, filter, credential and selected-transport checks. A source cannot select a weaker connection policy. | Does the returned material actually match the requested post/account and operation? SourcePool and extraction decide this. |
+| Tor starting/disconnected → ready | Selected Tor waits or fails closed. Readiness can finish queued work; a user mode change invalidates it. | Has a particular live exit/source worked on the dated test run? That requires its own observation. |
+| Received bytes → native content | Passive extraction avoids running the publisher's scripts. Documented isolated workers receive a read-only input and return parent-validated bounded output. | Which decoder/format has permissionless isolation? The HEIF/AVIF compatibility path has different authority. |
+| Network response → parsed-feed reuse | Every refresh still makes a protected request. Direct validators require the exact retained session/representation; Tor sends none. A failed read cannot become a successful refresh from this memory. | Does the source's finite feed window bridge the reader's previous position? Catch-up coverage is checked separately. |
+| Ordinary cache → explicit save | Cache expiry/cleanup and disposable transfer-file cleanup do not erase protected saved material or explicit offline downloads. | Did the original source supply a complete thread/media copy? Saving cannot manufacture missing content. |
+| Evidence → optional AI brief | Deterministic retrieval, bounds and provenance precede model input. The model does not choose arbitrary tools, destinations or network policy. | Did the brief retain useful information accurately? This needs content evaluation, independently of transport and containment. |
+
+For example, the absence of a supported image credential does not undo transport
+privacy or parser containment, and successful Tor routing does not authenticate
+a publisher's claims. Each layer answers its own question while the other
+contracts continue to apply. The linked qualification records describe measured
+behavior rather than converting these contracts into an unconditional guarantee.
+
 ## Redundancy includes different methods and learned delivery
 
 The pool combines Darwin's donor instances with separately reviewed
@@ -175,3 +196,9 @@ are protected separately; clearing ordinary cache is not deletion of a user's
 saved copies. Metadata/signature validation stays attached to the actual bytes
 checked. These boundaries reinforce one another without requiring a server-side
 reader profile or social login.
+
+[Feed revalidation](FEED_REVALIDATION.md) can avoid repeated XML parsing after a
+current network response. Direct-only, session-bound validators can avoid the
+body transfer too. Tor always fetches the body and sends no retained validator.
+This bounded memory belongs to ordinary cache, and never supplies a successful
+refresh when the network request failed.

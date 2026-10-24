@@ -83,7 +83,7 @@ class FrontendAdapter(override val source: Source, private val gateway: NetworkG
         val newest=newestReddit(target)
         val raw=routes.convert(newest,source).substringBefore('#').substringBefore('?').trimEnd('/')
         val url=when(source.frontend) { "kittygram" -> "$raw/atom.xml";"shoelace" -> "${source.root}/rss/${target.identity.removePrefix("@").trim('/')}";"nitter","proxigram","priviblur","proxiTok" -> "$raw/rss";"redlib","libreddit","teddit" -> "$raw.rss?sort=new";else -> "$raw/rss" }
-        return try { Extraction.parse(gateway.text(url,target.canonicalUrl),target,source,routes) }catch(e: CancellationException){throw e}catch(e: Exception){e.respectRetryDelay();fetch(newest)}
+        return try {gateway.feed(url,target,source){Extraction.parse(it,target,source,routes)}}catch(e: CancellationException){throw e}catch(e: Exception){e.respectRetryDelay();fetch(newest)}
     }
     override fun sentinel(capability: Capability): Target = if(capability==Capability.SEARCH)routes.search(source.platform,"space")else when(source.platform) {
         Platform.REDDIT -> routes.target(Platform.REDDIT,"r/Android",TargetKind.COMMUNITY)
@@ -213,7 +213,7 @@ class OriginalAdapter(override val source: Source, private val gateway: NetworkG
             Platform.PINTEREST -> "https://www.pinterest.com/$id/feed.rss"
             else -> null
         }
-        if(url!=null)try {return Extraction.parse(gateway.text(url,target.canonicalUrl),target,source,routes)}catch(e: CancellationException){throw e}catch(e: Exception){e.respectRetryDelay()}
+        if(url!=null)try {return gateway.feed(url,target,source){Extraction.parse(it,target,source,routes)}}catch(e: CancellationException){throw e}catch(e: Exception){e.respectRetryDelay()}
         return fetch(target)
     }
     override fun sentinel(capability: Capability)=FrontendAdapter(source,gateway,routes).sentinel(capability)
@@ -940,11 +940,11 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val url=follow.feedUrl ?: return@withContext load(follow.target,true)
         if(follow.target.platform==Platform.RSS) {
             val feed=RssSources.target(url)
-            return@withContext RssSources.parse(gateway.text(feed.canonicalUrl,feed.canonicalUrl),feed,clock())
+            return@withContext gateway.feed(feed.canonicalUrl,feed,RssSources.source(feed.canonicalUrl)){RssSources.parse(it,feed,clock())}
         }
         val root=URI(url).let { "${it.scheme}://${it.host}" }
         val source=Source(follow.target.platform,"rss",root)
-        Extraction.parse(gateway.text(url,follow.target.canonicalUrl),follow.target,source,routes)
+        gateway.feed(url,follow.target,source){Extraction.parse(it,follow.target,source,routes)}
         }finally {readFinished()}
     }
     private fun readStarted(background: Boolean=false,job: Job?=null) {

@@ -146,7 +146,7 @@ private class PublicFeedPathwayAdapter(override val source: Source,private val g
     override suspend fun fetch(target: Target,cursor: String?): Page {
         val endpoint=PublicFeedPathways.request(source,target) ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"This feed pathway does not support the selected profile or community")
         require(cursor==null){"Refresh this feed; this pathway has no verified continuation"}
-        val payload=gateway.text(endpoint,target.canonicalUrl,maxBytes=2L*1024*1024,headers=mapOf("Accept" to "application/atom+xml,application/rss+xml,application/xml;q=0.9"))
+        return gateway.feed(endpoint,target,source,maxBytes=2L*1024*1024,headers=mapOf("Accept" to "application/atom+xml,application/rss+xml,application/xml;q=0.9")){payload->
         if(!DarwinRoutes.matches(URI(payload.finalUrl),source.root))throw SourceFailure(HealthStatus.UNAVAILABLE,"The feed pathway redirected outside its selected source")
         val message=Jsoup.parse(payload.text.take(100_000)).text().lowercase()
         if(message.contains("not whitelisted")||message.contains("not enabled")||message.contains("bridge is disabled")||message.contains("rss is disabled")||message.contains("route is disabled")||message.contains("confignotfounderror")||message.contains("require config"))throw SourceFailure(HealthStatus.UNSUPPORTED,"Feed pathway disabled or not configured on this instance")
@@ -165,6 +165,7 @@ private class PublicFeedPathwayAdapter(override val source: Source,private val g
             identity?.platform==target.platform&&identity.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&(post.publishedAt!=null||undatedSnapshot)&&(post.body.isNotBlank()||post.title.isNotBlank()||post.media.isNotEmpty())&&PublicFeedPathways.entryMatches(target,post,feedVerified)
         }.map {it.copy(id=ContentIdentity.key(it.platform,it.canonicalUrl),publishedAt=if(undatedSnapshot)null else it.publishedAt)}.distinctBy {it.id}.sortedByDescending {it.publishedAt}.take(100)
         if(posts.isEmpty())throw SourceFailure(HealthStatus.EMPTY,if(undatedSnapshot)"The pathway returned no readable posts for this selected account"else "The feed pathway returned no dated readable posts for this selected account or community")
-        return Page(posts,provenance=provenance,notice=if(undatedSnapshot)"Publication dates are unavailable. These posts appear only in this profile snapshot, outside the chronological feed."else "Public feed snapshot; earlier pages and comments may need another source.")
+        Page(posts,provenance=provenance,notice=if(undatedSnapshot)"Publication dates are unavailable. These posts appear only in this profile snapshot, outside the chronological feed."else "Public feed snapshot; earlier pages and comments may need another source.")
+        }
     }
 }
