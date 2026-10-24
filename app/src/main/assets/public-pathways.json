@@ -117,6 +117,22 @@
       "limitations": "Individual posts only."
     },
     {
+      "platform": "instagram",
+      "frontend": "anonimogram-api",
+      "root": "https://api.anonimogram.com",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 7,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://anonimogram.com/",
+        "https://anonimogram.com/about"
+      ],
+      "limitations": "Public profile metadata and on-demand caption/preview snapshots. Current posts omit dates; video rows can contain only JPEG posters. No feed freshness, global search, exact-post or full-video claim. Anonymous lookup quotas apply; no login token, cookie or rotating quota identity."
+    },
+    {
       "platform": "twitter",
       "frontend": "sotwe-api",
       "root": "https://www.sotwe.com",

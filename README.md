@@ -126,6 +126,7 @@ Public-source access varies. A login wall, an empty frontend and unavailable com
 
 - [Reader guide](docs/READER_GUIDE.md)
 - [Related-account discovery](docs/ADJACENT_DISCOVERY.md)
+- [Public Instagram preview route and limits](docs/INSTAGRAM_PUBLIC_PREVIEWS.md)
 - [Build from a clean checkout](docs/BUILDING.md)
 - [Feed performance](docs/FEED_PERFORMANCE.md)
 - [Development evidence](docs/DEVELOPMENT_HISTORY.md)

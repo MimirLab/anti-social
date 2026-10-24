@@ -28,6 +28,9 @@ for platform, root in (("twitter", "https://fxtwitter.com"), ("twitter", "https:
                        ("bluesky", "https://fxbsky.app")):
     add(platform, "fxembed-rss", root, references=FX, note="Public profile feeds; shared FxEmbed upstream, not independent data.")
 add("twitter", "vxembed-api", "https://api.vxtwitter.com", references=("https://github.com/dylanpdx/BetterTwitFix",), note="Individual posts only.")
+add("instagram", "anonimogram-api", "https://api.anonimogram.com", priority=7,
+    references=("https://anonimogram.com/", "https://anonimogram.com/about"),
+    note="Public profile metadata and on-demand caption/preview snapshots. Current posts omit dates; video rows can contain only JPEG posters. No feed freshness, global search, exact-post or full-video claim. Anonymous lookup quotas apply; no login token, cookie or rotating quota identity.")
 add("twitter", "sotwe-api", "https://www.sotwe.com", priority=-4, fallback=False,
     references=("https://www.sotwe.com/NASA", "https://github.com/DIYgod/RSSHub/tree/master/lib/routes/sotwe"), note="Public user JSON; undocumented and source dependent.")
 add("tumblr", "tumblr-legacy", "https://www.tumblr.com", "ORIGINAL", priority=-6,

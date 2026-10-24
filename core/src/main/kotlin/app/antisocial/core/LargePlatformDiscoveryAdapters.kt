@@ -24,6 +24,7 @@ fun largePlatformDiscoveryAdapter(source: Source, gateway: NetworkGateway, route
     source.platform==Platform.PINTEREST && source.frontend=="pinterest-widgets" -> PinterestWidgetAdapter(source,gateway,routes)
     source.platform==Platform.THREADS && source.frontend=="fxthreads-json" -> ScopedDiscoveryPostAdapter(source,gateway,routes)
     source.platform==Platform.INSTAGRAM && source.frontend=="oginstagram-activity" -> ScopedDiscoveryPostAdapter(source,gateway,routes)
+    source.platform==Platform.INSTAGRAM && source.frontend=="anonimogram-api" -> AnonimogramAdapter(source,gateway,routes)
     source.platform==Platform.TIKTOK && source.frontend=="tiktok-creator-embed" -> TikTokCreatorEmbedAdapter(source,gateway,routes)
     source.platform==Platform.TIKTOK && source.frontend=="tikwm" -> ScopedDiscoveryPostAdapter(source,gateway,routes)
     source.platform==Platform.TIKTOK && source.frontend=="tikwm-comments" -> TikWmCommentsAdapter(source,gateway,routes)

@@ -1,5 +1,36 @@
 # Release qualification
 
+## 0.38.9 public Instagram previews and source audit
+
+The full JVM suite covered **1,963 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. Android qualification covered **68 unique checks**: 67 passed and
+one opt-in live-Tor test was skipped. The first batch had one new-test cleanup
+failure: after asserting unavailable Tor prevented a request, cleanup tried to
+acquire a client through that unavailable policy. Retaining the already acquired
+client fixed the harness; both new tests then passed. The other 66 checks were
+not rerun. Production privacy behavior and assertions were preserved.
+
+The new native factory test reads frozen public Anonimogram responses through
+NetworkGateway: one profile operation and one caption-preview operation. Twelve
+undated previews remain outside feed refreshes; JPEG posters never become video
+players. A separate anonymous native profile request returned NASA's explicit
+name and profile data; the unavailable-Tor check started no request. The captured
+native card projection was inspected, with artwork intentionally blocked during
+the fixture. It does not establish live gallery/video coverage or automatic
+combination of the two separate operations. See [source scope and rejected
+leads](INSTAGRAM_PUBLIC_PREVIEWS.md).
+
+NASA's captured “We are not slowing down” again renders as **one collected native
+card**, retaining X, Instagram and Facebook originals and all three comment
+roots. The originals remain unchanged. This requalifies the 0.38.1 fix; no new
+NASA-specific matching rule is claimed. Changed-fact/destination negatives remain
+covered by the full JVM suite.
+
+The candidate APK adds approximately 8 KiB over 0.38.8. No native runtime or model
+payload changed. These emulator and dated public-source checks do not establish
+physical-phone performance, provider-wide availability or working live Tor exits.
+
 ## 0.38.8 requested route diversity and rolling hedges
 
 The full JVM suite covered **1,953 cases, zero failures/errors and one optional
