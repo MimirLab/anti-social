@@ -22,6 +22,20 @@ class FeedCatchUpTest {
         assertEquals(partial.continuationIssue,result.page.continuationIssue)
     }
 
+    @Test fun aLimitedOriginalWindowCannotCertifyAnUnbridgedCachedHead():Unit=runBlocking {
+        val first=page(post("105"),post("104")).copy(limitedTimeline=true)
+        val result=FeedCatchUp().collect(Platform.X,setOf(key(post("100"))),first={first},next={error("Never guess a cursor for a shallow original")})
+        assertEquals(first.posts,result.page.posts);assertNotNull(result.pendingReason)
+        assertTrue(result.page.limitedTimeline);assertNull(result.page.next)
+    }
+    @Test fun aLimitedWindowCanFinishWhenItContainsTheHeadOrIsTheFirstSubscription():Unit=runBlocking {
+        val head=post("100");val first=page(post("101"),head).copy(limitedTimeline=true)
+        for(known in listOf(emptySet(),setOf(key(head)))) {
+            val result=FeedCatchUp().collect(Platform.X,known,first={first},next={error("Do not crawl beyond an already joined window")})
+            assertNull(result.pendingReason);assertEquals(first.posts,result.page.posts)
+        }
+    }
+
     @Test fun followsOnlySuppliedRealCursorsUntilThePreviousNewestHeadAppears(): Unit=runBlocking {
         val head=post("100")
         val one=page(post("106"),post("105"),next="opaque:BlockTwo/Aa?sig=KeepCase")

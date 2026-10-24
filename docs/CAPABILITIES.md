@@ -28,6 +28,10 @@ scripts or embedded widgets. Image/PDF decoding still processes untrusted bytes
 in bounded local workers; passive acquisition is not a claim that formats are
 incapable of containing decoder vulnerabilities.
 
+X has an additional [logged-out profile extraction path](X_PROFILE_FALLBACK.md)
+behind alternate routes. Its short public window is explicitly limited; an
+unbridged reading gap remains pending. It adds no X search/history/comment claim.
+
 ## Optional models: shipping versus research
 
 Ordinary reading, deterministic filters, matching and local discovery require no

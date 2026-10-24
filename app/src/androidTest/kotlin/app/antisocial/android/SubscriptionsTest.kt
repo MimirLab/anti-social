@@ -61,6 +61,24 @@ class SubscriptionsTest {
         val dir=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"subscriptions").apply {mkdirs()}
         File(dir,"$name.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
     }
+    private fun waitForCandidate(target:Target,ready:()->Boolean={true}) {
+        try {
+            ui.waitForIdle()
+            ui.waitUntil(10_000){
+                // The initial seed resumes after Default-dispatcher URL work;
+                // advance the controlled UI clock while that work completes.
+                ui.mainClock.advanceTimeByFrame()
+                ready()&&ui.onAllNodesWithTag("Account candidate ${target.canonicalUrl}").fetchSemanticsNodes().isNotEmpty()
+            }
+        }catch(failure:Throwable) {
+            val dir=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"subscriptions").apply {mkdirs()}
+            runCatching {File(dir,"candidate-setup-failure.txt").writeText(ui.onAllNodes(isRoot(),useUnmergedTree=true).printToString())}
+            File(dir,"candidate-setup-threads.txt").writeText("UI clock=${ui.mainClock.currentTime}; autoAdvance=${ui.mainClock.autoAdvance}\n"+
+                Thread.getAllStackTraces().entries.joinToString("\n\n"){(thread,frames)->thread.name+" "+thread.state+"\n"+frames.joinToString("\n")})
+            runCatching {evidence("candidate-setup-failure")}
+            throw failure
+        }
+    }
     private fun show(read: suspend (Post,Page?,ReadingOrder)->Page): AntiSocialViewModel {
         val vm=AntiSocialViewModel(repo,discussionReader={scope->DiscussionReader(repo,scope,read=read)})
         custom=vm;ui.runOnUiThread {ui.activity.setContent {AntiSocialApp(vm)};vm.combined()};return vm
@@ -127,7 +145,7 @@ class SubscriptionsTest {
             MaterialTheme {if(visible)SubscriptionDialog(vm,Platform.X,autoDiscover=true,initialTarget=seed,
                 discoverAccounts={started.complete(Unit);try {awaitCancellation()}finally {cancelled.complete(Unit)}},onDismiss={visible=false})}
         }}
-        ui.waitUntil(10_000){started.isCompleted&&ui.onAllNodesWithTag("Account candidate ${seed.canonicalUrl}").fetchSemanticsNodes().isNotEmpty()}
+        waitForCandidate(seed){started.isCompleted}
         ui.onNodeWithTag("Save subscription").assertIsEnabled()
         ui.onNodeWithTag("Account candidate ${seed.canonicalUrl}").assertIsOn()
         evidence("discovery-seed-ready-while-sources-load")
@@ -143,7 +161,7 @@ class SubscriptionsTest {
             MaterialTheme {if(visible)SubscriptionDialog(vm,Platform.X,autoDiscover=true,initialTarget=seed,
                 discoverAccounts={release.await();AccountDiscovery("Fetched name",listOf(AccountCandidate(seed,"Account you opened"),AccountCandidate(elsewhere,"Linked from profile")))},onDismiss={visible=false})}
         }}
-        ui.waitUntil(10_000){ui.onAllNodesWithTag("Account candidate ${seed.canonicalUrl}").fetchSemanticsNodes().isNotEmpty()}
+        waitForCandidate(seed)
         ui.onNodeWithTag("Subscription name").performTextReplacement("My workshop")
         ui.onNodeWithTag("Account candidate ${seed.canonicalUrl}").performClick().assertIsOff()
         release.complete(Unit)

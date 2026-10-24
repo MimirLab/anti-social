@@ -1,6 +1,15 @@
 AntiSocial public social data interface provenance
 Reviewed: 2026-10-16
 
+X logged-out profile timeline, reviewed 2026-10-24:
+https://github.com/shcheglovnd/FreshRSS-xExtension-XProfiles
+Protocol/strict-data-decoder reference: lib/XProfilesPage.php, Nikolai Shcheglov,
+MIT License. The native Kotlin reader retains its own quotas, identity checks,
+typed records, quote scope and incomplete catch-up state. No PHP, FreshRSS or
+JavaScript runtime is bundled. Upstream copyright and MIT permission notice ship
+in app/src/main/assets/x-profile-notices/XPROFILES-LICENSE.txt. The public NASA
+fixture retains record shape and captions with expiring media URLs replaced.
+
 Darwin is AntiSocial's rebuilt and expanded routing donor. Existing GPL notices and
 source provenance remain in force. PublicSocialAdapters.kt is new AntiSocial code,
 GPL-3.0-or-later. These readers independently implement public data interfaces;

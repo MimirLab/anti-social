@@ -299,6 +299,7 @@ object Extraction {
     fun html(body: String, target: Target, provenance: Provenance, routes: DarwinRoutes,publicSearchQuery: String?=null,publicSearchEntitiesOnly: Boolean=false): Page {
         HtmlAdmission.check(body)
         val d=Jsoup.parse(body,provenance.finalUrl)
+        if(target.platform==Platform.X&&provenance.source.role==SourceRole.ORIGINAL)XLoggedOutTimeline.parse(d,target,provenance)?.let {return it}
         d.selectFirst(".disabled-feature")?.let {node->throw SourceFailure(HealthStatus.UNSUPPORTED,node.selectFirst("h1,h2")?.text().orEmpty().ifBlank {"This feature is disabled on this source"})}
         val head=d.title()+" "+d.body().text().take(800)
         if(d.select("#challenge-container,#turnstile-widget-container,#anubis-main,#captcha-area").isNotEmpty() || Regex("making sure you.re not a bot|checking your browser|just a moment|verify you are human",RegexOption.IGNORE_CASE).containsMatchIn(head))throw SourceFailure(HealthStatus.CHALLENGE,"This source requires a browser challenge")

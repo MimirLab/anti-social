@@ -1,5 +1,37 @@
 # Next-release qualification
 
+## 0.38.3 original X profile fallback and feed health
+
+The final full JVM suite covered **1,888 cases, zero failures/errors and one optional
+dependency skip**. Debug/release/test assembly and release lint pass; existing
+lint warnings remain. A further targeted run also verifies that the captured
+NASA note keeps its text beyond the short preview. A further cross-source
+regression replaces the older X capture with the newly parsed original page
+and still collects its existing Instagram/Facebook editions into one caption.
+
+Actual API 35 gateway reads retrieved five owned, dated originals each for NASA
+and SpaceX with one request per profile. Original access disabled and selected
+Tor unavailable both failed before network start. The public NASA caption and
+native video control were visually inspected. These are dated source checks;
+there is no new X search/history/comments or physical-phone qualification.
+
+The broad native batch passed **61 of 62** checks across routing heartbeat,
+catch-up, cross-posts, RSS, fusion, feed windows and subscriptions. One dialog
+fixture timed out waiting for its initial seed. Focused runs exposed the same
+controlled-clock issue in a second fixture. Advancing UI frames while asynchronous
+setup completed made the full subscription class pass **9/9**. The live X check
+also passed independently after its capture explicitly progressed frames and
+verified the focused native window. Earlier screenshots showed stale content
+despite matching semantics; those were rejected as visual evidence. The entire
+62-check batch was not repeated after these test-only synchronization changes.
+
+The old reader fails the new captured-page regression. A separate routing
+regression fails before the feed-health fix by accepting a dated excerpt ahead
+of a complete dated backup. Coverage includes strict literal/JSON resource
+bounds, wrong origins/owners, private/tombstone records, full-note links, video
+variants, quote scope, incomplete extraction and pending unbridged short windows.
+See [the source and coverage details](X_PROFILE_FALLBACK.md).
+
 ## 0.38.2 cached reading during refresh
 
 The final full JVM suite covered **1,868 cases, zero failures/errors and one

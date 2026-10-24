@@ -71,6 +71,41 @@ class SourcePoolRoutingTest {
             assertEquals(HealthStatus.EMPTY,pool.results(Platform.X).first {it.source==routes.sources.first()}.status)
         }}
     }
+    @Test fun anUndatedFirstSourceCannotWinAChronologicalFeedOverADatedBackup():Unit=runBlocking {
+        MockWebServer().use {first->MockWebServer().use {backup->
+            first.start();backup.start()
+            fun rss(date:String)="""<?xml version="1.0"?><rss><channel><item><title>Flight update</title><link>https://x.com/NASA/status/123</link><description>Complete public update</description>$date</item></channel></rss>"""
+            first.enqueue(MockResponse().setBody(rss("")))
+            backup.enqueue(MockResponse().setBody(rss("<pubDate>Fri, 23 Oct 2026 12:00:00 GMT</pubDate>")))
+            val local=routes(first.url("/").toString().trimEnd('/'),backup.url("/").toString().trimEnd('/'))
+            val pool=SourcePool(gateway(),local)
+            val page=pool.load(local.target(Platform.X,"NASA"),feed=true,originalFallback=false)
+            assertNotNull("Chronological feed routing must continue past undated content",page.posts.single().publishedAt)
+            assertEquals(local.sources[1],page.provenance?.source)
+            assertEquals(HealthStatus.EMPTY,pool.results(Platform.X).first {it.source==local.sources[0]}.status)
+            assertEquals(1,first.requestCount);assertEquals(1,backup.requestCount)
+        }}
+    }
+    @Test fun aDatedPreviewCannotTrainFeedHealthOrBeatACompleteDatedSource():Unit=runBlocking {
+        MockWebServer().use {first->MockWebServer().use {backup->
+            first.start();backup.start()
+            first.enqueue(MockResponse().setBody("""<html><head><title>Flight excerpt</title>
+              <meta property="og:url" content="https://x.com/NASA/status/123"><meta property="og:type" content="article">
+              <meta property="og:description" content="A small public excerpt"><meta property="og:image" content="https://pbs.twimg.com/preview.jpg">
+              <meta property="article:published_time" content="2026-10-23T12:00:00Z"></head><body></body></html>"""))
+            backup.enqueue(MockResponse().setBody("""<?xml version="1.0"?><rss><channel><item><title>Complete flight notice</title><link>https://x.com/NASA/status/123</link><description>Complete public instructions.</description><pubDate>Fri, 23 Oct 2026 12:00:00 GMT</pubDate></item></channel></rss>"""))
+            val local=routes(first.url("/").toString().trimEnd('/'),backup.url("/").toString().trimEnd('/'))
+            val pool=SourcePool(gateway(),local)
+            // Feed eligibility is a capability contract, independent of the
+            // entity shape used to supply this explicitly excerpted fixture.
+            val target=requireNotNull(local.recognize("https://x.com/NASA/status/123"))
+            val page=pool.load(target,feed=true,originalFallback=false)
+            assertFalse("A date alone cannot make an excerpt a complete feed entry",page.posts.single().preview)
+            assertEquals(local.sources[1],page.provenance?.source)
+            assertEquals(HealthStatus.EMPTY,pool.results(Platform.X).first {it.source==local.sources[0]}.status)
+            assertEquals(1,first.requestCount);assertEquals(1,backup.requestCount)
+        }}
+    }
     @Test fun freshBackupNeedsNoAutomaticNetworkRead(): Unit=runBlocking {
         MockWebServer().use {first->MockWebServer().use {backup->
             first.start();backup.start();val routes=routes(first.url("/").toString().trimEnd('/'),backup.url("/").toString().trimEnd('/'))

@@ -223,6 +223,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         Capability.COMMENTS->Discussions.comments(Post(ContentIdentity.key(target.platform,target.canonicalUrl),target.platform,target.canonicalUrl,"",""),page).isNotEmpty()
         Capability.PROFILE->page.profile!=null
         Capability.POST->page.posts.any {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)&&!it.preview}
+        Capability.FEED->FeedRefresh.posts(page,target.platform).isNotEmpty()
         else->page.posts.isNotEmpty()||page.collections.any {!it.navigation}||capability==Capability.SEARCH&&page.accounts.isNotEmpty()
     }
     /** A validated search cursor is navigation progress, never working content or
@@ -470,7 +471,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                     Capability.PROFILE -> page.profile!=null
                     Capability.MEDIA -> page.posts.flatMap {it.media}.firstOrNull()?.let {media->MediaFormats.type(gateway.sample(media.preview ?: media.url,target.canonicalUrl))!=null} ?: false
                     Capability.COMMENTS -> content(page,capability,contentTarget)
-                    Capability.FEED -> page.posts.any {it.publishedAt!=null}
+                    Capability.FEED -> content(page,capability,contentTarget)
                     Capability.SEARCH -> page.posts.isNotEmpty()||page.collections.isNotEmpty()||page.accounts.isNotEmpty()
                     else -> content(page,capability,contentTarget)
                 }

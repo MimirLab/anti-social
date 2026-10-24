@@ -24,7 +24,11 @@ class FeedCatchUp(private val maxPages: Int=8,private val maxPosts: Int=300) {
             // A first subscription has no previous head to bridge. Do not crawl
             // its entire historical archive on first use.
             if(knownHead.isEmpty()||readable.any {key(it) in knownHead})break
-            val cursor=page.next?.takeIf(String::isNotBlank) ?: break
+            val cursor=page.next?.takeIf(String::isNotBlank)
+            if(cursor==null) {
+                if(page.limitedTimeline)problem="This source's limited public window could not reach the previous reading window; this subscription is still pending."
+                break
+            }
             if(!cursors.add(cursor)){problem="The source repeated its cursor before reaching the previous reading window.";break}
             if(pages>=maxPages||retained.size>=maxPosts){problem="More posts remain beyond this catch-up window; this subscription is still pending.";break}
             page=try {next(page)}catch(e: CancellationException){throw e}catch(_: Exception) {
