@@ -12,8 +12,8 @@ import java.net.URLEncoder
 
 data class ArticleAccess(val route:String,val originalUrl:String,val retrievedUrl:String,
     val archivedAt:Long?=null,val version:String?=null,val license:String?=null,val retracted:Boolean=false)
-internal data class ArticlePath(val url:String,val route:String,val version:String?=null,val license:String?=null,val retracted:Boolean=false,val pdf:Boolean=false)
-internal data class ScientificArticle(val key:String,val doi:String?=null,val pmid:String?=null)
+internal data class ArticlePath(val url:String,val route:String,val version:String?=null,val license:String?=null,val retracted:Boolean=false,val pdf:Boolean=false,val jats:Boolean=false,val doi:String?=null)
+internal data class ScientificArticle(val key:String,val doi:String?=null,val pmid:String?=null,val pmcid:String?=null)
 
 class DarwinArticleRoutes internal constructor(catalog:JsonObject) {
     private fun com.google.gson.JsonArray?.orEmpty()=this?.toList().orEmpty()
@@ -80,6 +80,7 @@ class DarwinArticleRoutes internal constructor(catalog:JsonObject) {
     internal fun scientific(raw:String):ScientificArticle? {
         val u=publicUrl(raw) ?: return null
         if(PRIVATE_PATH.containsMatchIn(u.encodedPath)||ASSET.containsMatchIn(u.encodedPath))return null
+        JatsArticles.pageId(raw)?.let {return ScientificArticle("pmc:$it",pmcid=it)}
         val path=u.pathSegments.joinToString("/",prefix="/");val host=u.host
         if(host=="pubmed.ncbi.nlm.nih.gov")return Regex("^/([0-9]{1,9})/?$").matchEntire(path)?.groupValues?.get(1)?.let {ScientificArticle("pmid:$it",pmid=it)}
         val doi=when(host) {
@@ -114,15 +115,20 @@ class DarwinArticleRoutes internal constructor(catalog:JsonObject) {
     }
     internal fun europePmc(root:JsonObject,article:ScientificArticle):List<ArticlePath> {
         val rows=root.getAsJsonObject("resultList")?.getAsJsonArray("result").orEmpty().take(10).mapNotNull {it.takeIf {it.isJsonObject}?.asJsonObject}
-        val r=rows.firstOrNull {if(article.pmid!=null)it["id"]?.asString==article.pmid&&it["source"]?.asString=="MED"else normalizeDoi(it["doi"]?.asString)==article.doi} ?: return emptyList()
+        val r=rows.firstOrNull {when {
+            article.pmid!=null->it["id"]?.asString==article.pmid&&it["source"]?.asString=="MED"
+            article.pmcid!=null->it["pmcid"]?.asString==article.pmcid
+            article.doi!=null->normalizeDoi(it["doi"]?.asString)==article.doi
+            else->false
+        }} ?: return emptyList()
         val retracted=r.getAsJsonObject("pubTypeList")?.getAsJsonArray("pubType").orEmpty().any {it.isJsonPrimitive&&it.asString.contains("retracted publication",true)}
         val version=if(r["authMan"]?.asString=="Y")"acceptedVersion"else null
         val links=r.getAsJsonObject("fullTextUrlList")?.getAsJsonArray("fullTextUrl").orEmpty().take(40).mapNotNull {it.takeIf {it.isJsonObject}?.asJsonObject}.mapNotNull {l->
             if(l["availabilityCode"]?.asString !in setOf("F","OA")||l["documentStyle"]?.asString !in setOf("html","pdf"))null
-            else destination(l["url"]?.asString)?.let {ArticlePath(it,"Europe PMC public copy",version,retracted=retracted,pdf=l["documentStyle"]?.asString=="pdf")}
+            else destination(l["url"]?.asString)?.let {ArticlePath(it,"Europe PMC public copy",version,retracted=retracted,pdf=l["documentStyle"]?.asString=="pdf",doi=normalizeDoi(r["doi"]?.asString))}
         }
         val pmc=r["pmcid"]?.asString?.takeIf {Regex("PMC[0-9]+").matches(it)&&r["inPMC"]?.asString=="Y"&&r["isOpenAccess"]?.asString=="Y"}
-        return (pmc?.let {listOf(ArticlePath("https://pmc.ncbi.nlm.nih.gov/articles/$it/","Europe PMC public copy",version,retracted=retracted))}.orEmpty()+links).distinctBy {it.url}.take(12)
+        return (pmc?.let {listOf(ArticlePath("https://pmc.ncbi.nlm.nih.gov/articles/$it/","Europe PMC public copy",version,retracted=retracted,doi=normalizeDoi(r["doi"]?.asString)))}.orEmpty()+links).distinctBy {it.url}.take(12)
     }
     internal fun pmidDoi(root:JsonObject,pmid:String):String?=runCatching {
         root.getAsJsonObject("resultList")?.getAsJsonArray("result").orEmpty().take(10).firstOrNull {

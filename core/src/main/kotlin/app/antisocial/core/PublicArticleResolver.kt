@@ -62,7 +62,10 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
         validators.entries.removeAll {it.value.session!==session||clock()-it.value.at !in 0..30*60_000L}
         while(validators.size>128||validators.values.sumOf {it.bytes}>256*1024)validators.remove(validators.keys.first())
     }
-    private fun key(url:String,mode:NetworkPolicy)=url.toHttpUrlOrNull()?.host.orEmpty()+"|"+mode.tor
+    private fun key(url:String,mode:NetworkPolicy):String {
+        val host=url.toHttpUrlOrNull()?.host.orEmpty()
+        return host+"|"+mode.tor+if(host=="www.ebi.ac.uk"&&JatsArticles.endpointId(url)!=null)"|jats"else ""
+    }
     @Synchronized private fun eligible(url:String,mode:NetworkPolicy)=(health[key(url,mode)]?.until?.let {it<=clock()} ?: true)&&
         (rejected[mode.tor.toString()+"|"+url]?.let {it<=clock()} ?: true)
     @Synchronized private fun report(url:String,mode:NetworkPolicy,started:Long,success:Boolean) {
@@ -116,14 +119,18 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                         if(response.status !in 200..299)throw SourceFailure(when(response.status){401->HealthStatus.LOGIN_REQUIRED;429->HealthStatus.RATE_LIMITED;else->HealthStatus.UNAVAILABLE},"Article source returned ${response.status}",httpStatus=response.status)
                         if(purpose==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(response.finalUrl))throw SourceFailure(HealthStatus.UNSUPPORTED,"Action links require deliberate opening")
                         val type=header("Content-Type").orEmpty().substringBefore(';').trim().lowercase()
+                        if(path.jats&&type !in setOf("application/xml","text/xml","application/jats+xml"))
+                            throw SourceFailure(HealthStatus.EMPTY,"The structured source returned no article XML")
                         val access=ArticleAccess(path.route,original,response.finalUrl,archiveTime(response.finalUrl,response.text),path.version,path.license,path.retracted)
                         if(path.pdf||type=="application/pdf") {
                             if(type !in setOf("application/pdf","application/octet-stream"))throw SourceFailure(HealthStatus.EMPTY,"The public document route returned no PDF")
                             ContextArticleFetch.PublicPdf(original,response.finalUrl,access)
                         }else {
-                            HtmlAdmission.check(response.text)
+                            if(!path.jats)HtmlAdmission.check(response.text)
                             if(path.route=="Existing archive capture"&&!matchingCapture(response.finalUrl,response.text,original))throw SourceFailure(HealthStatus.EMPTY,"The capture did not identify this exact article")
                             val body=extract(Payload(response.text,response.finalUrl,type,response.status),original,clock())
+                            if(path.jats&&(JatsArticles.endpointId(response.finalUrl)==null||path.doi!=null&&body.publicationDoi!=path.doi))
+                                throw SourceFailure(HealthStatus.EMPTY,"The structured copy did not match the discovered publication")
                             val abstractOnly=response.finalUrl.toHttpUrlOrNull()?.let {it.host=="arxiv.org"&&it.encodedPath.startsWith("/abs/")}==true
                             val site=when {
                                 path.route in setOf("scribe","libMedium","small","freedium")->"Medium"
@@ -132,7 +139,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                                 else->body.siteName
                             }
                             checkMode();rememberValidators(response.finalUrl,session,generation,next)
-                            ContextArticleFetch.Ready(body.copy(siteName=site,etag=next.etag,lastModified=next.lastModified,access=access,truncated=body.truncated||abstractOnly))
+                            ContextArticleFetch.Ready(body.copy(siteName=site,etag=next.etag,lastModified=next.lastModified,access=access.copy(license=access.license ?: body.access?.license),truncated=body.truncated||abstractOnly))
                         }
                     }
                 }
@@ -195,11 +202,26 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             catch(e:CancellationException){throw e}catch(e:Exception){last=e}
         }
         science?.let {article->
+            article.pmcid?.let {id->
+                // A stable PMC identifier already gives an exact structured
+                // route. No metadata search or publisher visit is necessary.
+                attempt(ArticlePath(JatsArticles.endpoint(id),"Europe PMC full text",jats=true))?.let {return it}
+                val html="https://europepmc.org/articles/$id"
+                if(transport.originalAllowed||!routes.sameArticle(original,html))attempt(ArticlePath(html,"Europe PMC public copy"))?.let {return it}
+            }
             var paths=emptyList<ArticlePath>()
             article.doi?.let {doi->json("https://api.openalex.org/works/https://doi.org/"+encode(doi)+"?select=doi,title,is_retracted,locations,best_oa_location")?.let {paths+=runCatching {routes.openAlex(it,doi)}.getOrDefault(emptyList())}}
             fun expanded(values:List<ArticlePath>)=values.flatMap {path->
                 val u=path.url.toHttpUrlOrNull()
-                if(!path.pdf&&u?.host=="arxiv.org"&&u.encodedPath.startsWith("/abs/"))listOf(path.copy(url=path.url.replace("arxiv.org/abs/","arxiv.org/html/")),path)else listOf(path)
+                val pmc=if(!path.pdf)JatsArticles.pageId(path.url)else null
+                when {
+                    // A landing page's edition/rights describe that location.
+                    // The structured endpoint must supply its own license; an
+                    // unknown edition must not inherit a preprint label.
+                    pmc!=null&&JatsArticles.endpointId(path.url)==null->listOf(path.copy(url=JatsArticles.endpoint(pmc),route="Europe PMC full text",version=null,license=null,jats=true,doi=path.doi ?: article.doi),path)
+                    !path.pdf&&u?.host=="arxiv.org"&&u.encodedPath.startsWith("/abs/")->listOf(path.copy(url=path.url.replace("arxiv.org/abs/","arxiv.org/html/")),path)
+                    else->listOf(path)
+                }
             }.distinctBy {it.url}
             fun abstract(path:ArticlePath)=path.url.toHttpUrlOrNull()?.let {it.host=="arxiv.org"&&it.encodedPath.startsWith("/abs/")}==true
             // Try already discovered full HTML immediately; another metadata
@@ -208,8 +230,8 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                 if(routes.sameArticle(original,path.url)&&!transport.originalAllowed)continue
                 attempt(path)?.let {return it}
             }
-            val query=article.pmid?.let {"EXT_ID:$it AND SRC:MED"} ?: "DOI:\"${article.doi}\""
-            json("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query="+encode(query)+"&format=json&resultType=core&pageSize=5")?.let {pmc->
+            val query=article.pmid?.let {"EXT_ID:$it AND SRC:MED"} ?: article.doi?.let {"DOI:\"$it\""}
+            if(query!=null)json("https://www.ebi.ac.uk/europepmc/webservices/rest/search?query="+encode(query)+"&format=json&resultType=core&pageSize=5")?.let {pmc->
                 paths+=runCatching {routes.europePmc(pmc,article)}.getOrDefault(emptyList())
                 if(paths.isEmpty()&&article.pmid!=null)routes.pmidDoi(pmc,article.pmid)?.let {doi->
                     json("https://api.openalex.org/works/https://doi.org/"+encode(doi)+"?select=doi,title,is_retracted,locations,best_oa_location")?.let {paths+=runCatching {routes.openAlex(it,doi)}.getOrDefault(emptyList())}

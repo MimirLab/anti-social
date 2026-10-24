@@ -13,8 +13,10 @@ fun main()=runBlocking {
     val cleaner=UrlCleaner(JsonParser.parseReader(type.getResourceAsStream("/clean-links.json")!!.reader()).asJsonObject)
     NativeFilter(GZIPInputStream(type.getResourceAsStream("/network-rules.seed")!!).reader().readText()).use {filter->
         val gateway=NetworkGateway(cleaner,filter);val resolver=PublicArticleResolver(gateway)
+        gateway.originalFallback=System.getProperty("antisocial.articleAuditOriginals")!="false"
         val results=mutableListOf<Map<String,Any?>>()
         val urls=mutableListOf<String>()
+        if(System.getProperty("antisocial.articleAuditSelectedOnly")!="true") {
         try {
             val index=gateway.text("https://text.npr.org/",maxBytes=512*1024)
             val id=Jsoup.parse(index.text,index.finalUrl).select("a[href]").map {it.absUrl("href")}.firstNotNullOfOrNull {
@@ -23,13 +25,15 @@ fun main()=runBlocking {
             if(id!=null)urls+="https://www.npr.org/$id"else results+=mapOf("source" to "NPR text index","status" to "unavailable","detail" to "No exact article ID found")
         }catch(e:Exception){results+=mapOf("source" to "NPR text index","status" to "unavailable","detail" to e.message)}
         urls+="https://doi.org/10.1038/s41586-021-03819-2"
+        }
         System.getProperty("antisocial.articleAuditUrls")?.split('|')?.filter {it.isNotBlank()}?.let {urls+=it}
         for(url in urls.distinct()) {
             val start=System.nanoTime()
             val result=try {
                 when(val read=resolver.conditional(url,url)) {
                     is ContextArticleFetch.Ready->mapOf("url" to url,"status" to "readable","finalUrl" to read.document.finalUrl,"route" to read.document.access?.route,
-                        "characters" to read.document.text.length,"title" to read.document.title,"truncated" to read.document.truncated,"version" to read.document.access?.version)
+                        "characters" to read.document.text.length,"title" to read.document.title,"truncated" to read.document.truncated,"version" to read.document.access?.version,
+                        "doi" to read.document.publicationDoi,"license" to read.document.access?.license)
                     is ContextArticleFetch.PublicPdf->mapOf("url" to url,"status" to "public_pdf_candidate","finalUrl" to read.url,"route" to read.access.route,
                         "limit" to "HEAD reachability only; actual Android PDF download/page qualification is separate")
                     is ContextArticleFetch.NotModified->mapOf("url" to url,"status" to "unexpected_unchanged")
@@ -40,5 +44,6 @@ fun main()=runBlocking {
         val out=File(System.getProperty("antisocial.articleAuditOutput"));out.parentFile.mkdirs()
         out.writeText(GsonBuilder().setPrettyPrinting().create().toJson(mapOf("results" to results,"scope" to "Current public sources through production gateway/filter. Availability can change; no universal publisher claim.")))
         println(out.readText())
+        gateway.client().dispatcher.executorService.shutdownNow();gateway.client().connectionPool.evictAll()
     }
 }

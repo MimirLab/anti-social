@@ -34,6 +34,16 @@ tasks.register<JavaExec>("publicArticleAudit") {
     systemProperty("antisocial.native.path","${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
     systemProperty("antisocial.articleAuditOutput",providers.gradleProperty("antisocialArticleAuditOutput").getOrElse("${providers.gradleProperty("antisocialBuildRoot").get()}/inference-kv/darwin-article-routes/live.json"))
     providers.gradleProperty("antisocialArticleAuditUrls").orNull?.let {systemProperty("antisocial.articleAuditUrls",it)}
+    systemProperty("antisocial.articleAuditSelectedOnly",providers.gradleProperty("antisocialArticleAuditSelectedOnly").getOrElse("false"))
+    systemProperty("antisocial.articleAuditOriginals",providers.gradleProperty("antisocialArticleAuditOriginals").getOrElse("true"))
+}
+tasks.register<JavaExec>("jatsArticleAudit") {
+    dependsOn(tasks.testClasses)
+    classpath=sourceSets.test.get().runtimeClasspath
+    mainClass.set("app.antisocial.core.JatsArticleAuditKt")
+    systemProperty("antisocial.jatsInput",providers.gradleProperty("antisocialJatsInput").get())
+    systemProperty("antisocial.jatsOutput",providers.gradleProperty("antisocialJatsOutput").get())
+    systemProperty("antisocial.jatsOriginal",providers.gradleProperty("antisocialJatsOriginal").get())
 }
 tasks.register("prepareContextPipelineAudit") {
     dependsOn(tasks.testClasses)

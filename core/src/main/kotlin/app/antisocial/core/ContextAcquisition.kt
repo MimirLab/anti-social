@@ -185,6 +185,8 @@ object ContextArticles {
     const val READING_FORMAT="markdown-blocks-v1"
     fun extract(payload: Payload,originalUrl: String,fetchedAt: Long=System.currentTimeMillis(),readerChecks:Boolean=false): ContextArticleEvidence {
         val type=payload.contentType.substringBefore(';').trim().lowercase(Locale.ROOT)
+        if(type in setOf("application/xml","text/xml","application/jats+xml")&&JatsArticles.endpointId(payload.finalUrl)!=null)
+            return JatsArticles.extract(payload,originalUrl,fetchedAt)
         if(type.isNotEmpty()&&type !in setOf("text/html","application/xhtml+xml"))throw SourceFailure(HealthStatus.UNSUPPORTED,"This source is not a public HTML article")
         if(!payload.text.trimStart('\uFEFF',' ','\n','\r','\t').startsWith('<'))throw SourceFailure(HealthStatus.UNSUPPORTED,"The source did not return an HTML article")
         if(payload.text.length>4*1024*1024)throw SourceFailure(HealthStatus.UNSUPPORTED,"This article exceeds the extraction budget")
@@ -222,6 +224,12 @@ object ContextArticles {
         val readable=Readability4J(payload.finalUrl,document).parse()
         val content=readable.articleContent ?: throw SourceFailure(HealthStatus.EMPTY,"No readable article body was supplied")
         content.select("script,style,iframe,object,embed,nav,aside,footer,form").remove()
+        val (blocks,truncated)=structuredBlocks(content)
+        val title=readable.title?.trim().takeUnless {it.isNullOrBlank()} ?: meta("og:title") ?: document.title()
+        return ContextArticleEvidence(originalUrl,payload.finalUrl,title.take(1000),author ?: readable.byline?.trim()?.takeIf {it.isNotBlank()}?.take(300),site,publishedAt,blocks,fetchedAt,truncated,references=(SignalDiscovery.references(content,originalUrl)+declaredReferences).distinctBy {it.url}.sortedByDescending {it.priority}.take(12),publicationDoi=paper)
+    }
+    /** Shared inert block conversion: structured sources bypass Readability. */
+    internal fun structuredBlocks(content:Element):Pair<List<ContextArticleBlock>,Boolean> {
         val blocks=mutableListOf<ContextArticleBlock>();var total=0;var truncated=false
         val markers=java.util.IdentityHashMap<Element,String>()
         content.select("ol").forEach {list->
@@ -268,9 +276,9 @@ object ContextArticles {
         }
         if(blocks.isEmpty())content.text().trim().takeIf {it.isNotEmpty()}?.let {blocks+=ContextArticleBlock(it.take(MAX_TEXT_CHARS));truncated=it.length>MAX_TEXT_CHARS}
         if(blocks.sumOf {it.text.length}<160||blocks.none {it.kind!=ContextArticleBlockKind.HEADING&&it.text.length>=60})throw SourceFailure(HealthStatus.EMPTY,"The source did not supply a substantial readable article")
-        val title=readable.title?.trim().takeUnless {it.isNullOrBlank()} ?: meta("og:title") ?: document.title()
-        return ContextArticleEvidence(originalUrl,payload.finalUrl,title.take(1000),author ?: readable.byline?.trim()?.takeIf {it.isNotBlank()}?.take(300),site,publishedAt,blocks,fetchedAt,truncated,references=(SignalDiscovery.references(content,originalUrl)+declaredReferences).distinctBy {it.url}.sortedByDescending {it.priority}.take(12),publicationDoi=paper)
+        return blocks to truncated
     }
+
 }
 
 data class ContextParsedCaptions(val cues: List<ContextCaptionCue>,val truncated: Boolean=false)

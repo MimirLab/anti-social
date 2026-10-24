@@ -201,4 +201,67 @@ class PublicArticleResolverTest {
         val result=resolver(t).conditional("https://pubmed.ncbi.nlm.nih.gov/1234/",original) as ContextArticleFetch.Ready
         assertEquals("https://repository.example/report",result.document.finalUrl)
     }
+    private fun jats()=javaClass.getResourceAsStream("/jats-repair.xml")!!.reader().use {it.readText()}
+    private val xmlUrl="https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12345/fullTextXML"
+    private fun xml(url:String=xmlUrl,text:String=jats())=GatewayDocument(200,"OK",mapOf("Content-Type" to listOf("application/xml; charset=UTF-8")),text,url)
+    @Test fun knownPmcIdentifierReadsStructuredFullTextWithoutMetadataOrOriginalAccess():Unit=runBlocking {
+        val t=Transport();t.originalAllowed=false;t.documents={c->assertEquals(xmlUrl,c.url);xml()}
+        val original="https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"
+        val document=(resolver(t).conditional(original,original) as ContextArticleFetch.Ready).document
+        assertEquals(xmlUrl,document.finalUrl);assertEquals("Europe PMC full text",document.access!!.route)
+        assertEquals("10.1234/repair",document.publicationDoi);assertEquals(1,t.calls.size)
+        assertEquals("https://creativecommons.org/licenses/by/4.0/",document.access!!.license)
+    }
+    @Test fun discoveredPmcCopyTriesXmlBeforeHtmlAndAvoidsAnotherIndex():Unit=runBlocking {
+        val t=Transport();t.originalAllowed=false
+        t.indexes={"""{"doi":"https://doi.org/10.1234/repair","locations":[{"is_oa":true,"landing_page_url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/","version":"acceptedVersion","license":"cc-by"}]}"""}
+        t.documents={xml(it.url)}
+        val original="https://doi.org/10.1234/repair"
+        val document=(resolver(t).conditional(original,original) as ContextArticleFetch.Ready).document
+        assertEquals(xmlUrl,document.finalUrl);assertNull(document.access!!.version);assertEquals("https://creativecommons.org/licenses/by/4.0/",document.access!!.license)
+        assertEquals(2,t.calls.size);assertFalse(t.calls.any {it.url.contains("/rest/search")})
+    }
+    @Test fun absentStructuredCopyFallsThroughToExistingHtmlWithoutASecondSearch():Unit=runBlocking {
+        val t=Transport();t.originalAllowed=false
+        t.documents={c->if(c.url==xmlUrl)GatewayDocument(404,"Not found",emptyMap(),"",c.url)else body(c.url)}
+        val original="https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"
+        val document=(resolver(t).conditional(original,original) as ContextArticleFetch.Ready).document
+        assertEquals("https://europepmc.org/articles/PMC12345",document.finalUrl);assertEquals(2,t.calls.size)
+        assertFalse(t.calls.any {it.url==original})
+    }
+    @Test fun xmlWithHtmlMimeOrWrongRootIdentityNeverBecomesTheStructuredArticle():Unit=runBlocking {
+        for(bad in listOf(body(xmlUrl),xml(text=jats().replace("<article-id pub-id-type=\"pmcid\">PMC12345","<article-id pub-id-type=\"pmcid\">PMC54321")))) {
+            val t=Transport();t.originalAllowed=false;t.documents={c->if(c.url==xmlUrl)bad else body(c.url)}
+            val original="https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"
+            assertEquals("https://europepmc.org/articles/PMC12345",(resolver(t).conditional(original,original) as ContextArticleFetch.Ready).document.finalUrl)
+        }
+    }
+    @Test fun recoveredPublisherDoiMustMatchTheXmlPrimaryIdentifier():Unit=runBlocking {
+        val t=Transport();val original="https://www.sciencedirect.com/science/article/pii/S12345678901"
+        t.indexes={if(it.contains("openalex"))"""{"doi":"https://doi.org/10.1234/repair","locations":[{"is_oa":true,"landing_page_url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"}]}"""else "{}"}
+        t.documents={c->when(c.url) {
+            original->body(c.url,"<meta name=citation_doi content='10.1234/repair'>")
+            xmlUrl->xml(text=jats().replace("<article-id pub-id-type=\"doi\">10.1234/repair", "<article-id pub-id-type=\"doi\">10.1234/different"))
+            else->body(c.url)
+        }}
+        val document=(resolver(t).conditional(original,original) as ContextArticleFetch.Ready).document
+        assertEquals("https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/",document.finalUrl)
+        assertTrue(t.calls.any {it.url==xmlUrl})
+    }
+    @Test fun fullTextFailureDoesNotCoolDownTheMetadataCapabilityOnTheSameHost():Unit=runBlocking {
+        val t=Transport();val original="https://doi.org/10.1234/repair"
+        t.indexes={if(it.contains("openalex"))"""{"doi":"https://doi.org/10.1234/repair","locations":[{"is_oa":true,"landing_page_url":"https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"}]}"""else "{}"}
+        t.documents={c->if(c.url==original)body(c.url)else GatewayDocument(503,"Unavailable",emptyMap(),"",c.url)}
+        assertTrue(resolver(t).conditional(original,original) is ContextArticleFetch.Ready)
+        assertTrue(t.calls.any {it.url.contains("europepmc/webservices/rest/search")})
+    }
+    @Test fun structuredRouteHintsAndExactValidatorsRetainTheCheapWarmPath():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val original="https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/"
+        t.documents={xml().copy(headers=mapOf("Content-Type" to listOf("application/xml"),"ETag" to listOf("\"xml-v1\"")))}
+        val first=(r.conditional(original,original) as ContextArticleFetch.Ready).document
+        t.calls.clear();t.documents={c->assertEquals(xmlUrl,c.url);assertEquals("\"xml-v1\"",c.headers["If-None-Match"]);GatewayDocument(304,"Not modified",emptyMap(),"",c.url)}
+        assertTrue(r.conditional(original,original,ContextArticleValidators(first.etag),first.finalUrl) is ContextArticleFetch.NotModified)
+        assertEquals(1,t.calls.size)
+    }
+
 }

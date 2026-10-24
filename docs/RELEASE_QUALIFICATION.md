@@ -1,5 +1,52 @@
 # Release qualification
 
+## 0.38.6 structured scientific full text
+
+The final full JVM suite covered **1,934 cases, zero failures/errors and one
+optional weight-dependent skip**. Debug, release and instrumentation APK assembly
+and release lint passed; existing lint warnings remain. The broad API 35 batch
+passed **44 checks with two opt-in live checks skipped**. After the final small
+identity/lookup optimizations, focused checks passed **7 with one live check
+skipped on API 35**, and **4 with one live check skipped on API 26**. Installed
+APK hashes matched the completed candidate on both devices. Native article
+headings, lists, captions, labelled tables, code and data-availability screens
+were inspected. The NASA three-platform collection regression also passed.
+
+The actual API 35 Gateway and isolated worker retrieved the exact public
+AlphaFold 3 paper with original access disabled. Known PMC acquisition made one
+full-text request; DOI acquisition also reached the matching XML through existing
+metadata routes. These are dated direct reads, not Tor, physical-phone latency
+or provider-uptime qualification. A retained full-paper comparison preserved all
+79 body paragraphs over 60 characters under whitespace/punctuation normalization;
+200 reading blocks, 76,654 characters and 12 selected citations matched exactly
+between JVM and Android APIs 26/35. This is information retention on one source,
+not a semantic-quality or universal-JATS claim.
+
+The new native test fails against the retained 0.38.5 application because XML is
+unsupported. The first implementation's full-paper audit exposed references
+inside body sections and descriptions inside supplementary media; both are now
+retained and covered by regressions. Exact root identifiers, conflicting IDs,
+metadata-only/error XML, malformed/truncated input, internal/external entities,
+structural/text limits, HTML fallback, route health, conditional reuse and
+publisher-derived DOI checks have explicit coverage. External DTD declarations
+make no JVM network request and parse successfully in the network-permissionless
+Android worker. Rejected inputs leave the worker usable and transfer files are
+removed. Returned DOI/access fields receive bounded primitive validation.
+
+The first reader test tried selecting an offscreen, uncomposed table directly;
+it now scrolls the real lazy list before retaining the visibility assertions.
+One API 26 staging run attempted incomplete APK copies; installation rejected
+both files and its tests therefore ran the older installed candidate. That run
+was discarded. The repeated run used completed, SHA-256-verified copies, stopped
+on installation errors, and verified the installed APK against those exact bytes.
+Neither issue changed production reader behavior or the live preview.
+
+The route adds no model, parser runtime or background polling. Figure/image-only
+table pixels and supplementary-file contents are not automatically read; captions
+and source anchors remain. Common MathML/TeX notation is supported, and excluded
+nested articles are marked incomplete. See [scientific full text](SCIENTIFIC_FULL_TEXT.md)
+for acquisition, identity, bounds and source-dependent limits.
+
 ## 0.38.5 article privacy sessions and warm routing lanes
 
 The final full JVM suite covered **1,911 cases, zero failures/errors and one

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML">
+<front><journal-meta><journal-title-group><journal-title>Practical Research</journal-title></journal-title-group></journal-meta>
+<article-meta><article-id pub-id-type="pmcid">PMC12345</article-id><article-id pub-id-type="pmid">123456</article-id><article-id pub-id-type="doi">10.1234/repair</article-id>
+<title-group><article-title>Battery connector retention study</article-title></title-group>
+<contrib-group><contrib contrib-type="author"><name><surname>Smith</surname><given-names>Alex</given-names></name></contrib></contrib-group>
+<pub-date publication-format="electronic" iso-8601-date="2026-10-20"/>
+<permissions><license xlink:href="https://creativecommons.org/licenses/by/4.0/"><license-p>CC BY 4.0</license-p></license></permissions>
+<abstract><p>The study compares connector retention under repeated insertion and documents the observed limits. It does not claim that every battery assembly uses the same connector or replacement process.</p></abstract></article-meta></front>
+<body><sec id="methods"><title>Measured procedure</title>
+<p>Disconnect power before removing the battery, record the connector orientation, and retain the original screws. We measured a retention force of 12 N after twenty cycles and compared it with the published service requirements <xref ref-type="bibr" rid="ref1 ref2">1,2</xref>.</p>
+<list list-type="order"><list-item><p>Record the exact model.</p></list-item><list-item><p>Inspect the connector.</p></list-item></list>
+<p>Relative capacity was calculated as <inline-formula><mml:math><mml:mfrac><mml:mi>C</mml:mi><mml:mi>C0</mml:mi></mml:mfrac></mml:math></inline-formula>. A separate notation was <inline-formula><alternatives><tex-math><![CDATA[x^2 + y^2]]></tex-math><mml:math><mml:mi>duplicate-equation</mml:mi></mml:math></alternatives></inline-formula>.</p>
+<fig id="fig1"><label>Figure 1</label><caption><title>Connector orientation.</title><p>The keyed edge faces away from the battery.</p></caption><graphic xlink:href="fig1.jpg"/></fig>
+<table-wrap id="table1"><label>Table 1</label><caption><p>Measured retention.</p></caption><table><thead><tr><th>Part</th><th>Force</th></tr></thead><tbody><tr><td>Connector A</td><td>12 N</td></tr></tbody></table><table-wrap-foot><fn><p>Measurements used the same calibrated fixture.</p></fn></table-wrap-foot></table-wrap>
+<preformat><![CDATA[if capacity < 0:
+    raise Error("invalid")]]></preformat>
+</sec><sec><title>Data availability</title><p>The complete measurements and fixture drawing are available from <ext-link xlink:href="https://data.example.org/repair">the data archive</ext-link>. The units and uncertainty are documented alongside each measurement, including the unusually weak connector retained in the sample.</p></sec></body>
+<back><ref-list><ref id="ref1"><label>1</label><element-citation><person-group><name><surname>Ng</surname><given-names>Sam</given-names></name></person-group><article-title>Connector service guide</article-title><year>2025</year><pub-id pub-id-type="doi">10.1234/guide</pub-id></element-citation></ref><ref id="ref2"><label>2</label><mixed-citation>Repair manual <ext-link xlink:href="https://maker.example.org/manual">original documentation</ext-link>.</mixed-citation></ref></ref-list></back>
+</article>

@@ -24,6 +24,13 @@ internal object ContentOutput {
         val o=obj(JsonParser.parseString(value))
         string(o,"originalUrl",65536);string(o,"finalUrl",65536);string(o,"title",1000)
         string(o,"author",300,true);string(o,"siteName",200,true);number(o,"fetchedAt");bool(o,"truncated")
+        string(o,"publicationDoi",512,true)
+        o["publishedAt"]?.takeUnless {it.isJsonNull}?.let {number(o,"publishedAt")}
+        o["access"]?.takeUnless {it.isJsonNull}?.let {value->
+            val access=obj(value);string(access,"route",128);string(access,"originalUrl",65536);string(access,"retrievedUrl",65536)
+            string(access,"version",80,true);string(access,"license",4096,true);bool(access,"retracted")
+            access["archivedAt"]?.takeUnless {it.isJsonNull}?.let {number(access,"archivedAt")}
+        }
         val blocks=o["blocks"];require(blocks?.isJsonArray==true&&blocks.asJsonArray.size()<=30_000)
         var total=0L
         for(entry in blocks.asJsonArray) {
@@ -31,7 +38,7 @@ internal object ContentOutput {
             require(string(block,"kind",32) in kinds&&number(block,"headingLevel") in 0..6&&number(block,"listDepth") in 0..512)
             string(block,"listMarker",64,true)
             val links=block["links"];require(links?.isJsonArray==true&&links.asJsonArray.size()<=32)
-            require(links.asJsonArray.all {it.isJsonPrimitive&&it.asJsonPrimitive.isString})
+            require(links.asJsonArray.all {it.isJsonPrimitive&&it.asJsonPrimitive.isString&&it.asString.length<=65536})
         }
         require(total<=ContextArticles.MAX_TEXT_CHARS+1000)
         o["references"]?.takeUnless {it.isJsonNull}?.let {refs->

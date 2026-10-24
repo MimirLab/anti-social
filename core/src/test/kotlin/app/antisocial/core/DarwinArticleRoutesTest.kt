@@ -60,5 +60,14 @@ class DarwinArticleRoutesTest {
         val paths=routes.europePmc(d,ScientificArticle("pmid:123",pmid="123"))
         assertEquals(1,paths.size);assertEquals("https://pmc.ncbi.nlm.nih.gov/articles/PMC123/",paths.single().url);assertEquals("acceptedVersion",paths.single().version)
         assertTrue(routes.europePmc(d,ScientificArticle("pmid:124",pmid="124")).isEmpty())
+        assertEquals(paths,routes.europePmc(d,ScientificArticle("pmc:PMC123",pmcid="PMC123")))
+        assertTrue(routes.europePmc(d,ScientificArticle("pmc:PMC124",pmcid="PMC124")).isEmpty())
+        assertTrue(routes.europePmc(d,ScientificArticle("unknown")).isEmpty())
     }
+    @Test fun knownPmcIdentifiersNeedNoSearchAndNeverComeFromLookalikeHosts() {
+        for(url in listOf("https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/","https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12345/","https://europepmc.org/articles/PMC12345","https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12345/fullTextXML"))
+            assertEquals(url,"PMC12345",routes.scientific(url)?.pmcid)
+        for(url in listOf("https://pmc.ncbi.nlm.nih.gov.evil.example/articles/PMC12345/","https://europepmc.org/articles/PMC12345?token=secret","https://pmc.ncbi.nlm.nih.gov/articles/PMC12345/supplement","https://pmc.ncbi.nlm.nih.gov/articles/PMC0/"))assertNull(url,routes.scientific(url))
+    }
+
 }

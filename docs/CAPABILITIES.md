@@ -16,6 +16,7 @@ successful live paths and unavailable sources.
 | Saved material | Protected local copies and local search/export | Ordinary expiring cache is separate. Availability of selected media/thread content is recorded at capture time. |
 | Post information | Immediate file declarations; on-demand recipes, NovelAI PNG signatures and linked Content Credentials | Deterministic and available with AI off. Format, size and request limits apply; no statistical image detector or external image upload. See [Media Info](MEDIA_INFO.md). |
 | Context | Optional model-assisted briefs over retrieved post/link/comment evidence | Selection can omit useful facts; preserved sources are inspectable. Unavailable material contributes no invented facts. Read progress and usable briefs are cached. |
+| Linked scientific articles | Native text from matching public HTML, PDF candidates and Europe PMC structured full text; the same retrieved material can feed Context | Public-copy coverage varies. Abstract-only XML and wrong publication identifiers are rejected. Figure/table images retain captions and source links; pixels and supplementary files are not automatically read. See [scientific full text](SCIENTIFIC_FULL_TEXT.md). |
 | Video links | In-app playback, SponsorBlock where supported and recovery routes | Hosting, captions and surviving copies are source dependent. YouTube is a controlled linked-video medium, not a new social-feed tab. |
 
 ## Connection behavior

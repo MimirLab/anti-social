@@ -27,6 +27,21 @@ import java.time.Instant
 
 @RunWith(AndroidJUnit4::class)
 class ArticleReaderTest {
+    @Test fun structuredScientificCopyReadsCleanlyWithoutAi() {
+        val xml=InstrumentationRegistry.getInstrumentation().context.assets.open("jats-repair.xml").reader().use {it.readText()}
+        val url="https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12345/fullTextXML"
+        val document=runBlocking {repo.documentSandbox.article(Payload(xml,url,"application/xml",200),"https://doi.org/10.1234/repair",1234)}
+        reader.fetch={ContextArticleFetch.Ready(document)}
+        ui.runOnIdle {reader.open("https://doi.org/10.1234/repair")};ui.waitUntil(10_000){reader.state.value?.document!=null}
+        ui.onNodeWithText("Abstract").assertExists()
+        evidence("jats-article-summary")
+        ui.onNodeWithTag("Article reading list").performScrollToNode(hasText("Part: Connector A; Force: 12 N"))
+        ui.onNodeWithText("Part: Connector A; Force: 12 N").assertIsDisplayed()
+        ui.onNodeWithTag("Article reading list").performScrollToNode(hasText("Measurements used the same calibrated fixture."))
+        ui.onNodeWithText("Measurements used the same calibrated fixture.").assertIsDisplayed()
+        evidence("jats-article-table")
+        assertFalse(repo.ai.preferences.enabled)
+    }
     @Test fun structuredStaticExtractionRendersReadableStepsAndLabelledTablesWithoutAi() {
         val html="""<html><head><title>Repair procedure</title></head><body><article><h1>Repair procedure</h1><p>The replacement battery must match the exact laptop model and electrical specification. Disconnect power before opening the case, photograph the connector, and keep the original screws organized.</p><h2>Safe sequence</h2><ol start=2><li>Disconnect power</li><li>Inspect the connector</li></ol><table><tr><th>Part</th><th>Capacity</th></tr><tr><td>Battery A</td><td>56 Wh</td></tr></table><p>The service manual documents the approved replacement sequence. Never puncture a swollen cell or force a damaged connector back into place.</p></article><script>fetch('/never-run')</script></body></html>"""
         val document=ContextArticles.extract(Payload(html,original,"text/html",200),original)

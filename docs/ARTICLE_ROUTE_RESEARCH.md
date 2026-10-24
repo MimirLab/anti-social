@@ -12,11 +12,11 @@ or latency guarantees.
 | Crossref exact work | 200 | 36,168 | 308 ms | Publisher-deposited HTML/PDF links, content type and version |
 | Europe PMC fullTextXML | 200 | 174,359 | 2,012 ms | JATS front matter identifies the same DOI/PMCID; body contains 86 paragraphs and 61,733 text characters |
 
-The XML route is a promising additional body source when HTML delivery fails.
-It is research-only in 0.38.5. Activation needs bounded JATS extraction in the
-existing isolated document worker, exact front-matter identity checks, retained
-sections/tables/citations and comparison against current extraction. An abstract
-or a metadata record must not be accepted as the complete paper. The same paper
+The XML route was research-only in 0.38.5. The 0.38.6 implementation adds bounded
+JATS extraction in the existing isolated document worker, exact front-matter
+identity checks, retained sections/tables/citations and comparison against the
+captured full paper; see [scientific full text](SCIENTIFIC_FULL_TEXT.md). An abstract
+or a metadata record cannot stand in for the complete paper. The same paper
 syndicated by several services is one underlying source, not independent evidence.
 
 Crossref link declarations do not establish that a destination is currently
@@ -27,4 +27,5 @@ The existing resolver already consumes OpenAlex and Europe PMC metadata;
 Crossref full-text links and JATS bodies are further candidate routes.
 
 Raw research responses and structure checks remain on the external build volume.
-No route or automatic background request was added from these probes.
+The probes themselves did not add an automatic background request. The qualified
+route is used during an existing article lookup, with no new polling schedule.
