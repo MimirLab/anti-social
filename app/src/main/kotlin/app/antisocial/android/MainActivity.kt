@@ -172,7 +172,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         value=withContext(Dispatchers.Default){KnownPostGroups(candidates,accounts,matchingMemberships,imageRevision,repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions"){CrossPosts.groupCancellable(candidates.map(repo.images.identities::captured),accounts,matchingMemberships,repo.images.identities::same)}.flatMap {g->g.posts.map {repo.key(it) to g.posts}}.toMap())}
     }
     val discussionGroups=knownGroups?.groups.orEmpty()
-    val counterpartsReady=!feedRefresh.running&&globalSnapshot?.generation==feedRefresh.generation&&
+    val counterpartsReady=!feedRefresh.publishing&&globalSnapshot?.generation==feedRefresh.readableGeneration&&
         ((state.section!="subscription"&&(state.section!="feed"||state.target!=null))||storedSnapshot!=null&&storedSnapshot.generation==globalSnapshot?.generation)&&matchingCandidates!=null&&loadedFollows!=null&&knownGroups?.posts==matchingCandidates&&knownGroups?.follows==loadedFollows&&knownGroups?.memberships==matchingMemberships&&knownGroups?.images==imageRevision
     val readerStates=rememberSaveableStateHolder()
     var readerKeys by rememberSaveable {mutableStateOf(listOf<String>())}

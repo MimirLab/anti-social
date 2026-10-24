@@ -1,5 +1,27 @@
 # Next-release qualification
 
+## 0.38.2 cached reading during refresh
+
+The final full JVM suite covered **1,868 cases, zero failures/errors and one
+optional dependency skip**. Debug/release/test assembly and release lint pass;
+existing lint warnings remain. The final API 35 native batch passed **81 of 81**
+checks across catch-up, cross-post feed, feed windows, reading memory, portability,
+saved copies, library migration and card work indicators. An earlier 62-check
+batch also covered fusion, RSS, channels and subscription controls.
+
+The cold-reader regression fails on the former implementation while a source is
+held open. The final candidate reads the complete old Room window in **13 ms**
+while that source is still blocked, then releases the newly collected generation
+with its **17-pixel anchor preserved**. This measures cache collection after
+repository initialization, not OS process startup or physical-phone performance.
+Native cached-feed and three-platform NASA screens were inspected.
+
+Failure-path checks cover concurrent storage bounds, cancellation after another
+source finished, unavailable scratch, atomic database rollback, preserved saved
+material, source pending/success state, completed failed-attempt generations and
+refresh invoked from the UI thread. See [the storage/publication design](FEED_REFRESH.md).
+This release adds no network request, native runtime or AI requirement.
+
 ## 0.38.1 route, Substack and discovery maintenance
 
 The final full JVM suite covered **1,863 cases with zero failures/errors and one

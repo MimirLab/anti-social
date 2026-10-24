@@ -24,7 +24,10 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class StorageUsage(val cache: Long=0,val saved: Long=0,val filters: Long=0,val videoCache: Long=0,val videoDownloads: Long=0)
 data class FollowedPostSnapshot(val posts: List<Post>,val memberships: Map<String,Set<String>>,val generation: Long=0)
-data class FeedRefreshState(val generation: Long=0,val running: Boolean=false,val requested: Set<String> = emptySet(),val failed: Set<String> = emptySet())
+data class FeedRefreshState(val generation: Long=0,val running: Boolean=false,val requested: Set<String> = emptySet(),val failed: Set<String> = emptySet(),val publishing:Boolean=false) {
+    val readableGeneration get()=if(running)(generation-1).coerceAtLeast(0)else generation
+}
+private data class FeedReadEpoch(val generation:Long,val publishing:Boolean)
 private data class PostWindow(val posts: List<Post>,val generation: Long)
 /** Access-time/bookkeeping updates are not new source material. Comparing this
  * projection before decoding prevents a read dwell from reparsing the feed. */
@@ -189,6 +192,7 @@ class Repository(val context: Context) {
         pool.onProgress={message->scope.launch(Dispatchers.Main.immediate){status.value=message}}
         scope.launch {
             try {
+                FeedRefreshStage.cleanup(File(context.cacheDir,"feed-refresh"))
                 cleaner.prepare();LinkOpening.sync(context,prefs.selected);applyNetworkSettings(startTransport=false);initializeFilters()
                 val revision=File(context.filesDir,"health-reader-version")
                 val sameReader=runCatching {revision.readText()=="5"}.getOrDefault(false)
@@ -270,11 +274,11 @@ class Repository(val context: Context) {
     fun key(post: Post)=post.identityKey
     fun postTarget(post: Post): Target?=if(post.platform==Platform.RSS)runCatching {RssSources.itemTarget(post)}.getOrNull()else routes.recognize(post.canonicalUrl)
     @OptIn(ExperimentalCoroutinesApi::class)
-    private fun postWindow(platform: Platform?,group: String="",personId: String?=null,channel: PersonalChannel?=null): Flow<PostWindow> = combine(follows,feedRefresh) {list,refresh->
+    private fun postWindow(platform: Platform?,group: String="",personId: String?=null,channel: PersonalChannel?=null): Flow<PostWindow> = combine(follows,feedRefresh.map {FeedReadEpoch(it.readableGeneration,it.publishing)}.distinctUntilChanged()) {list,refresh->
         val eligible=channel?.let {PersonalChannels.accounts(it,list).map(Follow::id).toSet()}
         list.filter {ReaderScope.active(it)&&(platform==null||it.target.platform==platform)&&(group.isBlank()||it.group==group)&&(personId==null||Subscriptions.id(it)==personId)&&(eligible==null||it.id in eligible)}.map {it.id} to refresh
     }.distinctUntilChanged().flatMapLatest {(ids,refresh)->
-        if(refresh.running)emptyFlow()else if(ids.isEmpty())flowOf(PostWindow(emptyList(),refresh.generation)) else combine(ids.chunked(400).map {chunk->dao.followedPosts(chunk).map {rows->rows.map {FeedPostRecord(it.key,it.payload,it.publishedAt,it.createdAt)}}.distinctUntilChanged()}) {chunks->
+        if(refresh.publishing)emptyFlow()else if(ids.isEmpty())flowOf(PostWindow(emptyList(),refresh.generation)) else combine(ids.chunked(400).map {chunk->dao.followedPosts(chunk).map {rows->rows.map {FeedPostRecord(it.key,it.payload,it.publishedAt,it.createdAt)}}.distinctUntilChanged()}) {chunks->
             chunks.flatMap {it}.distinctBy {it.key}.sortedWith(compareByDescending<FeedPostRecord> {it.publishedAt ?: Long.MIN_VALUE}.thenByDescending {it.createdAt}).take(1000)
         }.distinctUntilChanged().map {rows->
             val posts=rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.filter(::readableRecord).also {registerPageOrigins(Page(it))}
@@ -385,7 +389,10 @@ class Repository(val context: Context) {
     }}
     suspend fun store(page: Page,followId: String?=null,allowPurged: Boolean=false)=withContext(Dispatchers.IO) {
         rememberAccountNames(page)
-        db.withTransaction {
+        db.withTransaction {storeRows(page,followId,allowPurged)}
+    }
+    /** Caller owns the Room transaction; no network or dispatcher switch here. */
+    private suspend fun storeRows(page:Page,followId:String?,allowPurged:Boolean=false) {
         registerPageOrigins(page)
         val now=System.currentTimeMillis()
         for(item in page.posts) {
@@ -396,7 +403,7 @@ class Repository(val context: Context) {
             dao.putPost(PostRow(key,post.platform.id,json,post.publishedAt,old?.createdAt ?: seen?.firstSeen ?: now,old?.lastViewedAt,json.toByteArray().size.toLong(),followId ?: old?.followId))
             dao.putSeen(SeenRow(key,post.platform.id,seen?.firstSeen ?: now,false))
         }
-    }}
+    }
     fun pageKey(target: Target)="page:"+hash("${target.platform.id}:${target.kind}:${target.canonicalUrl}")
     suspend fun cachedPage(target: Target): Page?=withContext(Dispatchers.IO) {mediaMutex.withLock {
         val row=dao.media(pageKey(target)) ?: return@withLock null
@@ -716,7 +723,7 @@ class Repository(val context: Context) {
             feedMemory.flush()
         }}
     }
-    suspend fun refresh(platform: Platform?=null,personId: String?=null,group: String="",channel: PersonalChannel?=null)=refreshMutex.withLock {
+    suspend fun refresh(platform: Platform?=null,personId: String?=null,group: String="",channel: PersonalChannel?=null)=withContext(Dispatchers.IO) {refreshMutex.withLock {
         awaitReady()
         feedMemory.awaitReady()
         gateway.originalFallback=prefs.originalFallback
@@ -728,6 +735,17 @@ class Repository(val context: Context) {
         val unfinished=java.util.concurrent.ConcurrentHashMap.newKeySet<String>().apply {addAll(list.map {it.id})}
         val failures=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         val generation=feedRefresh.value.generation+1
+        val free=StatFs(context.cacheDir.path).availableBytes
+        val staging=try {FeedRefreshStage(File(context.cacheDir,"feed-refresh"),minOf(64L*1024*1024,prefs.cacheMb.toLong()*1024*1024/4,(free-256L*1024*1024).coerceAtLeast(0)/4))}
+        catch(e:Exception) {
+            try {
+                unfinished.forEach {feedMemory.fail(it,token,"Refresh cache is unavailable; the previous feed is retained")}
+                feedMemory.flush()
+            }finally {
+                feedRefresh.value=FeedRefreshState(generation,false,list.map {it.id}.toSet(),unfinished.toSet())
+            }
+            throw e
+        }
         feedRefresh.value=FeedRefreshState(generation,true,list.map {it.id}.toSet())
         try {
             if(prefs.wifiOnly) {
@@ -742,6 +760,7 @@ class Repository(val context: Context) {
                 currentCoroutineContext().ensureActive()
                 publish(status,"Updating ${follow.name}")
                 try {
+                    if(!staging.acceptsMore)throw java.io.IOException("Refresh staging is full; this subscription will be checked later")
                     val known=dao.followedPosts(listOf(follow.id)).first()
                     val newest=known.mapNotNull {it.publishedAt}.maxOrNull()
                     val cachedHead=known.filter {newest==null||it.publishedAt==newest}.take(8).map {it.key}
@@ -750,32 +769,50 @@ class Repository(val context: Context) {
                     feedMemory.catchUpHead(follow.id,token,cachedHead)
                     val head=feedMemory.refresh.value[follow.id]?.catchUpHead.orEmpty().toSet()
                     val fetched=withTimeout(if(prefs.tor)90_000L else 45_000L) {FeedCatchUp().collect(follow.target.platform,head,first={followLoader(follow)},next={followPageLoader(follow,it)})}
-                    if(fetched.page.posts.isNotEmpty())store(fetched.page,follow.id)
-                    val reason=fetched.pendingReason
-                    if(reason==null)feedMemory.success(follow.id,token,System.currentTimeMillis())
-                    else {feedMemory.fail(follow.id,token,reason);failures+=follow.id}
+                    val job=currentCoroutineContext()
+                    staging.write(follow.id,fetched.page,fetched.pendingReason){job.ensureActive()}
                 }catch(e: TimeoutCancellationException){
                     currentCoroutineContext().ensureActive()
-                    feedMemory.fail(follow.id,token,"Catch-up timed out; subscription still pending");failures+=follow.id
+                    feedMemory.fail(follow.id,token,"Catch-up timed out; subscription still pending");failures+=follow.id;unfinished.remove(follow.id)
                 }catch(e: CancellationException){throw e}catch(e: Exception){
-                    feedMemory.fail(follow.id,token,e.message?.take(180) ?: "Subscription unavailable");failures+=follow.id
+                    feedMemory.fail(follow.id,token,e.message?.take(180) ?: "Subscription unavailable");failures+=follow.id;unfinished.remove(follow.id)
                 }
-                unfinished.remove(follow.id)
             }}}.awaitAll()}
-            cleanup();publish(status,if(failures.isNotEmpty())"${failures.size} sources pending; saved feed retained" else "")
         }finally {
             withContext(NonCancellable) {
                 try {
+                    // Network waits never mutate the completed reader window.
+                    // Publish all completed source pages in one local transaction,
+                    // including useful pages gathered before cancellation.
+                    feedRefresh.value=feedRefresh.value.copy(publishing=true)
+                    val entries=staging.entries()
+                    db.withTransaction {for(entry in entries) {
+                        val page=staging.read(entry)
+                        if(page.posts.isNotEmpty()){rememberAccountNames(page);storeRows(page,entry.sourceId)}
+                    }}
+                    for(entry in entries) {
+                        val reason=entry.pendingReason
+                        if(reason==null)feedMemory.success(entry.sourceId,token,System.currentTimeMillis())
+                        else {feedMemory.fail(entry.sourceId,token,reason);failures+=entry.sourceId}
+                        unfinished.remove(entry.sourceId)
+                    }
                     unfinished.forEach {feedMemory.fail(it,token,"Refresh interrupted; subscription still pending")}
                     feedMemory.flush()
+                    publish(status,if(failures.isNotEmpty()||unfinished.isNotEmpty())"${(failures+unfinished).size} sources pending; saved feed retained" else "")
+                }catch(e:Exception) {
+                    unfinished.forEach {feedMemory.fail(it,token,"Refresh could not be stored; the previous feed is retained")}
+                    throw e
                 }finally {
                     // A local persistence failure must not leave all subscribed
                     // data flows permanently suspended behind a running flag.
                     feedRefresh.value=FeedRefreshState(generation,false,list.map {it.id}.toSet(),failures+unfinished)
+                    staging.close()
                 }
             }
         }
-    }
+        // Cache maintenance must not hold the completed reader generation back.
+        cleanup()
+    }}
     suspend fun viewed(post: Post) {val now=System.currentTimeMillis();dao.touchPost(key(post),now);dao.putHistory(HistoryRow(key(post),post.platform.id,post.canonicalUrl,post.title.ifBlank {post.body.take(90)},now));library.recordHistory(post,now)}
     suspend fun bookmark(post: Post,save: Boolean) {
         archiveStore.mutations.withLock {
@@ -894,6 +931,7 @@ class Repository(val context: Context) {
         scope.launch {try {delay(1000);cleanup();lastAutoCleanup=android.os.SystemClock.elapsedRealtime()}finally {cleanupQueued.set(false)}}
     }
     suspend fun cleanup(clearAll: Boolean=false)=withContext(Dispatchers.IO) {
+        FeedRefreshStage.cleanup(File(context.cacheDir,"feed-refresh"))
         // Never sweep an in-progress writer's temporary files or delay ordinary
         // cache eviction behind a network update. The next pass can prune them.
         if(filterMutex.tryLock())try {pruneFilterFiles()}finally {filterMutex.unlock()}

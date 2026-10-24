@@ -167,6 +167,59 @@ class CrossPostFeedTest {
         assertEquals(caption,runBlocking {repo.dao.post(repo.key(x))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.title)
         evidence("rss-caption-once-native")
     }
+    @Test fun aColdReaderCanReadTheCompleteCacheWhileAnotherSourceIsStillRefreshing() {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val xFollow=follow(Platform.X);val blueFollow=follow(Platform.BLUESKY)
+        val previous=post(Platform.X,30,body="The previous complete workshop announcement contains the venue, equipment and practical registration instructions.")
+        store(previous,xFollow)
+        val tail=(31..32).map {index->post(Platform.X,index,body="Earlier independent workshop $index has its own equipment list, room location and access arrangements for visiting readers.",time=now-index*3_600_000L).also {store(it,xFollow)}}
+        runBlocking {repo.dao.putFollow(FollowRow(blueFollow.id,blueFollow.target.platform.id,repo.gson.toJson(blueFollow)))}
+        seed("person:$person",listOf(previous)+tail,read=true,offset=17)
+        val text="The workshop software release adds offline project exports, fixes the spreadsheet importer, and includes a documented migration guide for existing installations. The release archive and verification instructions are available from the project website."
+        val newer=post(Platform.X,33,body=text,time=now+1_000)
+        val counterpart=post(Platform.BLUESKY,34,body=text,time=now+2_000)
+        val loader=repo.followLoader;val policy=repo.gateway.currentPolicy()
+        val slowStarted=CompletableDeferred<Unit>();val release=CompletableDeferred<Page>()
+        val jobs=CoroutineScope(SupervisorJob()+Dispatchers.IO)
+        repo.gateway.configure(NetworkPolicy(tor=true))
+        fun fetched(values:List<Post>,platform:Platform):Page {
+            val source=Source(platform,"native-cold-fixture","https://cold-start-fixture.invalid")
+            val stamp=Provenance(source,System.currentTimeMillis(),source.root)
+            return Page(values.map {it.copy(provenance=stamp)},provenance=stamp)
+        }
+        repo.followLoader={source->if(source.id==xFollow.id)fetched(listOf(newer,previous),Platform.X)else {assertEquals(blueFollow.id,source.id);slowStarted.complete(Unit);release.await()}}
+        val refresh=jobs.async {repo.refresh(personId=person)}
+        try {
+            runBlocking {withTimeout(5000){slowStarted.await()}}
+            assertTrue(repo.feedRefresh.value.running)
+            val active=repo.feedRefresh.value.generation
+            val began=System.nanoTime()
+            val cached=runBlocking {withTimeoutOrNull(2000){repo.followedSnapshot(personId=person).first {it.posts.isNotEmpty()}}}
+            val cacheReadMs=(System.nanoTime()-began)/1_000_000
+            assertNotNull("A cold cache read must not wait for a slow network source",cached)
+            assertEquals((listOf(previous)+tail).map(repo::key).toSet(),cached!!.posts.map(repo::key).toSet())
+            assertTrue(cached.generation<active)
+            assertNull("A partial source batch must not mutate the complete reader window",runBlocking {repo.dao.post(repo.key(newer))})
+            val vm=model();show(vm);waitRow(previous)
+            val before=top(previous);val offset=repo.feedMemory.get("person:$person").anchorOffset
+            assertFalse(refresh.isCompleted)
+            evidence("cold-cache-readable-during-gated-refresh")
+            release.complete(fetched(listOf(counterpart),Platform.BLUESKY))
+            runBlocking {withTimeout(10_000){refresh.await()}}
+            val completed=runBlocking {withTimeout(5000){repo.followedSnapshot(personId=person).first {it.generation==active&&it.posts.size==5}}}
+            assertEquals(4,CrossPosts.group(completed.posts,accounts,completed.memberships).size)
+            ui.waitUntil(10_000){repo.key(newer) in repo.feedMemory.get("person:$person").acceptedKeys&&repo.key(counterpart) in repo.feedMemory.get("person:$person").acceptedKeys}
+            assertTrue(abs(top(previous)-before)<=2f)
+            assertEquals(offset,repo.feedMemory.get("person:$person").anchorOffset)
+            assertFalse(repo.feedRefresh.value.running)
+            val timing=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"cross-posts/cold-reader-timing.json")
+            timing.parentFile!!.mkdirs();timing.writeText(repo.gson.toJson(mapOf("cacheReadMs" to cacheReadMs,"sourceHeldWhileFirstCardWasDisplayed" to true,"anchorOffsetPreserved" to offset)))
+            evidence("complete-refresh-keeps-cold-reader-anchor")
+        }finally {
+            release.complete(Page(emptyList()));runBlocking {refresh.cancelAndJoin();jobs.coroutineContext[Job]?.cancelAndJoin()}
+            repo.followLoader=loader;repo.gateway.configure(policy)
+        }
+    }
     @Test fun nasaNotSlowingDownIsOneNativeCardWithThreePreservedOriginals() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         val originals=InstrumentationRegistry.getInstrumentation().context.assets.open("nasa-not-slowing-posts.json").reader().use {

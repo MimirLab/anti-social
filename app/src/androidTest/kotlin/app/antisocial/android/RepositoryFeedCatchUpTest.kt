@@ -2,6 +2,7 @@
 package app.antisocial.android
 
 import android.content.Context
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.antisocial.core.*
@@ -150,5 +151,81 @@ class RepositoryFeedCatchUpTest {
             val snapshot=withTimeout(5_000){repo.followedSnapshot(personId=person).first {it.generation==completed.generation&&it.posts.size==3}}
             assertEquals((newer+originalHead).map(repo::key).toSet(),snapshot.posts.map(repo::key).toSet())
         }finally {release.complete(Page(emptyList()));retry.cancelAndJoin()}
+    }
+    @Test fun cancellingASlowSourceStillPublishesTheOtherCompletedSourceAndRemovesScratch()=runBlocking {
+        val known=post(0);val newer=post(1);repo.store(page(listOf(known)),follow.id,true)
+        val other=Follow("$person:slow",follow.target.copy(identity="slow$suffix",canonicalUrl="https://x.com/slow$suffix"),"Slow source",personId=person)
+        repo.dao.putFollow(FollowRow(other.id,other.target.platform.id,repo.gson.toJson(other)))
+        repo.feedMemory.syncFollows(listOf(follow.id,other.id))
+        val previous=repo.feedMemory.begin(listOf(other.id));repo.feedMemory.success(other.id,previous,now-60_000)
+        val waiting=CompletableDeferred<Unit>()
+        repo.followLoader={source->if(source.id==follow.id)page(listOf(newer,known))else {waiting.complete(Unit);awaitCancellation()}}
+        val refresh=launch(Dispatchers.IO){repo.refresh(personId=person)}
+        try {
+            withTimeout(5_000){waiting.await()}
+            awaitStage("completed source is staged before cancellation") {
+                File(context.cacheDir,"feed-refresh").listFiles().orEmpty().any {dir->dir.listFiles().orEmpty().any {it.extension=="json"}}
+            }
+            assertNull(repo.dao.post(repo.key(newer)))
+            refresh.cancelAndJoin()
+            assertNotNull("An interrupted second source cannot discard the completed first one",repo.dao.post(repo.key(newer)))
+            assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[follow.id]?.status)
+            assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[other.id]?.status)
+            assertEquals(now-60_000,repo.feedMemory.refresh.value[other.id]?.lastSuccessAt)
+            assertFalse(repo.feedRefresh.value.running);assertFalse(repo.feedRefresh.value.publishing)
+            assertTrue(File(context.cacheDir,"feed-refresh").listFiles().orEmpty().isEmpty())
+        }finally {refresh.cancelAndJoin();repo.dao.removeFollow(other.id)}
+    }
+    @Test fun unavailableStagingKeepsThePreviousFeedAndMarksTheCheckPending()=runBlocking {
+        val known=post(0);repo.store(page(listOf(known)),follow.id,true)
+        val before=repo.feedRefresh.value.generation
+        val root=File(context.cacheDir,"feed-refresh")
+        assertTrue(root.listFiles().orEmpty().isEmpty());root.delete();root.writeText("A local filesystem obstruction")
+        var requested=false;repo.followLoader={requested=true;page(listOf(post(1),known))}
+        try {
+            assertTrue(runCatching {repo.refresh(personId=person)}.isFailure)
+            assertFalse("Do not fetch when the staging area cannot be prepared",requested)
+            assertNotNull(repo.dao.post(repo.key(known)))
+            val completed=repo.feedRefresh.value
+            assertFalse(completed.running);assertFalse(completed.publishing)
+            assertTrue("A failed attempt must complete so a manual refresh can be retried",completed.generation>before)
+            assertEquals(setOf(follow.id),completed.requested);assertEquals(setOf(follow.id),completed.failed)
+            assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[follow.id]?.status)
+        }finally {root.delete()}
+    }
+    @Test fun refreshCalledOnMainDoesItsSourceAndStagingWorkOffMain()=runBlocking {
+        val known=post(0);val newer=post(1);repo.store(page(listOf(known)),follow.id,true)
+        var sourceWasOnMain=true
+        repo.followLoader={
+            sourceWasOnMain=Looper.myLooper()==Looper.getMainLooper()
+            page(listOf(newer,known))
+        }
+        withContext(Dispatchers.Main.immediate){repo.refresh(personId=person)}
+        assertFalse("Foreground refresh must not inherit the UI dispatcher for source or scratch work",sourceWasOnMain)
+        assertNotNull(repo.dao.post(repo.key(newer)))
+        assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[follow.id]?.status)
+        assertTrue(repo.feedRefresh.value.failed.isEmpty());assertFalse(repo.feedRefresh.value.running)
+    }
+    @Test fun aFailedAtomicPublicationRollsBackAllNewRowsAndKeepsSavedMaterial()=runBlocking {
+        val known=post(0);val newer=post(1);val rejected=post(2)
+        repo.store(page(listOf(known)),follow.id,true)
+        val bookmark=BookmarkRow(repo.key(known),known.platform.id,repo.gson.toJson(known),now)
+        repo.dao.putBookmark(bookmark)
+        repo.followLoader={page(listOf(newer,rejected,known))}
+        val trigger="reject_refresh_$suffix"
+        val rejectedKey=repo.key(rejected).replace("'","''")
+        repo.db.openHelper.writableDatabase.execSQL("CREATE TRIGGER $trigger BEFORE INSERT ON posts WHEN NEW.`key`='$rejectedKey' BEGIN SELECT RAISE(ABORT,'fixture publication failure'); END")
+        try {
+            assertTrue(runCatching {repo.refresh(personId=person)}.isFailure)
+            assertNull("Earlier rows in the same batch must also roll back",repo.dao.post(repo.key(newer)))
+            assertNull(repo.dao.post(repo.key(rejected)));assertNotNull(repo.dao.post(repo.key(known)))
+            assertEquals(bookmark,repo.dao.bookmarksByKeys(listOf(bookmark.key)).single())
+            assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[follow.id]?.status)
+            assertFalse(repo.feedRefresh.value.running);assertFalse(repo.feedRefresh.value.publishing)
+            assertTrue(File(context.cacheDir,"feed-refresh").listFiles().orEmpty().isEmpty())
+        }finally {
+            repo.db.openHelper.writableDatabase.execSQL("DROP TRIGGER IF EXISTS $trigger")
+            repo.dao.removeBookmark(bookmark.key)
+        }
     }
 }
