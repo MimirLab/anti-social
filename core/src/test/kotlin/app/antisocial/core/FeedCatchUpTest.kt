@@ -2,6 +2,8 @@
 package app.antisocial.core
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -183,7 +185,52 @@ class FeedCatchUpTest {
         }
     }
 
+    @Test fun anOwnedDeadlineRetainsCompletedPagesAndCancelsTheUnfinishedRead():Unit=runBlocking {
+        val first=page(post("105"),next="actual-second-page")
+        val second=page(post("104"),next="actual-third-page")
+        var reads=0;var cancelled=false
+        val result=FeedCatchUp(timeoutMillis=100).collect(Platform.X,setOf(key(post("100"))),first={first},next={previous->
+            reads++
+            if(reads==1){assertEquals(first.next,previous.next);second}
+            else try {assertEquals(second.next,previous.next);awaitCancellation()}finally {cancelled=true}
+        })
+        assertTrue(cancelled);assertEquals(2,reads);assertEquals(2,result.pages)
+        assertEquals(listOf("105","104"),result.page.posts.map {it.id})
+        assertEquals(second.provenance,result.page.provenance);assertNull(result.page.next)
+        assertTrue(requireNotNull(result.pendingReason).contains("timed out"))
+    }
+
+    @Test fun aDeadlineBeforeTheFirstPageFailsWithoutInventingAnEmptySuccess():Unit=runBlocking {
+        var cancelled=false
+        val failure=try {
+            FeedCatchUp(timeoutMillis=50).collect(Platform.X,emptySet(),first={try {awaitCancellation()}finally {cancelled=true}},next={error("No first page")})
+            fail("An unfinished first read must fail");null
+        }catch(e:SourceFailure){e}
+        assertTrue(cancelled);assertEquals(HealthStatus.UNAVAILABLE,failure!!.status)
+        assertTrue(failure.message.orEmpty().contains("before a public page"))
+    }
+
+    @Test fun aShorterCallerDeadlineStillCancelsInsteadOfPublishingPartialWork():Unit=runBlocking {
+        var cancelled=false
+        try {
+            withTimeout(50) {
+                FeedCatchUp(timeoutMillis=5_000).collect(Platform.X,setOf(key(post("100"))),first={page(post("105"),next="actual-next")},next={
+                    try {awaitCancellation()}finally {cancelled=true}
+                })
+            }
+            fail("Caller cancellation must not become a pending result")
+        }catch(_:kotlinx.coroutines.TimeoutCancellationException){assertTrue(cancelled)}
+    }
+
+    @Test fun aSuccessfulOwnedDeadlinePreservesOrdinaryCompletionAndNoExtraReads():Unit=runBlocking {
+        val head=post("100");val first=page(post("105"),next="actual-next")
+        val result=FeedCatchUp(timeoutMillis=5_000).collect(Platform.X,setOf(key(head)),first={first},next={page(head)})
+        assertEquals(2,result.pages);assertNull(result.pendingReason)
+        assertEquals(listOf("105","100"),result.page.posts.map {it.id})
+    }
+
     @Test fun invalidBudgetsAreRejected() {
+        for(deadline in listOf(0L,-1L))assertThrows(IllegalArgumentException::class.java){FeedCatchUp(timeoutMillis=deadline)}
         for((pages,posts) in listOf(0 to 10,1 to 0,-1 to 10,1 to -1)) {
             try {FeedCatchUp(pages,posts);fail("Invalid catch-up budget")}
             catch(_: IllegalArgumentException) { }

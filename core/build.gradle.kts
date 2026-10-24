@@ -121,6 +121,14 @@ tasks.register<JavaExec>("sourceAudit") {
     systemProperty("antisocial.evidenceRoot", "${providers.gradleProperty("antisocialBuildRoot").get()}/evidence/source-audit")
     systemProperty("antisocial.native.path", "${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
 }
+tasks.register<JavaExec>("routeLatencyAudit") {
+    dependsOn(tasks.testClasses)
+    classpath=sourceSets.test.get().runtimeClasspath
+    mainClass.set("app.antisocial.core.RouteLatencyAuditKt")
+    systemProperty("antisocial.native.path","${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
+    systemProperty("antisocial.routeLatencyEvidence",providers.gradleProperty("antisocialRouteLatencyEvidence").getOrElse("${providers.gradleProperty("antisocialBuildRoot").get()}/evidence/route-latency-20261024"))
+    systemProperty("antisocial.routeLatencyTargets",providers.gradleProperty("antisocialRouteLatencyTargets").getOrElse("https://x.com/NASA,https://www.instagram.com/nasa,https://t.me/telegram,https://www.reddit.com/r/technology,https://bsky.app/profile/bsky.app"))
+}
 tasks.register<JavaExec>("networkAudit") {
     dependsOn(tasks.testClasses)
     classpath=sourceSets.test.get().runtimeClasspath

@@ -110,6 +110,41 @@ class RepositoryFeedCatchUpTest {
         assertEquals((newer+known).map(repo::key).toSet(),snapshot.posts.map(repo::key).toSet())
         assertFalse(RefreshLedger.caughtUp(listOf(follow.id),repo.feedMemory.refresh.value))
     }
+    @Test fun aSlowLaterPageRetainsCompletedPostsAndRetriesTheOriginalGap()=runBlocking {
+        // Exercise the actual production 45-second source deadline, rather than
+        // introducing a test-only timeout override into the application.
+        repo.prefs.tor=false
+        val known=post(0);val newer=listOf(post(1),post(2))
+        repo.store(page(listOf(known)),follow.id,true)
+        val oldSuccess=now-60_000
+        val earlier=repo.feedMemory.begin(listOf(follow.id));repo.feedMemory.success(follow.id,earlier,oldSuccess)
+        var cancelled=false
+        repo.followLoader={page(listOf(newer.last()),next="completed-second-page")}
+        repo.followPageLoader={_,previous->when(previous.next) {
+            "completed-second-page"->page(listOf(newer.first()),next="slow-third-page")
+            "slow-third-page"->try {awaitCancellation()}finally {cancelled=true}
+            else->error("Only follow the actual source cursor")
+        }}
+        withTimeout(60_000){repo.refresh(personId=person)}
+        assertTrue("The unfinished read must be cancelled at the source deadline",cancelled)
+        assertTrue("Keep every already completed page",newer.all {repo.dao.post(repo.key(it))!=null})
+        assertEquals(setOf(follow.id),repo.feedRefresh.value.failed)
+        assertFalse(repo.feedRefresh.value.running);assertFalse(repo.feedRefresh.value.publishing)
+        assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[follow.id]?.status)
+        assertEquals(oldSuccess,repo.feedMemory.refresh.value[follow.id]?.lastSuccessAt)
+        assertFalse(RefreshLedger.caughtUp(listOf(follow.id),repo.feedMemory.refresh.value))
+        assertTrue(File(context.cacheDir,"feed-refresh").listFiles().orEmpty().isEmpty())
+
+        var retried=false
+        repo.followLoader={page(listOf(newer.last()),next="retry-original-gap")}
+        repo.followPageLoader={_,previous->assertEquals("retry-original-gap",previous.next);retried=true;page(listOf(newer.first(),known))}
+        repo.refresh(personId=person)
+        assertTrue("The newly retained head must not hide the unfinished gap",retried)
+        assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[follow.id]?.status)
+        assertTrue(repo.feedRefresh.value.failed.isEmpty())
+        val snapshot=withTimeout(5_000){repo.followedSnapshot(personId=person).first {it.posts.size==3}}
+        assertEquals((newer+known).map(repo::key).toSet(),snapshot.posts.map(repo::key).toSet())
+    }
     @Test fun retryAfterAPartialCatchUpStillReachesTheOriginalHeadAfterMemoryReload()=runBlocking {
         val originalHead=post(0);val newer=listOf(post(1),post(2))
         repo.store(page(listOf(originalHead)),follow.id,true)

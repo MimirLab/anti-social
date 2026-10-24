@@ -1,4 +1,35 @@
-# Next-release qualification
+# Release qualification
+
+## 0.38.4 retain completed catch-up pages at the source deadline
+
+The full JVM suite covered **1,892 cases, zero failures/errors and one optional
+weight-dependent skip**. Debug, release and instrumentation APK assembly and
+release lint passed; existing lint warnings remain. The API 35 native batch
+passed **60/60** across repository catch-up, cross-post feed, reading windows,
+reading memory and collected-post presentation. Native NASA collection and
+cached-reading/anchor screenshots were inspected.
+
+The new native regression was first run against the retained 0.38.3 debug APK.
+It failed after the real 45-second deadline because two completed newer pages
+were missing from Room. With the same test APK and the candidate application,
+those pages survive, the stalled read is cancelled, the subscription remains
+pending with its previous success time, scratch is removed, and retry reaches
+the original unfinished frontier. Separate JVM checks cover first-page timeout,
+caller cancellation and ordinary success. The total deadlines and page/post
+budgets are unchanged. There is no new background work, route request or runtime.
+
+The captured NASA “We are not slowing down” regression still combines all three
+platform editions into one native card with all three original/comment roots.
+That duplicate fix shipped in 0.38.1; this release requalifies it rather than
+claiming a new merger rule.
+
+A corrected complete-route-pool audit measured fresh and learned head reads;
+see [route measurements and limits](ROUTE_LATENCY.md). The first donor-only run
+omitted PublicPathways and was rejected as a whole-app benchmark. Further live
+Instagram original-header and Kittygram timeline checks remained login-gated or
+unavailable; they were not promoted as working routes. The successful RSS bridge
+is separate evidence. No physical-phone, Tor latency or upstream-uptime claim
+follows from these tests.
 
 ## 0.38.3 original X profile fallback and feed health
 

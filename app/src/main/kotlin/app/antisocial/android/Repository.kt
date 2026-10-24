@@ -768,7 +768,7 @@ class Repository(val context: Context) {
                     // retry still has to bridge the last unfinished gap.
                     feedMemory.catchUpHead(follow.id,token,cachedHead)
                     val head=feedMemory.refresh.value[follow.id]?.catchUpHead.orEmpty().toSet()
-                    val fetched=withTimeout(if(prefs.tor)90_000L else 45_000L) {FeedCatchUp().collect(follow.target.platform,head,first={followLoader(follow)},next={followPageLoader(follow,it)})}
+                    val fetched=FeedCatchUp(timeoutMillis=if(prefs.tor)90_000L else 45_000L).collect(follow.target.platform,head,first={followLoader(follow)},next={followPageLoader(follow,it)})
                     val job=currentCoroutineContext()
                     staging.write(follow.id,fetched.page,fetched.pendingReason){job.ensureActive()}
                 }catch(e: TimeoutCancellationException){

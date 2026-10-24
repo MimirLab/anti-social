@@ -1,4 +1,4 @@
-# Cached reading during refresh, 0.38.2
+# Cached reading during refresh
 
 The feed can read the last complete cached window while subscriptions are being
 checked. A slow or unavailable source no longer hides that cache from someone
@@ -21,6 +21,13 @@ Only this local publication briefly gates new reader snapshots. The previously
 rendered feed stays on screen. Source checks become successful only after that
 transaction commits; unavailable or incomplete subscriptions remain pending.
 Cache maintenance runs after the completed generation has been released.
+
+A source deadline (45 seconds direct, 90 seconds with Tor) now belongs to the
+catch-up collector. If a later cursor stalls, completed pages survive and enter
+the final publication with a pending reason. The unfinished read is cancelled;
+no extra request is made and no incomplete gap becomes a successful refresh.
+If the first page never arrives, the source fails normally. Retrying still targets
+the persisted original frontier, even though newer partial pages are now cached.
 
 Cancelling a refresh retains source windows that finished before cancellation,
 while interrupted sources remain pending. A failed database transaction rolls
