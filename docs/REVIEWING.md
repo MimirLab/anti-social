@@ -34,12 +34,20 @@ and a search-only Tor client alone does not describe the all-traffic setting.
 | Release/artifact checks | Matching source/tag, signer, APK integrity, preview state preservation and the anonymous permanent download where recorded. |
 | Explicit missing qualification | The named unmeasured behavior, hardware or source remains unmeasured. Its scope does not erase the other evidence. |
 
-At 0.38.9 the automated JVM run covered 1,963 cases, with zero failures/errors and
-one optional weight-dependent skip. Android qualification covered 68 unique
-checks: 67 passed and one optional live-Tor check was skipped. The qualification
-record includes the initial new-test cleanup failure and corrected rerun. This
-is a selected regression set, not a count of every test ever written or a claim
-that every security boundary was independently audited in that release.
+For the published **0.38.10** release, the full JVM run covered **1,970 cases**,
+with zero failures/errors and one optional weight-dependent skip. Its selected
+Android batch covered **52 named checks**: 50 passed and two opt-in live-source/Tor
+checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03810-fair-public-index-continuations)
+describes the exact increment, corrected fixture issues and native screen checks.
+The preceding 0.38.9 batch covered a different selection of 68 unique Android
+checks, with 67 passes and one opt-in skip. Counts from different releases should
+not be combined into a new run or treated as interchangeable coverage.
+
+These are release-specific regression records, not a count of every test ever
+written or a claim of an independent security audit. The public APK, matching
+source and fixed-name download were verified; the laptop preview was promoted
+after preserving its retained reader state. See [publishing](PUBLISHING.md) for
+the artifact checks required for each release.
 
 User phone testing and emulator instrumentation both exist. A statement such as
 “this comparison does not measure phone battery use” identifies an unmeasured
@@ -80,3 +88,20 @@ Report a concrete bypass, missing test or source failure with the affected
 version, path and evidence. Give implemented defenses the same specificity.
 Neither a successful happy path nor a scoped limitation establishes the status
 of the entire application.
+
+## Useful starting points for specific questions
+
+| Question | Implementation path | Executable examples |
+| --- | --- | --- |
+| Is Tor available for the whole app, and can a failed Tor request go direct? | Settings → `Repository.applyNetworkSettings` → `TorController.enable` → Gateway default/Tor-required sessions | `PublicGatewayTest.selectedTorFailsClosedForJsonFormsAndCanariesBeforeDirectTraffic`; native `SearchPrivacyTest.searchTorFailsClosedWithoutBlockingDirectContent` covers the separate search-only mode. |
+| Can stale work survive a connection-mode round trip? | Gateway session identity, retained clients and response checks | `PublicGatewayTest.staleClientsAndExplicitSessionsCannotReviveAfterAModeRoundTrip` |
+| Does one broken frontend end the search? | `SourcePool.load`, capability eligibility, method diversity, rolling hedges and later fallback tiers | `SourcePoolSchedulingTest.aDifferentUntriedFeedMethodPrecedesMoreMirrorsOfTheFailedMethod`; `aStalledEarlierRouteDoesNotHoldAnAvailableLaterSlot` |
+| Is a responding frontend necessarily usable? | `SourcePool.content`, feed refresh contracts and extraction identity | `SourcePoolSchedulingTest.anUndatedDifferentMethodCannotBeatACompleteChronologicalFeed` |
+| Is the parser merely in another app-private process? | Manifest authority → read-only descriptor admission → worker → bounded parent validation and watchdog | Native `ContentSandboxTest.workerHasDifferentUidNoNetworkPermissionAndCannotReadPrivateFiles`; `stuckNativeWorkIsTerminatedAndNextRequestRestartsTheWorker`. The HEIF/AVIF compatibility worker has different authority. |
+| Does redundancy mean constant polling? | Demand-scoped `RouteHeartbeat`, passive observations, global/host budgets and backoff | `RouteHeartbeatTest.stablePulsePlansExponentiallyQuietToOneDay`; `oneGlobalLeaseAndForegroundPreemptionPreventConcurrentMaintenance` |
+
+These are navigation aids to tests, not a statement that every listed method ran
+in the latest selected Android batch. Use the dated qualification for that claim.
+Live sources can still withhold data or fail together when they share an upstream.
+An observed provider failure, an exhausted capability plan and a demonstrated
+protection bypass are different findings; record which one occurred.

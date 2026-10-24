@@ -32,7 +32,12 @@ private class GatewayArticleTransport(private val gateway:NetworkGateway):Articl
 }
 
 /** One bounded acquisition policy shared by native reading and AI preparation.
- * Health contains provider/publisher hints, never preference or model decisions. */
+ * The production transport is GatewayArticleTransport: alternative public copies
+ * retain Gateway filtering, purpose, original-access and privacy-session guards.
+ * Android supplies its isolated document extractor; JVM fixtures supply their
+ * own extractor. Route selection is deterministic with AI disabled as well.
+ * Health contains provider/publisher hints, never preference or model decisions.
+ * See docs/ARCHITECTURE.md for the complete acquisition/worker/storage path. */
 class PublicArticleResolver internal constructor(private val transport:ArticleTransport,private val routes:DarwinArticleRoutes=DarwinArticleRoutes(),private val clock:()->Long=System::currentTimeMillis,private val extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}) {
     constructor(gateway:NetworkGateway,clock:()->Long=System::currentTimeMillis,extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}):this(GatewayArticleTransport(gateway),clock=clock,extract=extract)
     private data class Health(val failures:Int=0,val until:Long=0,val latency:Long=0)

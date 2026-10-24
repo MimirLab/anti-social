@@ -58,9 +58,13 @@ internal object ContentWire {
     fun configCode(config:Bitmap.Config?):Int {if(Build.VERSION.SDK_INT>=33&&config==Bitmap.Config.RGBA_1010102)return 4;return when(config){Bitmap.Config.ARGB_8888->1;Bitmap.Config.RGB_565->2;Bitmap.Config.RGBA_F16->3;else->throw IOException("Unsupported pixel format")}}
 }
 
-/** No Repository, paths, network client, models or app-private storage. The
- * only writable capability is a pipe: a hostile worker cannot fill the cache.
- * The watchdog runs separately from native decoding and terminates this UID. */
+/** Descriptor-only worker protocol: no Repository, URL, path or model weights.
+ * ContentSandboxService and DocumentSandboxService are permissionless isolated
+ * UIDs in the manifest; their writable output capability is a bounded pipe.
+ * PlatformImageService reuses this protocol with the ordinary app UID instead
+ * for HEIF/AVIF compatibility: this base class alone does not confer isolation.
+ * The watchdog runs independently of native decoding. See docs/HARDENING.md
+ * and docs/ARCHITECTURE.md for Gateway acquisition and parent validation. */
 open class ContentSandboxService:Service() {
     protected open fun accepts(operation:Int)=true
     private val lane=Executors.newSingleThreadExecutor()

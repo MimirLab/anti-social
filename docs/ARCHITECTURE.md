@@ -6,7 +6,7 @@ and reliability come from cooperating layers. This is the starting map for code
 review; [reviewing and evidence](REVIEWING.md) explains how to assess a particular
 release. The [reader guide](READER_GUIDE.md) covers normal use.
 
-## Connection policy: the all-traffic Tor control exists
+## Connection modes and app-wide Tor
 
 **Settings → Privacy & connection → Tor for all traffic** routes the app's
 content, photos, videos and updates through its embedded Tor service. It works
@@ -76,6 +76,29 @@ opening. Filters start from a bundled compiled snapshot or a valid saved one;
 daily update work preserves working protection during refresh failures. Android
 can defer that scheduled work. See [hardening](HARDENING.md) for exact bounds,
 filter refresh and decoder behavior.
+
+## How the layers combine on an ordinary read
+
+Consider a post whose first frontend fails and whose replacement contains an
+image and an article link. The controls below apply to different parts of that
+same journey; passing one check does not remove the others.
+
+| Stage | What the app does | Where to follow it |
+| --- | --- | --- |
+| Choose another route | Select an eligible method for the requested capability; require usable, matching content before treating it as delivery. | `SourcePool.load`, its adapter factory and `PublicPathways` |
+| Fetch the replacement | Apply the current connection policy, URL cleaning, compiled filters, origin/credential restrictions and request budgets. Recheck redirect destinations. | `NetworkGateway` |
+| Receive after a mode change | Reject a response or client belonging to the old privacy session. A direct → Tor → direct round trip creates a new session. | `NetworkSession` and Gateway execution guards |
+| Decode the picture | Fetch through the gateway, then give the documented decoder worker one read-only input. Validate bounded returned pixels; reuse a decoded cache hit. | `Repository` media path and `ContentSandbox` |
+| Read an attached article | Use the shared bounded public-copy resolver. Supplemental reading screens action links; relevant document extraction runs in its isolated worker. | `PublicArticleResolver`, `FetchPurpose` and `DocumentSandboxService` |
+| Keep the result | Retain canonical attribution and source evidence. Apply ordinary cache expiry separately from explicit saves and offline downloads. | Repository, cache and Library consumers |
+
+These are complementary controls: Tor governs the connection; filters screen
+requests; source checks establish what was retrieved; worker isolation limits
+the authority available while decoding; parent validation bounds what comes
+back. Automatic retrieval does not launch the site's JavaScript. A deliberate
+external-browser handoff is a separate action outside the app's transport.
+The worker/format exceptions and their tested scope are documented below and
+in [hardening](HARDENING.md#workers-and-authority).
 
 ## Redundancy includes different methods and learned delivery
 

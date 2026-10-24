@@ -227,6 +227,11 @@ class Repository(val context: Context) {
         awaitReady();gateway.originalFallback=prefs.originalFallback
         incomingLinks.resolve(value,prefs.selected.toSet(),explicit,hint,prefs.originalFallback)
     }
+    /** Joins the app-wide Tor preference and separate Tor-required search needs.
+     * startTransport=false still installs the selected policy before first I/O;
+     * it does not authorize direct traffic while Tor is starting. Follow this
+     * through TorController and NetworkGateway, not a search client in isolation.
+     * See docs/ARCHITECTURE.md#connection-modes-and-app-wide-tor. */
     @Synchronized fun applyNetworkSettings(startTransport: Boolean=true) {
         gateway.originalFallback=prefs.originalFallback
         pool.searchProvider=prefs.searchProvider

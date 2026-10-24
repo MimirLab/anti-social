@@ -30,7 +30,7 @@ app's ordinary content, photos, videos, probes, archives, downloads and updates.
 The embedded transport needs no root or separate Tor app. This is an app-wide
 control in addition to the Tor-required search connection; selecting another
 frontend does not change the selected privacy mode. See the
-[connection matrix](ARCHITECTURE.md#connection-policy-the-all-traffic-tor-control-exists).
+[connection matrix](ARCHITECTURE.md#connection-modes-and-app-wide-tor).
 
 Every app request uses NetworkGateway, including redirects, images and updates.
 Regional discovery and public-index search use Tor. Reading follows the selected
