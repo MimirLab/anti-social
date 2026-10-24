@@ -2,9 +2,9 @@
 
 ## 0.38.7 article fallback tiers and canonical revalidation
 
-The full JVM suite covered **1,945 cases, zero failures/errors and one optional
+The full JVM suite covered **1,946 cases, zero failures/errors and one optional
 weight-dependent skip**. Debug, instrumentation and release APK assembly and
-release lint passed; warnings remain. The API 35 native batch passed **46 checks
+release lint passed; warnings remain. The API 35 native batch passed **47 checks
 with three opt-in checks skipped**. A separate live canonical-PMC check passed
 through the production Gateway and isolated reader with original access disabled.
 Installed native-test application bytes matched the staged candidate. Source
@@ -16,7 +16,13 @@ recovered alternatives, an original URL mislabeled by metadata as an alternate,
 a stale canonical target and an obsolete frame deleting newer validator bindings.
 The latter is an efficiency failure, not evidence of cross-session ETag disclosure.
 Other checks cover same-provider PMC aliases, directly discovered XML DOI identity,
-sensitive final URLs and original access disabled after learning a redirect.
+sensitive final URLs and original access disabled after learning a redirect. A late
+representation-change regression caught observed PDF MIME being learned as a
+permanent PDF route. The hint now retains only the verified destination and
+declared route kind, so a generic publisher URL can later return readable HTML.
+The new JVM case failed before this correction; the native Gateway/worker case
+also passes. Its first PDF response qualifies candidate dispatch, not PDF rendering.
+
 
 The new native canonical-routing test also fails against the retained 0.38.6 app.
 With the candidate, the first read makes two local HTTP requests (redirect plus
@@ -37,8 +43,12 @@ performance guarantees. The NASA three-platform collected-card check still passe
 
 A test-fixture editing error initially split an existing `gateway` statement and
 stopped instrumentation compilation. It was corrected before native qualification;
-production code was unaffected. The test-only internal transport access produces
-a pinned-compiler visibility warning and is not part of the release application.
+production code was unaffected. A later shared transport-helper refactor compiled
+but selected the public Gateway constructor and failed two native cases with a
+cast error. Naming the internal `transport` constructor parameter fixes the test
+binding; the repeated session suite passes all five checks. The test-only internal
+access produces a pinned-compiler visibility warning and is not part of the
+release application.
 
 [Validation policy](ARTICLE_VALIDATION.md) and [PMC paths](SCIENTIFIC_FULL_TEXT.md)
 record the changes. [Further route research](ARTICLE_ROUTE_RESEARCH.md) retains

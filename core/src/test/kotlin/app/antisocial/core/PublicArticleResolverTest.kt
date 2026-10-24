@@ -342,4 +342,13 @@ class PublicArticleResolverTest {
         assertEquals(listOf(original),t.calls.map {it.url});assertTrue(t.calls.single().headers.isEmpty())
     }
 
+    @Test fun anObservedPdfDoesNotFreezeAnUndeclaredPublisherRepresentation():Unit=runBlocking {
+        val t=Transport();val r=resolver(t);val original="https://publisher.example/report"
+        t.documents={GatewayDocument(200,"OK",mapOf("Content-Type" to listOf("application/pdf")),"",it.url)}
+        assertTrue(r.conditional(original,original) is ContextArticleFetch.PublicPdf)
+        t.calls.clear();t.documents={body(it.url)}
+        assertTrue("The publisher can later supply a readable HTML edition at this same URL",r.conditional(original,original) is ContextArticleFetch.Ready)
+        assertFalse(t.calls.first().head)
+    }
+
 }

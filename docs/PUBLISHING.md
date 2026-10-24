@@ -29,6 +29,17 @@ are excluded from GitHub's Latest mechanism.
    publishes and marks the release Latest. `--dry-run` only inspects the plan.
 4. Verify the permanent URL anonymously before reporting publication complete.
 
+Before packaging, inspect `META-INF/version-control-info.textproto` inside the
+release APK and require its revision to match the clean source commit being
+tagged. A successful assembly alone does not establish this correspondence.
+AGP 9.1.1's revision task reads loose branch refs but does not resolve packed
+branch refs: a healthy checkout can therefore produce `NO_VALID_GIT_FOUND`.
+In that case, save the branch name, detach at the exact same clean commit,
+assemble with `scripts/gradle.sh`, and restore the saved branch even if the
+build fails. Verify the embedded revision again. Do not patch the APK metadata
+or move the branch to obtain a stamp.
+
+
 The helper defaults to `MimirLab/anti-social` and the existing external artifact
 directory. `--apk` can select another locally packaged APK. `GH_CONFIG_DIR` is
 inherited; credentials are never embedded in the source or release assets.

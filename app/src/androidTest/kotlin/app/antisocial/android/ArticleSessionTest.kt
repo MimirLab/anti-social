@@ -41,8 +41,9 @@ class ArticleSessionTest {
                             val result=reply(path,headers);val bytes=result.body.toByteArray()
                             client.getOutputStream().apply {
                                 write(buildString {
-                                    append("HTTP/1.1 ${result.code} Fixture\r\nContent-Type: text/html\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n")
-                                    result.headers.forEach {(k,v)->append("$k: $v\r\n")};append("\r\n")
+                                    val type=result.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value ?: "text/html"
+                                    append("HTTP/1.1 ${result.code} Fixture\r\nContent-Type: $type\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n")
+                                    result.headers.filterKeys {!it.equals("Content-Type",true)}.forEach {(k,v)->append("$k: $v\r\n")};append("\r\n")
                                 }.toByteArray());write(bytes);flush();bodyBytes.addAndGet(bytes.size.toLong())
                             }
                             return@use
@@ -58,6 +59,18 @@ class ArticleSessionTest {
     private fun gateway()=NetworkGateway(UrlCleaner(JsonParser.parseString("""{"providers":{}}""").asJsonObject),object:RequestFilter {
         override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)
     },true)
+    @Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")
+    private fun localTransport(gateway:NetworkGateway,server:Server):ArticleTransport=object:ArticleTransport {
+        override val session get()=gateway.currentSession()
+        override val originalAllowed get()=gateway.originalFallback
+        override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose,expectedSession:NetworkSession):GatewayDocument {
+            val logical=java.net.URI(url);require(logical.scheme=="https"&&logical.host=="publisher.example"&&logical.rawQuery==null)
+            val response=gateway.extractorDocument(server.url+logical.rawPath,method=if(head)"HEAD"else "GET",headers=headers,sourceUrl=source,sameOrigin=strict,purpose=purpose,expectedSession=expectedSession)
+            return response.copy(finalUrl="https://publisher.example"+java.net.URI(response.finalUrl).rawPath)
+        }
+        override suspend fun index(url:String,source:String,origins:Set<String>,expectedSession:NetworkSession)=
+            Payload(if(url.startsWith("https://web.archive.org"))"[[\"timestamp\",\"original\"]]"else "<title>No captures</title>",url,"text/html",200)
+    }
 
     @Test fun nativeRevalidationRetainsItsSpeedWithoutReplayingEarlierSessionIdentifiers():Unit=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
@@ -110,18 +123,7 @@ class ArticleSessionTest {
             headers["if-none-match"]==tag->Reply(304)
             else->Reply(body=article,headers=mapOf("ETag" to tag))
         }}.use {server->
-            val transport=object:ArticleTransport {
-                override val session get()=gateway.currentSession()
-                override val originalAllowed get()=gateway.originalFallback
-                override suspend fun document(url:String,source:String,headers:Map<String,String>,head:Boolean,strict:Boolean,purpose:FetchPurpose,expectedSession:NetworkSession):GatewayDocument {
-                    val logical=java.net.URI(url);require(logical.scheme=="https"&&logical.host=="publisher.example"&&logical.rawQuery==null)
-                    val response=gateway.extractorDocument(server.url+logical.rawPath,method=if(head)"HEAD"else "GET",headers=headers,sourceUrl=source,sameOrigin=strict,purpose=purpose,expectedSession=expectedSession)
-                    return response.copy(finalUrl="https://publisher.example"+java.net.URI(response.finalUrl).rawPath)
-                }
-                override suspend fun index(url:String,source:String,origins:Set<String>,expectedSession:NetworkSession)=
-                    Payload(if(url.startsWith("https://web.archive.org"))"[[\"timestamp\",\"original\"]]"else "<title>No captures</title>",url,"text/html",200)
-            }
-            val resolver=PublicArticleResolver(transport,extract={payload,url,at->extractions++;repo.documentSandbox.article(payload,url,at)})
+            val resolver=PublicArticleResolver(transport=localTransport(gateway,server),extract={payload,url,at->extractions++;repo.documentSandbox.article(payload,url,at)})
             val first=(resolver.conditional(original,original) as ContextArticleFetch.Ready).document
             assertEquals(canonical,first.finalUrl);assertEquals(original,first.originalUrl);assertEquals("Original publisher",first.access!!.route)
             assertEquals(2,server.requests.size);assertEquals(1,extractions)
@@ -134,6 +136,22 @@ class ArticleSessionTest {
             assertTrue(denied is SourceFailure);assertEquals(3,server.requests.size)
             val out=java.io.File(requireNotNull(context.getExternalFilesDir("validation")),"article-session").apply {mkdirs()}
             java.io.File(out,"canonical-routing.json").writeText(com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(mapOf("initialRequests" to 2,"requestsAfterRevalidation" to server.requests.size,"servedBodyBytes" to server.bodyBytes.get(),"extractions" to extractions,"originalDisabledMadeNoDocumentRequest" to true,"scope" to "Logical HTTPS fixture mapped to loopback HTTP; actual Gateway and permissionless worker, not real-publisher TLS or phone latency.")))
+        }}finally {gateway.client().dispatcher.executorService.shutdownNow();gateway.client().connectionPool.evictAll()}
+    }
+    @Suppress("INVISIBLE_MEMBER","INVISIBLE_REFERENCE")
+    @Test fun observedPdfMimeDoesNotFreezeTheNextNativeReadAsAPdf():Unit=runBlocking {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
+        val gateway=gateway();var pdf=true;val original="https://publisher.example/changing-edition"
+        try {Server {_,_->if(pdf)Reply(headers=mapOf("Content-Type" to "application/pdf"))else Reply(body=article)}.use {server->
+            val resolver=PublicArticleResolver(transport=localTransport(gateway,server),extract=repo.documentSandbox::article)
+            assertTrue(resolver.conditional(original,original) is ContextArticleFetch.PublicPdf)
+            pdf=false
+            val next=resolver.conditional(original,original)
+            assertTrue(next is ContextArticleFetch.Ready)
+            assertTrue((next as ContextArticleFetch.Ready).document.text.contains("Registration closes on Friday"))
+            assertEquals(2,server.requests.size)
         }}finally {gateway.client().dispatcher.executorService.shutdownNow();gateway.client().connectionPool.evictAll()}
     }
     @Test fun retainedPmcHtmlReadsInTheWorkerWhileTheLiveSpaShellIsRejected():Unit=runBlocking {

@@ -150,7 +150,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                 val retrieved=when(result){is ContextArticleFetch.Ready->result.document.finalUrl;is ContextArticleFetch.NotModified->result.finalUrl;is ContextArticleFetch.PublicPdf->result.url}
                 // Learn only an accepted public article destination. Keep its
                 // route role: a publisher redirect remains original access.
-                val learned=if(routes.canRead(retrieved))path.copy(url=representation(retrieved) ?: path.url,pdf=path.pdf||result is ContextArticleFetch.PublicPdf)else path
+                val learned=if(routes.canRead(retrieved))path.copy(url=representation(retrieved) ?: path.url)else path
                 checkMode();report(path.url,mode,started,true);remember(cacheKey,learned);return result
             }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e}
             catch(e:CancellationException){throw e}
