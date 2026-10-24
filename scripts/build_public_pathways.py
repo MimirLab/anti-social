@@ -70,6 +70,14 @@ add("reddit", "arctic-shift-comments", "https://arctic-shift.photon-reddit.com",
 add("truthsocial", "truth-archive-rss", "https://www.trumpstruth.org", "CACHE",
     references=("https://www.trumpstruth.org/",), note="Only realDonaldTrump, the archive's public recent 100-item RSS snapshot. No invented capture date or feed freshness.")
 
+# Shitter preserves the Nitter reader format. These two maintainer-listed roots
+# supplied two dated, disjoint NASA HTML windows through Gateway on October 24.
+# RSS redirected to HTML: this is not a public Min-Id or independent-upstream claim.
+for root in ("https://nitter.meowing.monster", "https://nitter.mie.foundation"):
+    add("twitter", "nitter", root, priority=-1, fallback=False,
+        references=("https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json",),
+        note="Shitter/Nitter-compatible public deployment. October 24 direct Gateway check read two dated 20-post NASA HTML windows without overlap. RSS redirected to HTML; header pagination, other targets and live Tor are not established. Starts UNKNOWN; normal content checks and backoff apply.")
+
 # Additional maintainer-listed deployments of existing Darwin reader formats.
 # A failed sample is retained as an UNKNOWN candidate, never seeded as healthy.
 for platform, frontend, root in (
@@ -120,7 +128,7 @@ for host in ("https://rsshub.rssforever.com", "https://rsshub.woodland.cafe", "h
 
 keys = [(s["platform"], s["frontend"], s["root"]) for s in SOURCES]
 assert len(keys) == len(set(keys))
-catalog = dict(schemaVersion=1, reviewedOn="2026-10-17", donor="Darwin",
+catalog = dict(schemaVersion=1, reviewedOn="2026-10-24", donor="Darwin",
                policy="Alternate live paths, optional accountless originals, then independent historical recovery. All networking through NetworkGateway; health is learned from content, never bundled.",
                sourceInventory="source-discovery.json", sources=SOURCES)
 path = ROOT / "app/src/main/assets/public-pathways.json"

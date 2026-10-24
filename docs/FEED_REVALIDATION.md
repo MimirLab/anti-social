@@ -41,6 +41,14 @@ HTTP validation is specified in [RFC 9111 §4.3](https://www.rfc-editor.org/rfc/
 It is a source confirmation of a retained representation, rather than evidence
 that the source exposes complete account history.
 
+For [Nitter RSS header navigation](FEED_COVERAGE.md#rss-header-navigation-03817),
+the reusable Page represents parsed XML; derived `Min-Id` navigation is a separate
+bounded entry field. A new identical 200 body cannot replay an old response's
+cursor when its current header changed or disappeared. An exact validated 304
+can retain an omitted header, while an ambiguous supplied header clears it.
+Navigation bytes count toward the same memory budget. No-store responses remain
+readable without retaining either their parsed Page or header metadata.
+
 ## Tor and retention
 
 Tor reads neither retain nor replay the source's validators. Opaque entity tags

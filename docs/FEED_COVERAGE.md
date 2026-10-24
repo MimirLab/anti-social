@@ -177,13 +177,82 @@ scripts/gradle.sh :core:feedPaginationAudit \
   -PantisocialFeedUrl=https://publisher.example/feed.xml
 ```
 
-## Further route research
+## RSS header navigation, 0.38.17
 
 Nitter's [RSS router](https://github.com/zedeus/nitter/blob/master/src/routes/rss.nim)
-publishes its cursor as a `Min-Id` HTTP response header, while its
-[timeline router](https://github.com/zedeus/nitter/blob/master/src/routes/timeline.nim)
-accepts a cursor for account reads. This is a promising cheaper-continuation lead
-for future qualification. The current increment does not interpret that header
-or guess a cursor from post IDs. Its recovery uses the existing native readers
-and their already admitted cursors. An upstream implementation reference alone
-does not establish that every deployment exposes the same behavior.
+publishes its opaque cursor as a `Min-Id` HTTP response header and accepts it as
+the `cursor` query parameter. Its RSS body need not contain a next-page link.
+The [Shitter fork's router](https://codeberg.org/mv12star/shitter/src/branch/master/src/routes/rss.nim)
+preserves this mechanism. [NitterFeedHistory](../core/src/main/kotlin/app/antisocial/core/NitterFeedHistory.kt)
+now preserves an admitted header as a bounded data bookmark, allowing catch-up
+to continue in RSS before spending a native-recovery start on another format.
+The existing overall page/post/deadline limits still apply.
+
+Admission requires a readable finite feed, its actual alternate Nitter source,
+the matching canonical X subscription, and the same source root and operation.
+Supported operations are an account head, `with_replies`, `media`, `articles`,
+and numeric `i/lists/ID`. Search queries are outside this header adapter's scope.
+The cursor is a bounded opaque value escaped as one query parameter, never a
+publisher-supplied destination. Duplicate, empty, suspended or malformed headers
+cannot grant navigation; the readable head remains available.
+
+The bookmark binds source, target and the current Gateway session. A process
+restart, another Gateway or a connection-mode round trip requires a fresh head.
+The local session epoch is never sent in HTTP. The issuing session is carried
+through the IO handoff so a mode change between decoding and dispatch cancels
+the read. Gateway pins a cursor request to its exact selected address through
+cleaning, filter rewrites and redirects. It cannot move to another account,
+operation, host or cursor. Head reads retain their existing migration behavior.
+
+Parsed XML and current header navigation are stored separately inside the
+existing bounded [feed memory](FEED_REVALIDATION.md). Identical successful 200
+bodies can supply a different cursor or remove it without repeating extraction.
+An exact validated 304 can retain an omitted header; a malformed supplied header
+clears that navigation. Tor still makes a full protected read without retained
+validators, and applies the new response's header even when XML parsing is reused.
+No Page field, database migration, dependency, setting or background job is added.
+
+Header continuations record TIMELINE health separately from the initial FEED
+head. If continuation fails or cannot bridge the retained reading position,
+bounded native recovery remains available. Absence of a header does not certify
+complete history.
+
+### Dated deployment observations
+
+October 24 production-Gateway checks, with compiled protection and a 1 MiB/read
+limit, found several maintainer-listed roots unavailable, refused or outside the
+audit budget. Others redirected RSS to readable HTML. None of these live checks
+established a public `Min-Id` continuation. Owned unit and native fixtures qualify
+that protocol path separately; source code support is not a live-uptime claim.
+
+The [Shitter maintainer's directory](https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json)
+also supplied deployments absent from the previous pool. Two selected roots,
+`https://nitter.meowing.monster` and `https://nitter.mie.foundation`, each returned
+two dated twenty-post NASA HTML windows with zero overlap through Gateway.
+They are now separately registered Nitter-compatible alternatives. Both start
+UNKNOWN, use normal content-based learning, and retain the existing budgets and
+backoff. The observations do not establish independent upstream infrastructure,
+every target/operation, RSS header support or live-Tor availability.
+
+The opt-in audit accepts at most two explicit HTTPS roots and two pages each;
+it does not add a tested candidate to the runtime pool automatically. It stores
+counts, dates, sizes and navigation hashes rather than bodies or raw cursors:
+
+```sh
+scripts/gradle.sh :core:nitterFeedAudit \
+  -PantisocialNitterEvidence=/run/media/red/RedtopStorage/DarwinBuild/LiberBuild/evidence/new-nitter-check \
+  -PantisocialNitterRoots=https://operator.example
+```
+
+By default it follows only admitted RSS header navigation. Explicit
+`-PantisocialNitterFollowHtml=true` also tests a returned ordinary HTML cursor,
+within the same two-page limit. See [release qualification](RELEASE_QUALIFICATION.md)
+for the exact build and Android regression record.
+
+## Further route research
+
+Maintainer-published onion services and transport-sensitive public previews are
+separate research leads. They are not automatically activated by an instance
+listing or by the header adapter. Any integration must preserve selected Tor,
+target identity, response admission, budgets and source refusal/backoff. A new
+connection is not evidence that a login requirement has disappeared.

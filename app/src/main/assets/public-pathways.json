@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedOn": "2026-10-17",
+  "reviewedOn": "2026-10-24",
   "donor": "Darwin",
   "policy": "Alternate live paths, optional accountless originals, then independent historical recovery. All networking through NetworkGateway; health is learned from content, never bundled.",
   "sourceInventory": "source-discovery.json",
@@ -479,6 +479,36 @@
         "https://www.trumpstruth.org/"
       ],
       "limitations": "Only realDonaldTrump, the archive's public recent 100-item RSS snapshot. No invented capture date or feed freshness."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.meowing.monster",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -1,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json"
+      ],
+      "limitations": "Shitter/Nitter-compatible public deployment. October 24 direct Gateway check read two dated 20-post NASA HTML windows without overlap. RSS redirected to HTML; header pagination, other targets and live Tor are not established. Starts UNKNOWN; normal content checks and backoff apply."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://nitter.mie.foundation",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": -1,
+      "fallbackOnly": false,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json"
+      ],
+      "limitations": "Shitter/Nitter-compatible public deployment. October 24 direct Gateway check read two dated 20-post NASA HTML windows without overlap. RSS redirected to HTML; header pagination, other targets and live Tor are not established. Starts UNKNOWN; normal content checks and backoff apply."
     },
     {
       "platform": "instagram",

@@ -63,6 +63,32 @@ These notes deliberately distinguish a working acquired route, a useful parsing
 reference and a proposed adapter. Missing access or absent fields stay missing;
 a failed graph source never becomes a claim that no related accounts exist.
 
+## Public-read request personas: research path
+
+The owner's October 24 request concerns a coherent disposable browser persona:
+realistic matching HTTP headers, TLS/HTTP protocol characteristics and anonymous
+session state, alongside the selected transport. It is broader than suppressing
+fingerprint fields or changing a User-Agent. Candidate implementations include
+[curl-impersonate](https://github.com/lexiforest/curl-impersonate) and
+[wreq](https://github.com/0x676e67/wreq). Their documented emulation mechanisms are
+research inputs; neither is installed or enabled in this increment.
+
+[Tor Browser's identity design](https://support.torproject.org/tor-browser/features/managing-identities/)
+and [Brave's ephemeral storage](https://brave.com/privacy-updates/7-ephemeral-storage/)
+provide useful isolation references. Evaluate a bounded public-read profile by
+target and operation: retained useful content, latency, memory/package cost,
+refusal behavior, and whether one internally consistent profile improves delivery.
+Keep temporary state separate from service credentials, other sources and other
+Gateway sessions. An implementation must remain beneath Gateway's admission,
+redirect, TLS, byte/request, cancellation and selected-Tor controls; this is not
+a second unprotected downloader or a persistent social login jar.
+
+The current app already makes anonymous reads without a general cookie jar and
+has a narrowly scoped cursor-cookie path. It does not yet fabricate complete
+browser personas or automatically renew them on refusal. Findings about a public
+preview must distinguish its available content from a login wall, and measure
+each site's actual transport/session behavior rather than claim infinite access.
+
 ## Wider discovery verification
 
 Desktop probes located twelve creator-selected channel tiles on NASA's YouTube

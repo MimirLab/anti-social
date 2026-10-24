@@ -15,7 +15,7 @@ internal class SyndicationReader(private val gateway:NetworkGateway,private val 
     private val maxEntries:Int=32,private val maxBytes:Int=4*1024*1024,private val ttl:Long=30*60_000L) {
     private data class Stamp(val generation:Long,val sequence:Long)
     private data class Entry(val requested:String,val finalUrl:String,val session:NetworkSession,val fullAt:Long,val sequence:Long,
-        val hash:String,val type:String,val page:Page,val etag:String?,val modified:String?,val bytes:Int)
+        val hash:String,val type:String,val page:Page,val navigation:String?,val etag:String?,val modified:String?,val bytes:Int)
     private val entries=linkedMapOf<String,Entry>()
     private var generation=0L
     private var sequence=0L
@@ -67,11 +67,11 @@ internal class SyndicationReader(private val gateway:NetworkGateway,private val 
         return fields(response,"Vary").split(',').map {it.trim().lowercase()}.filter(String::isNotBlank).all {it in setOf("accept","accept-language","accept-encoding","user-agent")}
     }
     private fun fresh(page:Page,at:Long)=page.copy(provenance=page.provenance?.copy(fetchedAt=at),posts=page.posts.map {post->post.copy(provenance=post.provenance?.copy(fetchedAt=at))})
-    suspend fun read(url:String,target:Target,source:Source,maxBodyBytes:Long,headers:Map<String,String>,parse:suspend (Payload)->Page):Page {
+    suspend fun read(url:String,target:Target,source:Source,maxBodyBytes:Long,headers:Map<String,String>,expectedSession:NetworkSession?=null,parse:suspend (Payload)->Page):Page {
         require(maxBodyBytes in 1..4L*1024*1024)
         require(headers.all {(name,value)->name.lowercase() in setOf("accept","accept-language")&&value.length<=2048&&value.all {it.code in 32..126}})
         val requested=requireNotNull(uri(url)){"Invalid feed address"}
-        val session=gateway.sessionFor(requested);val originals=gateway.originalFallback;val stamp=stamp()
+        val session=expectedSession ?: gateway.sessionFor(requested);val originals=gateway.originalFallback;val stamp=stamp()
         fun check(){if(gateway.sessionFor(requested)!==session||gateway.originalFallback!=originals)throw CancellationException("Feed connection changed; retry this read")}
         check()
         val key=listOf(source.key,source.role.name,target.platform.id,target.kind.name,target.canonicalUrl,requested,maxBodyBytes.toString(),headers.entries.sortedBy {it.key.lowercase()}.joinToString("\n"){it.key.lowercase()+":"+it.value}).joinToString("\n")
@@ -81,7 +81,7 @@ internal class SyndicationReader(private val gateway:NetworkGateway,private val 
             put("Cache-Control","no-cache")
             approved?.etag?.let {put("If-None-Match",it)};approved?.modified?.let {put("If-Modified-Since",it)}
         }
-        val response=gateway.feedDocument(requested,target.canonicalUrl,maxBodyBytes,requestHeaders,session)
+        val response=gateway.feedDocument(requested,target.canonicalUrl,maxBodyBytes,requestHeaders,session,NitterFeedHistory.continuation(requested,target,source))
         check();currentCoroutineContext().ensureActive()
         val observedAt=clock()
         val finalUrl=requireNotNull(uri(response.finalUrl)){"Invalid feed response address"}
@@ -96,10 +96,11 @@ internal class SyndicationReader(private val gateway:NetworkGateway,private val 
                 throw SourceFailure(HealthStatus.EMPTY,"The source returned an unvalidated unchanged feed")
             }
             val page=fresh(approved.page,observedAt)
+            val navigation=NitterFeedHistory.navigation(requested,target,source,response,page,session,approved.navigation)
             val nextTag=tag ?: approved.etag;val nextDate=date ?: approved.modified
-            val bytes=approved.bytes+2*(nextTag.orEmpty().length+nextDate.orEmpty().length-approved.etag.orEmpty().length-approved.modified.orEmpty().length)
-            if(keep)put(key,approved.copy(sequence=stamp.sequence,page=page,etag=nextTag,modified=nextDate,bytes=bytes),stamp)else remove(key,stamp)
-            return page
+            val bytes=approved.bytes+2*(nextTag.orEmpty().length+nextDate.orEmpty().length+navigation.orEmpty().length-approved.etag.orEmpty().length-approved.modified.orEmpty().length-approved.navigation.orEmpty().length)
+            if(keep)put(key,approved.copy(sequence=stamp.sequence,page=page,navigation=navigation,etag=nextTag,modified=nextDate,bytes=bytes),stamp)else remove(key,stamp)
+            return if(navigation==null)page else page.copy(next=navigation)
         }
         if(response.status==206)throw SourceFailure(HealthStatus.EMPTY,"A partial feed response cannot confirm a complete refresh")
         // A replacement body invalidates the old validator even if extraction fails.
@@ -109,10 +110,13 @@ internal class SyndicationReader(private val gateway:NetworkGateway,private val 
         val page=if(keep&&old!=null&&old.finalUrl==finalUrl&&old.type==type&&old.hash==hash)fresh(old.page,observedAt)
             else parse(Payload(response.text,response.finalUrl,type,response.status))
         check();currentCoroutineContext().ensureActive()
-        val extra=1024+2*(requested.length+finalUrl.length+type.length+hash.length+tag.orEmpty().length+date.orEmpty().length)
+        // Keep parsed body and header navigation separate. The same XML can
+        // publish another Min-Id, or remove it, on its next successful response.
+        val navigation=NitterFeedHistory.navigation(requested,target,source,response,page,session)
+        val extra=1024+2*(requested.length+finalUrl.length+type.length+hash.length+tag.orEmpty().length+date.orEmpty().length+navigation.orEmpty().length)
         if(keep&&response.status==200&&FeedRefresh.pendingReason(page,target.platform)==null)weight(key,page,extra)?.let {bytes->
-            put(key,Entry(requested,finalUrl,session,observedAt,stamp.sequence,hash,type,page,tag,date,bytes),stamp)
+            put(key,Entry(requested,finalUrl,session,observedAt,stamp.sequence,hash,type,page,navigation,tag,date,bytes),stamp)
         }
-        return page
+        return if(navigation==null)page else page.copy(next=navigation)
     }
 }

@@ -23,15 +23,20 @@ data class MediaPrefix(val bytes: ByteArray,val finalUrl: String,val contentType
 data class GatewayMediaPayload(val bytes:ByteArray,val finalUrl:String,val contentType:String,val manifestUrls:List<String>)
 
 data class GatewayDocument(val status: Int,val message: String,val headers: Map<String,List<String>>,val text: String,val finalUrl: String,val conditional:Boolean=false)
-/** Ephemeral identity, never serialized or sent. Equal policy values after a
- * mode change are still a new session; another gateway cannot recreate it. */
-class NetworkSession internal constructor(val policy:NetworkPolicy)
+/** Ephemeral object identity, never sent. Equal policy values after a mode
+ * change are still a new session; another gateway cannot recreate it. */
+class NetworkSession internal constructor(val policy:NetworkPolicy) {
+    /** Local bookmark epoch, never part of an HTTP request. A retained feed
+     * cursor cannot silently move to a later session with equal policy values. */
+    internal val feedCursorEpoch=java.util.UUID.randomUUID().toString()
+}
 /** User connection selection, distinct from Tor becoming ready. Never persisted. */
 internal class NetworkSelection
 
 data class Payload(val text: String, val finalUrl: String, val contentType: String, val status: Int,val pageBookmark: String?=null,val pageOffset: Int?=null)
 private data class RequestContext(val source: String,val type: String)
 private data class AllowedOrigins(val values: Set<String>,val description: String="archive")
+private data class ExactFeedAddress(val url:HttpUrl)
 private class DeferredTraffic(val owner: kotlinx.coroutines.Job): kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key: kotlin.coroutines.CoroutineContext.Key<DeferredTraffic>
 }
@@ -114,6 +119,9 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         return if(source.isHttps&&source.host in setOf("web.archive.org","arquivo.pt"))AllowedOrigins(setOf(origin(source)))else null
     }
     private fun restrict(request: Request,url: HttpUrl) {
+        request.tag(ExactFeedAddress::class.java)?.let {scope->
+            if(url!=scope.url)throw IOException("Feed navigation left its selected address")
+        }
         request.tag(ServiceScope::class.java)?.let {scope->
             if(origin(url)!=origin(scope.endpoint)||url.encodedPath!=scope.endpoint.encodedPath||url.encodedQuery!=scope.endpoint.encodedQuery)
                 throw IOException("Service request left its selected endpoint")
@@ -194,11 +202,17 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     fun clearFeedMemory(){if(syndication.isInitialized())syndication.value.clear()}
     fun cleanupFeedMemory(){if(syndication.isInitialized())syndication.value.cleanup()}
     suspend fun feed(url:String,target:Target,source:Source,maxBytes:Long=4L*1024*1024,headers:Map<String,String> = emptyMap(),parse:suspend (Payload)->Page):Page=withContext(Dispatchers.IO) {
-        syndication.value.read(url,target,source,maxBytes,headers,parse)
+        syndication.value.read(url,target,source,maxBytes,headers,parse=parse)
     }
-    internal suspend fun feedDocument(url:String,sourceUrl:String,maxBytes:Long,headers:Map<String,String>,session:NetworkSession):GatewayDocument=withContext(Dispatchers.IO) {
+    /** A decoded feed bookmark keeps its issuing session across the handoff to
+     * IO. Reading the then-current session here would allow a mode-change race. */
+    internal suspend fun feedContinuation(url:String,target:Target,source:Source,session:NetworkSession,parse:suspend (Payload)->Page):Page=withContext(Dispatchers.IO) {
+        syndication.value.read(url,target,source,4L*1024*1024,emptyMap(),expectedSession=session,parse=parse)
+    }
+    internal suspend fun feedDocument(url:String,sourceUrl:String,maxBytes:Long,headers:Map<String,String>,session:NetworkSession,pinAddress:Boolean=false):GatewayDocument=withContext(Dispatchers.IO) {
         var document:GatewayDocument?=null
         val request=Request.Builder().url(url).tag(NetworkSession::class.java,session).tag(FetchPurpose::class.java,FetchPurpose.API)
+            .tag(ExactFeedAddress::class.java,if(pinAddress)ExactFeedAddress(requireNotNull(url.toHttpUrlOrNull()))else null)
             .tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest"))
             .apply {headers.forEach {(name,value)->header(name,value)}}.build()
         readText(request,maxBytes,allowNotModified=true,onResponse={response,payload->

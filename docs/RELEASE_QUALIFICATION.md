@@ -9,6 +9,70 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.17 feed-header navigation and additional live alternatives
+
+The full JVM run covered **2,090 cases** across 179 suites, zero failures/errors
+and one optional weight-dependent skip. Debug, release and instrumentation
+assembly and release lint passed. The final API 35 Android batch accounted for
+**118 named checks** across sixteen classes: 116 passed and two opt-in
+live-source/Tor checks were skipped. Mixed RSS/social channel, pending-refresh
+and restored-position native screens were inspected. A separate reading-scope
+rerun overlaps this batch and is not an additional unique check.
+
+Two new JVM regressions first failed on unchanged 0.38.16: the published Nitter
+RSS header cursor was lost, and the collector could not use it to bridge its
+previous reading window. The initial/overlapping control passed. The identical
+final native test APK, SHA-256
+`ff078bf234d6759c9123802e1fd19d590c4e81bcc40841547f227a04977335a3`,
+failed its substantive missing-history assertion on byte-verified retained
+0.38.16 debug. That baseline retained one useful post and a pending interval
+after an RSS head and unavailable HTML read. The candidate joins both roots
+through two RSS reads, preserves separate FEED/TIMELINE health, and never asks
+for the HTML head. Initial/overlapping native controls still use one request.
+
+The header is opaque data, escaped as one parameter for the same source root,
+account/list operation and issuing session. Cursor requests are pinned to their
+exact selected address through cleaning, filter rewrites and redirects. A local
+epoch binds the bookmark across dispatch; it is never sent over HTTP. Another
+Gateway, restart or direct/Tor/direct round trip requires a fresh head. Invalid
+local bookmarks do not train source outages. Parsed XML and mutable navigation
+are separate fields in the existing bounded feed memory: an identical new 200
+body can change or remove its header, while an exact validated 304 can retain an
+omitted header. Ambiguous supplied headers cannot grant navigation.
+
+Twenty new header unit cases cover these bindings, supported account tabs and
+numeric lists, malformed/duplicate/oversized headers and JSON, current-header
+replacement/removal, 304/no-store behavior, cross-account redirects, filter
+rewrites, mode changes and the decode-to-IO race. An additional owned SOCKS
+case observes two full-body heads and a header continuation, remote hostname
+resolution, one head parse, the fresh cursor, and no validators, cookies,
+credentials or local epoch in requests. This is selected-transport fixture
+qualification, not a live Tor exit observation. Four new native cases cover
+joining history, cheap initial/overlapping heads, stale-session cancellation
+and redirect rejection. The broader batch retains search, scheduling, feed
+coverage/revalidation, saved RSS, cross-posts, atomic publication and anchors.
+
+Production-Gateway direct audits inspected seventeen distinct selected HTTPS
+roots with compiled protection, at most two pages/source and 1 MiB/read. Failed
+or refused reads stopped rather than immediately retrying. Several old and new
+maintainer-listed deployments refused, failed DNS, exceeded this audit budget
+or redirected RSS to HTML. These observations do not establish a live public
+Min-Id path. The maintainer-listed Shitter deployments
+`https://nitter.meowing.monster` and `https://nitter.mie.foundation` each supplied
+two dated twenty-post NASA HTML windows with no overlap. Both are now
+Nitter-compatible runtime alternatives, initially UNKNOWN, with the existing
+content checks, learned health and bounded routing. They are not claimed to
+have independent upstreams, universal target coverage or qualified live Tor.
+
+The qualified APK grows **5,920 bytes** over 0.38.16. All **496** other
+non-generated native/data members are unchanged; the source-pool JSON gains
+the two alternatives. No dependency, model, runtime pack, Page field, migration,
+setting or polling job is added. Disposable realistic browser personas are
+separately documented research, not a capability of this release. See
+[header navigation](FEED_COVERAGE.md#rss-header-navigation-03817),
+[feed reuse](FEED_REVALIDATION.md) and the
+[public-read research](DISCOVERY_SOURCES.md#public-read-request-personas-research-path).
+
 ## 0.38.16 bounded native history recovery
 
 The final full JVM suite covered **2,069 cases**, zero failures/errors and one

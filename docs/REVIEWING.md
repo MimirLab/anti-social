@@ -59,14 +59,14 @@ of subsequently qualified fixes.
 | Release/artifact checks | Matching source/tag, signer, APK integrity, preview state preservation and the anonymous permanent download where recorded. |
 | Explicit missing qualification | The named unmeasured behavior, hardware or source remains unmeasured. Its scope does not erase the other evidence. |
 
-For **0.38.16**, the full JVM run covered **2,069 cases**,
+For **0.38.17**, the full JVM run covered **2,090 cases**,
 with zero failures/errors and one optional weight-dependent skip. Its selected
-Android batch covered **114 named checks**: 112 passed and two opt-in live-source/Tor
-checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03816-bounded-native-history-recovery)
-describes the exact increment, baseline failures and native screen checks.
-The preceding 0.38.15 batch covered 111 named Android checks, with 109 passes and
-two opt-in skips. Counts from different releases should
-not be combined into a new run or treated as interchangeable coverage.
+Android batch covered **118 named checks**: 116 passed and two opt-in live-source/Tor
+checks were skipped. The [release record](RELEASE_QUALIFICATION.md#03817-feed-header-navigation-and-additional-live-alternatives)
+describes the increment, baseline failure, native screen inspection and dated
+public route observations. The preceding 0.38.16 batch covered 114 named Android
+checks, with 112 passes and two opt-in skips. Counts from different releases
+should not be combined into a new run or treated as interchangeable coverage.
 
 These are release-specific regression records, not a count of every test ever
 written or a claim of an independent security audit. Publication and retained

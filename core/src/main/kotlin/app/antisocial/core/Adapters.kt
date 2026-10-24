@@ -34,6 +34,10 @@ class FrontendAdapter(override val source: Source, private val gateway: NetworkG
         (if(source.frontend in setOf("nitter","redlib","libreddit","teddit","ratAintTieba"))setOf(Capability.COMMENTS)else emptySet())
     override suspend fun fetch(target: Target, cursor: String?): Page {
         if(target.kind==TargetKind.MEDIA)return mediaPage(target,routes.convert(target,source),source,gateway)
+        if(cursor!=null&&NitterFeedHistory.bookmark(cursor)) {
+            val selected=NitterFeedHistory.resolve(cursor,target,source,gateway)
+            return gateway.feedContinuation(selected.url,target,source,selected.session){Extraction.parse(it,target,source,routes)}
+        }
         val urls=mutableListOf<String>()
         var bookmark: String?=null
         val raw=routes.convert(target,source)
@@ -942,7 +946,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         val known=source in routes.sources||source in pathways.sources(target)||source in routes.searchSources.map {it.copy(platform=target.platform)}||source in fallbackSources(target.platform,if(target.kind==TargetKind.SEARCH)Capability.SEARCH else Capability.TIMELINE,target)
         require(known){"Unrecognized pagination source"}
-        val capability=if(history!=null)Capability.TIMELINE else requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
+        val capability=if(history!=null||NitterFeedHistory.bookmark(cursor))Capability.TIMELINE else requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
         indexPause(source,capability,target)?.let {throw it}
         if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
         checkAccess(source)
