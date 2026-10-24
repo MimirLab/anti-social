@@ -14,6 +14,16 @@ import okhttp3.Request
 class PublicGatewayTest {
     private val cleaner=UrlCleaner(JsonParser.parseReader(javaClass.getResourceAsStream("/clean-links.json")!!.reader()).asJsonObject)
     private val permit=object: RequestFilter {override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false)}
+    @Test fun connectionSelectionSurvivesReadinessButNeverAModeRoundTrip() {
+        val gateway=NetworkGateway(cleaner,permit,true);val direct=gateway.currentSelection()
+        gateway.configure(NetworkPolicy());gateway.configureTor(NetworkPolicy(true,9050,true))
+        assertSame(direct,gateway.currentSelection())
+        gateway.configure(gateway.currentPolicy(NetworkRoute.TOR));val selected=gateway.currentSelection()
+        assertNotSame(direct,selected)
+        val session=gateway.currentSession();gateway.configureTor(NetworkPolicy(true,9051,true))
+        assertSame(selected,gateway.currentSelection());assertNotSame(session,gateway.currentSession())
+        gateway.configure(NetworkPolicy());assertNotSame(direct,gateway.currentSelection());assertNotSame(selected,gateway.currentSelection())
+    }
     @Test fun redirectedDocumentsDoNotForwardValidatorsToAnotherResource():Unit=runBlocking {
         MockWebServer().use {server->server.start()
             server.enqueue(MockResponse().setResponseCode(302).setHeader("Location","/another-resource"))

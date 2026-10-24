@@ -20,6 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(AndroidJUnit4::class)
 class RouteSchedulingTest {
@@ -86,6 +87,36 @@ class RouteSchedulingTest {
     private fun evidence(name:String,values:Map<String,Any>) {
         val directory=File(requireNotNull(context.getExternalFilesDir("validation")),"route-scheduling").apply {mkdirs()}
         File(directory,"$name.json").writeText(com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(values))
+    }
+    @Test fun nativeSourceProbeAcceptsExpectedStartupReadiness():Unit=runBlocking {
+        isolated()
+        val body="<div class='result'><a class='result__a' href='https://x.com/NASA/status/12345'>Public destination</a></div>"
+        Fixture(listOf("duckduckgo"),listOf(Reply(body=body))).use {f->
+            f.pool.awaitSearchConnection={f.gateway.configureTor(NetworkPolicy(true,9,true))}
+            val result=runCatching {withTimeout(2_000){f.pool.probe(f.routes.sources.single(),Capability.SEARCH,force=true)}}
+            assertTrue("Startup readiness must not cancel a usable native check: ${result.exceptionOrNull()}",result.isSuccess)
+            val probe=result.getOrThrow();assertEquals(HealthStatus.HEALTHY,probe.status)
+            assertEquals(1,f.servers.single().requests.size);assertFalse(f.gateway.currentPolicy().tor)
+            evidence("probe-startup",mapOf("probe" to probe,"requests" to f.servers.single().requests.size,"contentRemainsDirect" to true,"scope" to "Owned loopback source and simulated readiness transition; not a live Tor or public-provider check."))
+        }
+    }
+    @Test fun waitingNativeSearchChecksLeaveReadPermitsForReadySources():Unit=runBlocking {
+        isolated()
+        Fixture(listOf("duckduckgo","nitter"),listOf(Reply(),Reply(body=post("Ready direct source check")))).use {f->
+            val waiting=AtomicInteger();val allWaiting=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+            f.pool.awaitSearchConnection={if(waiting.incrementAndGet()==4)allWaiting.complete(Unit);release.await()}
+            val jobs=List(4){async {runCatching {f.pool.probe(f.routes.sources[0],Capability.SEARCH,force=true)}}}
+            try {
+                withTimeout(2_000){allWaiting.await()}
+                val start=System.nanoTime()
+                val direct=withTimeoutOrNull(1_000){f.pool.probe(f.routes.sources[1],Capability.TIMELINE,force=true)}
+                val elapsed=(System.nanoTime()-start)/1_000_000
+                assertNotNull("Ready sources must not wait for four unrelated Tor starts",direct)
+                assertEquals(HealthStatus.HEALTHY,direct!!.status)
+                val counts=f.servers.map {it.requests.size};assertEquals(listOf(0,1),counts)
+                evidence("probe-ready-slot",mapOf("requestsBySource" to counts,"elapsedMs" to elapsed,"waitingChecks" to waiting.get(),"scope" to "Native owned fixture; measures source-check admission, not ordinary feed or live Tor latency."))
+            }finally {jobs.forEach {it.cancel()};jobs.forEach {it.join()}}
+        }
     }
     @Test fun aStalledNativeReadDoesNotBlockLaterAvailableRoutes():Unit=runBlocking {
         isolated()

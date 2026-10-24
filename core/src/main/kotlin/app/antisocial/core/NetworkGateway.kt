@@ -26,6 +26,8 @@ data class GatewayDocument(val status: Int,val message: String,val headers: Map<
 /** Ephemeral identity, never serialized or sent. Equal policy values after a
  * mode change are still a new session; another gateway cannot recreate it. */
 class NetworkSession internal constructor(val policy:NetworkPolicy)
+/** User connection selection, distinct from Tor becoming ready. Never persisted. */
+internal class NetworkSelection
 
 data class Payload(val text: String, val finalUrl: String, val contentType: String, val status: Int,val pageBookmark: String?=null,val pageOffset: Int?=null)
 private data class RequestContext(val source: String,val type: String)
@@ -72,6 +74,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     fun protectionStats()=ProtectionStats(checkedRequests.get(),blockedRequests.get())
     private val policy=AtomicReference(NetworkSession(NetworkPolicy()))
     private val torPolicy=AtomicReference(NetworkSession(NetworkPolicy(tor=true)))
+    private val selection=AtomicReference(NetworkSelection())
     private val clients=mutableMapOf<Pair<NetworkRoute,NetworkPolicy>,OkHttpClient>()
     private val foregroundRequests=java.util.concurrent.atomic.AtomicInteger()
     private val deferredCalls=java.util.concurrent.ConcurrentHashMap<Call,kotlinx.coroutines.Job>()
@@ -181,12 +184,14 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         throw IOException("Filter rewrite loop was stopped")
     }
     internal fun currentSession(route:NetworkRoute=NetworkRoute.DEFAULT):NetworkSession=if(route==NetworkRoute.TOR)torPolicy.get()else policy.get()
+    internal fun currentSelection():NetworkSelection=selection.get()
     /** Use the session the actual source host would select, including mandatory
      * Tor search hosts. Unrelated search readiness must not cancel direct reads. */
     internal fun sessionFor(url:String):NetworkSession=currentSession(routeFor(Request.Builder().url(url).build()))
     fun currentPolicy(route: NetworkRoute=NetworkRoute.DEFAULT): NetworkPolicy = currentSession(route).policy
     suspend fun prepare(route: NetworkRoute=NetworkRoute.DEFAULT)=withContext(Dispatchers.IO){client(route);Unit}
     @Synchronized fun configure(next: NetworkPolicy) {
+        if(policy.get().policy.tor!=next.tor)selection.set(NetworkSelection())
         val torChanged=next.tor&&torPolicy.get().policy!=next
         val contentChanged=policy.get().policy!=next
         if(torChanged)torPolicy.set(NetworkSession(next))

@@ -363,6 +363,13 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         while(health.size>4096)health.entries.minByOrNull {it.value.checkedAt}?.let {health.remove(it.key)}
     }
     private fun indexFeedback(source:Source)=if(source.frontend in PublicSearchAdapter.frontends)PublicIndexFeedback(source,gateway.sessionFor(source.root))else null
+    /** Waiting for transport may change readiness, but cannot adopt a different
+     * reader choice. The selection identity also catches mode round trips. */
+    private fun readPolicy():(Source)->Unit {
+        val selection=gateway.currentSelection();val provider=searchProvider;val originals=gateway.originalFallback
+        return {source->if(gateway.currentSelection()!==selection||gateway.originalFallback!=originals||source.frontend in PublicSearchAdapter.frontends&&searchProvider!=provider)
+            throw CancellationException("Connection or source policy changed; retry the read")}
+    }
     private suspend fun <T> withIndexFeedback(feedback:PublicIndexFeedback?,read:suspend ()->T):T=
         if(feedback==null)read()else withContext(feedback){read().also {feedback.check(gateway)}}
     private suspend fun recordRead(result:ProbeResult,feedback:PublicIndexFeedback?,target:Target?=null,delivery:Boolean=true):ProbeResult {
@@ -480,19 +487,37 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         catch(e: CancellationException){currentCoroutineContext().ensureActive();null}
         finally {backgroundRead.compareAndSet(task,null)}
     }
-    suspend fun probe(source: Source, capability: Capability=Capability.TIMELINE, force: Boolean=false,automatic: Boolean=false,probeTarget: Target?=null): ProbeResult = withContext(Dispatchers.IO) {permits.withPermit {
-        val tor=usesTor(source);val key=key(source,capability,tor);val old=health[key];val now=clock()
+    suspend fun probe(source: Source, capability: Capability=Capability.TIMELINE, force: Boolean=false,automatic: Boolean=false,probeTarget: Target?=null): ProbeResult = withContext(Dispatchers.IO) {
+        val checkPolicy=readPolicy();checkPolicy(source)
+        val tor=usesTor(source);val key=key(source,capability,tor)
         val transport=if(source.frontend in setOf("bing-rss","duckduckgo"))NetworkRoute.TOR else NetworkRoute.DEFAULT
-        val policy=gateway.currentPolicy(transport)
-        indexPause(source,capability,probeTarget ?: Target(source.platform,TargetKind.SEARCH,"",source.root))?.let {pause->
-            return@withPermit ProbeResult(source,capability,pause.status,0,now,tor,"Known provider cooldown; no request sent",pause.retryAfterMs)
+        fun paused():ProbeResult?=indexPause(source,capability,probeTarget ?: Target(source.platform,TargetKind.SEARCH,"",source.root))?.let {pause->
+            ProbeResult(source,capability,pause.status,0,clock(),tor,"Known provider cooldown; no request sent",pause.retryAfterMs)
         }
-        if(!force && old!=null && now-old.checkedAt<3_600_000)return@withPermit old
+        fun cached():ProbeResult?=health[key]?.takeIf {!force&&clock()-it.checkedAt<3_600_000}
+        paused()?.let {return@withContext it};cached()?.let {return@withContext it}
+        fun localFailure(error:Exception)=ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,clock(),tor,error.message.orEmpty().take(180))
+        // Tor startup owns no source-read permit and supplies no provider health
+        // or latency sample. The connection UI reports its local failure.
+        try {if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()}
+        catch(e:CancellationException){throw e}
+        catch(e:Exception){checkPolicy(source);return@withContext localFailure(e)}
+        checkPolicy(source)
+        permits.withPermit {
+        currentCoroutineContext().ensureActive();checkPolicy(source)
+        paused()?.let {return@withPermit it};cached()?.let {return@withPermit it}
+        try {gateway.prepare(transport)}catch(e:CancellationException){throw e}catch(e:Exception){checkPolicy(source);return@withPermit localFailure(e)}
+        checkPolicy(source)
+        val session=gateway.sessionFor(source.root);val prepared=gateway.currentSession(transport)
+        fun checkRead() {
+            checkPolicy(source)
+            if(gateway.sessionFor(source.root)!==session||gateway.currentSession(transport)!==prepared)throw CancellationException("Connection changed during the source check")
+        }
+        val old=health[key]
         val start=System.nanoTime()
         var feedback:PublicIndexFeedback?=null
         val result=try {
-            if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
-            gateway.prepare(if(source.frontend in setOf("bing-rss","duckduckgo"))NetworkRoute.TOR else NetworkRoute.DEFAULT)
+            checkRead()
             feedback=indexFeedback(source)
             val a=adapter(source);val target=probeTarget ?: a.sentinel(capability)
             if(capability !in a.capabilities||!a.accepts(target))throw SourceFailure(HealthStatus.UNSUPPORTED,"This reader does not implement ${capability.name.lowercase()} for ${source.frontend}")
@@ -502,6 +527,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 if(capability==Capability.MEDIA&&source.platform==Platform.YOUTUBE) {
                     val id=YouTubeUrls.videoId(target.canonicalUrl) ?: YouTubeUrls.videoId(a.sentinel(Capability.MEDIA).canonicalUrl) ?: error("No public video sentinel")
                     val selected=YouTubeAdapter(source,gateway,routes).playback(id)
+                    checkRead()
                     YouTubeStreamProof.check(selected.media,selected.sourceUrl,gateway)
                     return@withTimeout true
                 }
@@ -510,12 +536,12 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 if(redirectedOriginal(source,page))throw SourceFailure(HealthStatus.UNSUPPORTED,ORIGINAL_REDIRECT)
                 if(capability in setOf(Capability.POST,Capability.COMMENTS)&&target.kind !in setOf(TargetKind.POST,TargetKind.THREAD)) {
                     val post=page.posts.firstOrNull()?.canonicalUrl?.let {routes.recognize(it)}
-                    if(post!=null){page=if(capability==Capability.COMMENTS)a.comments(post)else a.fetch(post);contentTarget=post}
+                    if(post!=null){checkRead();page=if(capability==Capability.COMMENTS)a.comments(post)else a.fetch(post);contentTarget=post}
                 }
                 if(redirectedOriginal(source,page))throw SourceFailure(HealthStatus.UNSUPPORTED,ORIGINAL_REDIRECT)
                 when(capability) {
                     Capability.PROFILE -> page.profile!=null
-                    Capability.MEDIA -> page.posts.flatMap {it.media}.firstOrNull()?.let {media->MediaFormats.type(gateway.sample(media.preview ?: media.url,target.canonicalUrl))!=null} ?: false
+                    Capability.MEDIA -> page.posts.flatMap {it.media}.firstOrNull()?.let {media->checkRead();MediaFormats.type(gateway.sample(media.preview ?: media.url,target.canonicalUrl))!=null} ?: false
                     Capability.COMMENTS -> content(page,capability,contentTarget)
                     Capability.FEED -> content(page,capability,contentTarget)
                     Capability.SEARCH -> page.posts.isNotEmpty()||page.collections.isNotEmpty()||page.accounts.isNotEmpty()
@@ -524,10 +550,10 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             }
             }
             val usable=withIndexFeedback(feedback){if(automatic)gateway.boundedHealthRead {read()}else read()}
-            ProbeResult(source,capability,if(usable)HealthStatus.HEALTHY else HealthStatus.EMPTY,(System.nanoTime()-start)/1_000_000,now,tor,if(usable)"Recognizable public data" else "No usable data for this capability")
-        }catch(e: CancellationException) { if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,now,tor,"Timed out")
-        }catch(e: Exception){ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,now,tor,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)}
-        if(gateway.currentPolicy(transport)!=policy)throw CancellationException("Network mode changed during the check")
+            ProbeResult(source,capability,if(usable)HealthStatus.HEALTHY else HealthStatus.EMPTY,(System.nanoTime()-start)/1_000_000,clock(),tor,if(usable)"Recognizable public data" else "No usable data for this capability")
+        }catch(e: CancellationException) { if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,clock(),tor,"Timed out")
+        }catch(e: Exception){ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,clock(),tor,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)}
+        checkRead()
         val smoothed=if(result.status==HealthStatus.HEALTHY&&old?.status==HealthStatus.HEALTHY)result.copy(latencyMs=(old.latencyMs*0.7+result.latencyMs*0.3).toLong()) else result
         recordRead(smoothed,feedback,probeTarget,delivery=false)
     }
@@ -544,6 +570,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         if(SearchScopes.from(target)!=null||target.platform==Platform.RSS)return@withContext Page(emptyList())
         readStarted()
         try {
+            val checkAccess=readPolicy()
             val selected=searchProvider
             val requestedMode=gateway.currentPolicy().tor
             val originalPermission=gateway.originalFallback
@@ -576,18 +603,24 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 val paths=native.filter {it.role!=SourceRole.ORIGINAL}.take(2)+native.filter {it.role==SourceRole.ORIGINAL}.take(1)+indexes.take(1)
                 for(source in paths) {
                     currentCoroutineContext().ensureActive()
+                    checkAccess(source)
                     checkPolicy()
                     if(source.role==SourceRole.ORIGINAL&&!originalFallback)continue
                     if(indexPause(source,Capability.SEARCH,target)!=null)continue
                     val backoffKey="${source.key}|${usesTor(source)}"
                     if((directoryBackoff[backoffKey] ?: 0L)>clock())continue
                     var feedback:PublicIndexFeedback?=null
+                    var admitted=false
                     try {
                         val page=withTimeout(if(source.role==SourceRole.ALTERNATE){if(usesTor(source))16_000L else 8_000L}else if(usesTor(source))35_000L else 20_000L) {
                             if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
+                            checkAccess(source)
+                            if(indexPause(source,Capability.SEARCH,target)!=null)return@withTimeout Page(emptyList())
                             feedback=indexFeedback(source)
+                            admitted=true
                             withIndexFeedback(feedback){adapter(source).directory(target)}
                         }
+                        checkAccess(source)
                         checkPolicy()
                         if(source.role==SourceRole.ALTERNATE&&page.provenance?.source?.role==SourceRole.ORIGINAL&&!originalFallback)continue
                         val entities=page.accounts.filter {it.target.platform==target.platform&&it.target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)&&it.name.isNotBlank()}
@@ -609,9 +642,9 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                         }}}.awaitAll().filterNotNull()}
                         checkPolicy()
                         if(hydrated.isNotEmpty()){directoryBackoff.remove(backoffKey);return@withTimeoutOrNull Page(emptyList(),accounts=hydrated,provenance=page.provenance)}
-                    }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();failed(source,e)}
-                    catch(e: SourceFailure){feedback?.check(gateway);failed(source,e);if(source.frontend in PublicSearchAdapter.frontends&&PublicIndexFeedback.isRefusal(e))break}
-                    catch(e: Exception){feedback?.check(gateway);failed(source,e)}
+                    }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();checkAccess(source);if(admitted)failed(source,e)}
+                    catch(e: SourceFailure){checkAccess(source);feedback?.check(gateway);if(admitted)failed(source,e);if(source.frontend in PublicSearchAdapter.frontends&&PublicIndexFeedback.isRefusal(e))break}
+                    catch(e: Exception){checkAccess(source);feedback?.check(gateway);if(admitted)failed(source,e)}
                 }
                 Page(emptyList())
             }
@@ -624,6 +657,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         readStarted(background,supplementalJob)
         val capability=requestedCapability ?: when {feed->Capability.FEED;target.kind==TargetKind.MEDIA->Capability.MEDIA;target.kind in setOf(TargetKind.POST,TargetKind.THREAD)->Capability.POST;target.kind==TargetKind.SEARCH->Capability.SEARCH;else->Capability.TIMELINE}
         val requestedMode=gateway.currentPolicy().tor
+        val checkAccess=readPolicy()
         val attempted=java.util.concurrent.atomic.AtomicBoolean()
         try {
         require(!profileNameOnly||capability==Capability.PROFILE){"Name lookups require an exact profile"}
@@ -698,26 +732,34 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             completed.send(Triple(index,null,null));return@launch
                         }
                         progress("Trying ${URI(source.root).host}")
-                        val started=System.nanoTime()
+                        var started=0L;var admitted=false
+                        var feedback:PublicIndexFeedback?=null
                         var page: Page?=null;var failure: Exception?=null
                         try {
                             val a=adapter(source)
-                            val feedback=indexFeedback(source)
+                            checkAccess(source)
+                            if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
+                            checkAccess(source)
+                            indexPause(source,capability,target)?.let {pause->completed.send(Triple(index,null,pause));return@launch}
+                            feedback=indexFeedback(source)
+                            started=System.nanoTime();admitted=true
                             attempted.set(true)
                             page=withIndexFeedback(feedback){withTimeout(if(tor)55_000 else 20_000){if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else a.fetch(target,cursor)}}
                             if(feed&&page.posts.none {it.publishedAt!=null})throw SourceFailure(HealthStatus.EMPTY,"Source has no dated feed entries")
                             val content=content(page,capability,target)&&!previewOnly(page)
+                            checkAccess(source)
                             val redirected=redirectedOriginal(source,page)
                             val r=ProbeResult(source,capability,if(redirected)HealthStatus.UNSUPPORTED else if(content)HealthStatus.HEALTHY else HealthStatus.EMPTY,(System.nanoTime()-started)/1_000_000,clock(),tor,if(redirected)ORIGINAL_REDIRECT else if(content)"Requested public content extracted"else if(previewOnly(page))"Public preview only; full content unavailable"else "Profile information only; no timeline entries")
                             recordRead(r,feedback,target,delivery=!redirected)
                         }catch(e: CancellationException) {
                             currentCoroutineContext().ensureActive()
                             page=null;failure=e
-                            if(e is TimeoutCancellationException)record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,clock(),tor,"Timed out"),target)
+                            if(e is TimeoutCancellationException&&admitted)record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,clock(),tor,"Timed out"),target)
                         }catch(e: Exception) {
-                            page=null;failure=e
+                            currentCoroutineContext().ensureActive()
+                            page=null;failure=runCatching {checkAccess(source);feedback?.check(gateway)}.exceptionOrNull() as? Exception ?: e
                             val r=ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,clock(),tor,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
-                            record(r,target)
+                            if(admitted&&failure !is CancellationException)record(r,target)
                         }
                         completed.send(Triple(index,page,failure))
                     }
@@ -761,7 +803,8 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         if(originalFallback&&originalRedirect!=null)return@withContext delivered(target,capability,includeDirectory(originalRedirect!!),originalFallback)
         if(originalFallback)for(source in fallbackSources(target.platform,capability,target).let {paths->if(capability==Capability.SEARCH)paths else paths.sortedWith(compareBy<Source> {learning.score(it,capability,usesTor(it))}.thenBy {pathways.priority(it)})}) {
-            val a=adapter(source);val started=System.nanoTime()
+            val a=adapter(source);var started=0L
+            var admitted=false
             var feedback:PublicIndexFeedback?=null
             val originalTor=usesTor(source)
             val old=health[key(source,capability,originalTor)]
@@ -776,7 +819,11 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             try {
                 if(capability !in a.capabilities||!a.accepts(target))throw SourceFailure(HealthStatus.UNSUPPORTED,"This original reader does not implement ${capability.name.lowercase()}")
                 if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
+                checkAccess(source)
+                val pause=indexPause(source,capability,target)
+                if(pause!=null){last=pause;continue}
                 feedback=indexFeedback(source)
+                started=System.nanoTime();admitted=true
                 attempted.set(true)
                 val page=withIndexFeedback(feedback){withTimeout(if(indexFallback&&source.frontend=="original"){if(target.platform==Platform.FACEBOOK){if(originalTor)40_000 else 20_000}else if(originalTor)8_000 else 4_000}else if(originalTor)55_000 else 20_000){
                 if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else try {a.fetch(target,cursor)}catch(e: CancellationException){throw e}catch(e: Exception){
@@ -785,6 +832,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 }}
                 }
                 if(feed&&page.posts.none {it.publishedAt!=null})throw SourceFailure(HealthStatus.EMPTY,"Original has no dated feed entries")
+                checkAccess(source)
                 val content=content(page,capability,target)&&!previewOnly(page)
                 recordRead(ProbeResult(source,capability,if(content)HealthStatus.HEALTHY else HealthStatus.EMPTY,(System.nanoTime()-started)/1_000_000,clock(),originalTor,if(content)"Requested public content extracted"else if(usableProgress(page))"No matching content on this index page; continuation available"else "Profile information only; no timeline entries"),feedback,target)
                 if(!usableProgress(page)) {
@@ -794,8 +842,8 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                     continue
                 }
                 return@withContext delivered(target,capability,includeDirectory(page),originalFallback)
-            }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();last=e;report(HealthStatus.UNAVAILABLE,"Timed out")}
-            catch(e: Exception){last=e;report((e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,e.message.orEmpty(),(e as? SourceFailure)?.retryAfterMs)}
+            }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();checkAccess(source);last=e;if(admitted)report(HealthStatus.UNAVAILABLE,"Timed out")}
+            catch(e: Exception){checkAccess(source);feedback?.check(gateway);last=e;if(admitted)report((e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,e.message.orEmpty(),(e as? SourceFailure)?.retryAfterMs)}
         }
         // Independent archives are a recovery tier. They cannot win a race with
         // fresh content or confirm that a chronological subscription refreshed.
@@ -841,6 +889,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
     suspend fun continuePage(target: Target,previous: Page,originalFallback: Boolean=true,requestedCapability: Capability?=null): Page=withContext(Dispatchers.IO) {
         readStarted()
         try {
+        val checkAccess=readPolicy()
         val source=requireNotNull(previous.provenance?.source){"Missing pagination source"}
         val cursor=requireNotNull(previous.next){"No further page"}
         val selected=searchProvider;val originalPermission=gateway.originalFallback
@@ -854,9 +903,12 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val capability=requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
         indexPause(source,capability,target)?.let {throw it}
         if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
+        checkAccess(source)
+        indexPause(source,capability,target)?.let {throw it}
         val updates=currentCoroutineContext()[SearchDiscoveryUpdates]?.takeIf {it.target==target&&capability==Capability.SEARCH&&source.frontend in PublicSearchAdapter.frontends}
         val session=gateway.sessionFor(source.root)
         fun checkPolicy() {
+            checkAccess(source)
             if(gateway.sessionFor(source.root)!==session||source.frontend in PublicSearchAdapter.frontends&&searchProvider!=selected||gateway.originalFallback!=originalPermission)
                 throw CancellationException("Search connection or provider changed; refresh this search")
         }

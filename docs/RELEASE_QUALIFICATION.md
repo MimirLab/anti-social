@@ -9,6 +9,49 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.13 source admission after transport startup
+
+The full JVM suite covered **2,008 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. The selected API 35 Android batch accounted for **56 named checks**
+across seven classes: 54 passed and two opt-in live-source/Tor checks were skipped.
+
+Seven new probe regressions failed on unchanged 0.38.12. They exposed expected
+readiness being treated as a mode change, occupied read permits during startup,
+startup time in source latency, stale observation dates, a newly learned pause
+being ignored, local transport failures replacing good provider evidence, and
+queued work surviving a connection round trip. Six additional initial-search,
+directory and continuation regressions failed after the probe-only repair while
+those paths remained unchanged. They use a filter that denies all destinations
+and show that queued work reached request admission after a pause or mode change.
+Additional checks cover pauses learned while waiting for a permit and separate
+selection/session identities.
+
+The identical native test APK first ran against byte-verified retained 0.38.12
+debug. Both new methods failed their substantive assertions: a normal readiness
+transition cancelled usable source data, and four waiting search checks blocked
+a ready direct check beyond the one-second fixture limit. The candidate records
+the usable check and completes the ready direct check in **45 ms** while all four
+search checks remain waiting. These are owned loopback sources and simulated
+readiness, not a live Tor exit, public-source latency or ordinary-feed benchmark.
+The native streamed-search screen was inspected alongside the retained receipts.
+
+Probe waits now precede source-read permits; source timing starts after admission
+and local preparation, and observation dates describe completion. Policy and
+public-index cooldown are rechecked after transport waits, with a further check
+after a probe obtains its permit. Local startup failure preserves prior provider
+health; actual admitted failures still train it. A separate ephemeral connection
+selection detects mode round trips without confusing readiness with reader choice.
+Actual request sessions, Gateway guards and the selected-Tor fail-closed behavior
+remain in force.
+
+No provider, dependency, runtime, model, setting, export schema, detached task or
+request allowance is added. Probe concurrency remains four actual operations,
+explicit sweeps remain bounded to 128 sources, and requested-read rolling hedges
+keep their separate limits. See [source-check admission](ROUTE_SCHEDULING.md#transport-readiness-and-source-checks-03813)
+for the mechanism and fixtures. This increment adds no new physical-phone hardware
+matrix, live-Tor qualification or independent security audit.
+
 ## 0.38.12 useful results with provider backoff
 
 The full JVM suite covered **1,993 cases**, zero failures/errors and one optional

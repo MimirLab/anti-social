@@ -41,6 +41,14 @@ old clients, responses and scoped validators; switching direct → Tor → direc
 does not revive the old session. The SOCKS transport is owned by an app-private
 Tor process, with readiness checked before a client can issue requests.
 
+Queued SourcePool work also retains the reader's connection-selection identity.
+This identity changes when direct/Tor mode changes, including a round trip, and
+survives ordinary Tor-readiness updates. After waiting for transport, actual
+network sessions are captured and remain subject to the existing strict guards.
+This lets startup finish without treating it as a user mode change, while stale
+queued work still stops. [Source-check admission](ROUTE_SCHEDULING.md#transport-readiness-and-source-checks-03813)
+separates local preparation time/failures from provider health and read permits.
+
 ## A source route never bypasses the protection path
 
 ```mermaid
