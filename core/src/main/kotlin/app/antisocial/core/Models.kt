@@ -89,6 +89,8 @@ class SourceFailure(val status: HealthStatus, message: String,val retryAfterMs: 
 interface DataAdapter {
     val source: Source
     val capabilities: Set<Capability>
+    /** feed() can expose a cheaper finite representation than fetch(). */
+    val separateFeedRepresentation:Boolean get()=false
     /** Some data paths serve only particular target forms or an explicitly scoped account. */
     fun accepts(target: Target): Boolean = target.platform==source.platform
     suspend fun fetch(target: Target, cursor: String? = null): Page

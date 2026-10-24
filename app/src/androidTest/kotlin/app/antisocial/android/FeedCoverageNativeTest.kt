@@ -49,7 +49,7 @@ class FeedCoverageNativeTest {
         }}
         override fun close(){listener.close();active.getAndSet(null)?.close();worker.shutdownNow();check(worker.awaitTermination(3,TimeUnit.SECONDS))}
     }
-    private fun gateway()=NetworkGateway(UrlCleaner(JsonParser.parseString("""{"providers":{}}""").asJsonObject),object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)},true)
+    private fun gateway()=NetworkGateway(UrlCleaner(JsonParser.parseString("""{"providers":{}}""").asJsonObject),object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)},true).apply {originalFallback=false}
     private fun routes()=DarwinRoutes(JsonParser.parseReader(context.assets.open("darwin-routes.json").reader()).asJsonObject.apply {add("sources",JsonArray());add("searchSources",JsonArray())},UrlCleaner(JsonParser.parseString("""{"providers":{}}""").asJsonObject))
 
     @Test fun aNativeRelayWindowKeepsNewPostsButCannotCloseMissingHistory():Unit=runBlocking {

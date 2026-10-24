@@ -125,7 +125,7 @@ class Repository(val context: Context) {
     internal var followLoader: suspend (Follow)->Page = {loadFollow(it)}
     internal var followPageLoader: suspend (Follow,Page)->Page = {follow,page->
         if(follow.target.platform==Platform.RSS&&follow.feedUrl!=null)pool.continueExternalFeed(follow,page)
-        else pool.continuePage(follow.target,page,prefs.originalFallback)
+        else pool.continuePage(follow.target,page,prefs.originalFallback,requestedCapability=Capability.FEED)
     }
     val feedRefresh=MutableStateFlow(FeedRefreshState())
     private val refreshMutex=Mutex()

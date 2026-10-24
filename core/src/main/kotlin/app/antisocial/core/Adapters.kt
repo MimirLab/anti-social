@@ -27,6 +27,7 @@ private suspend fun mediaPage(target: Target,url: String,source: Source,gateway:
 }
 
 class FrontendAdapter(override val source: Source, private val gateway: NetworkGateway, private val routes: DarwinRoutes) : DataAdapter {
+    override val separateFeedRepresentation=true
     private data class PinlessCursor(val url: String,val bookmark: String,val target: String)
     override val capabilities = if(source.frontend=="binternet")setOf(Capability.SEARCH,Capability.MEDIA)else setOf(Capability.PROFILE,Capability.TIMELINE,Capability.POST,Capability.FEED,Capability.MEDIA)+
         (if(source.frontend in setOf("nitter","redlib","libreddit","teddit","priviblur","kittygram","pinless","painterest"))setOf(Capability.SEARCH)else emptySet())+
@@ -113,6 +114,7 @@ class FrontendAdapter(override val source: Source, private val gateway: NetworkG
 }
 
 class OriginalAdapter(override val source: Source, private val gateway: NetworkGateway, private val routes: DarwinRoutes): DataAdapter {
+    override val separateFeedRepresentation get()=source.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST)
     override val capabilities=setOf(Capability.PROFILE,Capability.TIMELINE,Capability.POST,Capability.FEED,Capability.MEDIA)+
         (if(source.platform in setOf(Platform.BLUESKY,Platform.REDDIT,Platform.TUMBLR,Platform.PINTEREST,Platform.INSTAGRAM))setOf(Capability.SEARCH)else emptySet())+
         (if(source.platform in setOf(Platform.REDDIT,Platform.BLUESKY))setOf(Capability.COMMENTS)else emptySet())
@@ -242,6 +244,9 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             source.frontend in PublicSearchAdapter.frontends||source.platform==Platform.FACEBOOK&&source.frontend in setOf("original","phice")
         }==true&&
         page.next?.let {it.isNotBlank()&&it.length<=24*1024}==true
+    private fun historyContent(page:Page,target:Target)=page.provenance?.let {p->
+        !p.cached&&p.source.role!=SourceRole.CACHE&&p.source.frontend !in PublicSearchAdapter.frontends&&FeedRefresh.posts(page,target.platform).isNotEmpty()
+    }==true
     private val health=ConcurrentHashMap<String,ProbeResult>()
     private val directoryBackoff=ConcurrentHashMap<String,Long>()
     private val readers=ConcurrentHashMap<Source,DataAdapter>()
@@ -278,6 +283,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val value=object: DataAdapter {
             override val source=delegate.source
             override val capabilities=delegate.capabilities
+            override val separateFeedRepresentation=delegate.separateFeedRepresentation
             override fun accepts(target: Target)=delegate.accepts(target)
             override suspend fun fetch(target: Target,cursor: String?)=SearchScopes.scopePage(target,delegate.fetch(target,cursor))
             override suspend fun searchUpdates(target:Target,cursor:String,onPartial:suspend (Page)->Unit)=
@@ -384,7 +390,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         return learning.failure(source,capability,usesTor(source),target) ?:
             SourceFailure(HealthStatus.UNAVAILABLE,"Public search source is paused; try again later.",learning.eligibleAt(source,capability,usesTor(source))-clock())
     }
-    private fun delivered(target: Target,capability: Capability,page: Page,originalFallback: Boolean): Page {
+    private suspend fun delivered(target: Target,capability: Capability,page: Page,originalFallback: Boolean,checkAccess:((Source)->Unit)?=null): Page {
         page.provenance?.source?.let {source->
             if(source.role==SourceRole.ORIGINAL) {
                 gateway.registerOriginalUrl(source.root)
@@ -397,6 +403,9 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 }
                 onRead(target,capability,source)
             }
+        }
+        if(capability==Capability.FEED&&checkAccess!=null&&historyContent(page,target))page.provenance?.source?.let {source->
+            currentCoroutineContext()[FeedHistoryScope]?.bind(this,target,source,adapter(source).separateFeedRepresentation,originalFallback&&gateway.originalFallback,checkAccess)
         }
         return page
     }
@@ -656,8 +665,10 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val supplementalJob=if(background)currentCoroutineContext()[Job]else null
         readStarted(background,supplementalJob)
         val capability=requestedCapability ?: when {feed->Capability.FEED;target.kind==TargetKind.MEDIA->Capability.MEDIA;target.kind in setOf(TargetKind.POST,TargetKind.THREAD)->Capability.POST;target.kind==TargetKind.SEARCH->Capability.SEARCH;else->Capability.TIMELINE}
+        val history=currentCoroutineContext()[FeedHistoryPlan]?.takeIf {it.target==target&&capability==Capability.TIMELINE}
         val requestedMode=gateway.currentPolicy().tor
-        val checkAccess=readPolicy()
+        val currentAccess=readPolicy()
+        val checkAccess:(Source)->Unit={source->currentAccess(source);history?.scope?.check(source)}
         val attempted=java.util.concurrent.atomic.AtomicBoolean()
         try {
         require(!profileNameOnly||capability==Capability.PROFILE){"Name lookups require an exact profile"}
@@ -673,7 +684,8 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         fun directoryOnly(page: Page)=capability==Capability.SEARCH&&target.kind==TargetKind.SEARCH&&SearchScopes.from(target)==null&&
             page.posts.isEmpty()&&page.collections.none {it.target.kind==TargetKind.POST}&&
             (page.accounts.isNotEmpty()||page.collections.any {PublicSearchAdapter.entityAllowed(it.target)})
-        fun usableProgress(page: Page)=searchProgress(page,capability,target)&&usableProfileName(page)&&!directoryOnly(page)
+        fun usableProgress(page: Page)=searchProgress(page,capability,target)&&usableProfileName(page)&&!directoryOnly(page)&&
+            (history==null||historyContent(page,target))
         progress("Preparing a secure connection")
         gateway.prepare()
         if(target.platform==Platform.RSS&&target.kind!=TargetKind.FEED)throw SourceFailure(HealthStatus.UNSUPPORTED,"Open the saved feed entry; article pages are not downloaded automatically")
@@ -687,14 +699,14 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val tor=gateway.currentPolicy().tor
         val now=clock()
         val candidates=requestedOrder(sourcesFor(target,capability).filter {
-            it.role!=SourceRole.CACHE&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)
+            it.role!=SourceRole.CACHE&&(history==null||history.allows(it))&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)
         },capability)
         var last: Exception?=sourcesFor(target,capability,originalFallback).firstNotNullOfOrNull {learning.failure(it,capability,usesTor(it),target)}
         var partial: Page?=null
         var originalRedirect: Page?=null
         fun previewOnly(page: Page)=capability==Capability.POST&&page.posts.firstOrNull {ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}?.preview==true
         fun retainPartial(page: Page) {
-            if(profileNameOnly)return
+            if(profileNameOnly||history!=null)return
             val candidate=if(capability==Capability.POST)page.copy(posts=page.posts.filter {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)},profile=null,collections=emptyList(),accounts=emptyList())else page
             if(candidate.posts.isEmpty()&&candidate.profile==null&&candidate.collections.isEmpty()&&candidate.accounts.isEmpty())return
             if(partial==null||previewOnly(candidate)&&partial!!.posts.isEmpty())partial=candidate
@@ -741,6 +753,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
                             checkAccess(source)
                             indexPause(source,capability,target)?.let {pause->completed.send(Triple(index,null,pause));return@launch}
+                            if(history!=null&&!history.admit(source)){completed.send(Triple(index,null,null));return@launch}
                             feedback=indexFeedback(source)
                             started=System.nanoTime();admitted=true
                             attempted.set(true)
@@ -798,16 +811,17 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             }
         }
         if(alternate!=null) {
-            return@withContext delivered(target,capability,includeDirectory(alternate),originalFallback)
+            return@withContext delivered(target,capability,includeDirectory(alternate),originalFallback,checkAccess)
         }
         }
-        if(originalFallback&&originalRedirect!=null)return@withContext delivered(target,capability,includeDirectory(originalRedirect!!),originalFallback)
+        if(originalFallback&&originalRedirect!=null)return@withContext delivered(target,capability,includeDirectory(originalRedirect!!),originalFallback,checkAccess)
         if(originalFallback)for(source in fallbackSources(target.platform,capability,target).let {paths->if(capability==Capability.SEARCH)paths else paths.sortedWith(compareBy<Source> {learning.score(it,capability,usesTor(it))}.thenBy {pathways.priority(it)})}) {
             val a=adapter(source);var started=0L
             var admitted=false
             var feedback:PublicIndexFeedback?=null
             val originalTor=usesTor(source)
             val old=health[key(source,capability,originalTor)]
+            if(history!=null&&!history.allows(source))continue
             if(!learning.eligible(source,capability,originalTor,target))continue
             if(indexFallback&&source.frontend=="original"&&target.platform!=Platform.FACEBOOK&&!partial?.accounts.isNullOrEmpty())continue
             if(indexFallback&&source.frontend=="original"&&old?.status in setOf(HealthStatus.UNAVAILABLE,HealthStatus.UNSUPPORTED,HealthStatus.LOGIN_REQUIRED,HealthStatus.CHALLENGE)&&now-(old?.checkedAt ?: 0)<600_000)continue
@@ -822,13 +836,14 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 checkAccess(source)
                 val pause=indexPause(source,capability,target)
                 if(pause!=null){last=pause;continue}
+                if(history!=null&&!history.admit(source))continue
                 feedback=indexFeedback(source)
                 started=System.nanoTime();admitted=true
                 attempted.set(true)
                 val page=withIndexFeedback(feedback){withTimeout(if(indexFallback&&source.frontend=="original"){if(target.platform==Platform.FACEBOOK){if(originalTor)40_000 else 20_000}else if(originalTor)8_000 else 4_000}else if(originalTor)55_000 else 20_000){
                 if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else try {a.fetch(target,cursor)}catch(e: CancellationException){throw e}catch(e: Exception){
                     e.respectRetryDelay()
-                    if(source.frontend !in PublicSearchAdapter.frontends&&cursor==null&&(target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)||target.kind==TargetKind.SEARCH&&target.platform==Platform.REDDIT)&&target.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST))a.feed(target)else throw e
+                    if(history==null&&source.frontend !in PublicSearchAdapter.frontends&&cursor==null&&(target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)||target.kind==TargetKind.SEARCH&&target.platform==Platform.REDDIT)&&target.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST))a.feed(target)else throw e
                 }}
                 }
                 if(feed&&page.posts.none {it.publishedAt!=null})throw SourceFailure(HealthStatus.EMPTY,"Original has no dated feed entries")
@@ -841,13 +856,13 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                     retainPartial(page)
                     continue
                 }
-                return@withContext delivered(target,capability,includeDirectory(page),originalFallback)
+                return@withContext delivered(target,capability,includeDirectory(page),originalFallback,checkAccess)
             }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();checkAccess(source);last=e;if(admitted)report(HealthStatus.UNAVAILABLE,"Timed out")}
             catch(e: Exception){checkAccess(source);feedback?.check(gateway);last=e;if(admitted)report((e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,e.message.orEmpty(),(e as? SourceFailure)?.retryAfterMs)}
         }
         // Independent archives are a recovery tier. They cannot win a race with
         // fresh content or confirm that a chronological subscription refreshed.
-        if(capability!=Capability.FEED&&!profileNameOnly) {
+        if(capability!=Capability.FEED&&!profileNameOnly&&history==null) {
             val cached=withTimeoutOrNull(if(tor)55_000L else 24_000L) {
                 for(source in sourcesFor(target,capability).filter {it.role==SourceRole.CACHE&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)}.sortedBy {learning.score(it,capability,usesTor(it))}) {
                     val started=System.nanoTime()
@@ -885,11 +900,38 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             throw e
         }finally {readFinished(background,supplementalJob)}
     }
-    /** Continuations belong to the source that issued them, never a failover engine. */
+    /** A missing feed cursor can request another native representation, only
+     * inside the exact collector that obtained the fresh head. UI pagination
+     * and arbitrary Pages retain strict selected-source cursor ownership. */
+    private suspend fun feedHistory(target:Target,scope:FeedHistoryScope,originalFallback:Boolean):Page {
+        scope.check()
+        val originalsAllowed=scope.originalAllowed&&originalFallback&&gateway.originalFallback
+        val capability=Capability.TIMELINE
+        val paths=requestedOrder(sourcesFor(target,capability,originalsAllowed).filter {source->
+            source.role!=SourceRole.CACHE&&source.frontend !in PublicSearchAdapter.frontends&&scope.eligible(source)&&
+                capability in adapter(source).capabilities&&adapter(source).accepts(target)&&routeAllowed(source,capability)&&learning.eligible(source,capability,usesTor(source),target)
+        },capability)
+        val remaining=scope.remaining();val alternates=paths.filter {it.role!=SourceRole.ORIGINAL};val originals=paths.filter {it.role==SourceRole.ORIGINAL}
+        // Preserve the alternate-before-original tier, with room for a permitted
+        // original instead of spending the whole allowance on mirror names.
+        val alternateLimit=remaining-if(originals.isNotEmpty()&&remaining>1)1 else 0
+        val leading=alternates.take(alternateLimit)
+        val selected=leading+originals.take(if(leading.size<remaining)1 else 0)
+        if(selected.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"No unused native history route remains in this refresh")
+        return withContext(FeedHistoryPlan(scope,target,selected.map {it.key}.toSet())) {
+            load(target,originalFallback=originalsAllowed,requestedCapability=Capability.TIMELINE)
+        }
+    }
+    /** Real cursors stay with their issuer. A scoped FEED request without a
+     * cursor asks for history recovery rather than borrowing that cursor. */
     suspend fun continuePage(target: Target,previous: Page,originalFallback: Boolean=true,requestedCapability: Capability?=null): Page=withContext(Dispatchers.IO) {
         readStarted()
         try {
-        val checkAccess=readPolicy()
+        val history=currentCoroutineContext()[FeedHistoryScope]?.takeIf {requestedCapability==Capability.FEED&&it.owns(this@SourcePool,target)}
+        history?.check()
+        if(history!=null&&previous.next.isNullOrBlank())return@withContext feedHistory(target,history,originalFallback)
+        val currentAccess=readPolicy()
+        val checkAccess:(Source)->Unit={s->currentAccess(s);history?.check(s)}
         val source=requireNotNull(previous.provenance?.source){"Missing pagination source"}
         val cursor=requireNotNull(previous.next){"No further page"}
         val selected=searchProvider;val originalPermission=gateway.originalFallback
@@ -900,7 +942,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         val known=source in routes.sources||source in pathways.sources(target)||source in routes.searchSources.map {it.copy(platform=target.platform)}||source in fallbackSources(target.platform,if(target.kind==TargetKind.SEARCH)Capability.SEARCH else Capability.TIMELINE,target)
         require(known){"Unrecognized pagination source"}
-        val capability=requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
+        val capability=if(history!=null)Capability.TIMELINE else requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
         indexPause(source,capability,target)?.let {throw it}
         if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
         checkAccess(source)
@@ -928,7 +970,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 }else if(capability==Capability.COMMENTS)adapter(source).comments(target,cursor)else adapter(source).fetch(target,cursor)
             }}}
             checkPolicy()
-            val usable=content(page,capability,target)
+            val usable=if(history!=null)historyContent(page,target)else content(page,capability,target)
             if(usable||feedback?.refusal!=null)recordRead(ProbeResult(source,capability,if(usable)HealthStatus.HEALTHY else HealthStatus.EMPTY,firstDelivery ?: (System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Continuation data checked"),feedback,delivery=source.role!=SourceRole.CACHE)
             delivered(target,capability,page,originalFallback)
         }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Timed out"));throw SourceFailure(HealthStatus.UNAVAILABLE,"Public source timed out")}catch(e: Exception){if((e as? SourceFailure)?.status!=HealthStatus.EMPTY)record(ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs));throw e}
@@ -953,6 +995,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
     suspend fun externalFeed(follow: Follow): Page = withContext(Dispatchers.IO) {
         readStarted()
         try {
+        val checkAccess=readPolicy()
         val url=follow.feedUrl ?: return@withContext load(follow.target,true)
         if(follow.target.platform==Platform.RSS) {
             val feed=RssSources.target(url)
@@ -960,7 +1003,10 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         val root=URI(url).let { "${it.scheme}://${it.host}" }
         val source=Source(follow.target.platform,"rss",root)
-        gateway.feed(url,follow.target,source){Extraction.parse(it,follow.target,source,routes)}
+        val page=gateway.feed(url,follow.target,source){Extraction.parse(it,follow.target,source,routes)}
+        checkAccess(source)
+        if(historyContent(page,follow.target))currentCoroutineContext()[FeedHistoryScope]?.bind(this@SourcePool,follow.target,source,false,gateway.originalFallback,checkAccess)
+        page
         }finally {readFinished()}
     }
     private fun readStarted(background: Boolean=false,job: Job?=null) {

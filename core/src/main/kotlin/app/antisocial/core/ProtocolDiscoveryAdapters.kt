@@ -104,7 +104,7 @@ object ProtocolDiscoveryParsing {
             val canonical="https://x.com/$username/status/$id"
             Post(ContentIdentity.key(Platform.X,canonical),Platform.X,canonical,info.pText("name","screenName"),body,publishedAt=date,avatar=avatar,media=media,replyCount=node.pLong("replyCount"),score=node.pLong("favoriteCount"),provenance=provenance,links=links)
         }
-        return pUsable(Page(pChronological(posts),profile=Profile(target,info.pText("name","screenName"),info.pText("description"),avatar,info.pLong("followerCount"),listOfNotNull(pUrl(info.pObject("urlEntity").pText("expandedURL"),provenance.finalUrl)),displayNameSupplied=info.pText("name").isNotBlank()),provenance=provenance,notice="Earlier posts and comments may need another source."))
+        return pUsable(Page(pChronological(posts),profile=Profile(target,info.pText("name","screenName"),info.pText("description"),avatar,info.pLong("followerCount"),listOfNotNull(pUrl(info.pObject("urlEntity").pText("expandedURL"),provenance.finalUrl)),displayNameSupplied=info.pText("name").isNotBlank()),provenance=provenance,limitedTimeline=true,notice="Earlier posts and comments may need another source."))
     }
     fun redditArchivePost(node: JsonObject,provenance: Provenance,routes: DarwinRoutes): Post? {
         val id=node.pText("id").takeIf {it.matches(Regex("[a-z0-9]{1,20}"))} ?: return null

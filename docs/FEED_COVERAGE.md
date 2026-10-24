@@ -1,4 +1,4 @@
-# Feed windows and declared history routes
+# Feed windows and history recovery
 
 A fresh HTTP response and a joined reading window are separate facts. A relay
 can supply dated posts while exposing only its most recent twenty items. If
@@ -12,6 +12,10 @@ RSS, Pixelfed Atom and Telegram RSS retain `limitedTimeline` through their
 source-specific filtering and Page reconstruction. An absent cursor cannot clear
 an unbridged interval. First subscriptions still take one window; overlapping
 heads finish without requesting unrelated history.
+
+Sotwe's public account API also supplies a finite window: its adapter explicitly
+has no qualified older-page operation. That response now carries the same flag;
+a successful API head does not establish that the missing interval was read.
 
 Ordinary RSS/Atom is finite by default too. A namespaced, feed-level `fh:complete`
 can explicitly describe the logical feed's full current set, provided parsing
@@ -53,7 +57,8 @@ guides about those subjects remain readable.
 
 The existing bounds remain **eight pages, 300 posts, 45 seconds direct or 90
 seconds with app-wide Tor**. Extra pages are requested only when the retained
-head is missing and the publisher supplies a route. Initial and already joined
+head is missing, through declared navigation or the scoped native recovery below.
+Initial and already joined
 windows make no history requests. There is no new polling job, setting, model,
 runtime or full-archive crawl. Every request uses NetworkGateway, selected Tor
 fails closed, and completed pages survive an unfinished later read under the
@@ -62,6 +67,51 @@ fails closed, and completed pages survive an unfinished later read under the
 Initial heads retain [revalidation](FEED_REVALIDATION.md). Ordinary continuation
 pages currently perform full protected reads. A source without usable history
 remains pending across a gap; the app does not guess pagination parameters.
+
+## Native feed recovery, 0.38.16
+
+A cheap syndication head can be useful even when its window has no cursor.
+The same frontend may expose an HTML timeline with real pagination; another
+qualified API or frontend may cover the missing interval. The collector can now
+try those existing readers before leaving the gap pending. A repeated or failed
+real cursor and an explicit continuation limit can use the same recovery path.
+
+Recovery belongs to the current catch-up coroutine, exact SourcePool and target.
+Only a fresh, readable native feed read binds its initial policy. Pages remain
+plain data: serializing, copying or retaining a Page does not retain authority to
+start recovery. Ordinary RSS/Atom continues to use declared navigation and its
+qualified provider bridge, rather than entering social-source discovery.
+
+The allowance is **three additional native adapter starts** across the refresh,
+including cancelled hedges. This is an adapter-operation limit, not a claim of
+three HTTP exchanges: an adapter can already implement multiple bounded reads.
+It shares the existing page/post limits and entire source deadline. Available
+slots, healthy-method priority, method diversity, cooldowns and cancellation use
+the normal router. When originals are allowed, a shortlist can reserve a slot
+for that later tier instead of spending every slot on alternate mirrors.
+
+Adapters distinguish a separate cheap feed representation from `feed()` simply
+calling `fetch()`. Recovery does not repeat the latter's identical initial read.
+It starts each newly selected timeline without another source's cursor; any
+cursor that timeline subsequently supplies stays with its issuer. Archive/cache
+copies, public-index previews and undated timelines cannot certify catch-up.
+If no route reaches the retained head, even another cursorless API result leaves
+the gap pending. New posts already found survive failures and the owned deadline.
+
+Additional timeline reads and real history continuations record TIMELINE health
+and latency separately from the initial FEED head. A slow/dead history format
+therefore does not replace a working RSS head's observation. Repeated canonical
+posts from recovery preserve the snapshot already collected, including its
+caption, gallery and provenance; new unique roots join the same chronological
+publication. Ordinary same-source pagination retains its existing replacement
+behavior before recovery begins.
+
+The initial privacy-selection identity and original-access policy remain in
+force through planning, continuation and final return. A mode round trip or
+permission change cancels stale work. Later continuation arguments can further
+restrict original access, and cannot expand the initial permission. Every
+network operation still passes through NetworkGateway. No Page schema, database
+migration, persistent route cache, polling job, model or setting is added.
 
 ## Blogger's published feed route
 
@@ -126,3 +176,14 @@ scripts/gradle.sh :core:feedPaginationAudit \
   -PantisocialFeedEvidence=/run/media/red/RedtopStorage/DarwinBuild/LiberBuild/evidence/new-feed-pages \
   -PantisocialFeedUrl=https://publisher.example/feed.xml
 ```
+
+## Further route research
+
+Nitter's [RSS router](https://github.com/zedeus/nitter/blob/master/src/routes/rss.nim)
+publishes its cursor as a `Min-Id` HTTP response header, while its
+[timeline router](https://github.com/zedeus/nitter/blob/master/src/routes/timeline.nim)
+accepts a cursor for account reads. This is a promising cheaper-continuation lead
+for future qualification. The current increment does not interpret that header
+or guess a cursor from post IDs. Its recovery uses the existing native readers
+and their already admitted cursors. An upstream implementation reference alone
+does not establish that every deployment exposes the same behavior.

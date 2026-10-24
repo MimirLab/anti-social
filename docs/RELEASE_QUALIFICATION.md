@@ -9,6 +9,68 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.16 bounded native history recovery
+
+The final full JVM suite covered **2,069 cases**, zero failures/errors and one
+optional weight-dependent skip. Debug, release and instrumentation assembly and
+release lint passed. The final API 35 Android batch accounted for **114 named
+checks** across fifteen classes: 112 passed and two opt-in live-source/Tor checks
+were skipped. Native mixed RSS/social channel and pending-refresh screens were
+inspected. The restored reading-scope case also passed separately; that duplicate
+run is not an additional unique check.
+
+Two new regressions first failed on unchanged 0.38.15: a useful finite RSS head
+could not use its source's HTML timeline, or another native source, to bridge
+the retained previous head. The identical final native test APK failed against
+byte-verified retained 0.38.15 debug at its substantive missing-history assertion.
+It had one new post and one RSS request, with the gap pending. On the candidate,
+the real timeline read joins three roots in two requests while retaining the
+initial post's fuller caption, image and provenance. FEED and TIMELINE observations
+remain separate. Initial/overlapping native controls still make one cheap read.
+
+An additional regression failed before qualifying Sotwe's account response as
+finite. Its adapter explicitly lacks an admitted older-page operation; that
+window now carries `limitedTimeline`. Recovery does not repeat the same API when
+`feed()` already uses `fetch()`. Generic adapters can expose a separate cheaper
+RSS representation and a native timeline. A further control confirmed that an
+HTML head reached after RSS failure is not retried after its cursor fails: the
+existing timeline cooldown already advances to the other method.
+
+The collector owns an ephemeral pool/target-bound history scope. It can admit
+three additional native adapter starts, including cancelled hedges, within the
+existing eight-page/300-post/45-second-direct or 90-second-full-Tor allowance.
+Alternatives precede a permitted original; a continuation cannot widen initial
+original access. Real cursors remain with their issuer. No copied/saved Page can
+carry recovery authority. Failed/repeated cursors and explicit continuation
+limits can recover, while unbridged cursorless windows still remain pending.
+Completed posts survive owned deadlines; caller cancellation and initial privacy
+policy changes still cancel the complete operation. Recovery keeps primary
+canonical copies and never substitutes an archive, index or undated timeline
+for proof of a fresh joined window. Ordinary RSS navigation is unchanged.
+
+Unit controls exercise bounds, richer-copy retention, genuine cursor I/O through
+an explicitly supplied owned loopback cursor, original tiers, cooldowns, undated
+responses, policy round trips, cancellation and deadlines. Production HTML still
+requires HTTPS pagination; an initial HTTP-link fixture was repaired rather than
+weakening that rule. Early fixture-construction/canonical-key errors were fixed
+before the substantive baseline. The new coroutine boundary exposed a changed
+cancellation exception identity; preserving the original cancellation fixed that
+regression without weakening its assertion. Intermediate reports are retained.
+
+The three new native cases exercise actual Gateway/parser/collector operations,
+cheap initial/overlapping heads and an unbridged six-source pool that stops after
+three additional starts. The broader batch covers source scheduling, feed
+revalidation, RSS/saved text, cross-posts, search scopes, persisted gaps, atomic
+publication, channels and reading anchors. These owned fixtures and emulator
+checks do not establish new public-source uptime, live-Tor or phone performance.
+
+The candidate APK adds **6,504 bytes**, with all **497** non-generated native/data
+members unchanged. No dependency, model, runtime pack, Page field, database
+migration, setting or polling job is added. See
+[feed recovery](FEED_COVERAGE.md#native-feed-recovery-03816) for implementation and
+the separately labelled Nitter response-header research lead. It is not an
+enabled header-continuation adapter in this release.
+
 ## 0.38.15 feed-window coverage and published history routes
 
 The full JVM suite covered **2,053 cases**, zero failures/errors and one optional

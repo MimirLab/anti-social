@@ -209,3 +209,11 @@ missing interval. Ordinary RSS/Atom can follow declared history links within the
 existing catch-up bounds. A Blogger-specific path qualifies a published provider
 link with its exact Atom blog ID, pins the HTTPS read and checks that identifier
 before extracting returned posts; it does not grant generic cross-origin access.
+
+For a native social feed that still cannot bridge its retained previous head,
+the same catch-up operation can use a bounded native-history shortlist. It keeps
+the useful head, source-owned cursors, original-access tiers and initial privacy
+policy; extra timeline measurements stay separate from the cheap feed head.
+This uses [the existing source pool within the refresh limits](FEED_COVERAGE.md#native-feed-recovery-03816),
+without giving a saved Page its own networking authority or adding a background
+crawler. Exhausted routes leave the missing interval visibly pending.
