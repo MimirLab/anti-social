@@ -169,6 +169,91 @@ contradiction checks to examine. These are references, not shipped dependencies.
 Further work follows small forks, dependency users and histories as well as
 major repositories; star counts do not replace source and runtime qualification.
 
+### First-party byte engine qualification (2026-10-24)
+
+The next experimental component is now implemented in
+[`native/public_read`](../native/public_read/README.md). It owns TLS/HTTP/2
+orchestration and bounded decoding, rather than invoking curl's HTTP client.
+Established BoringSSL, nghttp2, zlib, Brotli and Zstandard primitives supply
+cryptography, protocol parsing and decompression. The library has no socket,
+DNS, proxy, redirect, cookie, credential, retry or persistent connection path.
+Its owner supplies encrypted bytes and must validate the peer's certificate
+chain **and hostname** through a mandatory callback before HTTP is sent.
+The intended owner remains NetworkGateway; production integration is pending.
+
+The observed Android 131 and macOS 142 cohorts reproduced the independently
+recorded cipher order, groups, supported extension sets, ALPS codepoint, ALPN,
+HTTP/2 settings, connection-window increment and pseudo-header order on owned
+fixtures. TLS extension permutation and GREASE remain connection-local.
+BoringSSL also conditionally adds final zero-filled padding for RFC 7685 and
+empty-final-extension interoperability; a harness must validate that conditional
+behavior rather than treating one captured extension list as immutable.
+These checks are specific wire observations, not proof of full browser parity.
+The engine does not execute a JavaScript realm.
+
+The first stripped component is **2,390,200 bytes ARM64** and **2,727,856 bytes
+x86_64**, compared with the earlier full-client reference's 3,982,808 and
+4,354,808 bytes. It is not bundled in the released APK. Both have 16 KiB ELF LOAD
+alignment; execution here remains on 4 KiB-page x86_64 emulators, with ARM64
+cross-built only. The development script reuses referenced primitive sections
+from the pinned combined static distribution. Its type-aware symbol audit
+rejects curl functions, QUIC/HTTP3 protocol functions and socket/DNS functions.
+Same-named merged sections keep two dead map-resize routines and four local
+allocation helpers, explicitly recorded as residue. ARM64 also retains some
+unused static data with function names in its labels; those are data, not an
+invoked curl client. A dependency audit also found that the compatibility
+distribution's nghttp2 1.63.0 predates the
+[CVE-2026-27135 fix](https://github.com/nghttp2/nghttp2/security/advisories/GHSA-6933-cjhr-5qg6).
+The advisory's extension-processing paths are not enabled in this engine;
+nevertheless patched/current source-built primitives and a complete dependency
+advisory review are required before production. This is a stronger reason to
+replace the combined calibration distribution than saving dead helper bytes.
+
+Owned Android API 29 and API 35 fixtures each passed **32 exchange checks**:
+fragmented input down to one byte; TLS 1.2/1.3; certificate and hostname rejection;
+one-hop 302; interim headers; empty 204; trailers; identity, gzip, deflate,
+Brotli and Zstandard; decoded expansion limits; compressed truncation; resets;
+missing END_STREAM; excessive headers; inconsistent lengths; duplicate, empty
+and unsupported encodings; and GOAWAY declining the request. No unsuccessful
+partial body or headers become a successful result. Each emulator also passed
+**246 no-network admission/lifetime checks**, including 200 independent malformed
+TLS inputs. An API 35 ASan/UBSan build passed those 246 checks and all 32 exchanges
+without a sanitizer report. Instrumentation covers the new first-party C++ and
+fixture driver, not the reused primitive archive. Fixture private keys were
+temporary and removed; owned port mappings and public test certificates were
+removed after each run. An early fixture closed with unread HTTP/2 ACKs, causing
+intermittent TCP reset/truncation on the TLS 1.2 path; keeping the fixture open
+until the one-shot client closed corrected the test without weakening TLS.
+
+This is still a selective transport candidate. HTTP/1 negotiation currently
+fails before HTTP is sent. Gateway integration, platform trust handling,
+session-change cancellation, actual Tor and public-source qualification remain
+required. Existing original-access permission, supplemental-read policy,
+filter/redirect checks, source pauses and request budgets must apply to every
+attempt. Temporary identity renewal must not create an unbounded retry loop.
+The public app and live preview remain **0.38.17**, without a new acquisition
+path or package-size increase.
+
+The reader's performance rule is explicit: compare matched cold **and warm**
+reads before broad adoption. The current engine is one exchange per connection;
+it cannot be judged against only a fresh-connection baseline while the normal
+Gateway reuses connections. Measure usable-content latency and CPU/battery cost,
+including losing or retaining pool reuse, and use the component only where it
+earns a routing benefit. A cheap header operation is not evidence that the full
+exchange has negligible cost.
+
+Further low-star metadata leads were inspected at exact revisions:
+
+| Lead | Useful mechanic | Decision |
+| --- | --- | --- |
+| [LarpGuard, zero stars](https://github.com/kewldan/LarpGuard/tree/197410b32447d5930cebe69fc464b4f92109c77d) | Independent server-side collection of ordered HTTP/2 settings, window updates, priorities and pseudo-header order; cross-layer consistency checks | A test-oracle reference. No proxy server, JS challenge or scoring package added to Android. |
+| [zigprebuild, zero stars](https://github.com/fixnet-ai/zigprebuild/tree/5581f62a893dfefb7dd6132e209185a532ca2722) | Small cross-target primitive-build catalog, including Android protocol libraries | A build-layout lead. Its missing repository license and unqualified binaries prevent treating it as our distribution source. |
+| [Nex-Fill BoringSSL, zero stars](https://github.com/Nex-Fill/boringssl/commit/38766326f3836867c281183365a5f1042cc9a2a4) | Explicit extension order, TLS 1.3 cipher ordering and key-share limits; earlier changes add record size and AES-hardware preference controls | Read the actual default patch branch, not just its inherited upstream README. Additional profile-control reference, not an adopted crypto fork. |
+| [go-browserforge, one star](https://github.com/brainplusplus/go-browserforge/tree/0f17a0db90143b6dab8c3645cb5bcb5d4fc1c5f2) | Another conditional-generation implementation and embedded network assets | Research lead; no Go runtime or generation dataset added. |
+
+Counts describe the dated metadata inspection. Small projects supply leads;
+their size or popularity does not establish correctness, safety or speed.
+
 ## Wider discovery verification
 
 Desktop probes located twelve creator-selected channel tiles on NASA's YouTube
