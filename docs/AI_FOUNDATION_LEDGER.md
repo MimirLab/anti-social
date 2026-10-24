@@ -1,5 +1,13 @@
 # Anti Social / anti social AI foundation implementation ledger
 
+This ledger preserves dated implementation and research records. Model windows,
+cache profiles, test outcomes and statements about the installed preview belong
+to the named revision and run. Consult [the AI foundation](AI_FOUNDATION.md),
+[runtime delivery](LOCAL_RUNTIME_DELIVERY.md) and [Context](CONTEXT.md) for the
+implemented paths, and [release qualification](RELEASE_QUALIFICATION.md) for the
+released increment. Debug experiments and host-model evaluations have their own
+scope; they do not change the shipped defaults by appearing in this ledger.
+
 ## Source publication context — 0.35.11 / code 59 — 2026-10-20
 
 The earlier exact-copy lesson's unconditional treatment of publication date as

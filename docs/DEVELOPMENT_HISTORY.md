@@ -1,10 +1,14 @@
 # Development and validation history
 
-Historical implementation records; see [current capabilities](CAPABILITIES.md) and [building](BUILDING.md) for the current contract.
+This is an archived product/build snapshot followed by historical implementation
+records. Version names and descriptions below belong to those records. For the
+current contract, use [capabilities](CAPABILITIES.md),
+[architecture](ARCHITECTURE.md), [release qualification](RELEASE_QUALIFICATION.md)
+and [building](BUILDING.md).
 
 # anti social
 
-**Current release: 0.35.47.** A native, accountless reader with chronological
+**Archived snapshot: 0.35.47.** A native, accountless reader with chronological
 feeds, local subscriptions and saved copies, and optional AI. The ordinary
 reader works without a model, API key or root access.
 

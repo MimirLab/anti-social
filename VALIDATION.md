@@ -1,3 +1,20 @@
+# Historical validation records
+
+For released increments since 0.36, start with
+[release qualification](docs/RELEASE_QUALIFICATION.md). This file retains earlier
+dated observations and experiments; its first entry is 0.35.47, rather than the
+latest release. Each result describes its named revision, device, input and run.
+An experiment's failure or an earlier release's limitation remains evidence about
+that subject; check the subsequent implementation and qualification before
+applying it to the current APK.
+
+[Architecture](docs/ARCHITECTURE.md) traces the shipped app-wide Tor switch,
+gateway, routing pools and content boundaries together.
+[Reviewing and evidence](docs/REVIEWING.md) connects those paths to automated
+checks, dated external observations and ongoing owner phone use. The
+[latest official release](https://github.com/MimirLab/anti-social/releases/latest)
+identifies the current APK and its corresponding source.
+
 ## Collected image matching — 0.35.47 / code 95
 
 The reported White House images exposed two different problems. Frozen feed

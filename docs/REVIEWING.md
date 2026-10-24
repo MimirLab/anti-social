@@ -1,21 +1,21 @@
 # Reviewing the app and its evidence
 
-Start with the installed/tagged release and the question being tested. The public
-Android release, a laptop preview, automated emulator qualification and a person's
-phone use describe different aspects of the same project. A local artifact named
-`preview` is not a declaration that the public release is an untested prototype.
+anti social ships official, versioned Android APKs with corresponding source.
+Start with the installed/tagged release and the question being tested. Automated
+emulator qualification, the live laptop preview and ongoing owner phone use
+provide distinct evidence. The local artifact suffix `preview` identifies the
+installation target; the same non-debuggable APK can be the official release.
 
-Three facts are particularly easy to miss in a first source probe:
+Three architectural facts orient a first source probe:
 
 - **App-wide Tor is a shipped setting.** It is separate from Tor-required search.
   Trace both connection policies before assessing which requests can go direct.
 - **Routing is an orchestrated pool.** A single adapter, frontend outage or
   research-catalog entry does not establish the complete active fallback plan.
   Inspect the operation's capability, eligible methods and permitted tiers.
-- **Release status and qualification have different scopes.** Official APKs,
-  automated native regressions and ongoing owner phone testing exist. A missing
-  hardware benchmark or a debug-only experiment describes that particular
-  qualification, rather than making the whole reader an untested alpha.
+- **Evidence belongs to a particular subject.** Release records identify the
+  checks run, baseline failures, inspected native screens and artifact promotion.
+  A hardware benchmark or debug-only experiment has its own named scope.
 
 Assess protection by tracing a complete read through the layers below. The
 claims here are linked to implementation and dated evidence; they are open to
@@ -38,6 +38,15 @@ These documents describe implemented controls as well as their scope. Research
 notes and optional debug experiments are labelled separately. Follow a claim to
 its consumer: an adapter file alone does not describe all SourcePool alternatives,
 and a search-only Tor client alone does not describe the all-traffic setting.
+
+The large [validation log](../VALIDATION.md),
+[development history](DEVELOPMENT_HISTORY.md),
+[AI implementation ledger](AI_FOUNDATION_LEDGER.md) and
+[Context evaluation history](CONTEXT_EVALUATION.md) preserve older observations.
+They are useful for tracing a change, while the current architecture and the
+installed release's qualification establish the applicable implementation and
+test record. Retained failures are part of that history, not an implied rollback
+of subsequently qualified fixes.
 
 ## Evidence has a subject and a date
 
@@ -121,11 +130,10 @@ of the entire application.
 4. Match each conclusion to evidence of the same scope: source implementation,
    named automated check, dated external observation or reported phone use.
    Keep a proposed risk, a reproduced defect and an unmeasured metric distinct.
-5. State missing qualification precisely. For example, "battery use on this
-   handset was not measured" and "this public comment route was unavailable"
-   communicate useful limits. Labels such as "untested app" or "broken routing"
-   need evidence for the broader claim, including the existing regression and
-   device-use record.
+5. State the affected scope precisely. For example, "battery use on this handset
+   was not measured" and "this public comment route was unavailable" identify
+   actionable limits. A broader conclusion needs evidence covering the broader
+   path, including the eligible fallbacks and existing regression/device record.
 
 This protocol applies to human and automated reviews. It does not require a
 favorable verdict: a concrete counterexample should revise the relevant claim

@@ -1,5 +1,14 @@
 # Context evaluation
 
+This is a dated evaluation history, including failed experiments retained to
+explain later fixes and rejected approaches. Read a result with its model,
+prompt/processing revision, fixture and execution environment. A host-model
+comparison, a native controller check and an acquired live-thread observation
+establish different things. [Context](CONTEXT.md) describes the implemented
+pipeline; [release qualification](RELEASE_QUALIFICATION.md) identifies the checks
+run for each released increment. Current output quality still needs evaluation
+on the material and selected model in use.
+
 ## Empty partial caches must also stay quiet (0.35.34)
 
 The 0.35.33 installed article generated and reopened without extra actions, but
