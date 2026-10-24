@@ -1,5 +1,43 @@
 # Release qualification
 
+## 0.38.10 fair public-index continuations
+
+The full JVM suite covered **1,970 cases**, zero failures/errors and one optional
+weight-dependent skip. Debug, release and instrumentation assembly and release
+lint passed. The selected Android batch covered **52 named checks**: 50 passed
+and two opt-in live-source/Tor checks were skipped. Method identities were
+checked against all seven selected test classes, rather than inferred from the
+runner's aggregate total.
+
+The new native checks first ran against retained 0.38.9 with installed APK bytes
+verified. Both failed their substantive assertions. In the three-query fixture,
+the old reader used all twelve requests and delivered only the fastest shape;
+the candidate delivered all three in six requests, retaining the fast initial
+block. The ordinary native search screen also streams its first hydrated card
+before the deferred Reel arrives. Other selected checks cover search scope,
+provider/privacy behavior, discovery refresh, route scheduling and collected
+posts, including NASA's existing three-platform regression.
+
+An initial loopback test fixture tried to use HTTP HTML pagination, which the
+production parser correctly rejects. The corrected fixtures stage a saved,
+source/query-bound continuation at that boundary; HTTPS-only admission remains
+unchanged. An initial candidate screen check reached both posts but attempted
+to scroll an uncomposed lazy item. Using the list's scroll action corrected the
+test navigation, and the full selected batch then passed. Native screenshots
+were inspected; capture waits account for compositor frames after semantics.
+
+This change adds no source, model, runtime, setting, detached background job or
+request allowance. Deferred queries get priority over parked winner pages;
+actual failures can fall through to validated parked continuations, while
+refusals stop the plan. Old version 1 cursors remain readable. All planned
+cursors are checked before networking, including parked ones. Gateway, original
+access and Tor policy remain in force. See [search scheduling](SEARCH_SCHEDULING.md)
+for the mechanism, exact bounds and controlled measurements.
+
+The candidate APK grows by approximately 3.6 KiB, with no native/model payload
+changes. These authored Gateway/emulator cases are not measurements of public
+provider availability, physical-phone latency or live Tor exits.
+
 ## 0.38.9 public Instagram previews and source audit
 
 The full JVM suite covered **1,963 cases**, zero failures/errors and one optional

@@ -11,6 +11,8 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 
 /** Link discovery, not a substitute for a site's posts or account search API. */
 class PublicSearchAdapter(override val source: Source,private val gateway: NetworkGateway,private val routes: DarwinRoutes): DataAdapter {
@@ -64,12 +66,15 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
             Extraction.parse(gateway.form(source.root.trimEnd('/')+"/html/",mapOf("q" to query),target.canonicalUrl),target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)
         }
     }
-    private data class IndexLane(val index: Int,val cursor: String?=null,val attempts: Int=0)
+    private data class IndexLane(val index: Int,val cursor: String?=null,val attempts: Int=0,val deferred: Boolean=false)
     private data class LaneResult(val lane: IndexLane,val result: Result<Page>)
     /** Posts and page profiles compete for the same small public-index result window.
      * Try a post-oriented query alongside the broad query, through the selected
      * provider only. A fast post result need not wait for its slower companion;
-     * profiles alone must not keep cancelling a slower post-oriented lane. */
+     * profiles alone must not keep cancelling a slower post-oriented lane.
+     * Resume deferred queries before paginating winners, so a steady stream of
+     * fast pages cannot spend every slower query's allowance on cancellation. */
+    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun indexedPosts(target: Target,cursor: String?): Page=coroutineScope {
         val queries=postQueries(target)
         val binding=java.security.MessageDigest.getInstance("SHA-256").digest((source.key+"\n"+target.canonicalUrl+"\n"+queries.joinToString("\n")).toByteArray(Charsets.UTF_8)).joinToString(""){"%02x".format(it)}
@@ -77,34 +82,59 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         // Validate every lane before launching any request. A forged second lane
         // must not cause the first lane to disclose a query as a side effect.
         lanes.forEach {request(queries[it.index],it.cursor)}
-        val replies=Channel<LaneResult>(lanes.size)
         val completed=linkedMapOf<Int,LaneResult>()
-        val jobs=lanes.map {lane->launch {
-            val result=try {Result.success(withTimeout(INDEX_LANE_TIMEOUT){fetchQuery(target,queries[lane.index],lane.cursor)})}
-            catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();Result.failure(SourceFailure(HealthStatus.UNAVAILABLE,"The selected public search index timed out"))}
-            catch(e: Exception){Result.failure(e)}
-            replies.send(LaneResult(lane,result))
-        }}
-        var useful=false;var refused=false
-        try {
-            while(completed.size<lanes.size) {
-                val reply=if(useful)withTimeoutOrNull(INDEX_COMPANION_GRACE){replies.receive()}else replies.receive()
-                if(reply==null)break
-                completed[reply.lane.index]=reply
-                useful=useful||reply.result.getOrNull()?.collections?.any {it.target.kind==TargetKind.POST}==true
-                if((reply.result.exceptionOrNull() as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)) {refused=true;break}
+        val attempted=mutableSetOf<Int>()
+        fun refusal(reply: LaneResult)=(reply.result.exceptionOrNull() as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)
+        val deferred=lanes.filter {it.deferred}
+        val batches=if(deferred.isEmpty())listOf(lanes)else listOf(deferred,lanes.filterNot {it.deferred}).filter {it.isNotEmpty()}
+        var refused=false
+        for(batch in batches) {
+            val replies=Channel<LaneResult>(batch.size)
+            // Record finished work before its cancellable notification. A grace
+            // deadline may stop waiting, but cannot erase an already parsed page.
+            val finished=java.util.concurrent.ConcurrentHashMap<Int,LaneResult>()
+            val jobs=batch.map {lane->
+                attempted+=lane.index
+                launch {
+                    val result=try {Result.success(withTimeout(INDEX_LANE_TIMEOUT){fetchQuery(target,queries[lane.index],lane.cursor)})}
+                    catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();Result.failure(SourceFailure(HealthStatus.UNAVAILABLE,"The selected public search index timed out"))}
+                    catch(e: Exception){Result.failure(e)}
+                    val reply=LaneResult(lane,result);finished[lane.index]=reply;replies.send(reply)
+                }
             }
-        }finally {jobs.forEach {it.cancel()};jobs.joinAll();replies.cancel()}
+            var useful=false;var received=0
+            try {
+                while(received<batch.size) {
+                    val reply=if(useful)select<LaneResult?> {
+                        replies.onReceive {it}
+                        onTimeout(INDEX_COMPANION_GRACE){null}
+                    }else replies.receive()
+                    if(reply==null)break
+                    received++;completed[reply.lane.index]=reply
+                    useful=useful||reply.result.getOrNull()?.collections?.any {it.target.kind==TargetKind.POST}==true
+                    if(refusal(reply)){refused=true;break}
+                }
+            }finally {
+                jobs.forEach {it.cancel()}
+                try {jobs.joinAll()}finally {replies.cancel()}
+            }
+            batch.forEach {lane->finished[lane.index]?.let {completed.putIfAbsent(lane.index,it)}}
+            refused=refused||completed.values.any(::refusal)
+            // If all priority queries failed, still try the parked, validated
+            // continuations. A refusal ends the provider without another query.
+            if(refused||completed.values.any {it.result.isSuccess})break
+        }
         val pages=completed.values.mapNotNull {it.result.getOrNull()}
         if(pages.isEmpty())throw (completed.values.mapNotNull {it.result.exceptionOrNull()}.let {failures->
             failures.firstOrNull {(it as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED,HealthStatus.LOGIN_REQUIRED)} ?: failures.firstOrNull()
         } ?: SourceFailure(HealthStatus.EMPTY,"The selected public search index returned no readable destinations"))
         val remaining=if(refused)emptyList()else lanes.mapNotNull {lane->
+            if(lane.index !in attempted)return@mapNotNull lane
             val result=completed[lane.index]?.result
             val attempts=lane.attempts+1
             if(attempts>=MAX_INDEX_ATTEMPTS)null
             else if(result?.isSuccess==true)result.getOrThrow().next?.takeIf {it!=lane.cursor}?.let {IndexLane(lane.index,it,attempts)}
-            else IndexLane(lane.index,lane.cursor,attempts)
+            else IndexLane(lane.index,lane.cursor,attempts,deferred=result==null)
         }
         var encodable=remaining
         var next=encodePlan(binding,encodable)
@@ -121,9 +151,10 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
     private fun encodePlan(binding: String,lanes: List<IndexLane>): String? {
         if(lanes.isEmpty())return null
         return INDEX_PREFIX+JsonObject().apply {
-            addProperty("version",1);addProperty("binding",binding)
+            addProperty("version",2);addProperty("binding",binding)
             add("lanes",com.google.gson.JsonArray().apply {lanes.forEach {lane->add(JsonObject().apply {
                 addProperty("index",lane.index);addProperty("attempts",lane.attempts)
+                addProperty("deferred",lane.deferred)
                 if(lane.cursor==null)add("cursor",com.google.gson.JsonNull.INSTANCE)else addProperty("cursor",lane.cursor)
             })}})
         }
@@ -132,14 +163,17 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         require(value.length<=MAX_INDEX_CURSOR&&value.startsWith(INDEX_PREFIX)){"Invalid public-index continuation; refresh this search"}
         val saved=runCatching {JsonParser.parseString(value.removePrefix(INDEX_PREFIX)).asJsonObject}.getOrNull()
         fun integer(o: JsonObject,name: String)=o[name]?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isNumber}?.asString?.toIntOrNull()
-        require(saved!=null&&saved.keySet()==setOf("version","binding","lanes")&&integer(saved,"version")==1&&saved["binding"]?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isString}?.asString==binding&&saved["lanes"]?.isJsonArray==true){"Search continuation changed the selected query or provider"}
+        val version=saved?.let {integer(it,"version")}
+        require(saved!=null&&saved.keySet()==setOf("version","binding","lanes")&&version in setOf(1,2)&&saved["binding"]?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isString}?.asString==binding&&saved["lanes"]?.isJsonArray==true){"Search continuation changed the selected query or provider"}
         val entries=saved.getAsJsonArray("lanes")
         require(entries.size() in 1..queries.size){"Invalid public-index continuation"}
         val lanes=entries.map {value->
             val lane=value.takeIf {it.isJsonObject}?.asJsonObject ?: throw IllegalArgumentException("Invalid public-index continuation")
             val index=integer(lane,"index");val attempts=integer(lane,"attempts");val token=lane["cursor"]
-            require(lane.keySet()==setOf("index","attempts","cursor")&&index!=null&&index in queries.indices&&attempts!=null&&attempts in 1 until MAX_INDEX_ATTEMPTS&&token!=null&&(token.isJsonNull||token.isJsonPrimitive&&token.asJsonPrimitive.isString)){"Invalid public-index continuation"}
-            IndexLane(index,if(token.isJsonNull)null else token.asString,attempts)
+            val deferred=if(version==1)false else lane["deferred"]?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isBoolean}?.asBoolean
+            require(lane.keySet()==if(version==1)setOf("index","attempts","cursor")else setOf("index","attempts","cursor","deferred")) {"Invalid public-index continuation"}
+            require(index!=null&&index in queries.indices&&attempts!=null&&attempts in 1 until MAX_INDEX_ATTEMPTS&&deferred!=null&&token!=null&&(token.isJsonNull||token.isJsonPrimitive&&token.asJsonPrimitive.isString)){"Invalid public-index continuation"}
+            IndexLane(index,if(token.isJsonNull)null else token.asString,attempts,deferred)
         }
         require(lanes.map {it.index}.distinct().size==lanes.size){"Duplicate public-index continuation"}
         return lanes

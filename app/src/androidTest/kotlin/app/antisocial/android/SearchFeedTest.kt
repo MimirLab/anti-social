@@ -15,6 +15,7 @@ import app.antisocial.core.Target
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -86,6 +87,90 @@ class SearchFeedTest {
             File(dir,"$name-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
             evidence(name)
         }.onFailure {error->android.util.Log.w("AntiSocialSearchFeed","Search failure capture was incomplete",error)}
+    }
+    @Test fun deferredPublicIndexResultsStreamBehindTheFirstNativeCard() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        repo.prefs.selected=(repo.prefs.selected+Platform.INSTAGRAM).distinct();repo.prefs.activePlatform=Platform.INSTAGRAM
+        val query=repo.routes.search(Platform.INSTAGRAM,"native-index-$suffix")
+        val fastUrl="https://www.instagram.com/p/NativeFast$suffix"
+        val reelUrl="https://www.instagram.com/reel/NativeReel$suffix"
+        val directory=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"search-lane-fairness").apply {mkdirs()}
+        PublicIndexNativeFixture(repo.routes,query,fastUrl,reelUrl).use {f->
+            val clock=System.nanoTime();val arrivals=CopyOnWriteArrayList<Map<String,Any>>()
+            val fast=Post("fast-$suffix",Platform.INSTAGRAM,fastUrl,"Native fixture","First useful native search result.",publishedAt=System.currentTimeMillis())
+            val slower=Post("slower-$suffix",Platform.INSTAGRAM,reelUrl,"Native fixture","Recovered slower Reel result.",publishedAt=fast.publishedAt!!-1_000)
+            val additional=fast.copy(id="additional-$suffix",canonicalUrl=fastUrl+"More",body="Another page from the fast query.",publishedAt=fast.publishedAt!!-2_000)
+            extraPosts+=listOf(fast,slower,additional)
+            val discoveryReads=AtomicInteger()
+            val vm=model {opened->
+                assertEquals(query,opened)
+                SearchFeed(opened,discover={previous->
+                    val first=discoveryReads.incrementAndGet()==1
+                    val page=f.reader.fetch(opened,previous?.next)
+                    arrivals+=mapOf("atMs" to (System.nanoTime()-clock)/1_000_000,"phase" to "index","first" to first,"destinations" to page.collections.map {it.target.canonicalUrl})
+                    if(first)f.firstPlan(page)else page
+                },read={destination->
+                    val post=listOf(fast,slower,additional).firstOrNull {it.canonicalUrl==destination.canonicalUrl}
+                    if(post!=null) {
+                        arrivals+=mapOf("atMs" to (System.nanoTime()-clock)/1_000_000,"phase" to "hydrate","url" to post.canonicalUrl)
+                        Page(listOf(post))
+                    }else Page(emptyList(),profile=Profile(destination,"Fixture account","Public fixture profile"))
+                },maxPages=2)
+            }
+            var failure:String?=null
+            try {
+                show(vm,query)
+                ui.waitUntil(10_000){ui.onAllNodesWithText(fast.body).fetchSemanticsNodes().isNotEmpty()}
+                ui.onNodeWithTag("Search feed").performScrollToNode(hasText(fast.body))
+                ui.onNodeWithText(fast.body).assertIsDisplayed()
+                // Semantics can be ready before the compositor presents its
+                // frame. Finish entry animations while the later read is held.
+                ui.mainClock.advanceTimeBy(500)
+                ui.runOnUiThread {ui.activity.window.decorView.requestLayout();ui.activity.window.decorView.invalidate()}
+                ui.waitForIdle();android.os.SystemClock.sleep(250)
+                evidence("search-lane-first-native-card")
+                f.release.countDown()
+                ui.waitUntil(10_000){vm.screen.value.searchFeed?.loading==false}
+                val feed=requireNotNull(vm.screen.value.searchFeed)
+                assertTrue("The first native result must stay visible",feed.page.posts.any {it.canonicalUrl==fastUrl})
+                assertTrue("The next block must recover the deferred Reel instead of another fast page",feed.page.posts.any {it.canonicalUrl==reelUrl})
+                assertEquals("Parked continuation must wait until deferred results arrive",1,f.fastReads.get())
+                assertEquals(2,f.reelReads.get());assertEquals(2,discoveryReads.get())
+                ui.onNodeWithTag("Search feed").performScrollToNode(hasText(slower.body))
+                ui.onNodeWithText(slower.body).assertIsDisplayed()
+                evidence("search-lane-deferred-reel-native")
+            }catch(e:Throwable){failure=e.message;failureEvidence("search-lane-failure",vm,f.requests.toList());throw e}
+            finally {
+                File(directory,"streaming.json").writeText(repo.gson.toJson(mapOf("failure" to failure,"arrivals" to arrivals,"requests" to f.requests,"fastReads" to f.fastReads.get(),"reelReads" to f.reelReads.get(),"posts" to vm.screen.value.searchFeed?.page?.posts?.map {it.canonicalUrl},"scope" to "Authored two-block search on Android with source-bound saved cursor and loopback Gateway; real app search UI, no live-provider claim.")))
+                clean(vm)
+            }
+        }
+    }
+    @Test fun threePublicIndexShapesRetainTheirTurnOnNativeGateway() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val query=repo.routes.search(Platform.TIKTOK,"native-fair-$suffix")
+        val urls=listOf("https://www.tiktok.com/@nativefixture/video/97${suffix}1001","https://www.tiktok.com/@nativefixture/photo/97${suffix}1002","https://www.tiktok.com/@nativefixture/video/97${suffix}1003")
+        val directory=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"search-lane-fairness").apply {mkdirs()}
+        PublicIndexNativeFixture(repo.routes,query,urls[0],urls[1],urls[2]).use {f->
+            val found=linkedSetOf<String>();val blocks=mutableListOf<Map<String,Any?>>()
+            var cursor:String?=null;var failure:String?=null
+            try {
+                runBlocking {
+                    var round=0
+                    do {
+                        val started=System.nanoTime()
+                        val page=withTimeout(2_500){f.reader.fetch(query,cursor)}
+                        found+=page.collections.map {it.target.canonicalUrl.trimEnd('/')}
+                        blocks+=mapOf("elapsedMs" to (System.nanoTime()-started)/1_000_000,"urls" to page.collections.map {it.target.canonicalUrl},"requestsByQuery" to listOf(f.fastReads.get(),f.reelReads.get(),f.broadReads.get()))
+                        cursor=if(page.next!=null&&f.fastReads.get()<4)f.firstPlan(page).next else page.next
+                        round++
+                    }while(found.size<3&&cursor!=null&&round<4)
+                }
+                assertEquals("All shapes must arrive before repeated fast pages consume the four-attempt allowance",urls.toSet(),found)
+                assertEquals(1,f.fastReads.get());assertTrue(f.requests.size<=6)
+            }catch(e:Throwable){failure=e.message;throw e}
+            finally {File(directory,"three-shapes.json").writeText(repo.gson.toJson(mapOf("failure" to failure,"blocks" to blocks,"requests" to f.requests,"counts" to listOf(f.fastReads.get(),f.reelReads.get(),f.broadReads.get()),"found" to found,"scope" to "Native Gateway with authored saved-cursor fixtures, not public-provider coverage or timing.")))}
+        }
     }
     @Test fun resultsStreamIntoNormalCardsWithoutShowingIndexSnippets() {
         runBlocking {repo.awaitReady()};val one=CompletableDeferred<Page>();val two=CompletableDeferred<Page>()

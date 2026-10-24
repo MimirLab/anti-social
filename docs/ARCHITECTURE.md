@@ -110,6 +110,10 @@ poll every registered source. Foreground reading takes priority. See
 [scheduling](ROUTE_SCHEDULING.md), [measurements](ROUTE_LATENCY.md) and
 [local-discovery routing](LOCAL_DISCOVERY_ROUTING.md).
 
+[Public-index continuations](SEARCH_SCHEDULING.md) retain a fast first answer,
+then give unfinished query shapes their turn before paging the winner again.
+The plan preserves the chosen source/query and the existing attempt allowance.
+
 ## Acquisition, decoding, interpretation and retention are separate boundaries
 
 Passive HTML acquisition does not run a site's scripts or embedded widgets.
