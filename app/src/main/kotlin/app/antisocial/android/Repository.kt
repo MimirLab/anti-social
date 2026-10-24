@@ -532,7 +532,9 @@ class Repository(val context: Context) {
         awaitReady();gateway.originalFallback=prefs.originalFallback
         val policy=gateway.currentPolicy();val originals=prefs.originalFallback
         val key="v2|"+AdjacentDiscovery.key(profile.target)+"|"+policy+"|"+originals
-        val cached=if(force)null else adjacentStore.get(key)
+        // Force controls acquisition, not whether already acquired evidence exists.
+        // A source pause or partial first block must not blank a richer neighborhood.
+        val cached=adjacentStore.get(key)
         val page=knownPage?.takeIf {it.profile?.target==profile.target} ?: cachedPage(profile.target)
         val observed=page?.let {AdjacentDiscovery.observed(profile,it,routes,it.provenance?.fetchedAt ?: System.currentTimeMillis())}.orEmpty()+participantBank.related(profile)
         val session=AdjacentSession(profile,routes,read={endpoint->
@@ -552,7 +554,7 @@ class Repository(val context: Context) {
             AdjacentDocument(Payload(result.text,result.finalUrl,result.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),result.status),result.headers)
         },learning=pool.learning,tor=policy.tor,timeoutMs=if(policy.tor)28_000 else 18_000,initial=observed,cached=cached?.snapshot,
             onLearning={pool.onLearning(pool.learning.snapshot())},maxRequests=64)
-        AdjacentRuntime(session,key,adjacentStore.epoch(),policy,cached?.fresh==true)
+        AdjacentRuntime(session,key,adjacentStore.epoch(),policy,!force&&cached?.fresh==true)
     }
     internal suspend fun adjacentNext(runtime:AdjacentRuntime,onUpdate:(AdjacentSnapshot)->Unit):AdjacentSnapshot=withContext(Dispatchers.IO) {
         check(runtime.policy==gateway.currentPolicy()){"Connection settings changed; refresh discovery"}
@@ -612,7 +614,7 @@ class Repository(val context: Context) {
         if(!(if(discoveryRouting)AccountLinkage.validIdentity(target)else AccountLinkage.valid(target)))return@withContext AccountDiscovery(target.identity,listOf(AccountCandidate(target,"Account you opened")),"Cross-platform discovery is available for people and organizations.")
         val policy=gateway.currentPolicy()
         val platforms=if(matchingNames)(prefs.selected+PlatformOrder.popular).distinct()else emptyList()
-        val cacheKey="v4|routing=$discoveryRouting|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
+        val cacheKey="v5|routing=$discoveryRouting|"+AccountLinkage.key(target,routes)+"|"+policy+"|"+prefs.originalFallback+"|"+platforms.joinToString {it.id}+"|"+hash(gson.toJson(knownProfile))
         val epoch=accountDiscoveryCache.epoch()
         val local=dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}
         // Cached observations keep their original checkedAt. Local subscription
@@ -637,8 +639,12 @@ class Repository(val context: Context) {
             },
             web={url,source->gateway.text(url,source,maxBytes=AccountLinkage.MAX_DOCUMENT.toLong(),headers=mapOf("Accept" to if(url.startsWith("https://www.wikidata.org/w/api.php")||url.startsWith("https://keybase.io/_/api/"))"application/json"else "text/html,application/xhtml+xml;q=0.9"))},
             laneTimeout=if(policy.tor)10_000 else 6_000,totalTimeout=if(policy.tor)30_000 else 20_000,
-            cachedWebsite={url->accountDiscoveryCache.website(policy.toString()+"|"+url)},
-            rememberWebsite={url,result->if(policy==gateway.currentPolicy())accountDiscoveryCache.rememberWebsite(policy.toString()+"|"+url,result,epoch)},discoveryRouting=discoveryRouting)
+            cachedWebsite={url->accountDiscoveryCache.website((if(SubstackPublicData.account(url)!=null)"substack-v1|"else "")+policy+"|"+url)},
+            rememberWebsite={url,result->if(policy==gateway.currentPolicy())accountDiscoveryCache.rememberWebsite((if(SubstackPublicData.account(url)!=null)"substack-v1|"else "")+policy+"|"+url,result,epoch)},discoveryRouting=discoveryRouting,
+            publicIdentity={account->
+                val page=discoveryBridge(account,false)
+                SubstackPublicData.webLinks(SubstackIdentity(page.account,page.description,page.links,page.publications),routes,page.checkedAt)
+            })
         val result=gateway.boundedMediaRead(maxBytes=4L*1024*1024,maxRequests=8) {
             engine.discover(target,known,local,platforms) {update->rememberAccountHints(update.nameHints,epoch);onUpdate(update)}
         }

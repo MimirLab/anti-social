@@ -176,7 +176,10 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
                                 val observedAt=document.checkedAt ?: clock()
                                 val batch=AdjacentSources.parse(query,endpoint,document,routes,observedAt)
                                 val health=if(batch.sampled>0||batch.observations.isNotEmpty())HealthStatus.HEALTHY else HealthStatus.EMPTY
-                                if(document.cachedPublisher==null)learning.observe(ProbeResult(endpoint.source,Capability.PROFILE,health,(clock()-start).coerceAtLeast(1),clock(),tor,batch.detail),query.actor.target)
+                                // A valid empty relationship page is not a failed
+                                // profile. In particular, an exhausted cursor must
+                                // not cool down this account's working first page.
+                                if(document.cachedPublisher==null&&health==HealthStatus.HEALTHY)learning.observe(ProbeResult(endpoint.source,Capability.PROFILE,health,(clock()-start).coerceAtLeast(1),clock(),tor,batch.detail),query.actor.target)
                                 lock.withLock {
                                     batch.observations.sortedWith(compareByDescending<AdjacentObservation> {when(it.evidence.kind){AdjacentKind.FEATURED,AdjacentKind.COLLABORATION->3;AdjacentKind.SHARED_FOLLOWERS,AdjacentKind.READING_LIST->2;else->1}}.thenBy {AdjacentDiscovery.key(it.profile.target)}).map {it.copy(evidence=it.evidence.copy(method=endpoint.source.frontend))}.forEach(::accept)
                                     batch.next.forEach(::enqueue)

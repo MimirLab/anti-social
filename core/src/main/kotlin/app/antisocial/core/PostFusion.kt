@@ -443,6 +443,18 @@ object CrossPostFusion {
             if(posts.drop(1).all {PostPresentation.comparableContent(it)==key}) {
                 return PostFusion(listOf(FusionSegment(complete.first(),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf()){CrossPosts.originalKey(it)})))
             }
+            // Campaign links can differ while the complete announcement is the
+            // same. Grouping has already checked accounts, timing and changed
+            // facts. Keep one exact source caption and all links on its original
+            // editions, instead of repeating the prose around opaque link codes.
+            if(prose.length>=160&&proseWords.size>=24&&proseWords.distinct().size>=12&&posts.all {it.media.isNotEmpty()&&CrossPosts.onlyOpaqueOrOriginalLinks(it)}&&
+                posts.any {PostLinks.urls(it).any(CrossPosts::opaqueLink)}) {
+                val captions=complete.map(PostPresentation::referenceFreeCaption)
+                if(captions.distinct().size==1) {
+                    val representative=complete.indices.minBy {PostPresentation.destinationLabels(complete[it]).count()}
+                    return PostFusion(listOf(FusionSegment(complete[representative],posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
+                }
+            }
         }
         val prepared=posts.map {prepare(it) ?: return null}
         for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j])==null)return null

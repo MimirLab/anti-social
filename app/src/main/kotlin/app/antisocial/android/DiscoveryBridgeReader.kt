@@ -33,6 +33,8 @@ internal suspend fun Repository.discoveryBridge(account:PublicAccount,related:Bo
     }
     val result=gateway.boundedMediaRead(maxBytes=8L*1024*1024,maxRequests=5) {
         when(account.provider) {
+            "substack"->SubstackResolver(read={url,original->read(url,original,SubstackPublicData.MAX_DOCUMENT)},originals=originals,
+                learning=pool.learning,tor=policy.tor,onLearning={pool.onLearning(pool.learning.snapshot())}).bridge(account,related)
             "youtube"->{
                 val target=PublicAccounts.target(account,routes) ?: error("Not a public channel")
                 var result:BridgePage?=null

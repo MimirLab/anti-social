@@ -634,9 +634,20 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             for(batch in group.chunked(3)) {
                 val winner=coroutineScope {
                     val completed=Channel<Pair<Page?,Exception?>>(batch.size)
-                    val failed=CompletableDeferred<Unit>()
+                    val startedAttempts=List(batch.size){CompletableDeferred<Unit>()}
+                    val advance=List(batch.size){CompletableDeferred<Unit>()}
                     val jobs=batch.mapIndexed {index,source->launch {
-                        if(index>0)withTimeoutOrNull(learning.hedgeDelay(batch.first(),capability,tor)*index){failed.await()}
+                        if(index>0) {
+                            // A failure releases one successor. Each successor gets
+                            // its own stall interval; one failed path must not wake
+                            // every waiting backup at once.
+                            startedAttempts[index-1].await()
+                            withTimeoutOrNull(learning.hedgeDelay(batch[index-1],capability,usesTor(batch[index-1]))){advance[index-1].await()}
+                        }
+                        startedAttempts[index].complete(Unit)
+                        if(!routeAllowed(source,capability)||!learning.eligible(source,capability,usesTor(source),target)) {
+                            advance[index].complete(Unit);completed.send(null to null);return@launch
+                        }
                         progress("Trying ${URI(source.root).host}")
                         val started=System.nanoTime()
                         var page: Page?=null;var failure: Exception?=null
@@ -660,7 +671,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             val r=ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,clock(),tor,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
                             record(r,target)
                         }
-                        if(failure!=null||page?.let {usableProgress(it)&&!previewOnly(it)&&!redirectedOriginal(source,it)}!=true)failed.complete(Unit)
+                        if(failure!=null||page?.let {usableProgress(it)&&!previewOnly(it)&&!redirectedOriginal(source,it)}!=true)advance[index].complete(Unit)
                         completed.send(page to failure)
                     }}
                     try {

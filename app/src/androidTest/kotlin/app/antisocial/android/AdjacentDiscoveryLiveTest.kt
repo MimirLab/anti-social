@@ -13,6 +13,26 @@ import org.junit.Test
 import java.io.File
 
 class AdjacentDiscoveryLiveTest {
+    @Test fun substackIdentityReturnsPublicationsAndOtherPlatformsThroughTheActualGateway()=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLiveAdjacent")=="true")
+        val context=ApplicationProvider.getApplicationContext<Context>();val repo=(context as AntiSocialApplication).repo
+        repo.awaitReady();val policy=repo.gateway.currentPolicy();val originals=repo.prefs.originalFallback
+        val events=mutableListOf<String>();val listener=repo.gateway.onNetworkEvent
+        repo.prefs.originalFallback=false;repo.gateway.configure(NetworkPolicy());repo.gateway.onNetworkEvent={synchronized(events){events+=it.host}}
+        try {
+            val start=System.nanoTime()
+            val page=repo.discoveryBridge(SubstackPublicData.account("https://substack.com/@hamish")!!,false,true)
+            assertEquals("user:3567",page.account.id)
+            assertTrue(page.publications.any {it.id=="publication:35"&&it.readerUrl?.endsWith("/feed")==true})
+            assertTrue(page.links.any {it.contains("hamishmckenzie")})
+            assertTrue(page.neighbors.isEmpty())
+            assertTrue("The disabled original must never be contacted: $events",events.none {it=="substack.com"||it.endsWith(".substack.com")})
+            val out=File(requireNotNull(context.getExternalFilesDir("validation")),"adjacent-discovery/live-substack.json");out.parentFile!!.mkdirs()
+            out.writeText(Gson().toJson(mapOf("id" to page.account.id,"publications" to page.publications.map {it.url},"links" to page.links,
+                "hosts" to events.toList(),"elapsedMs" to (System.nanoTime()-start)/1_000_000)))
+        }finally {repo.gateway.onNetworkEvent=listener;repo.prefs.originalFallback=originals;repo.gateway.configure(policy)}
+    }
     @Test fun publicGraphPayloadsPassTheActualAndroidGateway()=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLiveAdjacent")=="true")

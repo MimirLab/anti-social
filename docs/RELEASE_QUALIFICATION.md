@@ -1,5 +1,33 @@
 # Next-release qualification
 
+## 0.38.1 route, Substack and discovery maintenance
+
+The final full JVM suite covered **1,863 cases with zero failures/errors and one
+optional dependency skip**. The API 35 broad batch passed 66 of 67 cases; the new
+NASA capture had omitted a non-null media-description default. After correcting
+that test fixture, its native feed/originals/comment-control regression passed,
+as did the separately repeated subscription UI case. Earlier broad-run failures
+also exposed a shared fake media hostname contaminating the RSS privacy fixture
+and an incorrect test assumption that the collected NASA card must be owned by X.
+The native feed correctly chose Instagram according to its stable chronological
+input and rendered one caption with all three comment roots. These test corrections
+did not change production source records, privacy policy or chronological order.
+
+The new alternate-only Substack live Android gateway check returned the exact
+requested public user, owned publication and declared social link in approximately
+0.6 seconds, with original-site access disabled. A later alternate-only probe
+exceeded its 3.5-second deadline. That exposed and corrected an owned-timeout
+propagation bug: a route deadline is now an ordinary source failure, while a
+cancelled parent remains cancellation and does not train a source outage.
+Both deadline/fallback behaviors have explicit regression tests. This is dated evidence,
+not an uptime or physical-phone latency guarantee. Actual native discovery and
+NASA collection screens were inspected. See [maintenance details](ROUTING_OPTIMIZATION.md)
+and [Substack scope](SUBSTACK_SOURCES.md#0381-identity-and-discovery-integration).
+
+Debug/release/test assembly and release lint pass; lint retains existing warnings.
+Advanced model runtime behavior and physical-phone energy/performance are outside
+this routing-only maintenance qualification.
+
 ## 0.38.0 subscription, search and collection qualification
 
 Full JVM suite: **1,837 cases, zero failures/errors, one optional skip**. The

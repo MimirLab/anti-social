@@ -23,7 +23,8 @@ object AccountLinkage {
     private val properties=linkedMapOf(Platform.X to "P2002",Platform.INSTAGRAM to "P2003",Platform.FACEBOOK to "P2013",Platform.BLUESKY to "P12361",Platform.MASTODON to "P4033",Platform.THREADS to "P11892",Platform.TIKTOK to "P7085",Platform.REDDIT to "P4265",Platform.TELEGRAM to "P3789",Platform.YOUTUBE to "P2397")
     fun key(target:Target,routes:DarwinRoutes)=MentionNames.account(target,routes)?.key?.id ?: target.platform.id+":"+target.canonicalUrl.trimEnd('/')
     fun same(a:Target,b:Target,routes:DarwinRoutes)=key(a,routes)==key(b,routes)
-    fun valid(target:Target)=ReaderScope.isFeedSource(target.platform)&&target.kind==TargetKind.PROFILE&&PublicSearchAdapter.profileAllowed(target)
+    fun valid(target:Target)=if(target.platform==Platform.RSS)target.kind==TargetKind.FEED&&RssSources.feedUrl(target.canonicalUrl)!=null
+        else ReaderScope.isFeedSource(target.platform)&&target.kind==TargetKind.PROFILE&&PublicSearchAdapter.profileAllowed(target)
     fun validIdentity(target:Target)=valid(target)||target.platform==Platform.YOUTUBE&&target.kind==TargetKind.PROFILE&&YouTubeUrls.recognize(target.canonicalUrl)?.kind==TargetKind.PROFILE
     fun webUrl(raw:String):String?=Subscriptions.httpsLink(raw)?.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()}?.newBuilder()?.fragment(null)?.build()?.toString()
     fun isHub(url:String)=url.toHttpUrlOrNull()?.host?.removePrefix("www.") in hubs
@@ -176,7 +177,8 @@ object AccountLinkage {
  * accounts; cancellation stops children and prevents a final cache publication. */
 class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile:suspend (Target)->Profile?,private val web:suspend (String,String)->Payload,
     private val clock:()->Long=System::currentTimeMillis,private val laneTimeout:Long=6_000L,private val totalTimeout:Long=20_000L,
-    private val cachedWebsite:(String)->AccountWebLinks?={null},private val rememberWebsite:(String,AccountWebLinks)->Unit={_,_->},private val discoveryRouting:Boolean=false) {
+    private val cachedWebsite:(String)->AccountWebLinks?={null},private val rememberWebsite:(String,AccountWebLinks)->Unit={_,_->},private val discoveryRouting:Boolean=false,
+    private val publicIdentity:(suspend (PublicAccount)->AccountWebLinks)?=null) {
     suspend fun discover(seed:Target,known:Profile?=null,local:List<Follow> = emptyList(),extraPlatforms:List<Platform> = emptyList(),onUpdate:(AccountDiscovery)->Unit={}):AccountDiscovery {
         val allowed:(Target)->Boolean=if(discoveryRouting)AccountLinkage::validIdentity else AccountLinkage::valid
         require(allowed(seed))
@@ -202,8 +204,9 @@ class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile
             val clean=AccountLinkage.webUrl(url) ?: return
             val accepted=mutex.withLock {sites.size<3&&sites.add(clean)};if(!accepted)return
             val result=cachedWebsite(clean) ?: attempt {
-                val payload=web(clean,seed.canonicalUrl)
-                AccountLinkage.website(payload,routes,clock()).also {currentCoroutineContext().ensureActive();rememberWebsite(clean,it)}
+                val substack=SubstackPublicData.account(clean)
+                val parsed=if(substack!=null&&publicIdentity!=null)publicIdentity.invoke(substack)else AccountLinkage.website(web(clean,seed.canonicalUrl),routes,clock())
+                parsed.also {currentCoroutineContext().ensureActive();rememberWebsite(clean,it)}
             } ?: return
             publish(result.accounts+(if(discoveryRouting)result.publicAccounts.orEmpty().mapNotNull {a->PublicAccounts.target(a,routes)?.let {AccountCandidate(it,"Linked public account",a.kind,a.sourceUrl,clock())}}else emptyList()),result.nameHints+(if(discoveryRouting)result.publicAccounts.orEmpty().filter {it.name.isNotBlank()&&it.identityGroup!=null&&it.sourceUrl!=null}.mapNotNull {a->PublicAccounts.target(a,routes)?.let {AccountNameHint(it,a.name.take(160),a.kind,a.sourceUrl!!,clock(),a.identityGroup)}}else emptyList()),result.publicAccounts.orEmpty())
             if(depth==0)coroutineScope {result.websites.forEach {launch {site(it,1)}}}
@@ -226,6 +229,7 @@ class AccountDiscoveryEngine(private val routes:DarwinRoutes,private val profile
         publish()
         publish(local.filter {Subscriptions.id(it) in existing}.map {AccountCandidate(it.target,"Already linked in your subscriptions",AccountLinkKind.LOCAL,it.target.canonicalUrl,clock())})
         withTimeoutOrNull(totalTimeout) {supervisorScope {
+            if(seed.platform==Platform.RSS)SubstackPublicData.account(seed.canonicalUrl)?.let {launch {site(it.url)}}
             launch {val p=known?.takeIf {AccountLinkage.same(it.target,seed,routes)&&(it.links.orEmpty().isNotEmpty()||it.description.isNotBlank()||!discoveryRouting&&it.displayNameSupplied)} ?: attempt {profile(seed)};if(p!=null)inspect(p)}
             launch {AccountLinkage.wikidataUrl(seed)?.let {url->attempt {web(url,seed.canonicalUrl)}?.let {search->
                 val entityUrl=AccountLinkage.wikidataEntitiesUrl(search.text) ?: return@let

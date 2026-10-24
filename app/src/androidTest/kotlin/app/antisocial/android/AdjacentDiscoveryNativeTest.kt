@@ -104,7 +104,7 @@ class AdjacentDiscoveryNativeTest {
     @Test fun neighborhoodCacheExpiresBoundsFilesAndRejectsMalformedEnumsAndLateWrites() {
         val directory=File(ui.activity.cacheDir,"neighbor-test-${System.nanoTime()}");var now=1000L;val cache=AdjacentStore(directory){now}
         try {
-            val value=AdjacentSnapshot(listOf(card()),complete=true);val epoch=cache.epoch()
+            val original=card();val value=AdjacentSnapshot(listOf(original.copy(evidence=original.evidence.map {it.copy(checkedAt=now)})),complete=true);val epoch=cache.epoch()
             repeat(60){cache.put("entry-$it",value,epoch)};assertTrue(directory.listFiles().orEmpty().size<=48);assertTrue(cache.bytes()<=2*1024*1024)
             assertTrue(cache.get("entry-59")!!.fresh);now+=16*60_000;assertFalse(cache.get("entry-59")!!.fresh)
             val file=File(directory,Repository.hash("entry-59")+".json");file.writeText(file.readText().replace("FEATURED","UNKNOWN_KIND"));assertNull(cache.get("entry-59"))

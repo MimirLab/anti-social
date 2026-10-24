@@ -164,7 +164,8 @@ import kotlinx.coroutines.*
                 Surface(shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.surfaceVariant) {
                     Row(Modifier.fillMaxWidth().testTag("Account candidate $url").toggleable(value=accountKey in selected,enabled=!saving,role=Role.Checkbox,onValueChange={selected=if(it)selected+accountKey else selected-accountKey}).padding(8.dp),verticalAlignment=Alignment.CenterVertically) {
                         Checkbox(accountKey in selected,null);PlatformMark(candidate.target.platform,24.dp)
-                        Column(Modifier.weight(1f).padding(start=10.dp)){MentionText(candidate.target.identity.removePrefix("profile/"),vm.repo,candidate.target.platform,candidate.target.canonicalUrl,accountLabel=true,networkAllowed=false,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis);Text(vm.repo.publicText(candidate.evidence,candidate.target.platform),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                        val label=if(candidate.target.platform==Platform.RSS)discovery!!.nameHints.firstOrNull {AccountLinkage.same(it.target,candidate.target,vm.repo.routes)}?.name ?: candidate.target.identity else candidate.target.identity.removePrefix("profile/")
+                        Column(Modifier.weight(1f).padding(start=10.dp)){MentionText(label,vm.repo,candidate.target.platform,candidate.target.canonicalUrl,accountLabel=true,networkAllowed=false,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis);Text(vm.repo.publicText(candidate.evidence,candidate.target.platform),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                     }
                 }
             }

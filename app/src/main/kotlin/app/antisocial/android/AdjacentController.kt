@@ -35,11 +35,19 @@ internal class AdjacentController(private val repo:Repository,private val scope:
             s.copy(snapshot=snapshot,methodOrder=(s.methodOrder+methods).distinct(),error=null)}
     }
     fun start(profile:Profile,page:Page?=null,force:Boolean=false) {
+        val previous=state.value.takeIf {force&&it.seed?.target?.let(AdjacentDiscovery::key)==AdjacentDiscovery.key(profile.target)}
+        val previousKey=runtime?.key
         stop();originalPage=page;val generation=bound
         mutable.value=AdjacentUiState(profile,preparing=true,findingBridges=true)
         owner=scope.launch {
             try {
                 val opened=create(profile,page,force);if(generation!=bound)return@launch;runtime=opened
+                if(previous!=null&&opened.key==previousKey) {
+                    val oldest=System.currentTimeMillis()-DiscoverySnapshots.RETAIN_MS
+                    mutable.update {it.copy(identities=previous.identities,
+                        bridgeMethods=previous.bridgeMethods.filter {method->method.page.checkedAt>=oldest}.map {method->method.copy(processing=emptySet(),checked=emptySet(),failed=emptySet())},
+                        methodOrder=previous.methodOrder)}
+                }
                 val local=(listOf(profile.target)+roots(profile.target)).filter(AdjacentDiscovery::valid).distinctBy(AdjacentDiscovery::key).take(40)
                 for(target in local.filter {it!=profile.target})opened.session.addBridge(Profile(target,profile.name,displayNameSupplied=false))
                 mutable.update {it.copy(preparing=false,bridges=local.filter {it!=profile.target}.map {Profile(it,profile.name,displayNameSupplied=false)})}
@@ -81,6 +89,7 @@ internal class AdjacentController(private val repo:Repository,private val scope:
                                     val result=bridge(account,true,force);if(generation!=bound)return@withPermit
                                     publicSeen+=PublicAccounts.key(result.account)
                                     enqueue(result.account)
+                                    for(publication in result.publications)enqueue(publication)
                                     for(link in result.links)PublicAccounts.parse(link,repo.routes,source=result.account.url)?.let {enqueue(it)}
                                     for((kind,neighbors) in result.neighbors.groupBy {it.kind}) {
                                         val id="bridge:"+account.provider+"|"+kind.name
@@ -153,7 +162,10 @@ internal class AdjacentController(private val repo:Repository,private val scope:
                     fun delivered(targets:List<Target>) {
                         if(generation!=bound)return
                         val profiles=targets.filter {t->state.value.bridges.none {AdjacentDiscovery.key(it.target)==AdjacentDiscovery.key(t)}&&state.value.seed?.target?.let {AdjacentDiscovery.key(it)!=AdjacentDiscovery.key(t)}!=false}.distinctBy(AdjacentDiscovery::key).take(20).map {Profile(it,it.identity,displayNameSupplied=false)}
-                        mutable.update {s->s.copy(bridgeMethods=s.bridgeMethods.map {if(it.page.neighbors.any {n->PublicAccounts.key(n.account)==key})it.copy(resolved=it.resolved+(key to profiles))else it})}
+                        mutable.update {s->s.copy(bridgeMethods=s.bridgeMethods.map {if(it.page.neighbors.any {n->PublicAccounts.key(n.account)==key}) {
+                            val retained=(it.resolved[key].orEmpty()+profiles).distinctBy {p->AdjacentDiscovery.key(p.target)}.take(20)
+                            it.copy(resolved=it.resolved+(key to retained))
+                        }else it})}
                     }
                     delivered(direct)
                     val target=PublicAccounts.target(page.account,repo.routes)

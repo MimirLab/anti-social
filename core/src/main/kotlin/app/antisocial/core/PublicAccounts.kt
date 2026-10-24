@@ -6,17 +6,19 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 /** A public account may be useful as a route even when it cannot supply a reader feed. */
 data class PublicAccount(val provider:String,val url:String,val name:String="",val id:String?=null,
     val kind:AccountLinkKind=AccountLinkKind.PROFILE,val sourceUrl:String?=null,val identityGroup:String?=null,
-    val anchors:List<String> = emptyList(),val links:List<String> = emptyList())
+    val anchors:List<String> = emptyList(),val links:List<String> = emptyList(),val readerUrl:String?=null)
 
 object PublicAccounts {
     private val extra=mapOf("soundcloud.com" to "soundcloud","www.soundcloud.com" to "soundcloud",
         "mixcloud.com" to "mixcloud","www.mixcloud.com" to "mixcloud","twitch.tv" to "twitch","www.twitch.tv" to "twitch")
     private val reserved=setOf("search","discover","explore","login","signup","settings","terms","privacy","about","genres","directory","popular","stream","you","upload","jobs","pages","messages","notifications")
-    fun target(account:PublicAccount,routes:DarwinRoutes)=routes.recognize(account.url)?.takeIf {AccountLinkage.validIdentity(it)}
+    fun target(account:PublicAccount,routes:DarwinRoutes)=if(account.provider=="substack")account.readerUrl?.takeIf {account.id?.startsWith("publication:")==true||account.kind in setOf(AccountLinkKind.LOCAL,AccountLinkKind.ENTERED)}?.let {runCatching {RssSources.target(it)}.getOrNull()}
+        else routes.recognize(account.url)?.takeIf {AccountLinkage.validIdentity(it)}
     fun key(account:PublicAccount)=account.provider+":"+(account.id?.takeIf(String::isNotBlank) ?: account.url.trimEnd('/'))
-    fun label(provider:String)=when(provider){"youtube"->"YouTube";"soundcloud"->"SoundCloud";"mixcloud"->"Mixcloud";"bandcamp"->"Bandcamp";"twitch"->"Twitch";"nostr"->"Nostr";else->Platform.entries.firstOrNull {it.id==provider}?.label ?: "Public website"}
+    fun label(provider:String)=when(provider){"substack"->"Substack";"youtube"->"YouTube";"soundcloud"->"SoundCloud";"mixcloud"->"Mixcloud";"bandcamp"->"Bandcamp";"twitch"->"Twitch";"nostr"->"Nostr";else->Platform.entries.firstOrNull {it.id==provider}?.label ?: "Public website"}
     fun parse(raw:String,routes:DarwinRoutes,name:String="",kind:AccountLinkKind=AccountLinkKind.PROFILE,source:String?=null,group:String?=null,anchors:List<String> = emptyList()):PublicAccount? {
         val clean=PublicRelations.url(raw,source ?: raw) ?: return null
+        SubstackPublicData.account(clean,kind,source)?.let {return it.copy(name=name.take(160),identityGroup=group,anchors=anchors.take(24))}
         val known=routes.recognize(clean)?.takeIf(AccountLinkage::validIdentity)
         if(known!=null)return PublicAccount(known.platform.id,known.canonicalUrl,name.take(160),
             if(known.platform==Platform.YOUTUBE&&known.identity.startsWith("channel/"))known.identity.removePrefix("channel/")else null,kind,source,group,anchors.take(24))
@@ -31,9 +33,11 @@ object PublicAccounts {
         val url=u.newBuilder().host(canonicalHost).query(null).fragment(null).build().toString().trimEnd('/')
         return PublicAccount(provider,url,name.take(160),kind=kind,sourceUrl=source,identityGroup=group,anchors=anchors.take(24))
     }
-    fun from(target:Target,name:String="",kind:AccountLinkKind=AccountLinkKind.ENTERED)=PublicAccount(target.platform.id,target.canonicalUrl,name.take(160),
+    fun from(target:Target,name:String="",kind:AccountLinkKind=AccountLinkKind.ENTERED)=
+        (if(target.platform==Platform.RSS)SubstackPublicData.account(target.canonicalUrl,kind,target.canonicalUrl)?.copy(name=name.take(160),readerUrl=target.canonicalUrl)else null) ?: PublicAccount(target.platform.id,target.canonicalUrl,name.take(160),
         if(target.platform==Platform.YOUTUBE&&target.identity.startsWith("channel/"))target.identity.removePrefix("channel/")else null,kind,target.canonicalUrl)
-    fun valid(value:PublicAccount,routes:DarwinRoutes)=value.name.length<=160&&value.links.size<=24&&value.anchors.size<=24&&parse(value.url,routes)!=null
+    fun valid(value:PublicAccount,routes:DarwinRoutes)=value.name.length<=160&&value.links.size<=24&&value.anchors.size<=24&&parse(value.url,routes)?.provider==value.provider&&
+        (value.readerUrl==null||value.provider=="substack"&&RssSources.feedUrl(value.readerUrl)==value.readerUrl)
     fun identityDeclared(account:PublicAccount,known:kotlin.collections.Collection<PublicAccount>)=account.kind in setOf(AccountLinkKind.ENTERED,AccountLinkKind.LOCAL,AccountLinkKind.DIRECTORY)||
         account.kind==AccountLinkKind.WEBSITE&&account.identityGroup!=null&&account.anchors.any {url->known.any {it.url.trimEnd('/')==url.trimEnd('/')}}
 }

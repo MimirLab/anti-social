@@ -10,8 +10,42 @@ unqualified candidates; they are not a count of independent working frontends.
 The [machine-readable atlas](data/substack-routes.json) retains endpoint templates,
 capabilities, upstream dependencies, publisher scope, sources and dated probe results.
 It is research data, **not an enabled runtime source list**. Release 0.38.0 already
-accepts publication feeds through RSS / Atom. First-class Substack profiles, Notes,
-search and comments still need native adapters and qualification.
+accepts publication feeds through RSS / Atom. Release 0.38.1 adds the bounded
+identity/discovery integration below. Notes reading, global Substack search and
+Substack-specific comment streams still need native adapters and qualification.
+
+## 0.38.1 identity and discovery integration
+
+Public profile links now participate in **Subscribe locally** and discovery's
+cross-platform backtrace. A verified publication becomes an ordinary native RSS
+subscription candidate; declared external social links enter the existing account
+resolver. Publications and users retain distinct `publication:` / `user:` IDs.
+An article URL never becomes a profile identity. Custom-domain feeds come from
+the matched publication's explicit domain declaration.
+
+Discovery uses published recommendations and the profile's public reading list
+as separate relationship methods. Private subscriptions are discarded, and reading
+a newsletter never establishes ownership. Publication metadata can lead through
+its declared author to the author's other public accounts. Optional author or
+recommendation failure leaves an acquired publication usable.
+
+Pullsy's proxy returned strict profile and Notes JSON in new anonymous probes.
+The qualified identity reader tries that alternate before accountless originals.
+Publication lookup similarly tries SubstackTools metadata before the native
+page's literal `preloads-json` record. The static script tag is parsed as data;
+the surrounding JavaScript is never executed. Adaptive failure cooldowns and
+policy-partitioned typed caches prevent repeated failed work. Selected Tor and
+disabled-original policy remain enforced by NetworkGateway.
+
+One bridge allows five requests / 8 MiB overall and 3 MiB per document, subject
+to any stricter enclosing search allowance. Profile arrays are selectively read:
+at most thirty public-subscription candidates and twenty-four link/role entries.
+Unneeded analytics/session fields and page husks are discarded. A truncated
+reading-list sample is not described as complete.
+
+SubstackFwd returned JSON followed by injected HTML, so it is not enabled as a
+JSON identity route. Guessed publication API paths returned 403 and are not used.
+The full atlas remains research data rather than an automatic endpoint fan-out.
 
 ## Working reading paths
 

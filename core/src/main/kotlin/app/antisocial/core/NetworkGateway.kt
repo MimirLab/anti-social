@@ -37,8 +37,18 @@ private class ImageUpload
 private data class ServiceScope(val endpoint: HttpUrl,val token: String?,val provider: String?,val localHost: Boolean=false,val anthropic: Boolean=false,val workspaceId: String?=null,val inference: Boolean=false)
 private const val MODEL_REQUEST_TIMEOUT_MS=120_000L
 private data class PageBookmark(val scope: HttpUrl,val value: String?)
-private class TextReadBudget(val remaining: java.util.concurrent.atomic.AtomicLong,val requests: java.util.concurrent.atomic.AtomicInteger): kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+private class TextReadBudget(private val remaining: java.util.concurrent.atomic.AtomicLong,private val requests: java.util.concurrent.atomic.AtomicInteger,
+    private val parent:TextReadBudget?=null): kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key: kotlin.coroutines.CoroutineContext.Key<TextReadBudget>
+    fun available():Long=minOf(remaining.get(),parent?.available() ?: Long.MAX_VALUE)
+    fun request() {
+        parent?.request()
+        if(requests.decrementAndGet()<0)throw java.net.ProtocolException("Request exceeds the health-check budget")
+    }
+    fun received(count:Int) {
+        parent?.received(count)
+        if(remaining.addAndGet(-count.toLong())<0)throw IOException("Response exceeds the health-check budget")
+    }
 }
 private val bookmarkPattern=Regex("[A-Za-z0-9_~.%+/=:-]{1,8192}")
 data class ProtectionStats(val checked: Long,val blocked: Long)
@@ -77,12 +87,12 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     suspend fun <T> boundedHealthRead(maxBytes: Long=512L*1024,maxRequests: Int=4,read: suspend ()->T): T {
         require(maxBytes in 1024..1024*1024)
         require(maxRequests in 1..8)
-        return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests))){read()}
+        return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests),kotlinx.coroutines.currentCoroutineContext()[TextReadBudget])){read()}
     }
     /** Explicit media inspection shares a request/byte budget across redirects and attachments. */
     suspend fun <T> boundedMediaRead(maxBytes:Long=24L*1024*1024,maxRequests:Int=4,read:suspend ()->T):T {
         require(maxBytes in 1024..64L*1024*1024&&maxRequests in 1..8)
-        return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests))){read()}
+        return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests),kotlinx.coroutines.currentCoroutineContext()[TextReadBudget])){read()}
     }
     private fun origin(url: HttpUrl)="${url.scheme}://${url.host}:${url.port}"
     private fun requestOrigins(sourceUrl: String): AllowedOrigins? {
@@ -214,9 +224,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                 .addNetworkInterceptor { chain ->
                     // Count actual HTTP exchanges, including transport retries,
                     // before writing headers. ProtocolException is not retried.
-                    chain.request().tag(TextReadBudget::class.java)?.let {budget->
-                        if(budget.requests.decrementAndGet()<0)throw java.net.ProtocolException("Request exceeds the health-check budget")
-                    }
+                    chain.request().tag(TextReadBudget::class.java)?.request()
                     chain.proceed(chain.request())
                 }
                 .addInterceptor { chain ->
@@ -328,9 +336,9 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             val max=maxBytes
             val body=response.body
             if(body!=null&&body.contentLength()>max)throw IOException("Extraction response exceeds its size limit")
-            if(body!=null&&budget!=null&&body.contentLength()>budget.remaining.get())throw IOException("Response exceeds the health-check budget")
+            if(body!=null&&budget!=null&&body.contentLength()>budget.available())throw IOException("Response exceeds the health-check budget")
             val output=java.io.ByteArrayOutputStream()
-            body?.byteStream()?.use {stream->val chunk=ByteArray(8192);while(true){val n=stream.read(chunk);if(n<0)break;if(output.size()+n>max)throw IOException("Extraction response exceeds its size limit");if(budget!=null&&budget.remaining.addAndGet(-n.toLong())<0)throw IOException("Response exceeds the health-check budget");output.write(chunk,0,n)}}
+            body?.byteStream()?.use {stream->val chunk=ByteArray(8192);while(true){val n=stream.read(chunk);if(n<0)break;if(output.size()+n>max)throw IOException("Extraction response exceeds its size limit");budget?.received(n);output.write(chunk,0,n)}}
             GatewayDocument(response.code,response.message,response.headers.toMultimap().filterKeys {!it.equals("Set-Cookie",true)},output.toString("UTF-8"),response.request.url.toString())
         }
     }
@@ -450,10 +458,10 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             }
             if(!response.isSuccessful)throw SourceFailure(HealthStatus.UNAVAILABLE,"Source returned ${response.code}",retryAfter(response),response.code)
             val body=response.body ?: throw IOException("Empty response")
-            if(healthBudget!=null&&body.contentLength()>healthBudget.remaining.get())throw IOException("Response exceeds the health-check budget")
+            if(healthBudget!=null&&body.contentLength()>healthBudget.available())throw IOException("Response exceeds the health-check budget")
             if(body.contentLength()>maxBytes)throw IOException("Response exceeds its size limit")
             val buffer=java.io.ByteArrayOutputStream()
-            body.byteStream().use { stream -> val chunk=ByteArray(8192);while(true) {val count=stream.read(chunk);if(count<0)break;if(healthBudget!=null&&healthBudget.remaining.addAndGet(-count.toLong())<0)throw IOException("Response exceeds the health-check budget");if(buffer.size().toLong()+count>maxBytes)throw IOException("Response exceeds its size limit");buffer.write(chunk,0,count)} }
+            body.byteStream().use { stream -> val chunk=ByteArray(8192);while(true) {val count=stream.read(chunk);if(count<0)break;healthBudget?.received(count);if(buffer.size().toLong()+count>maxBytes)throw IOException("Response exceeds its size limit");buffer.write(chunk,0,count)} }
             val bookmark=if(request.tag(PageBookmark::class.java)!=null)response.headers("Set-Cookie").mapNotNull {Cookie.parse(response.request.url,it)}.firstOrNull {it.name=="bookmark"&&bookmarkPattern.matches(it.value)&&it.expiresAt>System.currentTimeMillis()}?.value else null
             val form=request.body as? FormBody
             val offset=form?.let {fields->(0 until fields.size).firstOrNull {fields.name(it)=="s"}?.let {fields.value(it).toIntOrNull()}} ?: request.url.queryParameter("s")?.toIntOrNull()
@@ -492,7 +500,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             if(!response.isSuccessful)throw IOException("Media returned ${response.code}")
             val body=response.body ?: throw IOException("Empty media")
             val stream=body.byteStream();val buffer=java.io.ByteArrayOutputStream();val chunk=ByteArray(8192)
-            while(true) { val count=stream.read(chunk);if(count<0)break;if(buffer.size().toLong()+count>maxBytes)throw IOException("Media is too large to cache");if(budget!=null&&budget.remaining.addAndGet(-count.toLong())<0)throw IOException("Media inspection byte budget ended");buffer.write(chunk,0,count) }
+            while(true) { val count=stream.read(chunk);if(count<0)break;if(buffer.size().toLong()+count>maxBytes)throw IOException("Media is too large to cache");budget?.received(count);buffer.write(chunk,0,count) }
             val final=response.request.url.toString()
             GatewayMediaPayload(buffer.toByteArray(),final,body.contentType()?.toString().orEmpty(),MediaCredentialLinks.headers(response.headers.values("Link"),final))
         }
@@ -509,7 +517,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                 if(!response.isSuccessful)throw IOException("Media returned ${response.code}")
                 val stream=response.body?.byteStream() ?: throw IOException("Empty media")
                 val output=java.io.ByteArrayOutputStream();val chunk=ByteArray(8192)
-                while(output.size()<limit) {val n=stream.read(chunk,0,minOf(chunk.size,limit-output.size()));if(n<0)break;if(budget!=null&&budget.remaining.addAndGet(-n.toLong())<0)throw IOException("Response exceeds the health-check budget");output.write(chunk,0,n)}
+                while(output.size()<limit) {val n=stream.read(chunk,0,minOf(chunk.size,limit-output.size()));if(n<0)break;budget?.received(n);output.write(chunk,0,n)}
                 MediaPrefix(output.toByteArray(),response.request.url.toString(),response.body?.contentType()?.toString().orEmpty(),response.code)
             }
         }

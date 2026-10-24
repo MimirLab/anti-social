@@ -17,6 +17,7 @@ object PostPresentation {
     private val repostHeading=Regex("^RT by (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
+    private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
 
     fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).also {CrossPostFusion.rememberPresentation(post,it)}
     private fun textUncached(post: Post): PostTextPresentation {
@@ -25,19 +26,20 @@ object PostPresentation {
         val author=comparison(post.author).removePrefix("@")
         val repost=if(post.platform==Platform.X)repostHeading.matchEntire(Jsoup.parseBodyFragment(post.title).text())else null
         val repostCaption=repost?.groupValues?.get(2)?.let(::comparison)
+        val nitter=post.platform==Platform.X&&post.provenance?.source?.frontend=="nitter"
+        val pinnedCaption=title.takeIf {nitter&&it.startsWith("pinned: ")}?.removePrefix("pinned: ")
         // Some readers add attribution to a generated excerpt. It is redundant
         // only when the named source author and the actual body also agree.
         val unwrapped=if(author.isBlank())null else listOf("post by $author:","post by @$author:")
             .firstOrNull {title.startsWith(it)}?.let {title.removePrefix(it).trimStart()}
-        val headings=listOfNotNull(title,unwrapped,repostCaption).flatMap {heading->
+        val headings=listOfNotNull(title,unwrapped,repostCaption,pinnedCaption).flatMap {heading->
             // Some public readers prepend a play glyph to their generated
             // heading. Only a proven body echo can remove it.
             listOf(heading,heading.trimStart('▶','\uFE0E','\uFE0F',' '))
         }.distinct()
         var presentedBody=post.body
         val mediaLabel=videoLabel.find(post.body)
-        val videoThumbnail=post.media.any {it.type=="video"||runCatching {URI(it.url).path.orEmpty()}.getOrDefault("").let {path->listOf("/amplify_video_thumb/","/ext_tw_video_thumb/","/tweet_video_thumb/").any(path::contains)}}
-        if(post.platform==Platform.X&&post.provenance?.source?.frontend=="nitter"&&videoThumbnail&&mediaLabel!=null) {
+        if(nitter&&post.media.isNotEmpty()&&mediaLabel!=null) {
             val without=post.body.substring(0,mediaLabel.range.first).trimEnd()
             // This is an RSS media-link label only when the complete headline
             // independently supplies exactly the same caption without it.
@@ -69,6 +71,7 @@ object PostPresentation {
     /** Matching may normalize further, but each meaningful field participates once. */
     fun content(post: Post): String=text(post).let {listOf(it.title,it.body).filter(String::isNotBlank).joinToString("\n")}
     internal fun proseWithoutLinks(value:String)=visibleUrl.replace(value," ")
+    internal fun referenceFreeCaption(value:String)=comparison(inlineHashtag.replace(proseWithoutLinks(value),"")).trimEnd('.', ' ')
     internal fun destinationLabels(value:String)=visibleUrl.findAll(value).take(16).map {match->
         val literal=match.value.trimEnd('.',',',')',']','}',';')
         if(literal.startsWith("https://",true)||literal.startsWith("http://",true))literal else "https://$literal"

@@ -12,12 +12,13 @@ private fun JsonObject.ba(key:String)=get(key)?.takeIf {it.isJsonArray}?.asJsonA
 
 data class BridgeNeighbor(val account:PublicAccount,val kind:AdjacentKind,val detail:String,val sourceUrl:String)
 data class BridgePage(val account:PublicAccount,val description:String="",val links:List<String> = emptyList(),
-    val neighbors:List<BridgeNeighbor> = emptyList(),val checkedAt:Long=0,val detail:String="",val complete:Boolean=true)
+    val neighbors:List<BridgeNeighbor> = emptyList(),val checkedAt:Long=0,val detail:String="",val complete:Boolean=true,
+    val publications:List<PublicAccount> = emptyList())
 data class SoundCloudIdentity(val page:BridgePage,val clientId:String,val userId:String,val urn:String)
 
 object DiscoveryBridges {
     const val MAX_DOCUMENT=3*1024*1024
-    val providers=setOf("youtube","mixcloud","twitch","soundcloud")
+    val providers=setOf("youtube","mixcloud","twitch","soundcloud","substack")
     fun supported(account:PublicAccount)=account.provider in providers
     /** Extract one literal JSON value. Braces inside strings and escaped quotes
      * do not end the payload. No eval, DOM, subresources or site code. */

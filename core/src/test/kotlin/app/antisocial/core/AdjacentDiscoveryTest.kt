@@ -13,6 +13,21 @@ class AdjacentDiscoveryTest {
     private fun person(handle:String)= """{"screen_name":"$handle","name":"Workshop $handle","id":"$handle","following":30}"""
     private fun list(vararg people:String,cursor:String="")="""{"code":200,"results":[${people.joinToString(","){person(it)}}],"cursor":"$cursor"}"""
     private fun document(text:String,url:String)=AdjacentDocument(Payload(text,url,"application/json",200))
+    @Test fun anEmptyLastPageDoesNotSuppressTheWorkingFirstPageOnTheNextSearch()=runBlocking {
+        val learning=AdaptiveRouting();var firstPages=0
+        suspend fun collect():AdjacentSnapshot {
+            val session=AdjacentSession(seed,routes,learning=learning,read={endpoint->
+                val body=if(endpoint.url.contains("/graph_fixture/following")&&!endpoint.url.contains("cursor=")) {
+                    firstPages++;list("useful_friend",cursor="last-page")
+                }else list()
+                document(body,endpoint.url)
+            })
+            var result=session.loadNext();repeat(5){if(result.hasMore)result=session.loadNext()};return result
+        }
+        assertTrue(collect().cards.any {it.profile.target.identity=="useful_friend"})
+        assertTrue("A valid empty continuation must not hide data on the next search",collect().cards.any {it.profile.target.identity=="useful_friend"})
+        assertEquals(2,firstPages)
+    }
     @Test fun publicReferencesAreConnectionsNotOwnershipAndIncludeCommunitiesAndForwardSources() {
         val other=routes.target(Platform.X,"other_fixture");val community=routes.target(Platform.REDDIT,"r/Android")
         val post=Post("1",Platform.X,"https://x.com/graph_fixture/status/123","Workshop","Ask @other_fixture",links=listOf(community.canonicalUrl),publicRelations=listOf(PublicRelation(PublicRelationKind.FORWARD,other.canonicalUrl,"Other")))

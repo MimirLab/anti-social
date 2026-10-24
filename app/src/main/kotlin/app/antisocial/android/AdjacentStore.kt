@@ -21,11 +21,11 @@ internal class AdjacentStore(private val directory:File,private val clock:()->Lo
                 }}&&entry.snapshot.coverage.all {it.status in HealthStatus.entries&&it.detail.length<=1000}
         }.getOrDefault(false)
         if(!valid){file.delete();return null}
-        file.setLastModified(clock());return Cached(entry!!.snapshot.copy(loading=false),clock()-entry.at<15*60_000L)
+        file.setLastModified(clock());return Cached(DiscoverySnapshots.retained(entry!!.snapshot,clock()),clock()-entry.at<15*60_000L)
     }
     @Synchronized fun put(key:String,snapshot:AdjacentSnapshot,epoch:Long) {
         if(epoch!=generation||snapshot.loading||!snapshot.complete)return
-        val value=snapshot.copy(cards=snapshot.cards.take(AdjacentDiscovery.MAX_CARDS),coverage=snapshot.coverage.takeLast(40))
+        val value=DiscoverySnapshots.merge(get(key)?.snapshot,snapshot,clock())
         val bytes=gson.toJson(Entry(at=clock(),snapshot=value)).toByteArray()
         if(bytes.size>384*1024)return
         val file=File(directory,Repository.hash(key)+".json")

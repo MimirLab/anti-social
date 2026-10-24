@@ -167,6 +167,34 @@ class CrossPostFeedTest {
         assertEquals(caption,runBlocking {repo.dao.post(repo.key(x))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.title)
         evidence("rss-caption-once-native")
     }
+    @Test fun nasaNotSlowingDownIsOneNativeCardWithThreePreservedOriginals() {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val originals=InstrumentationRegistry.getInstrumentation().context.assets.open("nasa-not-slowing-posts.json").reader().use {
+            repo.gson.fromJson(it,Array<Post>::class.java).toList()
+        }
+        records+=originals
+        val oldPolicy=repo.gateway.currentPolicy();repo.gateway.configure(NetworkPolicy(tor=true))
+        try {
+            for(post in originals) {
+                val target=repo.routes.target(post.platform,"NASA")
+                val follow=Follow("$person:${post.platform.id}",target,"NASA",personId=person,personName="NASA").also {accounts+=it}
+                store(post,follow)
+            }
+            seed("all",originals,read=true)
+            val vm=model();show(vm,all=true)
+            // Chronological cache order, rather than a preferred platform,
+            // chooses the stable primary. Observe the actual collected row.
+            ui.waitUntil(10_000){originals.any {ui.onAllNodesWithTag("Feed row ${repo.key(it)}").fetchSemanticsNodes().isNotEmpty()}}
+            rowCount(originals,1)
+            val primary=originals.single {ui.onAllNodesWithTag("Feed row ${repo.key(it)}").fetchSemanticsNodes().isNotEmpty()}
+            waitRow(primary)
+            assertEquals(3,repo.library.normalizedFusionRoots(primary,originals).size)
+            val card=hasAnyAncestor(hasTestTag("Feed row ${repo.key(primary)}"))
+            for(platform in listOf("X","Instagram","Facebook"))revealCombinedControl(hasContentDescription("Read $platform comments") and card)
+            evidence("nasa-not-slowing-one-card-three-originals")
+            for(original in originals)assertEquals(original,runBlocking {repo.dao.post(repo.key(original))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)})
+        }finally {repo.gateway.configure(oldPolicy)}
+    }
 
     @Test fun cachedRepostHeadingKeepsItsAttributionWithoutRepeatingTheSourceCaption() {
         val rawTitle="RT by @WhiteHouse: $caption"

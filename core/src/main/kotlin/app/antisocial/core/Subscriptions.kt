@@ -68,6 +68,10 @@ object CrossPosts {
     private val invisible=Regex("[\u00ad\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]")
     private val trailingTags=Regex("(?:\\s+#[\\p{L}\\p{N}_]+){1,8}\\s*$")
     private val negations=setOf("no","not","never","without","cannot","can't","don't","doesn't","didn't","won't","wouldn't","shouldn't","isn't","aren't","wasn't","weren't","hasn't","haven't","hadn't","mustn't","couldn't")
+    private val opaqueLinkHosts=setOf("bit.ly","bitly.com","tinyurl.com","t.co","lnkd.in","go.nasa.gov")
+    private val opaqueLinkPath=Regex("/[A-Za-z0-9_-]{3,80}/?")
+    internal fun opaqueLink(value:String)=value.toHttpUrlOrNull()?.let {it.isHttps&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in opaqueLinkHosts&&it.query==null&&opaqueLinkPath.matches(it.encodedPath)}==true
+    internal fun onlyOpaqueOrOriginalLinks(post:Post)=PostLinks.urls(post).all {value->linksToOriginal(value,post)||normalizedUrl(value)?.let(::opaqueLink)==true}
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
         val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>) {
@@ -364,7 +368,9 @@ object CrossPosts {
      * platform identities, keeping other posts and federated origins distinct. */
     private fun linksToOriginal(value: String,post: Post): Boolean {
         val source=uri(value) ?: return false;val actual=uri(post.canonicalUrl) ?: return false
-        val same=if(post.platform in ExpandedRoutes.federated)origin(source)==origin(actual)else SocialLinkHosts.platform(value)==post.platform
+        val frontend=post.provenance?.source
+        val acquiredAlias=post.platform !in ExpandedRoutes.federated&&frontend?.platform==post.platform&&DarwinRoutes.matches(source,frontend.root)
+        val same=if(post.platform in ExpandedRoutes.federated)origin(source)==origin(actual)else SocialLinkHosts.platform(value)==post.platform||acquiredAlias
         return same&&ContentIdentity.key(post.platform,value)==ContentIdentity.key(post.platform,post.canonicalUrl)
     }
     private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
@@ -418,7 +424,16 @@ object CrossPosts {
         if(a.numbers!=b.numbers||a.negatives!=b.negatives)return false
         if(a.symbols!=b.symbols)return false
         if(a.text==b.text&&!completeCopyText(a,b))return false
-        if(a.destinations.isNotEmpty()&&b.destinations.isNotEmpty()&&a.destinations!=b.destinations)return false
+        if(a.destinations.isNotEmpty()&&b.destinations.isNotEmpty()&&a.destinations!=b.destinations) {
+            // Different opaque campaign codes do not establish different claims.
+            // Only a complete, distinctive caption from explicitly linked accounts,
+            // with media and a close timestamp, can supply the missing corroboration.
+            // Every original URL stays in the collected editions and link inventory.
+            val changed=(a.destinations-b.destinations)+(b.destinations-a.destinations)
+            val campaignCopies=linked&&!a.truncated&&!b.truncated&&a.text==b.text&&a.text.length>=160&&a.tokens.size>=24&&a.tokens.toSet().size>=12&&
+                distance<=3_600_000uL&&a.post.media.isNotEmpty()&&b.post.media.isNotEmpty()&&changed.all(::opaqueLink)
+            if(!campaignCopies)return false
+        }
         val corroborated=a.destinations.intersect(b.destinations).isNotEmpty()||a.media.intersect(b.media).isNotEmpty()
         if(a.text==b.text) {
             val length=a.text.length;val count=a.tokens.size;val distinct=a.tokens.toSet().size

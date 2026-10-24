@@ -40,7 +40,7 @@ second hops and pagination; fast X results no longer suppress another provider.
 A fresh graph cache supplies immediate cards but does not skip identity expansion.
 
 Discovery identities are broader than subscription platforms. YouTube, SoundCloud,
-Mixcloud and Twitch can be routing bridges without becoming feed tabs. For example:
+Mixcloud, Twitch and Substack can be routing bridges without becoming feed tabs. For example:
 X NASA → declared NASA YouTube channel → creator-selected Kennedy Space Center
 channel → its publicly linked X, Facebook and Instagram accounts. The same process
 works through usable Bluesky routes even if the reader does not use Bluesky.
@@ -71,6 +71,7 @@ fictional follow, endorsement or interaction on another platform.
 | SoundCloud bridge | Public profile hydration, featured profiles, follows and web-profile declarations | Public app identifier comes from the page; no login, tracking scripts or browser execution; API availability can vary |
 | Mixcloud bridge | Public profile and following reads | Public source-selected sample; not all listeners |
 | TwitchMap bridge | Public `data.json` sampled shared-chat edges | Limited channel/time panel; absent accounts are outside observed coverage, not zero-overlap claims |
+| Substack bridge | Public profile links, owned publication feeds, published recommendations and public reading lists | Users and publications have distinct IDs; private subscriptions are discarded; no Notes-reading or complete-audience claim |
 | Existing public posts/discussions | Exact links, forwards, public participant intersections | Only material actually acquired locally; no background global graph collection |
 
 Truth Social, Pixelfed and Gab can use compatible public federation routes when
@@ -117,6 +118,12 @@ hours, at most 48 snapshots / 2 MiB. Public participant observations retain no
 comment text, expire after seven days, and are capped at 2,048 edges / 512 KiB.
 Neither cache uploads a reader's graph. Clear-cache generation guards reject late
 writers. Saves, explicit downloads and subscription records are unaffected.
+
+Checking again retains unexpired positive cards, bridge methods and resolved
+aliases while requesting fresh data. Partial/empty responses cannot replace a
+richer neighborhood or extend the original evidence's lifetime. Empty successful
+pagination does not mark the account's working first page unavailable. Child
+enrichment shares the parent operation's byte/request allowance.
 
 The existing idle account-website lookup now preserves small typed recommendation
 and feed declarations from its already parsed response, including HTTP headers.
