@@ -19,6 +19,16 @@ class PublicPreviewPagesTest {
         assertTrue(post.media.single().description.contains("preview"))
         assertTrue(FeedRefresh.posts(page,Platform.INSTAGRAM).isEmpty());assertNotNull(FeedRefresh.pendingReason(page,Platform.INSTAGRAM))
     }
+    @Test fun currentCarouselRecordsRetainTheirCaptionButNeverClaimACompleteGallery() {
+        val body=media().replace("XIGPolarisVideoMedia","XIGPolarisCarouselMedia")
+        val page=parse(body);val post=page.posts.single()
+        assertEquals("Mission data now available",post.body);assertTrue(post.preview)
+        assertEquals(1,post.media.size);assertEquals("image",post.media.single().type)
+        assertTrue(post.media.single().description.contains("Gallery preview"))
+        assertEquals(ExtractionStatus.PARTIAL,post.extractionCoverage?.attachments)
+        assertNull(post.publishedAt)
+        assertTrue(FeedRefresh.posts(page,Platform.INSTAGRAM).isEmpty())
+    }
     @Test fun recommendationsAndSimilarShortcodesAreNotSelectedPosts() {
         val page=parse("[${media()},${media("not_nasa","Another-123")},${media("nasa2","Third-123")}]")
         assertEquals(listOf("nasa"),page.posts.map {it.author})

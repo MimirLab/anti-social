@@ -9,6 +9,31 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.18 public Instagram pagination and selected full media
+
+The new ordinary-build public reader returned 36 distinct NASA grid previews
+across three pages on API 35, including 24 IDs beyond the initial twelve-item
+window. SourcePool's selected-source continuation used the actual issued
+cursor. Selected-post queries returned a real publication time, playable video
+and a complete three-image gallery. The source's simpler public-App-ID profile
+endpoint remained login-gated and URL cursor attempts repeated the head; those
+are recorded failures, not additional healthy paths. The native fingerprint
+experiment remains excluded from normal APKs.
+
+The full JVM regression passed 2,130 cases, zero failures/errors, one optional
+weight-dependent skip. The API 35 native batch covered 18 named checks: twelve
+passed and six opt-in native/live-provider experiments skipped. The actual native NASA gallery screen was also inspected
+after opening its URL through the reader search sheet. Active checks
+included four public acquisition/paging/media probes, native platform cards,
+public-pathway displays and feed revalidation. The new protocol's live Tor and
+physical-phone performance remain unqualified. Grid previews do not contain
+source dates and do not gain FEED capability or move a caught-up boundary.
+
+The implementation and evidence limits are documented in
+[Instagram public paging](INSTAGRAM_PUBLIC_PAGING.md). External payloads, frozen
+APK/source hashes, state backups and logs remain under
+`evidence/public-preview-paging-20261024`, outside public source and artifacts.
+
 ## 0.38.17 feed-header navigation and additional live alternatives
 
 The full JVM run covered **2,090 cases** across 179 suites, zero failures/errors

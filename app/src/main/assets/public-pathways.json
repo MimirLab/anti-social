@@ -6,6 +6,22 @@
   "sourceInventory": "source-discovery.json",
   "sources": [
     {
+      "platform": "instagram",
+      "frontend": "instagram-public-graphql",
+      "root": "https://www.instagram.com",
+      "role": "ORIGINAL",
+      "scope": "static",
+      "priority": -5,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://github.com/vvzvlad/research-mcp/blob/main/src/providers/instagram.py",
+        "https://github.com/FxEmbed/FxEmbed/tree/main/packages"
+      ],
+      "limitations": "Anonymous public profile-grid pagination and selected public post/media queries. Grid previews omit dates and cannot certify feed freshness. No account, cookies, global search, follower graph or comment-pagination claim. Source login gates and quotas remain failures; protocol identifiers can change."
+    },
+    {
       "platform": "twitter",
       "frontend": "fxembed-api",
       "root": "https://api.fxtwitter.com",

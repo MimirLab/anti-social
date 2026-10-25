@@ -5,7 +5,7 @@ import com.google.gson.JsonObject
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal object InstagramPublicMedia {
-    private val types=setOf("XIGPolarisImageMedia","XIGPolarisVideoMedia","XIGPolarisSidecarMedia")
+    private val types=setOf("XIGPolarisImageMedia","XIGPolarisVideoMedia","XIGPolarisSidecarMedia","XIGPolarisCarouselMedia")
     private fun JsonObject.text(name:String)=get(name)?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isString}?.asString.orEmpty()
     private fun JsonObject.obj(name:String)=get(name)?.takeIf {it.isJsonObject}?.asJsonObject
     private fun https(value:String)=value.takeIf {it.length<=8192}?.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()}?.toString()
@@ -25,7 +25,12 @@ internal object InstagramPublicMedia {
         val caption=node.obj("caption")?.text("text").orEmpty().take(100_000)
         val image=https(node.text("display_uri"))
         // display_uri is the poster for a video. It is never a playable stream.
-        val media=image?.let {listOf(Media(it,description=if(type=="XIGPolarisVideoMedia")"Video preview; full media unavailable"else node.text("accessibility_caption").take(4000)))}.orEmpty()
+        val description=when(type) {
+            "XIGPolarisVideoMedia"->"Video preview; full media unavailable"
+            "XIGPolarisCarouselMedia","XIGPolarisSidecarMedia"->"Gallery preview; full gallery unavailable"
+            else->node.text("accessibility_caption").take(4000)
+        }
+        val media=image?.let {listOf(Media(it,description=description))}.orEmpty()
         if(caption.isBlank()&&media.isEmpty())return null
         val url="https://www.instagram.com/p/$code"
         return Post(ContentIdentity.key(Platform.INSTAGRAM,url),Platform.INSTAGRAM,url,handle,caption,
