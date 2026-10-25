@@ -148,6 +148,74 @@ class InstagramPublicCommentsTest {
             else {assertThrows(SourceFailure::class.java){runBlocking {f.adapter.comments(target)}};assertEquals(2,f.server.requestCount)}
         }
     }
+    @Test fun aMissingRequestedDocumentUsesOnlyOneExactPublicBootstrap():Unit=runBlocking {
+        Fixture().use {f->
+            f.enqueue("""{"errors":[{"message":"The GraphQL document with ID 25516980651312394 was not found.","severity":"CRITICAL"}]}""")
+            val media=InstagramPublicGraphQl.mediaId(code)
+            f.enqueue("""<script type="application/json">{"preloader":{"actorID":"0","queryName":"PolarisPostCommentsPaginationQuery","queryID":"12345678901234567","variables":{"media_id":"$media"}}}</script>""")
+            f.enqueue(body(listOf(comment("10")),more=false))
+            val page=f.adapter.comments(target)
+            assertEquals(listOf("comment:$code:10"),page.posts.map {it.id});assertEquals(3,f.server.requestCount)
+            assertEquals("/api/graphql",f.request().path);assertEquals(target.canonicalUrl.toHttpUrl().encodedPath,f.request().path)
+            val retry=f.request();val form=("https://fixture.example/?"+retry.body.readUtf8()).toHttpUrl()
+            assertEquals("12345678901234567",form.queryParameter("doc_id"))
+            assertFalse(JsonParser.parseString(form.queryParameter("variables")).asJsonObject["__relay_internal__pv__PolarisIsLoggedInrelayprovider"].asBoolean)
+            assertNull(retry.getHeader("Cookie"));assertNull(retry.getHeader("Authorization"))
+        }
+    }
+    @Test fun aForeignOrMixedMissingDocumentDoesNotAuthorizeExtraReads():Unit=runBlocking {
+        for(errors in listOf(
+            listOf("The GraphQL document with ID 99999999999999999 was not found."),
+            listOf("The post was not found."),
+            listOf("The GraphQL document with ID 25516980651312394 was not found.","Permission denied"),
+            listOf("The GraphQL document with ID 25516980651312394 was not found.","login_required")
+        ))Fixture().use {f->
+            f.enqueue(Gson().toJson(mapOf("errors" to errors.map {mapOf("message" to it)})))
+            assertThrows(SourceFailure::class.java){runBlocking {f.adapter.comments(target)}}
+            assertEquals(1,f.server.requestCount)
+        }
+    }
+    @Test fun repeatedMissingDocumentFailureStopsAfterItsSingleBootstrap():Unit=runBlocking {
+        Fixture().use {f->
+            fun missing(id:String)="""{"errors":[{"message":"The GraphQL document with ID $id was not found."}]}"""
+            f.enqueue(missing("25516980651312394"))
+            val media=InstagramPublicGraphQl.mediaId(code)
+            f.enqueue("""<script type="application/json">{"p":{"actorID":"0","queryName":"PolarisPostCommentsPaginationQuery","queryID":"12345678901234567","variables":{"media_id":"$media"}}}</script>""")
+            f.enqueue(missing("12345678901234567"))
+            assertThrows(SourceFailure::class.java){runBlocking {f.adapter.comments(target)}}
+            assertEquals(3,f.server.requestCount)
+        }
+    }
+    @Test fun aValidatedReplacementAvoidsRepeatingRecoveryButStillFetchesFreshComments():Unit=runBlocking {
+        Fixture().use {f->
+            var delivered=0
+            f.server.dispatcher=object:Dispatcher() {
+                override fun dispatch(request:RecordedRequest):MockResponse {
+                    if(request.method=="GET")return MockResponse().setBody("""<script type="application/json">{"p":{"actorID":"0","queryName":"PolarisPostCommentsPaginationQuery","queryID":"12345678901234567","variables":{"media_id":"${InstagramPublicGraphQl.mediaId(code)}"}}}</script>""")
+                    val form=("https://fixture.example/?"+request.body.readUtf8()).toHttpUrl()
+                    return if(form.queryParameter("doc_id")=="12345678901234567")MockResponse().setBody(body(listOf(comment((++delivered).toString())),more=false))
+                    else MockResponse().setBody("""{"errors":[{"message":"The GraphQL document with ID 25516980651312394 was not found."}]}""")
+                }
+            }
+            val first=f.adapter.comments(target);assertEquals(3,f.server.requestCount)
+            val second=f.adapter.comments(target)
+            assertEquals("A fresh read reuses the proven query rather than repeating its failed predecessor",4,f.server.requestCount)
+            assertNotEquals(first.posts.single().identityKey,second.posts.single().identityKey)
+            assertEquals(2,delivered)
+        }
+    }
+    @Test fun aRejectedOrEmptyRecoveryCannotSeedAnotherFreshRead():Unit=runBlocking {
+        for(foreign in listOf(true,false))Fixture().use {f->
+            f.enqueue("""{"errors":[{"message":"The GraphQL document with ID 25516980651312394 was not found."}]}""")
+            f.enqueue("""<script type="application/json">{"p":{"actorID":"0","queryName":"PolarisPostCommentsPaginationQuery","queryID":"12345678901234567","variables":{"media_id":"${InstagramPublicGraphQl.mediaId(code)}"}}}</script>""")
+            f.enqueue(body(if(foreign)listOf(comment("10").apply {addProperty("media_id","999")})else emptyList(),more=false))
+            if(foreign)assertThrows(SourceFailure::class.java){runBlocking {f.adapter.comments(target)}}else assertTrue(f.adapter.comments(target).posts.isEmpty())
+            assertEquals(3,f.server.requestCount);repeat(3){f.request()}
+            f.enqueue(body(listOf(comment("20")),more=false));assertEquals(1,f.adapter.comments(target).posts.size)
+            val form=("https://fixture.example/?"+f.request().body.readUtf8()).toHttpUrl()
+            assertEquals("Unusable content cannot authorize reuse of a declared query", "25516980651312394",form.queryParameter("doc_id"))
+        }
+    }
     @Test fun originalPermissionAndSelectedTorStillGuardTheNewCommentRoute():Unit=runBlocking {
         val gateway=NetworkGateway(cleaner,object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(true)})
         val catalog=JsonParser.parseReader(javaClass.getResourceAsStream("/public-pathways.json")!!.reader()).asJsonObject

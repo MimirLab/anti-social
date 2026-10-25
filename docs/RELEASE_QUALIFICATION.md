@@ -9,6 +9,37 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.25 bounded Instagram query recovery and reuse
+
+The public reader recognizes the observed missing-document error only when every
+error names the exact requested query ID. Its existing one-page bootstrap and
+single retry remain bounded. After usable selected content passes validation,
+the adapter can reuse the proven query metadata for ten minutes within the same
+source, target, input shape and actual Gateway session. Each fresh read still
+fetches a new response. No content, permission or authentication is cached by
+this bank. [Query recovery](INSTAGRAM_QUERY_RECOVERY.md) records its admission,
+expiry, connection-change and failed-payload checks.
+
+The unchanged 0.38.24 app failed the owned native missing-document fixture.
+The candidate displays a recovered reply in All, then its actual Instagram
+Refresh control displays a different reply. The first read costs three requests;
+the next costs one, versus repeating three before the bank. All four fixture
+requests omit cookies and authorization. The screen was inspected.
+
+The full JVM suite completed 2,171 cases, zero failures/errors, one optional
+model-weight skip. The 77-method Android regression passed 76 methods with one
+opt-in live-Tor skip and zero failures. Debug/test/release assembly and release
+lint pass. A separate live API 35 public-provider journey passed: All displayed
+14 Instagram comments and the native More button expanded them to 26 distinct
+comments. Its native screen was inspected. This is one dated direct-transport
+observation, not complete reply coverage or a provider availability guarantee.
+
+Separate child-reply research found a stale query ID and a public REST path that
+returned an unusable HTML shell. Neither was registered as a working route.
+Fingerprint-based preview allowance renewal remains unqualified and its native
+experiment remains excluded from normal builds. Raw research, baseline failures
+and final checks stay external under `evidence/instagram-child-comments-20261025`.
+
 ## 0.38.24 faster cached-media restoration and gallery grouping
 
 The image-comparison rebuild skips its artificial wait when a local media file

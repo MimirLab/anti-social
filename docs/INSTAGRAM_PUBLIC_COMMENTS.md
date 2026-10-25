@@ -7,6 +7,10 @@ social account, key, browser, site script or extra native runtime is required.
 Original-site access must be enabled; selected Tor still fails closed. Darwin's
 alternate-before-original routing and the learned source pauses remain intact.
 
+[0.38.25 query recovery and reuse](INSTAGRAM_QUERY_RECOVERY.md) extends the
+recognized protocol failures and retains successfully validated replacement
+metadata for bounded reuse. It adds no child-reply enumeration claim.
+
 ## Source research and observed access
 
 The zero-star [instapick project](https://github.com/andresayac/instapick) supplied

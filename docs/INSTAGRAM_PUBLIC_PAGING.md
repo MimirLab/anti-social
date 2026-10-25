@@ -46,6 +46,11 @@ whitelist of boolean Relay-provider variables is retained. Login, challenge,
 rate-limit and transport failures do not cause protocol retries or identity
 rotation. HTTP 200 with GraphQL errors is not healthy content.
 
+The later [0.38.25 recovery bank](INSTAGRAM_QUERY_RECOVERY.md) recognizes a missing
+requested document and reuses a successfully validated replacement for the exact
+source, target, operation and connection. Each fresh read still needs a new
+protected response; no cached query metadata can certify content or freshness.
+
 The initial query IDs are verified protocol identifiers, not credentials. The
 public application identifier and per-request matching LSD nonce supply the
 anonymous request shape. Responses have a 4 MiB allowance and strict depth-bound

@@ -97,7 +97,7 @@ android {
     namespace = "app.antisocial.android"
     compileSdk = 37
     buildToolsVersion = "36.0.0"
-    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 133; versionName = "0.38.24"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 134; versionName = "0.38.25"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     defaultConfig { if(targetAbi!=null)ndk {abiFilters+=targetAbi} }
     defaultConfig {buildConfigField("boolean","EXPERIMENTAL_PUBLIC_READ",publicReadCandidate.toString())}
     if(publicReadCandidate) {
