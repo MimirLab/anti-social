@@ -6,6 +6,7 @@ import app.antisocial.core.*
 import app.antisocial.core.Target
 import com.google.gson.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import okhttp3.FormBody
 import okio.Buffer
 import org.junit.Assume.assumeTrue
@@ -14,6 +15,121 @@ import java.io.File
 
 /** Research output never marks a route healthy. No scripts or account state. */
 class ThreadsPublicResearchTest {
+    @Test fun inspectSearchUrlProtectionWithoutNetwork() {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val cleaner=UrlCleaner(context.assets.open("clean-links.json").reader().use {JsonParser.parseReader(it).asJsonObject})
+        val output=File(context.getExternalFilesDir("validation"),"threads-search-protection").apply {mkdirs()}
+        NativeFilter.restore(context.assets.open("network-rules.compiled").use {it.readBytes()}).use {filter->
+            val url="https://www.threads.com/search/?q=nasa&serp_type=default&filter=recent"
+            val cleaned=cleaner.clean(url);val decision=filter.check(cleaned,url,"xmlhttprequest")
+            File(output,"results.json").writeText(Gson().toJson(mapOf("input" to url,"cleaned" to cleaned,"decision" to decision,"networkRequests" to 0)))
+        }
+    }
+    @Test fun compareExistingSearchStack():Unit=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLiveThreadsStackResearch")=="true")
+        val label=args.getString("antisocialResearchLabel") ?: "measurement"
+        require(label.matches(Regex("[a-z0-9-]{1,32}")))
+        val query=args.getString("antisocialResearchThreadsQuery") ?: "nasa"
+        require(query.length in 1..100&&query.none(Char::isISOControl))
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo
+        withTimeout(20_000){repo.awaitReady()}
+        val preferences=repo.prefs.export().toString()
+        val output=File(context.getExternalFilesDir("validation"),"threads-search-stack-$label").apply {mkdirs()}
+        val records=mutableListOf<Map<String,Any?>>()
+        try {
+            withContext(Dispatchers.Main) {repo.prefs.intervalMinutes=0;repo.prefs.tor=false;repo.prefs.originalFallback=true;repo.prefs.searchProvider=SearchProvider.DUCKDUCKGO;repo.applyNetworkSettings()}
+            val ready=System.nanoTime();withTimeout(60_000){repo.tor.state.first {it.ready}}
+            records+=mapOf("step" to "protected-search-ready","ms" to (System.nanoTime()-ready)/1_000_000)
+            val pathways=PublicPathways(context.assets.open("public-pathways.json").reader().use {JsonParser.parseReader(it).asJsonObject})
+            val pool=SourcePool(repo.gateway,repo.routes,pathways).apply {searchProvider=SearchProvider.DUCKDUCKGO;awaitSearchConnection={withTimeout(60_000){repo.tor.state.first {it.ready};Unit}}}
+            val target=repo.routes.search(Platform.THREADS,query)
+            val session=SearchFeed(target,discover={previous->check(previous==null);pool.load(target,originalFallback=true,requestedCapability=Capability.SEARCH)},
+                read={destination->pool.load(destination,originalFallback=true,requestedCapability=if(destination.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY))Capability.PROFILE else Capability.POST)},
+                blockSize=24,maxPosts=24,maxPages=1,maxCharacters=512*1024,maxCandidates=24)
+            val start=System.nanoTime()
+            withTimeout(90_000){repo.gateway.boundedMediaRead(maxBytes=16L*1024*1024,maxRequests=8){session.loadNext {}}}
+            val state=session.state
+            records+=mapOf("step" to "bounded-search","ms" to (System.nanoTime()-start)/1_000_000,"posts" to state.page.posts.map {mapOf("key" to it.identityKey,"date" to it.publishedAt,"characters" to it.body.length,"preview" to it.preview,"source" to it.provenance?.source?.frontend)},
+                "accounts" to state.page.accounts.size,"hasMore" to state.hasMore,"limited" to state.limited,"unavailable" to state.unavailable,"error" to state.error,
+                "routes" to pool.results(Platform.THREADS))
+            File(output,"page.json").writeText(Gson().toJson(state.page))
+        }catch(e:CancellationException){if(e !is TimeoutCancellationException)throw e;records+=mapOf("error" to "Bounded research deadline expired")}
+        catch(e:Exception){records+=mapOf("error" to (e.javaClass.simpleName+": "+e.message).take(1000))}
+        finally {
+            File(output,"results.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(records))
+            withContext(NonCancellable+Dispatchers.Main){repo.context.getSharedPreferences("antisocial",android.content.Context.MODE_PRIVATE).edit().clear().commit();repo.prefs.restore(org.json.JSONObject(preferences));repo.mentionNames.changed();repo.applyNetworkSettings()}
+        }
+    }
+    @Test fun inspectBoundedAnonymousSearchPages():Unit=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLiveThreadsSearchResearch")=="true")
+        val query=args.getString("antisocialResearchThreadsQuery") ?: "nasa"
+        require(query.length in 1..100&&query.none(Char::isISOControl))
+        val variant=args.getString("antisocialResearchThreadsSearchVariant") ?: "reference"
+        require(variant in setOf("reference","filter-recent","encoding"))
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val output=File(context.getExternalFilesDir("validation"),"threads-search-research-$variant").apply {mkdirs()}
+        val cleaner=UrlCleaner(context.assets.open("clean-links.json").reader().use {JsonParser.parseReader(it).asJsonObject})
+        val records=mutableListOf<Map<String,Any?>>()
+        NativeFilter.restore(context.assets.open("network-rules.compiled").use {it.readBytes()}).use {filter->
+            val gateway=NetworkGateway(cleaner,filter);val client=gateway.client()
+            try {withTimeout(45_000){gateway.boundedMediaRead(maxBytes=8L*1024*1024,maxRequests=2) {
+                val variants=when(variant) {
+                    "filter-recent"->listOf("filter-recent" to "serp_type=default&filter=recent")
+                    "encoding"->listOf("form-space" to "","percent-space" to "")
+                    else->listOf("recent" to "serp_type=recent","profiles" to "type=profiles")
+                }
+                for((label,mode)in variants) {
+                    val encoded=DarwinRoutes.encode(query).let {if(label=="percent-space")it.replace("+","%20")else it}
+                    val url="https://www.threads.com/search/?q=$encoded"+(if(mode.isEmpty())""else "&$mode")
+                    val start=System.nanoTime()
+                    records+=mapOf("step" to "$label-protection","input" to url,"cleaned" to cleaner.clean(url),"decision" to filter.check(cleaner.clean(url),url,"xmlhttprequest"))
+                    val doc=withTimeout(20_000){gateway.extractorDocument(url,sourceUrl=url,sameOrigin=true,maxBytes=4L*1024*1024,
+                        headers=mapOf("Accept" to "text/html","Accept-Language" to "en-US,en;q=0.5"))}
+                    File(output,"$label.html").writeText(doc.text)
+                    records+=mapOf("step" to label,"status" to doc.status,"bytes" to doc.text.length,"finalUrl" to doc.finalUrl,"ms" to (System.nanoTime()-start)/1_000_000)
+                    check(doc.status in 200..299){"HTTP ${doc.status}; stop further public reads"}
+                    HtmlAdmission.check(doc.text)
+                    val scripts=org.jsoup.Jsoup.parse(doc.text).select("script[type=application/json]")
+                    require(scripts.size<=128);var total=0L;var visited=0
+                    val connections=mutableListOf<Map<String,Any?>>()
+                    fun walk(value:JsonElement,path:String,depth:Int=0) {
+                        require(depth<=64&&++visited<=50_000)
+                        if(value.isJsonArray){value.asJsonArray.forEachIndexed {i,v->walk(v,"$path[$i]",depth+1)};return}
+                        if(!value.isJsonObject)return
+                        val obj=value.asJsonObject
+                        obj.get("searchResults")?.takeIf {it.isJsonObject}?.asJsonObject?.let {search->
+                            val edges=search.get("edges")?.takeIf {it.isJsonArray}?.asJsonArray
+                            connections+=mapOf("path" to path,"fields" to search.keySet().toList(),"rows" to edges?.size(),"pageInfo" to search.get("page_info"),
+                                "sample" to edges?.take(3)?.map {edge->edge.takeIf {it.isJsonObject}?.asJsonObject?.get("node")})
+                        }
+                        obj.entrySet().forEach {(key,v)->if(v.isJsonArray||v.isJsonObject)walk(v,"$path.$key",depth+1)}
+                    }
+                    scripts.forEachIndexed {index,script->
+                        val raw=script.data();total+=raw.length.toLong();require(total<=4L*1024*1024)
+                        val value=runCatching {com.google.gson.stream.JsonReader(raw.reader()).use {reader->
+                            reader.strictness=Strictness.STRICT;reader.nestingLimit=64
+                            JsonParser.parseReader(reader).also {require(reader.peek()==com.google.gson.stream.JsonToken.END_DOCUMENT)}
+                        }}.getOrNull()
+                        if(value!=null)walk(value,"script[$index]")
+                    }
+                    records+=mapOf("step" to "$label-literal-search-connections","scripts" to scripts.size,"connections" to connections)
+                    if(variant=="encoding") {
+                        val routes=DarwinRoutes(context.assets.open("darwin-routes.json").reader().use {JsonParser.parseReader(it).asJsonObject},cleaner)
+                        val parsed=runCatching {Extraction.parse(Payload(doc.text,doc.finalUrl,"text/html",doc.status),routes.search(Platform.THREADS,query),Source(Platform.THREADS,"original",Platform.THREADS.origin,role=SourceRole.ORIGINAL),routes)}
+                        records+=mapOf("step" to "$label-current-parser","posts" to parsed.getOrNull()?.posts?.size,"error" to parsed.exceptionOrNull()?.let {it.javaClass.simpleName+": "+it.message})
+                    }
+                }
+            }}}
+            catch(e:CancellationException){if(e !is TimeoutCancellationException)throw e;records+=mapOf("error" to "Bounded research deadline expired")}
+            catch(e:Exception){records+=mapOf("error" to (e.javaClass.simpleName+": "+e.message).take(1000))}
+            finally {File(output,"results.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(records));client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()}
+        }
+    }
     @Test fun inspectOneSourceReportedProfileContinuation():Unit=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLiveThreadsPagingResearch")=="true")

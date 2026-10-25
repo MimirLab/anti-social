@@ -144,11 +144,11 @@ class ThreadsPublicPagesTest {
         val localRoutes=DarwinRoutes(config,localCleaner)
         val gateway=NetworkGateway(localCleaner,object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)},true)
         val pool=SourcePool(gateway,localRoutes);val adapter=pool.sourceReader(source)
-        assertTrue(Capability.COMMENTS in adapter.capabilities);assertFalse(Capability.SEARCH in adapter.capabilities)
+        assertTrue(Capability.COMMENTS in adapter.capabilities);assertTrue(Capability.SEARCH in adapter.capabilities)
         assertFalse(pool.supportsComments(Platform.THREADS,false));assertTrue(pool.supportsComments(Platform.THREADS,true))
         val target=localRoutes.recognize(source.root+"/@workshop/post/RootCodeCase")!!
         assertThrows(SourceFailure::class.java){runBlocking {adapter.comments(target,"https://www.threads.com/@workshop/post/RootCodeCase?after=made-up")}}
-        assertThrows(SourceFailure::class.java){runBlocking {adapter.fetch(localRoutes.search(Platform.THREADS,"workshop"))}}
+        assertThrows(SourceFailure::class.java){runBlocking {adapter.fetch(localRoutes.search(Platform.THREADS,"workshop").let {it.copy(canonicalUrl=it.canonicalUrl+"&type=profiles")})}}
     }
     @Test fun aLiteralSelectedJsonPostCanRemainReadableWithoutInventingNumericIds() {
         val raw=post().apply {remove("pk");remove("id");getAsJsonObject("user").apply {remove("pk");remove("id")}}

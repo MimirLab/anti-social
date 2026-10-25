@@ -8,6 +8,7 @@ import com.google.gson.stream.JsonToken
 import org.jsoup.nodes.Document
 import java.net.URI
 import java.util.Locale
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Only selected Relay data roots may supply posts. Recommendation/quote trees
  * are not a discussion, and a matching name is not a parent relationship. */
@@ -40,19 +41,30 @@ internal object ThreadsPublicPages {
         if(parts.size!=3||!parts[0].startsWith('@')||parts[1]!="post"||!code.matches(parts[2]))return null
         return parts[0].removePrefix("@").takeIf {handle.matches(it)}?.let {Selection(it,parts[2])}
     }
-    private fun sourceScope(target:Target,provenance:Provenance):Selection {
-        val selected=selection(target.canonicalUrl) ?: fail("The selected Threads address is unsupported")
-        if(target.platform!=Platform.THREADS||target.kind !in setOf(TargetKind.PROFILE,TargetKind.POST,TargetKind.THREAD)||selected.profile!=(target.kind==TargetKind.PROFILE))fail("The public page changed its target type")
+    private fun sourceOrigin(target:Target,provenance:Provenance):URI {
         val root=runCatching {URI(provenance.source.root)}.getOrNull() ?: fail("The public source has no origin")
         val actual=runCatching {URI(provenance.finalUrl)}.getOrNull() ?: fail("The public page has no origin")
         fun port(uri:URI)=if(uri.port>=0)uri.port else if(uri.scheme=="https")443 else 80
-        if(provenance.source.role!=SourceRole.ORIGINAL||provenance.source.platform!=Platform.THREADS||actual.scheme!=root.scheme||actual.host!=root.host||port(actual)!=port(root)||actual.userInfo!=null)fail("The public page left its selected source")
+        if(target.platform!=Platform.THREADS||provenance.source.role!=SourceRole.ORIGINAL||provenance.source.platform!=Platform.THREADS||actual.scheme!=root.scheme||actual.host!=root.host||port(actual)!=port(root)||actual.userInfo!=null)fail("The public page left its selected source")
+        return actual
+    }
+    private fun sourceScope(target:Target,provenance:Provenance):Selection {
+        val selected=selection(target.canonicalUrl) ?: fail("The selected Threads address is unsupported")
+        if(target.platform!=Platform.THREADS||target.kind !in setOf(TargetKind.PROFILE,TargetKind.POST,TargetKind.THREAD)||selected.profile!=(target.kind==TargetKind.PROFILE))fail("The public page changed its target type")
+        val actual=sourceOrigin(target,provenance)
         val physical=selection(Platform.THREADS.origin+actual.rawPath.orEmpty()) ?: fail("The public page redirected away from its selected target")
         if(physical.profile!=selected.profile||physical.code!=selected.code||selected.handle!=null&&physical.handle!=null&&!selected.handle.equals(physical.handle,true))fail("The public page redirected to another target")
         return selected
     }
     fun html(document:Document,target:Target,provenance:Provenance):Page {
+        if(target.kind==TargetKind.SEARCH) {
+            searchScope(target,provenance)
+            return search(literalValues(document),target,provenance)
+        }
         sourceScope(target,provenance)
+        return parse(literalValues(document),target,provenance)
+    }
+    private fun literalValues(document:Document):List<JsonElement> {
         val scripts=document.select("script[type=application/json]")
         if(scripts.size>128)limited()
         var bytes=0L
@@ -64,7 +76,67 @@ internal object ThreadsPublicPages {
                 JsonParser.parseReader(reader).also {require(reader.peek()==JsonToken.END_DOCUMENT)}
             }}.getOrNull()
         }
-        return parse(values,target,provenance)
+        return values
+    }
+    /** Only the observed ordinary keyword window; other selectors need their own proof. */
+    fun acceptsSearch(target:Target)=runCatching {searchQuery(target);true}.getOrDefault(false)
+    private fun searchParameters(value:String,query:String):Boolean {
+        val url=value.toHttpUrlOrNull() ?: return false
+        return url.encodedPath in setOf("/search","/search/")&&url.queryParameterNames.all {it in setOf("q","serp_type")}&&
+            url.queryParameterValues("q")==listOf(query)&&url.queryParameterValues("serp_type").let {it.isEmpty()||it==listOf("default")}
+    }
+    fun searchQuery(target:Target):String {
+        val query=target.identity
+        val uri=runCatching {URI(target.canonicalUrl)}.getOrNull()
+        if(target.platform!=Platform.THREADS||target.kind!=TargetKind.SEARCH||SearchScopes.from(target)!=null||
+            query.isBlank()||query.length>1000||query.any(Char::isISOControl)||uri?.scheme!="https"||
+            uri.host !in setOf("threads.com","www.threads.com","threads.net","www.threads.net")||uri.userInfo!=null||uri.port !in setOf(-1,443)||
+            uri.fragment!=null||!searchParameters(target.canonicalUrl,query))throw SourceFailure(HealthStatus.UNSUPPORTED,"This Threads source supplies ordinary public keyword search only")
+        return query
+    }
+    private fun searchScope(target:Target,provenance:Provenance) {
+        val query=searchQuery(target)
+        sourceOrigin(target,provenance)
+        if(!searchParameters(provenance.finalUrl,query))fail("The public search changed its selected query")
+    }
+    private fun search(values:List<JsonElement>,target:Target,provenance:Provenance):Page {
+        val query=searchQuery(target);val bindings=mutableListOf<JsonObject>();var visited=0
+        fun inspect(value:JsonElement,depth:Int) {
+            if(depth>64||++visited>50_000)limited()
+            if(value.isJsonArray){value.asJsonArray.forEach {inspect(it,depth+1)};return}
+            if(!value.isJsonObject)return
+            val obj=value.asJsonObject
+            obj.a("expectedPreloaders")?.let {preloaders->
+                if(preloaders.size()>128)limited()
+                preloaders.forEach {item->item.takeIf {it.isJsonObject}?.asJsonObject?.takeIf {it.s("queryName")=="BarcelonaSearchResultsQuery"}?.let {
+                    if(bindings.size>=16)limited();bindings+=it
+                }}
+            }
+            obj.entrySet().forEach {(_,v)->if(v.isJsonArray||v.isJsonObject)inspect(v,depth+1)}
+        }
+        values.forEach {inspect(it,0)}
+        if(bindings.isEmpty()||bindings.any {binding->
+            val vars=binding.o("variables")
+            binding.s("actorID")!="0"||!decimal.matches(binding.s("queryID"))||vars==null||vars.s("query")!=query||vars.n("recent")!=0L||
+                listOf("requested_subtab","tagID","meta_place_id","power_search_info","trend_fbid").any {vars.get(it)?.isJsonNull==false}||
+                vars.get("search_surface")?.let {it.isJsonNull||it.isJsonPrimitive&&it.asJsonPrimitive.isString&&it.asString=="default"}==false||
+                vars.has("__relay_internal__pv__BarcelonaIsLoggedInrelayprovider")&&vars.b("__relay_internal__pv__BarcelonaIsLoggedInrelayprovider")!=false
+        })fail("The public page did not confirm the selected anonymous search")
+        val connection=roots(values).mapNotNull {it.o("searchResults")}.singleOrNull() ?: fail("The public page did not supply one selected search connection")
+        val edges=connection.a("edges") ?: fail("The public search did not supply its records")
+        if(edges.size()>MAX_POSTS)limited()
+        val budget=Budget();val output=mutableListOf<Post>()
+        edges.forEach {edge->
+            val items=edge.takeIf {it.isJsonObject}?.asJsonObject?.o("node")?.o("thread")?.a("thread_items") ?: return@forEach
+            if(items.size()>MAX_POSTS)limited();budget.take(items.size())
+            val nodes=items.mapNotNull {it.takeIf {v->v.isJsonObject}?.asJsonObject?.o("post")?.let {raw->node(raw,provenance)}}
+            output+=chain(nodes,null,nodes.firstOrNull()?.post?.id).map {it.post}
+            if(output.size>MAX_POSTS*2)limited()
+        }
+        val posts=output.distinctBy {it.identityKey};if(posts.size>MAX_POSTS)limited()
+        // Author metadata is not an account-search result. Keep proper author
+        // names on the posts without filling the people shelf with those authors.
+        return Page(posts,provenance=provenance,notice="Limited public search results")
     }
     fun json(value:JsonElement,target:Target,provenance:Provenance):Page {
         val selected=sourceScope(target,provenance)

@@ -9,6 +9,65 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.29 native public Threads keyword search
+
+The original fallback now reads Threads' ordinary public keyword-search HTML
+through the existing Gateway. The decoder requires the exact selected/final
+query and origin, anonymous actor-zero preload metadata and one explicit search
+connection. Recommendations cannot become results. Supplied captions, dates,
+names, links, galleries and evidenced thread relationships use the existing
+post decoder. Matching post authors do not become matching directory accounts.
+No model, browser, script execution, account state, dependency, native engine or
+storage-format field is added. Darwin's alternatives and selected Tor controls
+remain in place. See [search protocol and limits](THREADS_PUBLIC_SEARCH.md).
+
+Three bounded public-page reads exposed an important reference limitation:
+the advertised recent/profile selectors did not establish those operations.
+The first two returned identical 18-post windows; the source metadata declared
+ordinary search. A third supplied 20 result threads but still declared
+`recent: 0`. Compiled-filter and URL-cleaner checks preserve the investigated
+functional parameter. Those selectors remain unqualified and are rejected by
+this reader before I/O. The app orders the limited returned window by actual
+publication time and adds the compact **Limited public search results** notice.
+There is no invented cursor, account-directory claim or preview-quota renewal.
+
+Four new core cases fail on unchanged 0.38.28, and its owned native search fails
+with the old unsupported-search error. The final nine search cases, twelve
+existing Threads profile/reply cases and two routing-deadline cases pass. Coverage includes query/origin and
+anonymous metadata binding, literal braces/quotes, contradictory qualifications,
+recommendation exclusion, empty/oversized records, complete galleries, parent
+evidence, one real Gateway GET, absent credentials and zero requests for unsupported
+selectors/scopes/cursors. An initial candidate expectation of an empty Page was
+corrected to retain Extraction's existing EMPTY failure contract; production
+empty-source admission was not weakened.
+
+Two direct multiword-query observations return 19 usable posts with either
+form-space or percent-space encoding. A valid page took 4,630 ms, beyond the
+generic original shortcut. Controlled 4,500-ms delivery reproduces this discard
+on the old four-second budget and passes with eight seconds direct/sixteen
+seconds through Tor for Threads keyword search only. A Reddit control retains
+its four-second timeout. No broad route timeout or encoding change is made. The final frozen candidate
+also returns a live 19-post multiword window in 4,935 ms with zero unavailable
+entries and a healthy original route.
+
+The full JVM suite completes 2,200 cases with zero failures/errors and one
+optional model-weight skip. The API 35 frozen Android selection completes 174
+methods: 172 pass, two explicit live-search/Tor checks skip, zero failures.
+It covers the existing feed/fusion, reading-memory, history/coverage, privacy,
+discussion, names, Context and filter cases plus all native search-feed, scope
+and directory-shelf regressions. The new native fixture uses the complete app
+frame, retains chronological cards after one GET and has no invented people or
+more pages. Its screen was inspected. Debug, instrumentation and release assembly
+plus release lint pass.
+
+A separate live production-pool/SearchFeed comparison uses fresh routing state,
+the same query and identical first-window work limits. After Tor readiness,
+the baseline obtains one full post in 8,436 ms; the candidate obtains 19 in
+4,006 ms, including 19 additional keys in that pair. This single changing-source
+sample is not a latency distribution, complete search coverage or a phone
+performance claim. Raw responses, frozen APKs, results and native evidence
+remain external under `evidence/threads-search-20261025`.
+
 ## 0.38.28 faster reading-signature preparation
 
 Native sampling of the retained-feed workload found repeated whitespace matching

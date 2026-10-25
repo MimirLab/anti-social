@@ -120,10 +120,13 @@ class FrontendAdapter(override val source: Source, private val gateway: NetworkG
 class OriginalAdapter(override val source: Source, private val gateway: NetworkGateway, private val routes: DarwinRoutes): DataAdapter {
     override val separateFeedRepresentation get()=source.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST)
     override val capabilities=setOf(Capability.PROFILE,Capability.TIMELINE,Capability.POST,Capability.FEED,Capability.MEDIA)+
-        (if(source.platform in setOf(Platform.BLUESKY,Platform.REDDIT,Platform.TUMBLR,Platform.PINTEREST,Platform.INSTAGRAM))setOf(Capability.SEARCH)else emptySet())+
+        (if(source.platform in setOf(Platform.BLUESKY,Platform.REDDIT,Platform.TUMBLR,Platform.PINTEREST,Platform.INSTAGRAM,Platform.THREADS))setOf(Capability.SEARCH)else emptySet())+
         (if(source.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.THREADS))setOf(Capability.COMMENTS)else emptySet())
+    override fun accepts(target:Target)=target.platform==source.platform&&
+        (target.platform!=Platform.THREADS||target.kind!=TargetKind.SEARCH||ThreadsPublicPages.acceptsSearch(target))
     override suspend fun fetch(target: Target, cursor: String?): Page {
         if(target.kind==TargetKind.SEARCH&&Capability.SEARCH !in capabilities)throw SourceFailure(HealthStatus.UNSUPPORTED,"The original site does not provide accountless search through this reader")
+        if(target.platform==Platform.THREADS&&target.kind==TargetKind.SEARCH)ThreadsPublicPages.searchQuery(target)
         if(target.platform==Platform.THREADS&&cursor!=null)throw SourceFailure(HealthStatus.UNSUPPORTED,"This public Threads reader supplies a finite page snapshot")
         if(target.kind==TargetKind.MEDIA)return mediaPage(target,target.canonicalUrl,source,gateway)
         if(cursor?.startsWith("https://")==true) {
@@ -865,7 +868,17 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                 feedback=indexFeedback(source)
                 started=System.nanoTime();admitted=true
                 attempted.set(true)
-                val page=withIndexFeedback(feedback){withTimeout(if(indexFallback&&source.frontend=="original"){if(target.platform==Platform.FACEBOOK){if(originalTor)40_000 else 20_000}else if(originalTor)8_000 else 4_000}else if(originalTor)55_000 else 20_000){
+                val deadline=when {
+                    indexFallback&&source.frontend=="original"&&target.platform==Platform.FACEBOOK->if(originalTor)40_000L else 20_000L
+                    // A public Threads search supplies a whole HTML/JSON result
+                    // window. Valid measured reads can exceed the legacy 4s
+                    // shortcut; keep this grace local to that operation.
+                    indexFallback&&source.frontend=="original"&&target.platform==Platform.THREADS&&target.kind==TargetKind.SEARCH->if(originalTor)16_000L else 8_000L
+                    indexFallback&&source.frontend=="original"->if(originalTor)8_000L else 4_000L
+                    originalTor->55_000L
+                    else->20_000L
+                }
+                val page=withIndexFeedback(feedback){withTimeout(deadline){
                 if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else try {a.fetch(target,cursor)}catch(e: CancellationException){throw e}catch(e: Exception){
                     e.respectRetryDelay()
                     if(history==null&&source.frontend !in PublicSearchAdapter.frontends&&cursor==null&&(target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)||target.kind==TargetKind.SEARCH&&target.platform==Platform.REDDIT)&&target.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST))a.feed(target)else throw e

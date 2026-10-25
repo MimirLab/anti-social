@@ -62,6 +62,9 @@ comment identities remain distinct from the parent post.
 source-bound reply snapshots through the same original fallback and consumers.
 Unrelated recommendation records never become discussion replies; a finite
 public page does not establish working continuation or a renewed preview quota.
+The [keyword-search reader](THREADS_PUBLIC_SEARCH.md) validates the exact query
+and anonymous preload metadata before accepting its selected result connection.
+Matching posts and matching directory accounts remain separate observations.
 
 ## A source route never bypasses the protection path
 
