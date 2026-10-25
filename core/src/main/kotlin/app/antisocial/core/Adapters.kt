@@ -278,6 +278,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
     private fun rememberSource(source: Source) {if(source.role==SourceRole.ORIGINAL)gateway.registerOriginalUrl(source.root);if(learnedSources.size<512)learnedSources[source.key]=source}
     private fun adapter(source: Source): DataAdapter=readers[source] ?: run {
         val delegate=when {
+            source.frontend in setOf(PublicPreviewAdapter.DESKTOP,PublicPreviewAdapter.MOBILE) -> PublicPreviewAdapter(source,gateway,routes)
             source.platform==Platform.YOUTUBE&&source.frontend in setOf("original","invidious","piped") -> YouTubeAdapter(source,gateway,routes)
             source.frontend in PublicSearchAdapter.frontends -> PublicSearchAdapter(source,gateway,routes)
             else -> protocolDiscoveryAdapter(source,gateway,routes) ?: largePlatformDiscoveryAdapter(source,gateway,routes) ?: otherDiscoveryAdapter(source,gateway,routes) ?: publicFeedPathwayAdapter(source,gateway,routes) ?:
@@ -355,7 +356,10 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             gateway.registerOriginalUrl(original.root)
         }
         val extra=(if(target!=null)pathways.sources(target)else pathways.sources(platform)).filter {it.role==SourceRole.ORIGINAL&&capability in adapter(it).capabilities&&(target==null||adapter(it).accepts(target))}
-        return (extra+listOf(original)+(if(platform==Platform.MASTODON)listOf(original.copy(frontend="mastodon-rss"))else emptyList())+if(platform!=Platform.X&&capability==Capability.SEARCH&&searchProvider.torOnly)listOf(Source(platform,searchProvider.frontend!!,searchProvider.root!!,fallbackOnly=true,role=SourceRole.ORIGINAL))else emptyList()).distinctBy {it.key}
+        val preview=if(gateway.hasPublicReadFactory&&capability in PublicPreviewAdapter.capabilities(platform)&&
+            (target==null||target.kind in setOf(TargetKind.PROFILE,TargetKind.POST,TargetKind.THREAD)&&
+                (target.kind==TargetKind.PROFILE||capability==Capability.POST)))listOf(original.copy(frontend=PublicPreviewAdapter.DESKTOP,fallbackOnly=true))else emptyList()
+        return (extra+listOf(original)+(if(platform==Platform.MASTODON)listOf(original.copy(frontend="mastodon-rss"))else emptyList())+preview+if(platform!=Platform.X&&capability==Capability.SEARCH&&searchProvider.torOnly)listOf(Source(platform,searchProvider.frontend!!,searchProvider.root!!,fallbackOnly=true,role=SourceRole.ORIGINAL))else emptyList()).distinctBy {it.key}
     }
     fun sources(platform: Platform,capability: Capability,originalFallback: Boolean=false)=if(platform==Platform.RSS)emptyList()else (routes.sources.filter {it.platform==platform}+pathways.sources(platform).filter {it.role!=SourceRole.ORIGINAL}+(if(capability==Capability.SEARCH&&searchProvider==SearchProvider.DARWIN)routes.searchSources.map {it.copy(platform=platform)}else emptyList())+if(originalFallback)fallbackSources(platform,capability)+learnedSources.values.filter {it.platform==platform} else emptyList()).distinctBy {it.key}
     fun sourcesFor(target: Target,capability: Capability,originalFallback: Boolean=false): List<Source> {

@@ -204,6 +204,7 @@ object Extraction {
                 val link="https://www.threads.net/@$handle/post/${text(o,"code") }"
                 if(handle.isNotBlank()&&(caption.isNotBlank()||candidate!=null||video!=null))posts+=Post(link,target.platform,link,handle,caption,publishedAt=timestamp(text(o,"taken_at")),avatar=safe(text(user,"profile_pic_url"),provenance.finalUrl),media=listOfNotNull(video?.let {Media(it,"video",candidate,durationMs=MediaDuration.seconds(o["video_duration"]))} ?: candidate?.let {Media(it)}),provenance=provenance)
             }
+            if(target.platform==Platform.INSTAGRAM&&provenance.source.role==SourceRole.ORIGINAL)InstagramPublicMedia.parse(o,target,provenance)?.let(posts::add)
             if(target.platform==Platform.PINTEREST&&o.has("id")&&o["images"]?.isJsonObject==true&&o["pinner"]?.isJsonObject==true) {
                 val pinner=o["pinner"].asJsonObject;val images=o["images"].asJsonObject
                 val image=(images["orig"] ?: images["originals"] ?: images["736x"])?.takeIf {it.isJsonObject}?.asJsonObject?.let {safe(text(it,"url"),provenance.finalUrl)}

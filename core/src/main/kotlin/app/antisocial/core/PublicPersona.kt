@@ -138,6 +138,7 @@ internal class PublicPersonaBank(private val sessionFor:(String)->NetworkSession
         e.cookies.entries.removeAll {it.value.expiresAt<=now}
         return e.cookies.values.filter {it.matches(parsed)}.sortedByDescending {it.path.length}.takeIf {it.isNotEmpty()}?.joinToString("; "){"${it.name}=${it.value}"}
     }
+    @Synchronized fun ensure(lease:Lease,source:Source,target:Target,url:String) {current(lease,source,target,address(url))}
     @Synchronized fun receive(lease:Lease,source:Source,target:Target,url:String,setCookies:List<String>) {
         val parsed=address(url);val e=current(lease,source,target,parsed);val now=clock()
         for(raw in setCookies.take(32)) {

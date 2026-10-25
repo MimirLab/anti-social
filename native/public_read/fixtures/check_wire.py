@@ -228,7 +228,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', default='emulator-5570')
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--native-dir', type=Path, default=ROOT/'public-read-native/x86_64')
+    parser.add_argument('--native-dir', type=Path, default=ROOT/'public-read-source-native/x86_64')
     parser.add_argument('--sanitizer', action='store_true')
     args = parser.parse_args()
     args.output.resolve().relative_to(ROOT)
@@ -236,13 +236,16 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     adb = [str(ROOT/'android-sdk/platform-tools/adb'), '-s', args.serial]
     def call(*command):
-        return subprocess.check_output(adb + list(command), text=True, stderr=subprocess.STDOUT, timeout=30).strip()
+        try:
+            return subprocess.check_output(adb + list(command), text=True, stderr=subprocess.STDOUT, timeout=30).strip()
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError('Owned native fixture failed:\n' + error.output) from error
     assert 'uid=2000(' in call('shell', 'id'), 'Use an ordinary dev-emulator shell'
     remote = '/data/local/tmp/anti-social-byte-engine-qualification'
     call('shell', 'mkdir', '-p', remote)
     names = ['libantisocial_public_read.so', 'public-read-fixture']
     if args.sanitizer:
-        names.append('libclang_rt.asan-x86_64-android.so')
+        names += ['libclang_rt.asan-x86_64-android.so', 'libc++_shared.so']
     for name in names:
         call('push', str(args.native_dir/name), remote+'/'+name)
         call('shell', 'chmod', '555', remote+'/'+name)
@@ -263,7 +266,7 @@ def main():
                     call('reverse', 'tcp:'+str(server.port), 'tcp:'+str(server.port))
                     command = [remote+'/public-read-fixture', str(server.port), str(cohort), 'wrong.invalid' if mode == 'wrong-host' else 'reader.invalid', remote + ('/untrusted.pem' if mode == 'wrong-ca' else '/trusted.pem'), str(fragment), '131072']
                     if args.sanitizer:
-                        command = ['env', 'LD_PRELOAD='+remote+'/libclang_rt.asan-x86_64-android.so', 'ASAN_OPTIONS=detect_leaks=0:abort_on_error=1', 'UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1'] + command
+                        command = ['env', 'LD_PRELOAD='+remote+'/libclang_rt.asan-x86_64-android.so '+remote+'/libc++_shared.so', 'ASAN_OPTIONS=detect_leaks=0:abort_on_error=1', 'UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1'] + command
                     result = json.loads(call('shell', shlex.join(command)))
                 finally:
                     server.close()
@@ -273,6 +276,7 @@ def main():
                 (args.output/'incremental.json').write_text(json.dumps(records, indent=2)+'\n')
                 failure = mode in failed_modes or mode.endswith('-limit') or mode.endswith('-truncated')
                 assert result.get('created'), row
+                assert result['dependencies'] == {'boringssl': '8f77af2e983b73df4f018e2a141450d005f5587b', 'nghttp2': '1.70.0', 'zlib': '1.3.2', 'brotli': 0x1002001, 'zstd': '1.5.7'}, row
                 wire_hello = server.record['hello']
                 assert wire_hello['ciphers'] == [4865,4866,4867,49195,49199,49196,49200,52393,52392,49171,49172,156,157,47,53], row
                 assert wire_hello['groups'] == ([29,23,24] if cohort == 0 else [4588,29,23,24]), row

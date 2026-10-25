@@ -11,7 +11,9 @@ import kotlin.coroutines.resumeWithException
 import okhttp3.*
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Proxy
@@ -41,6 +43,10 @@ private class DeferredTraffic(val owner: kotlinx.coroutines.Job): kotlin.corouti
     companion object Key: kotlin.coroutines.CoroutineContext.Key<DeferredTraffic>
 }
 private class PublicExtractor
+private data class PublicPreviewAccess(val source:Source,val target:Target,val lease:PublicPersonaBank.Lease,
+    val session:NetworkSession,val cohort:Int,val max:Int,val factory:PublicReadEngineFactory)
+private class DecodedBudgeted
+private data class PublicSocket(val session:NetworkSession,val route:NetworkRoute,val socket:java.net.Socket)
 private class ContextTraffic: kotlin.coroutines.AbstractCoroutineContextElement(Key) {companion object Key: kotlin.coroutines.CoroutineContext.Key<ContextTraffic>}
 private class ImageUpload
 /** Explicit service credentials never participate in the public scraper path. */
@@ -85,6 +91,15 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     private val foregroundRequests=java.util.concurrent.atomic.AtomicInteger()
     private val deferredCalls=java.util.concurrent.ConcurrentHashMap<Call,kotlinx.coroutines.Job>()
     private val contextPermits=Semaphore(2)
+    @Volatile private var publicReadFactory:PublicReadEngineFactory?=null
+    private val publicPersonas by lazy {PublicPersonaBank(::sessionFor)}
+    private val publicSockets=java.util.concurrent.ConcurrentHashMap<Call,PublicSocket>()
+    /** Installs a byte provider, never another permission or network policy. */
+    @Synchronized fun installPublicReadFactory(factory:PublicReadEngineFactory) {
+        check(publicReadFactory==null||publicReadFactory===factory){"Public reader already installed"}
+        publicReadFactory=factory
+    }
+    val hasPublicReadFactory:Boolean get()=publicReadFactory!=null
     suspend fun <T> contextRead(read: suspend ()->T): T=withContext(ContextTraffic()){read()}
     val hasForegroundRequests: Boolean get()=foregroundRequests.get()>0
     /** Supplemental profile labels yield even to media using the shared client.
@@ -227,6 +242,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         val contentChanged=policy.get().policy!=next
         if(torChanged)torPolicy.set(NetworkSession(next))
         if(contentChanged)policy.set(NetworkSession(next))
+        closeStalePublicSockets()
         if(torChanged||contentChanged) {
             val stale=clients.keys.filter {it.first==NetworkRoute.DEFAULT&&contentChanged||it.first==NetworkRoute.TOR&&torChanged}
             val previous=stale.mapNotNull(clients::remove)
@@ -241,9 +257,14 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         if(torPolicy.get().policy==next)return
         torPolicy.set(NetworkSession(next))
         if(policy.get().policy.tor)policy.set(NetworkSession(next))
+        closeStalePublicSockets()
         val stale=clients.filterKeys {it.second.tor&&it.second!=next}.values.toList()
         clients.keys.removeAll {it.second.tor&&it.second!=next}
         if(stale.isNotEmpty())cleanup.execute {stale.forEach {it.dispatcher.cancelAll();it.connectionPool.evictAll()}}
+    }
+    private fun closeStalePublicSockets() {
+        val stale=publicSockets.entries.filter {currentSession(it.value.route)!==it.value.session}
+        stale.forEach {entry->if(publicSockets.remove(entry.key,entry.value))cleanup.execute {runCatching {entry.value.socket.close()}}}
     }
     @Synchronized fun client(route: NetworkRoute=NetworkRoute.DEFAULT): OkHttpClient {
         val session=currentSession(route);val snapshot=session.policy
@@ -318,8 +339,92 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                         request=request.newBuilder().url(next).removeHeader("If-None-Match").removeHeader("If-Modified-Since").apply {if(code==303&&request.method!="HEAD"||code in setOf(301,302)&&request.method=="POST")get()}.build()
                     }
                     throw IOException("Redirect loop was stopped")
+                }.addInterceptor {chain->
+                    val access=chain.request().tag(PublicPreviewAccess::class.java)
+                    if(access==null)chain.proceed(chain.request())else try {publicExchange(chain,access)}
+                    catch(e:IOException){throw e}catch(e:Exception){throw IOException("Public preview exchange was rejected",e)}
                 }.build()
         }
+    }
+    /** Only a pre-authorized request reaches here, after the ordinary Gateway
+     * filter/credential/redirect interceptor. This owns all byte-engine IO. */
+    private fun publicExchange(chain:Interceptor.Chain,access:PublicPreviewAccess):Response {
+        val request=chain.request();val route=routeFor(request);val call=chain.call();val url=request.url
+        fun current() {
+            if(call.isCanceled()||currentSession(route)!==access.session)throw IOException("Network mode changed or public read cancelled")
+            if(!originalFallback)throw IOException("Original-site access is disabled")
+            publicPersonas.ensure(access.lease,access.source,access.target,url.toString())
+        }
+        current();require(request.method=="GET"&&request.tag(ServiceScope::class.java)==null&&request.tag(ImageUpload::class.java)==null)
+        val budget=request.tag(TextReadBudget::class.java)
+        val limit=minOf(access.max.toLong(),budget?.available() ?: Long.MAX_VALUE).toInt()
+        if(limit<1)throw IOException("Public read budget exhausted")
+        val base=client(route);val timeout=call.timeout().timeoutNanos().takeIf {it>0} ?: java.util.concurrent.TimeUnit.SECONDS.toNanos(if(access.session.policy.tor)45 else 12)
+        val deadline=System.nanoTime()+timeout
+        fun alive(){current();if(System.nanoTime()>=deadline)throw java.net.SocketTimeoutException("Public read timed out")}
+        val socket=java.net.Socket();val active=PublicSocket(access.session,route,socket)
+        var peerVerified=false
+        publicSockets[call]=active
+        try {
+            alive();socket.soTimeout=200
+            // The request/attempt budget applies even if TLS fails before HTTP.
+            budget?.request()
+            val address=if(access.session.policy.tor)InetSocketAddress("127.0.0.1",access.session.policy.socksPort)else {
+                val addresses=base.dns.lookup(url.host);alive()
+                InetSocketAddress(addresses.firstOrNull() ?: throw IOException("Public source has no address"),url.port)
+            }
+            alive();val remaining=((deadline-System.nanoTime())/1_000_000).coerceIn(1,Int.MAX_VALUE.toLong()).toInt()
+            socket.connect(address,minOf(base.connectTimeoutMillis,remaining));alive()
+            val input=socket.getInputStream();val output=socket.getOutputStream()
+            fun exact(n:Int):ByteArray {
+                val bytes=ByteArray(n);var at=0
+                while(at<n){alive();val got=try {input.read(bytes,at,n-at)}catch(_:java.net.SocketTimeoutException){continue};if(got<0)throw java.io.EOFException("Public proxy ended early");at+=got}
+                return bytes
+            }
+            if(access.session.policy.tor) {
+                // Explicit SOCKS5 domain addressing; never local target DNS or
+                // the Java SOCKS implementation's ambient credential fallback.
+                output.write(byteArrayOf(5,1,0));output.flush()
+                if(!exact(2).contentEquals(byteArrayOf(5,0)))throw IOException("Tor proxy did not accept anonymous SOCKS5")
+                val host=url.host.toByteArray(Charsets.US_ASCII);require(host.size in 1..253)
+                output.write(byteArrayOf(5,1,0,3,host.size.toByte()));output.write(host);output.write(byteArrayOf((url.port ushr 8).toByte(),url.port.toByte()));output.flush()
+                val reply=exact(4);if(reply[0]!=5.toByte()||reply[1]!=0.toByte()||reply[2]!=0.toByte())throw IOException("Tor could not connect to the public source")
+                exact(when(reply[3].toInt()and 255){1->4;4->16;3->exact(1)[0].toInt()and 255;else->throw IOException("Invalid Tor proxy address")});exact(2)
+            }
+            val headers=access.lease.persona.headers(true).toMutableList()
+            publicPersonas.cookies(access.lease,access.source,access.target,url.toString())?.let {headers+="cookie" to it}
+            val path=url.encodedPath+(url.encodedQuery?.let {"?$it"}.orEmpty())
+            access.factory.open(access.cohort,url.host,url.port,path,headers,limit,verify={peer->
+                alive();val session=PublicReadTrust.session(url.host,url.port,peer)
+                access.factory.verifyChain(base.x509TrustManager ?: throw IOException("Platform trust unavailable"),session)
+                if(!base.hostnameVerifier.verify(url.host,session))throw javax.net.ssl.SSLPeerUnverifiedException("Public source certificate does not match its hostname")
+                alive();peerVerified=true;true
+            },decoded={count->alive();if(!peerVerified)throw IOException("Public data arrived before peer verification");budget?.received(count)}).use {engine->
+                val bytes=ByteArray(32768)
+                while(true) {
+                    alive();val state=engine.step()
+                    if(state<0)throw IOException("Public preview exchange failed")
+                    if(state==2) {
+                        val result=engine.result();alive()
+                        if(!peerVerified)throw javax.net.ssl.SSLPeerUnverifiedException("Public preview omitted peer verification")
+                        require(result.status in 200..599&&result.body.size<=limit&&result.headers.size<=128)
+                        publicPersonas.receive(access.lease,access.source,access.target,url.toString(),result.headers.filter {it.first.equals("set-cookie",true)}.map {it.second})
+                        val responseHeaders=Headers.Builder().apply {result.headers.forEach {(name,value)->addUnsafeNonAscii(name,value)}}.build()
+                        return Response.Builder().request(request.newBuilder().tag(DecodedBudgeted::class.java,DecodedBudgeted()).build())
+                            .protocol(Protocol.HTTP_2).code(result.status).message("")
+                            .headers(responseHeaders.newBuilder().removeAll("Content-Encoding").removeAll("Content-Length").build())
+                            .body(result.body.toResponseBody(responseHeaders["Content-Type"]?.toMediaTypeOrNull())).build()
+                    }
+                    var n=engine.output(bytes)
+                    while(n>0){alive();output.write(bytes,0,n);n=engine.output(bytes)}
+                    output.flush()
+                    if(state==1)continue
+                    val got=try {input.read(bytes)}catch(_:java.net.SocketTimeoutException){continue}
+                    if(got<0)throw java.io.EOFException("Public preview ended before a complete response")
+                    if(got>0)engine.feed(bytes,got)
+                }
+            }
+        }finally {publicSockets.remove(call,active);runCatching {socket.close()}}
     }
     private suspend fun <T> execute(request: Request,networkTimeoutMs: Long?=null,drained: kotlinx.coroutines.CompletableDeferred<Unit>?=null,read: (Response)->T): T {
         // Bind before waiting for admission. A queued request must not silently
@@ -357,7 +462,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         }.build()else base
         val call=transport.newCall(tagged)
         if(networkTimeoutMs!=null)call.timeout().timeout(networkTimeoutMs,TimeUnit.MILLISECONDS)
-        continuation.invokeOnCancellation {call.cancel()}
+        continuation.invokeOnCancellation {call.cancel();publicSockets.remove(call)?.let {entry->cleanup.execute {runCatching {entry.socket.close()}}}}
         call.enqueue(object: Callback {
             override fun onFailure(call: Call,e: IOException){try {failed(e)}finally {drained?.complete(Unit)}}
             override fun onResponse(call: Call,response: Response){
@@ -386,6 +491,26 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         } ?: requestOrigins(sourceUrl)
         val request=Request.Builder().url(url).tag(NetworkSession::class.java,expectedSession).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,pinned).tag(NetworkRoute::class.java,route).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).apply { headers.forEach { (k,v)->header(k,v) } }.build()
         readText(request,maxBytes)
+    }
+    /** Optional original-preview route, never a global replacement for pooled
+     * reads. SourcePool must select it after the alternate source stage. */
+    suspend fun publicPreview(url:String,target:Target,source:Source,cohort:Int=1,maxBytes:Long=4L*1024*1024):Payload {
+        require(cohort in 0..1&&maxBytes in 1024..4L*1024*1024&&source.role==SourceRole.ORIGINAL)
+        require(target.kind in setOf(TargetKind.PROFILE,TargetKind.POST,TargetKind.THREAD,TargetKind.COMMUNITY))
+        val session=sessionFor(url)
+        return withContext(Dispatchers.IO) {
+            if(sessionFor(url)!==session)throw kotlinx.coroutines.CancellationException("Network mode changed")
+            if(!originalFallback)throw IOException("Original-site access is disabled")
+            if(session.policy.tor&&(!session.policy.ready||session.policy.socksPort !in 1..65535))throw IOException("Selected Tor is not ready")
+            val factory=publicReadFactory?.takeIf {it.supports(cohort)} ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"Public preview transport is unavailable")
+            val lease=publicPersonas.acquire(source,target,url,if(cohort==0)PersonaCohort.ANDROID_131 else PersonaCohort.MACOS_142)
+            val scope=requireNotNull(url.toHttpUrlOrNull())
+            val request=Request.Builder().url(scope).tag(NetworkSession::class.java,session).tag(FetchPurpose::class.java,FetchPurpose.API)
+                .tag(RequestContext::class.java,RequestContext(target.canonicalUrl,"document"))
+                .tag(AllowedOrigins::class.java,AllowedOrigins(setOf(origin(scope)),"public preview"))
+                .tag(PublicPreviewAccess::class.java,PublicPreviewAccess(source,target,lease,session,cohort,maxBytes.toInt(),factory)).build()
+            readText(request,maxBytes)
+        }
     }
     /** NewPipe's synchronous parsers receive bounded documents through this
      * cancellable gateway. Cookies/credentials remain stripped; only public
@@ -536,10 +661,11 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             }
             if(!response.isSuccessful&&!(allowNotModified&&response.code==304))throw SourceFailure(HealthStatus.UNAVAILABLE,"Source returned ${response.code}",retryAfter(response),response.code)
             val body=response.body ?: throw IOException("Empty response")
-            if(healthBudget!=null&&body.contentLength()>healthBudget.available())throw IOException("Response exceeds the health-check budget")
+            val prepaid=response.request.tag(DecodedBudgeted::class.java)!=null
+            if(!prepaid&&healthBudget!=null&&body.contentLength()>healthBudget.available())throw IOException("Response exceeds the health-check budget")
             if(body.contentLength()>maxBytes)throw IOException("Response exceeds its size limit")
             val buffer=java.io.ByteArrayOutputStream()
-            body.byteStream().use { stream -> val chunk=ByteArray(8192);while(true) {val count=stream.read(chunk);if(count<0)break;healthBudget?.received(count);if(buffer.size().toLong()+count>maxBytes)throw IOException("Response exceeds its size limit");buffer.write(chunk,0,count)} }
+            body.byteStream().use { stream -> val chunk=ByteArray(8192);while(true) {val count=stream.read(chunk);if(count<0)break;if(!prepaid)healthBudget?.received(count);if(buffer.size().toLong()+count>maxBytes)throw IOException("Response exceeds its size limit");buffer.write(chunk,0,count)} }
             val bookmark=if(request.tag(PageBookmark::class.java)!=null)response.headers("Set-Cookie").mapNotNull {Cookie.parse(response.request.url,it)}.firstOrNull {it.name=="bookmark"&&bookmarkPattern.matches(it.value)&&it.expiresAt>System.currentTimeMillis()}?.value else null
             val form=request.body as? FormBody
             val offset=form?.let {fields->(0 until fields.size).firstOrNull {fields.name(it)=="s"}?.let {fields.value(it).toIntOrNull()}} ?: request.url.queryParameter("s")?.toIntOrNull()

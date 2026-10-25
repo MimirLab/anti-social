@@ -5,6 +5,8 @@
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/pool.h>
+#include <openssl/aead.h>
+#include <openssl/crypto.h>
 #include <nghttp2/nghttp2.h>
 #include <brotli/decode.h>
 #include <zlib.h>
@@ -38,7 +40,7 @@ bool host_valid(const char *host) {
 bool allowed_header(const char *name) {
     static const char *allowed[]={"user-agent","accept","accept-language","accept-encoding",
         "upgrade-insecure-requests","sec-ch-ua","sec-ch-ua-mobile","sec-ch-ua-platform",
-        "sec-fetch-site","sec-fetch-mode","sec-fetch-user","sec-fetch-dest"};
+        "sec-fetch-site","sec-fetch-mode","sec-fetch-user","sec-fetch-dest","cookie"};
     for(const char *s:allowed)if(!strcmp(name,s))return true;
     return false;
 }
@@ -63,11 +65,11 @@ struct Decoder {
         if(kind==ZSTD){zs=ZSTD_createDStream();if(!zs||ZSTD_isError(ZSTD_initDStream(zs))||ZSTD_isError(ZSTD_DCtx_setParameter(zs,ZSTD_d_windowLogMax,23)))return false;}
         initialized=true;return true;
     }
-    bool receive(const uint8_t *in,size_t n,std::vector<uint8_t> &body,size_t limit) {
+    bool receive(const uint8_t *in,size_t n,std::vector<uint8_t> &body,size_t limit,AsReadDecoded account,void *owner) {
         if(!initialized||n>MAX_WIRE-encoded||(ended&&n))return false;
         if(!n)return true;
         encoded+=n;
-        if(kind==IDENTITY){if(n>limit-body.size())return false;body.insert(body.end(),in,in+n);return true;}
+        if(kind==IDENTITY){if(n>limit-body.size()||(account&&!account(owner,n)))return false;body.insert(body.end(),in,in+n);return true;}
         std::array<uint8_t,CHUNK> out{};size_t remaining=n;const uint8_t *next=in;
         // Each turn must consume input, produce output, or terminate. This also
         // prevents an inconsistent decoder result from turning into a spin.
@@ -90,7 +92,7 @@ struct Decoder {
                 const size_t status=ZSTD_decompressStream(zs,&output,&input);
                 if(ZSTD_isError(status))return false;used=input.pos;got=output.pos;ended=status==0;more=got==out.size();
             }
-            if(got>limit-body.size())return false;
+            if(got>limit-body.size()||(got&&account&&!account(owner,got)))return false;
             body.insert(body.end(),out.data(),out.data()+got);next+=used;remaining-=used;
             if(ended)return remaining==0;
             if(!remaining&&!more)return true;
@@ -105,7 +107,7 @@ struct Decoder {
 struct AsReadEngine {
     bssl::UniquePtr<SSL_CTX> context;bssl::UniquePtr<SSL> tls;
     BIO *input=nullptr,*output=nullptr;nghttp2_session *h2=nullptr;
-    AsReadVerify verify=nullptr;void *owner=nullptr;
+    AsReadVerify verify=nullptr;AsReadDecoded account=nullptr;void *owner=nullptr;
     std::string host,path,authority,error,encoding;
     std::vector<std::pair<std::string,std::string>> request_headers,response_headers;
     std::vector<uint8_t> body,pending;size_t pending_at=0,header_bytes=0,wire_bytes=0,frame_count=0,limit=0;
@@ -167,7 +169,7 @@ struct AsReadEngine {
     }
     static int data(nghttp2_session *,uint8_t,int32_t stream,const uint8_t *bytes,size_t n,void *user) {
         auto *e=static_cast<AsReadEngine *>(user);
-        if(stream!=1||!e->headers_done||e->status==204||e->status==304||!e->decoder.receive(bytes,n,e->body,e->limit))return e->fail("Invalid or excessive decoded response");
+        if(stream!=1||!e->headers_done||e->status==204||e->status==304||!e->decoder.receive(bytes,n,e->body,e->limit,e->account,e->owner))return e->fail("Invalid or excessive decoded response");
         return 0;
     }
     static int close_stream(nghttp2_session *,int32_t stream,uint32_t code,void *user) {
@@ -200,7 +202,7 @@ struct AsReadEngine {
         for(int i=0;i<64;++i) {
             if(pending_at==pending.size()) {
                 pending.clear();pending_at=0;const uint8_t *next=nullptr;
-                const ssize_t n=nghttp2_session_mem_send(h2,&next);
+                const auto n=nghttp2_session_mem_send2(h2,&next);
                 if(n<0)return false;if(!n)return true;
                 if(static_cast<size_t>(n)>HEADER_LIMIT)return false;
                 pending.assign(next,next+n);
@@ -216,15 +218,35 @@ struct AsReadEngine {
     }
 };
 
+extern "C" unsigned as_read_supported_cohorts(void) {
+    // Both initial observed cohorts prefer AES-GCM before ChaCha20. Upstream
+    // BoringSSL chooses TLS1.3 ordering from real CPU support. Admit only a
+    // matching cohort; never patch crypto or use its testing override API.
+    return EVP_has_aes_hardware()?3u:0u;
+}
+extern "C" const char *as_read_versions(void) {
+    static const std::string versions=std::string("{\"boringssl\":\"")+AS_READ_BORINGSSL_REVISION+
+        "\",\"nghttp2\":\""+nghttp2_version(0)->version_str+"\",\"zlib\":\""+zlibVersion()+
+        "\",\"brotli\":"+std::to_string(BrotliDecoderVersion())+",\"zstd\":\""+ZSTD_versionString()+"\"}";
+    return versions.c_str();
+}
+extern "C" int as_read_account_decoded(AsReadEngine *e,AsReadDecoded account) {
+    if(!e||e->trusted||e->started)return 0;e->account=account;return 1;
+}
+extern "C" const char *as_read_peer_protocol(const AsReadEngine *e){return e?SSL_get_version(e->tls.get()):"";}
+extern "C" const char *as_read_peer_cipher(const AsReadEngine *e){const SSL_CIPHER *c=e?SSL_get_current_cipher(e->tls.get()):nullptr;return c?SSL_CIPHER_standard_name(c):"";}
+extern "C" const uint8_t *as_read_peer_ocsp(const AsReadEngine *e,size_t *n){const uint8_t *p=nullptr;*n=0;if(e)SSL_get0_ocsp_response(e->tls.get(),&p,n);return p;}
+extern "C" const uint8_t *as_read_peer_sct(const AsReadEngine *e,size_t *n){const uint8_t *p=nullptr;*n=0;if(e)SSL_get0_signed_cert_timestamp_list(e->tls.get(),&p,n);return p;}
 extern "C" AsReadEngine *as_read_create(int cohort,const char *host,unsigned port,const char *path,const AsReadHeader *headers,size_t count,size_t limit,AsReadVerify verify,void *owner) {
     if(cohort<0||cohort>1||!host_valid(host)||port<1||port>65535||!ascii(path,8192)||path[0]!='/'||strchr(path,'#')||strchr(path,' ')||strchr(path,'\\')||!verify||!headers||count<1||count>24||!limit||limit>MAX_DECODED)return nullptr;
+    if(!(as_read_supported_cohorts()&(1u<<cohort)))return nullptr;
     auto e=std::unique_ptr<AsReadEngine>(new(std::nothrow)AsReadEngine());if(!e)return nullptr;
     e->host=host;e->path=path;e->authority=host;if(port!=443)e->authority+=":"+std::to_string(port);e->verify=verify;e->owner=owner;e->limit=limit;
     size_t header_bytes=0;
     for(size_t i=0;i<count;++i) {
-        const auto &h=headers[i];if(!ascii(h.name,64,true)||!allowed_header(h.name)||!ascii(h.value,1024))return nullptr;
+        const auto &h=headers[i];if(!ascii(h.name,64,true)||!allowed_header(h.name)||!ascii(h.value,!strcmp(h.name,"cookie")?16384:1024))return nullptr;
         if(std::any_of(e->request_headers.begin(),e->request_headers.end(),[&](const auto &v){return v.first==h.name;}))return nullptr;
-        header_bytes+=strlen(h.name)+strlen(h.value);if(header_bytes>16384)return nullptr;
+        header_bytes+=strlen(h.name)+strlen(h.value);if(header_bytes>24576)return nullptr;
         e->request_headers.emplace_back(h.name,h.value);
     }
     e->context.reset(SSL_CTX_new(TLS_client_method()));if(!e->context)return nullptr;
@@ -232,7 +254,7 @@ extern "C" AsReadEngine *as_read_create(int cohort,const char *host,unsigned por
     const uint16_t mobile_groups[]={29,23,24},desktop_groups[]={4588,29,23,24};
     if(!SSL_CTX_set_min_proto_version(e->context.get(),TLS1_2_VERSION)||
        !SSL_CTX_set_max_proto_version(e->context.get(),TLS1_3_VERSION)||
-       !SSL_CTX_set_strict_cipher_list(e->context.get(),"TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA")||
+       !SSL_CTX_set_strict_cipher_list(e->context.get(),"ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA")||
        !SSL_CTX_set1_group_ids(e->context.get(),cohort==0?mobile_groups:desktop_groups,cohort==0?3:4)||
        !SSL_CTX_set_verify_algorithm_prefs(e->context.get(),sigalgs,8)||
        !SSL_CTX_add_cert_compression_alg(e->context.get(),2,nullptr,decompress_cert))return nullptr;
@@ -271,7 +293,7 @@ extern "C" int as_read_step(AsReadEngine *e) {
     for(int turn=0;turn<16&&!e->done;++turn) {
         const int n=SSL_read(e->tls.get(),input.data(),input.size());
         if(n>0) {
-            const ssize_t used=nghttp2_session_mem_recv(e->h2,input.data(),n);
+            const auto used=nghttp2_session_mem_recv2(e->h2,input.data(),n);
             if(used!=n||!e->error.empty())return e->fail("Invalid HTTP/2 input");
             if(!e->flush_http())return e->fail("HTTP control output failed");
         }else {

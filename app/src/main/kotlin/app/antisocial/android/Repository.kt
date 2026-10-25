@@ -117,7 +117,9 @@ class Repository(val context: Context) {
     suspend fun resolveOutgoing(url: String,platform: Platform?=null,action: ShareLinkAction=ShareLinkAction.OPEN): ShareRouteResult=outgoing.resolve(url,platform,action)
     val portability by lazy {ReaderPortability(this)}
     val commentAnywhere by lazy {AnywhereStore(this)}
-    val gateway=NetworkGateway(cleaner,object: RequestFilter {override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(true,"Privacy filters are starting")})
+    val gateway=NetworkGateway(cleaner,object: RequestFilter {override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(true,"Privacy filters are starting")}).apply {
+        if(BuildConfig.EXPERIMENTAL_PUBLIC_READ&&android.os.Process.is64Bit())installPublicReadFactory(NativePublicReadFactory())
+    }
     val tor=TorController(context,gateway,scope)
     val pool=SourcePool(gateway,routes,PublicPathways(assetJson("public-pathways.json"))) {r->dao.putHealth(HealthRow("${r.source.key}|${r.capability}|${r.tor}",gson.toJson(r),r.checkedAt))}
     internal var directLoader: suspend (Target,(String)->Unit)->Page = {target,progress->pool.load(target,originalFallback=prefs.originalFallback,progress=progress)}

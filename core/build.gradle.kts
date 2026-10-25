@@ -167,6 +167,12 @@ tasks.register<JavaExec>("networkAudit") {
     systemProperty("antisocial.evidenceRoot",providers.gradleProperty("antisocialAuditEvidence").getOrElse("${providers.gradleProperty("antisocialBuildRoot").get()}/evidence/network-audit"))
     systemProperty("antisocial.native.path", "${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
 }
+tasks.register<JavaExec>("publicPreviewAudit") {
+    dependsOn(tasks.testClasses)
+    classpath=sourceSets.test.get().runtimeClasspath
+    mainClass.set("app.antisocial.core.PublicPreviewAuditKt")
+    systemProperty("antisocial.previewEvidence",providers.gradleProperty("antisocialPreviewEvidence").get())
+}
 tasks.register<JavaExec>("feedRevalidationAudit") {
     dependsOn(tasks.testClasses)
     classpath=sourceSets.test.get().runtimeClasspath

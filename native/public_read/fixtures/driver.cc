@@ -71,6 +71,6 @@ int main(int argc,char **argv) {
     }
     close(socket_fd);size_t n=0;const uint8_t *body=as_read_body(engine.get(),&n);uint8_t digest[32];char hex[65];
     SHA256(body,n,digest);for(size_t i=0;i<32;++i)snprintf(hex+i*2,3,"%02x",digest[i]);
-    printf("{\"created\":true,\"state\":%d,\"status\":%d,\"bodyBytes\":%zu,\"bodySha256\":\"%s\",\"headers\":%zu,\"verifyCalls\":%d,\"error\":\"%s\"}\n",state,as_read_status(engine.get()),n,hex,as_read_header_count(engine.get()),trust.calls,as_read_error(engine.get()));
+    printf("{\"created\":true,\"state\":%d,\"status\":%d,\"bodyBytes\":%zu,\"bodySha256\":\"%s\",\"headers\":%zu,\"verifyCalls\":%d,\"error\":\"%s\",\"dependencies\":%s}\n",state,as_read_status(engine.get()),n,hex,as_read_header_count(engine.get()),trust.calls,as_read_error(engine.get()),as_read_versions());
     return 0;
 }

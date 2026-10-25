@@ -3,6 +3,20 @@ import java.io.ByteArrayOutputStream
 
 plugins { id("com.android.application"); kotlin("android"); id("org.jetbrains.kotlin.plugin.compose"); id("com.google.devtools.ksp") }
 val targetAbi=providers.gradleProperty("antisocialTargetAbi").orNull?.also {require(it in setOf("arm64-v8a","armeabi-v7a","x86_64")){"Unsupported antisocialTargetAbi"}}
+val publicReadCandidate=providers.gradleProperty("antisocialPublicRead").map {it.toBooleanStrict()}.orElse(false).get()
+val publicReadJni=layout.buildDirectory.dir("generated/public-read-jni")
+val publicReadAssets=layout.buildDirectory.dir("generated/public-read-assets")
+if(publicReadCandidate) {
+    val prepare=tasks.register<Exec>("preparePublicReadCandidate") {
+        inputs.files(rootProject.file("scripts/prepare_public_read_bridge.py"),rootProject.file("scripts/build_public_read.py"))
+        inputs.dir(rootProject.file("native/public_read"))
+        inputs.file(file(providers.gradleProperty("antisocialBuildRoot").get()+"/public-read-source-native/build.json"))
+        outputs.dirs(publicReadJni,publicReadAssets)
+        commandLine(listOf("python3",rootProject.file("scripts/prepare_public_read_bridge.py").path,"--output",publicReadJni.get().asFile.path,"--assets",publicReadAssets.get().asFile.path)+
+            if(targetAbi!=null)listOf("--abi",targetAbi)else emptyList())
+    }
+    tasks.named("preBuild"){dependsOn(prepare)}
+}
 val torArchive by configurations.creating { isTransitive=false }
 val c2paArchive=layout.buildDirectory.file("dependencies/c2pa-0.0.14.aar")
 val fetchC2pa=tasks.register<Exec>("fetchC2pa") {
@@ -85,6 +99,11 @@ android {
     buildToolsVersion = "36.0.0"
     defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 126; versionName = "0.38.17"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     defaultConfig { if(targetAbi!=null)ndk {abiFilters+=targetAbi} }
+    defaultConfig {buildConfigField("boolean","EXPERIMENTAL_PUBLIC_READ",publicReadCandidate.toString())}
+    if(publicReadCandidate) {
+        sourceSets.getByName("main").jniLibs.srcDir(publicReadJni.get().asFile)
+        sourceSets.getByName("main").assets.srcDir(publicReadAssets.get().asFile)
+    }
     sourceSets.getByName("main").assets.srcDir(aiAssets.get().asFile)
     sourceSets.getByName("main").assets.srcDir(runtimeAssets.get().asFile)
     sourceSets.getByName("main").assets.srcDir(discoveryAssets.get().asFile)

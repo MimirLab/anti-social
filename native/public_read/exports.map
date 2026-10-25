@@ -1,1 +1,1 @@
-{ global: as_read_*; local: *; };
+{ global: as_read_*; Java_app_antisocial_android_PublicReadNative_*; local: *; };

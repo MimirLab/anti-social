@@ -65,6 +65,14 @@ a failed graph source never becomes a claim that no related accounts exist.
 
 ## Public-read request personas: research path
 
+**Current experiment:** the byte engine now builds unmodified current primitive
+sources and has an opt-in Gateway/JNI bridge. It remains absent from normal
+APKs: the actual three-profile comparison found no native-only access over a
+cheaper header request, and preview-cutoff evasion has not been demonstrated.
+See [the corrected comparison](PUBLIC_PREVIEW_QUALIFICATION.md). The calibration
+and compatibility-archive measurements below describe earlier prototypes;
+they are not the current build inputs or production capabilities.
+
 The owner's October 24 request concerns a coherent disposable browser persona:
 realistic matching HTTP headers, TLS/HTTP protocol characteristics and anonymous
 session state, alongside the selected transport. It is broader than suppressing

@@ -14,7 +14,17 @@ typedef struct { const char *name; const char *value; } AsReadHeader;
  * AND hostname under the owner's trust policy. Data is borrowed for this call. */
 typedef int (*AsReadVerify)(void *owner, const char *host,
     const uint8_t *const *chain, const size_t *sizes, size_t count);
+typedef int (*AsReadDecoded)(void *owner, size_t count);
 enum { AS_READ_FAILED=-1, AS_READ_INPUT=0, AS_READ_OUTPUT=1, AS_READ_DONE=2 };
+/* Local capability/version facts for admission and diagnostics, never sent. */
+unsigned as_read_supported_cohorts(void);
+const char *as_read_versions(void);
+int as_read_account_decoded(AsReadEngine *, AsReadDecoded);
+/* Handshake evidence for the mandatory trust callback; not a trust decision. */
+const char *as_read_peer_protocol(const AsReadEngine *);
+const char *as_read_peer_cipher(const AsReadEngine *);
+const uint8_t *as_read_peer_ocsp(const AsReadEngine *, size_t *);
+const uint8_t *as_read_peer_sct(const AsReadEngine *, size_t *);
 /* cohort: 0=Android131, 1=macOS142. One verified HTTPS GET, HTTP/2 only initially.
  * HTTP/1 ALPN is advertised as in the observed cohort but currently fails before
  * sending HTTP. The owner can choose another already-permitted route. */

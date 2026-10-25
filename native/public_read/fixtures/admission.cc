@@ -10,7 +10,7 @@ static int deny(void *,const char *,const uint8_t *const *,const size_t *,size_t
 int main() {
     const AsReadHeader good[]={{"user-agent","fixture"},{"accept-encoding","identity"}};
     const AsReadHeader secret[]={{"authorization","Bearer fixture"}};
-    const AsReadHeader cookie[]={{"cookie","private=fixture"}};
+    const AsReadHeader cookie[]={{"cookie","public=fixture\r\nAuthorization: secret"}};
     const AsReadHeader duplicate[]={{"user-agent","fixture"},{"user-agent","fixture2"}};
     const AsReadHeader injected[]={{"accept","text/html\r\nCookie: private"}};
     auto create=[&](int cohort,const char *host,unsigned port,const char *path,const AsReadHeader *headers,size_t count,size_t limit,AsReadVerify verify){return as_read_create(cohort,host,port,path,headers,count,limit,verify,nullptr);};
@@ -57,5 +57,5 @@ int main() {
         assert(as_read_step(engine)==AS_READ_FAILED&&as_read_header_count(engine)==0&&as_read_status(engine)==0);
         as_read_destroy(engine);++checks;
     }
-    printf("{\"checks\":%zu,\"passed\":%zu,\"network\":false}\n",checks,checks);
+    printf("{\"checks\":%zu,\"passed\":%zu,\"network\":false,\"cohorts\":%u,\"dependencies\":%s}\n",checks,checks,as_read_supported_cohorts(),as_read_versions());
 }
