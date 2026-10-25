@@ -147,6 +147,7 @@ object Extraction {
             if(community)counts?.get("subscribers")?.takeIf {it.isJsonPrimitive&&it.asJsonPrimitive.isNumber}?.asString?.toLongOrNull()?.takeIf {it>=0}else null,displayNameSupplied=text(entity,if(community)"title"else "display_name").isNotBlank())
     }
     fun json(value: JsonElement, target: Target, provenance: Provenance, routes: DarwinRoutes): Page {
+        if(target.platform==Platform.THREADS&&provenance.source.role==SourceRole.ORIGINAL)return ThreadsPublicPages.json(value,target,provenance)
         val posts=mutableListOf<Post>()
         val accounts=(if(target.platform==Platform.BLUESKY&&target.kind==TargetKind.SEARCH&&value.isJsonObject)value.asJsonObject["actors"]?.takeIf {it.isJsonArray}?.asJsonArray?.asSequence()?.mapNotNull {entry->
             val actor=entry.takeIf {it.isJsonObject}?.asJsonObject ?: return@mapNotNull null
@@ -305,6 +306,7 @@ object Extraction {
         val head=d.title()+" "+d.body().text().take(800)
         if(d.select("#challenge-container,#turnstile-widget-container,#anubis-main,#captcha-area").isNotEmpty() || Regex("making sure you.re not a bot|checking your browser|just a moment|verify you are human",RegexOption.IGNORE_CASE).containsMatchIn(head))throw SourceFailure(HealthStatus.CHALLENGE,"This source requires a browser challenge")
         if(Regex("log in to continue|login required|sign in to view|account required|suspended domain|domain is for sale|upstream error|internal server error",RegexOption.IGNORE_CASE).containsMatchIn(head))throw SourceFailure(HealthStatus.LOGIN_REQUIRED,"The source did not deliver public content")
+        if(target.platform==Platform.THREADS&&provenance.source.role==SourceRole.ORIGINAL)return ThreadsPublicPages.html(d,target,provenance)
         if(sourceFrontend(provenance)=="librey")return PublicSearchAdapter.extract(d,target,routes,publicSearchQuery ?: PublicSearchAdapter.query(target),publicSearchEntitiesOnly)
         val embedded=mutableListOf<Post>()
         var embeddedProfile: Profile?=null

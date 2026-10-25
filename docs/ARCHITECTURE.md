@@ -58,6 +58,11 @@ next cursor can still advance.
 then the existing discussion, local-name and Context consumers. Their source
 comment identities remain distinct from the parent post.
 
+[Public Threads pages](THREADS_PUBLIC_READER.md) retain complete galleries and
+source-bound reply snapshots through the same original fallback and consumers.
+Unrelated recommendation records never become discussion replies; a finite
+public page does not establish working continuation or a renewed preview quota.
+
 ## A source route never bypasses the protection path
 
 ```mermaid

@@ -18,7 +18,11 @@ fun main() {
     var page: Page?=null
     val cold=measureNanoTime {page=Extraction.parse(payload,target,source,routes)}
     val warm=LongArray(15){measureNanoTime {Extraction.parse(payload,target,source,routes)}}.sorted()
-    val result=Gson().toJson(mapOf("target" to target,"profile" to page!!.profile,"collections" to page!!.collections,"inputBytes" to payload.text.toByteArray().size,"posts" to page!!.posts.size,"dated" to page!!.posts.count {it.publishedAt!=null},"ids" to page!!.posts.map {it.id},"coldMs" to cold/1_000_000.0,"p50Ms" to warm[7]/1_000_000.0,"p95Ms" to warm[14]/1_000_000.0))
+    val result=Gson().toJson(mapOf("target" to target,"profile" to page!!.profile,"collections" to page!!.collections,"inputBytes" to payload.text.toByteArray().size,"posts" to page!!.posts.size,"dated" to page!!.posts.count {it.publishedAt!=null},"ids" to page!!.posts.map {it.id},
+        "records" to page!!.posts.map {mapOf("id" to it.id,"parent" to it.parentId,"conversation" to it.conversationId,"media" to it.media.map {m->mapOf("url" to m.url,"type" to m.type)})},
+        "accounts" to page!!.accounts.size,"next" to page!!.next,"limitedTimeline" to page!!.limitedTimeline,
+        "comments" to if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Discussions.comments(Post(ContentIdentity.key(target.platform,target.canonicalUrl),target.platform,target.canonicalUrl,"",""),page!!).size else null,
+        "coldMs" to cold/1_000_000.0,"p50Ms" to warm[7]/1_000_000.0,"p95Ms" to warm[14]/1_000_000.0))
     File(System.getProperty("antisocial.extractionOutput")).apply {parentFile.mkdirs();writeText(result+"\n")}
     println(result)
 }

@@ -9,6 +9,59 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.27 source-bound Threads replies and complete galleries
+
+The existing public original-page fallback now reads explicit selected Relay
+connections, retains complete supplied galleries and offers the page's actual
+reply snapshot to native All/Threads discussions and the existing Context
+consumer. It excludes related-post recommendations. Numeric IDs bind streamed
+patches; selected URL/code/author checks preserve the earlier sparse single-post
+JSON form without inventing IDs. Source dates, counts, links, media and public
+names keep their original attribution. No model, runtime, dependency, database
+schema or extra page-discovery request was added.
+
+Two bounded Android Gateway reads obtained five dated NASA profile posts and a
+selected post page. The old parser lost three images from a four-image gallery
+and flattened five recommendations into the post collection without reply
+relationships. Replay now retains all four images and ten supplied replies,
+including a proved nested parent, while excluding those recommendations. The
+source reported 27 replies; this is a partial window. A separate first profile
+continuation returned 403 and stopped. No continuation, search, complete reply
+coverage or fingerprint-based preview renewal is claimed. See the
+[reader and protocol record](THREADS_PUBLIC_READER.md).
+
+Five initial parser regressions failed on unchanged 0.38.26. Its owned native
+comment-entry check also failed; the candidate opens replies from the actual
+card button, keeps All as the default, and switches to Threads without another
+request. The full JVM run completed 2,185 cases, zero failures/errors, one
+optional model-weight skip. Its initial run found one video-duration compatibility
+regression, fixed by preserving the selected sparse JSON form; the old assertion
+was retained. Debug/test/release assembly and release lint pass.
+
+The first 125-method native batch passed 123 methods, skipped one opt-in live
+Tor check and failed the originals-sheet global Gateway-counter assertion by
+one. That fixture now cancels the ordinary activity reader and clears only its
+temporary restoration targets before creating its injected reader; lookup
+features and the zero-request assertion remain intact. The isolated assertion
+passes on unchanged 0.38.26. The first live gallery capture showed the four-image
+counter but still displayed a loading indicator; the refined harness waits for
+the decoded image rather than accepting that screen. Both initial observations
+and the final qualification stay external under `evidence/threads-public-20261025`.
+
+The next 126-method batch passed 124 methods, skipped the same live-Tor check
+and failed the draft-collapse assertion immediately after an IME Done action.
+That one test now invokes the minimize button's actual accessibility click,
+avoiding coordinates that can move during native keyboard insets; the collapse,
+retained-draft and reopen assertions remain unchanged. The focused check and the
+final full 126-method batch pass: 125 passes, one opt-in live-Tor skip, zero
+failures. The latter covers feed/image fusion, saved editions, reading memory,
+history/coverage, connection controls, both discussion suites, all 23 name-store
+methods and seven Context persistence checks. It also includes the owned card
+entry and a live original-page four-image gallery. Actual native reply and
+decoded-image screens were inspected. No production composer behavior was
+changed to obtain these harness results. Emulator measurements do not establish
+physical-phone performance or live Tor provider availability.
+
 ## 0.38.26 bounded URL work reuse during grouping
 
 The fusion workspace reuses normalization of an exact URL input during one

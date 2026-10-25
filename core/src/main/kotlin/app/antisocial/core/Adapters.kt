@@ -121,9 +121,10 @@ class OriginalAdapter(override val source: Source, private val gateway: NetworkG
     override val separateFeedRepresentation get()=source.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST)
     override val capabilities=setOf(Capability.PROFILE,Capability.TIMELINE,Capability.POST,Capability.FEED,Capability.MEDIA)+
         (if(source.platform in setOf(Platform.BLUESKY,Platform.REDDIT,Platform.TUMBLR,Platform.PINTEREST,Platform.INSTAGRAM))setOf(Capability.SEARCH)else emptySet())+
-        (if(source.platform in setOf(Platform.REDDIT,Platform.BLUESKY))setOf(Capability.COMMENTS)else emptySet())
+        (if(source.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.THREADS))setOf(Capability.COMMENTS)else emptySet())
     override suspend fun fetch(target: Target, cursor: String?): Page {
         if(target.kind==TargetKind.SEARCH&&Capability.SEARCH !in capabilities)throw SourceFailure(HealthStatus.UNSUPPORTED,"The original site does not provide accountless search through this reader")
+        if(target.platform==Platform.THREADS&&cursor!=null)throw SourceFailure(HealthStatus.UNSUPPORTED,"This public Threads reader supplies a finite page snapshot")
         if(target.kind==TargetKind.MEDIA)return mediaPage(target,target.canonicalUrl,source,gateway)
         if(cursor?.startsWith("https://")==true) {
             val url=cursor.toHttpUrlOrNull() ?: error("Invalid public feed continuation")

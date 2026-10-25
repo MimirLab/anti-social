@@ -9,9 +9,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
@@ -49,6 +51,15 @@ class DiscussionAllStatusTest {
     }
     @Before fun preserve() {
         runBlocking {repo.awaitReady()};preferences=repo.prefs.export().toString()
+        // These cases inject their own reader. A restored ordinary activity can
+        // otherwise advance the shared Gateway counter during a local-only sheet
+        // assertion. Keep lookup features enabled so the sheet's own no-network
+        // contract is still exercised; stop only unrelated reader restoration.
+        ui.runOnIdle {
+            ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java].viewModelScope.cancel()
+            repo.prefs.intervalMinutes=0
+            app.antisocial.core.Platform.entries.forEach {repo.prefs.lastUrl(it,"")}
+        }
         outgoingValidator=repo.outgoing.validate
         repo.outgoing.validate={ShareRouteCheck(ShareRouteStatus.READABLE,it.url)}
         repo.prefs.intervalMinutes=0;repo.prefs.communityComments=true
@@ -169,7 +180,10 @@ class DiscussionAllStatusTest {
         val draft="Keep this thought while reading the original replies."
         ui.onNodeWithTag("CommentAnywhere draft").performTextInput(draft)
         ui.onNodeWithTag("CommentAnywhere draft").performImeAction()
-        ui.onNodeWithContentDescription("Minimize shared composer").performClick()
+        // Done can leave native IME insets animating after Compose becomes idle.
+        // Exercise this button's actual accessibility action rather than a
+        // screen coordinate that can move between lookup and touch injection.
+        ui.onNodeWithContentDescription("Minimize shared composer").performSemanticsAction(SemanticsActions.OnClick){it()}
         ui.onNodeWithTag("CommentAnywhere draft").assertDoesNotExist()
         ui.onNodeWithContentDescription("Close discussions").performClick()
         ui.waitUntil(5_000){model.discussions.state.value==null}
