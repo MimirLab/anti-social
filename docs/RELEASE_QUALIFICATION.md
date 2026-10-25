@@ -9,6 +9,58 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.28 faster reading-signature preparation
+
+Native sampling of the retained-feed workload found repeated whitespace matching
+and per-byte formatted hex in reading-signature preparation. A direct whitespace
+scanner and hex writer retain the existing normalization, framing, references,
+media identities and matching rules. No network request, model, dependency,
+native runtime, retained text cache or storage-format change is added.
+
+Three process-restarted untraced native samples per APK use the same private
+517-post, 24-source snapshot. Median observation preparation changes from 1.242
+to 0.742 seconds, 40.3% less time. All six runs preserve the same 468 ordered
+collections and all observation signatures/timestamps. A paired native feed
+benchmark preserves its 120 cards; its swipe time remains similar. These are
+local emulator measurements, not an improved phone-FPS or complete cold-launch
+claim. See [performance evidence](FEED_PERFORMANCE.md).
+
+The full JVM suite completes 2,189 cases with zero failures/errors and one
+optional model-weight skip. Exhaustive Unicode comparison covers all 1,114,112
+codepoint values, including surrogate integers, on desktop Java and through the
+existing signature recipe on Android API 35. Mixed runs, word boundaries,
+non-whitespace controls and fixed persisted signatures also pass. The helper
+preserves the runtime's own NEXT LINE behavior rather than assuming desktop
+and Android regex defaults agree. Debug, instrumentation and release assembly
+plus release lint pass.
+
+The initial 147-method Android batch passes 145, skips one opt-in live-Tor check
+and fails the originals-sheet global Gateway-counter assertion by one. Temporary
+diagnostics on both baseline and candidate identify an unrelated, query-free
+DuckDuckGo favicon warmup; the originals-sheet case itself records no checks.
+The fixture now stops that independent preparation and its Tor controller on
+Main before pinning both offline policies. It also delegates real visible name
+leases through a spy, requiring a nonempty observation and local-only permission
+for every lease. Lookup features, the zero-request assertion, complete-caption
+checks and chosen-thread checks remain enabled. Cleanup reapplies restored name
+preferences. Production preloading is unchanged; temporary filter reflection
+is retained only in external diagnostic evidence, outside the final source.
+
+One later broad invocation omitted the isolated-device flag and skipped twelve
+cases; it is retained but excluded from qualification. The correctly flagged
+147-method batch passes 146 with one explicit live-Tor skip and zero failures,
+and the final frozen-test build repeats that result after cleanup refinement.
+Coverage includes image/post fusion, reading memory, history/coverage, connection
+controls, both discussion suites, all 23 name-store cases, seven Context
+persistence cases, Unicode parity, caption details and filter UI. Actual native
+feed and originals-sheet screens were inspected. Raw logs, traces, frozen APKs,
+private inputs and screenshots remain outside release assets under
+`evidence/reading-preparation-20261025`.
+
+The experimental browser-persona runtime remains excluded. No fingerprint-based
+preview renewal, additional live-source access or physical-phone performance
+is qualified by this optimization.
+
 ## 0.38.27 source-bound Threads replies and complete galleries
 
 The existing public original-page fallback now reads explicit selected Relay

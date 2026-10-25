@@ -24,6 +24,7 @@ import org.junit.Assert.*
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** Available replies must be visible before opening diagnostics or scrolling past failures. */
 @RunWith(AndroidJUnit4::class)
@@ -59,11 +60,16 @@ class DiscussionAllStatusTest {
             ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java].viewModelScope.cancel()
             repo.prefs.intervalMinutes=0
             app.antisocial.core.Platform.entries.forEach {repo.prefs.lastUrl(it,"")}
+            // Startup's independent search warmup can finish while a local-sheet
+            // test is reading the global counter. Stop its controller on Main so
+            // a queued readiness reply cannot restore the offline fixture route.
+            repo.cancelSearchPreparation();repo.tor.enable(false)
+            repo.gateway.configureTor(NetworkPolicy(tor=true))
+            repo.gateway.configure(NetworkPolicy(tor=true))
         }
         outgoingValidator=repo.outgoing.validate
         repo.outgoing.validate={ShareRouteCheck(ShareRouteStatus.READABLE,it.url)}
         repo.prefs.intervalMinutes=0;repo.prefs.communityComments=true
-        repo.gateway.configure(NetworkPolicy(tor=true)) // Unexpected requests fail closed.
     }
     @After fun restore() {
         repo.outgoing.validate=outgoingValidator
@@ -71,7 +77,7 @@ class DiscussionAllStatusTest {
             vm?.discussions?.close();vm?.viewModelScope?.cancel()
             ui.activity.setContent {Text("Discussion fixture complete")}
             ui.activity.getSharedPreferences("antisocial",Context.MODE_PRIVATE).edit().clear().apply()
-            repo.prefs.restore(JSONObject(preferences));repo.applyNetworkSettings()
+            repo.prefs.restore(JSONObject(preferences));repo.mentionNames.changed();repo.applyNetworkSettings()
         }
     }
     private fun reply(post: Post,text: String=replyText)=post.copy(id=post.id+"-reply",canonicalUrl=post.canonicalUrl+"9",body=text,title="",publishedAt=System.currentTimeMillis(),parentId=post.id)
@@ -286,15 +292,27 @@ class DiscussionAllStatusTest {
 
     @Test fun collectedOriginalsStayLocalPreserveCaptionsAndOpenOnlyTheChosenThread() {
         val longCaption=(1..12).joinToString("\n"){line->"Original caption line $line keeps its complete wording."}
-        val originals=(1..3).map {index->first.copy(id="original-sheet-$index",canonicalUrl="https://x.com/antisocial_fixture/status/885000$index",body=if(index==1)longCaption else "Caption for original $index.",publishedAt=1_750_000_000_000+index,replyCount=if(index==3)null else (index*10).toLong())}
+        val originals=(1..3).map {index->first.copy(id="original-sheet-$index",author="@workshop",canonicalUrl="https://x.com/workshop/status/885000$index",body=if(index==1)longCaption else "Caption for original $index.",publishedAt=1_750_000_000_000+index,replyCount=if(index==3)null else (index*10).toLong())}
         val service=Service();val reads=java.util.concurrent.CopyOnWriteArrayList<String>()
         val model=AntiSocialViewModel(repo,discussionReader={scope->DiscussionReader(repo,scope,service) {post,_,_->reads+=repo.key(post);Page(listOf(post,reply(post)))}});vm=model
+        val namePermissions=CopyOnWriteArrayList<Boolean>()
+        val names=object:MentionNameSource by repo.mentionNames {
+            override fun observe(accounts:List<MentionAccount>,networkAllowed:Boolean):AutoCloseable {
+                if(accounts.isNotEmpty())namePermissions+=networkAllowed
+                return repo.mentionNames.observe(accounts,networkAllowed)
+            }
+        }
         val checked=repo.gateway.protectionStats().checked
-        ui.runOnUiThread {ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()){Surface(Modifier.fillMaxSize()) {
-            var open by remember {mutableStateOf(true)}
-            if(open)OriginalPostsSheet(model,originals,originals[1],onDismiss={open=false})
-            DiscussionSheet(model)
-        }}}}
+        ui.runOnUiThread {
+            repo.prefs.readableMentions=true;repo.prefs.mentionLookups=true;repo.mentionNames.changed()
+            ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()){Surface(Modifier.fillMaxSize()) {
+                CompositionLocalProvider(LocalMentionNameSource provides names) {
+                    var open by remember {mutableStateOf(true)}
+                    if(open)OriginalPostsSheet(model,originals,originals[1],onDismiss={open=false})
+                    DiscussionSheet(model)
+                }
+            }}}
+        }
         val list=ui.onNodeWithTag("Collected original list")
         val firstKey=repo.key(originals[0]);val secondKey=repo.key(originals[1]);val thirdKey=repo.key(originals[2])
         list.performScrollToNode(hasTestTag("Original caption $firstKey"))
@@ -310,6 +328,8 @@ class DiscussionAllStatusTest {
         ui.onNodeWithTag("Original URL $thirdKey").assertTextEquals(originals[2].canonicalUrl)
         ui.onNodeWithText("Reply count not supplied").assertIsDisplayed()
         ui.onNodeWithTag("Copy original $thirdKey").assertExists()
+        ui.waitUntil(5_000){namePermissions.isNotEmpty()}
+        assertTrue("Every visible original account must stay local-only",namePermissions.none {it})
         assertTrue(reads.isEmpty());assertEquals(0,service.reads.get());assertEquals(checked,repo.gateway.protectionStats().checked)
         evidence("collected-originals-counts-captions-and-authentic-links")
         list.performScrollToNode(hasTestTag("Original comments $thirdKey"));ui.onNodeWithTag("Original comments $thirdKey").performClick();settled(model)

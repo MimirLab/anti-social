@@ -12,7 +12,6 @@ data class PostTextPresentation(val title: String,val body: String,val attributi
  * only a redundant heading when presenting either fresh or already-cached posts.
  */
 object PostPresentation {
-    private val whitespace=Regex("[\\s\\p{Z}]+")
     private val visibleUrl=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\\s<>]*)?",RegexOption.IGNORE_CASE)
     private val repostHeading=Regex("^RT by (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
@@ -93,7 +92,7 @@ object PostPresentation {
                 sameHost&&if(shortened)original.rawPath.orEmpty().startsWith(path.removeSuffix("…").removeSuffix("..."))else original.rawPath==path
             }
         })return false
-        fun caption(text:String)=whitespace.replace(visibleUrl.replace(text," LINK ")," ").trim().lowercase(Locale.ROOT)
+        fun caption(text:String)=TextWhitespace.collapse(visibleUrl.replace(text," LINK ")).trim().lowercase(Locale.ROOT)
         val first=caption(heading);val second=caption(body)
         return second==first||second.startsWith(first+" ")
     }
@@ -105,7 +104,7 @@ object PostPresentation {
 
     private fun comparison(value: String): String {
         val plain=Jsoup.parseBodyFragment(value).apply {select("script,style,noscript").remove()}.text()
-        val normalized=whitespace.replace(Normalizer.normalize(plain,Normalizer.Form.NFC).replace("\u200b","").replace("\ufeff","")," ").trim()
+        val normalized=TextWhitespace.collapse(Normalizer.normalize(plain,Normalizer.Form.NFC).replace("\u200b","").replace("\ufeff","")).trim()
         // RSS headings may spell out a link whose body shows its scheme-less
         // label. Retain the destination, including case-sensitive path/query;
         // an explicit HTTP URL still differs from an explicit HTTPS URL.

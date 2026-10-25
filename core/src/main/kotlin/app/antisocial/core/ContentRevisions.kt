@@ -32,8 +32,8 @@ object ContentRevisions {
         URI(uri.scheme,uri.rawAuthority.lowercase(Locale.ROOT),uri.rawPath,query,null).toASCIIString()
     }.getOrNull()
     private fun references(post: Post)=(post.links.orEmpty()+url.findAll(post.title+"\n"+post.body).map {it.value}.toList()).mapNotNull(::reference).toSet()
-    private fun text(post: Post): String = Normalizer.normalize(PostBodyDetails.split(PostPresentation.content(post)).body,Normalizer.Form.NFKC)
-        .lowercase(Locale.ROOT).replace(Regex("[\\s\\p{Z}]+")," ").trim()
+    private fun text(post: Post): String = TextWhitespace.collapse(Normalizer.normalize(PostBodyDetails.split(PostPresentation.content(post)).body,Normalizer.Form.NFKC)
+        .lowercase(Locale.ROOT)).trim()
     private fun media(media: Media): String = media.type+":"+runCatching {
         val u=URI(media.url)
         // Keep content-bearing parameters. Only known expiring transport tokens
@@ -43,7 +43,10 @@ object ContentRevisions {
     }.getOrDefault(media.url)
     fun signature(post: Post): String {
         val value=text(post)+"\u0000"+post.media.map(::media).distinct().sorted().joinToString("\u0000")+"\u0000"+references(post).sorted().joinToString("\u0000")
-        return MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(""){"%02x".format(it)}
+        val digest=MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+        return buildString(digest.size*2) {
+            digest.forEach {byte->val unsigned=byte.toInt() and 255;append("0123456789abcdef"[unsigned ushr 4]);append("0123456789abcdef"[unsigned and 15])}
+        }
     }
     /** Grouping proves a relationship; it doesn't prove the reader saw every
      * contribution. A fresh edition must be covered by actually read editions. */

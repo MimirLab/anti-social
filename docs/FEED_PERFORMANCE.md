@@ -1,5 +1,60 @@
 # Feed performance qualification
 
+## 0.38.28: faster reading-signature preparation with identical results
+
+The current 0.38.27 observation-stage trace still attributes most sampled work
+to text preparation, with another substantial part in per-byte formatted hex.
+The replacement scans whitespace directly and writes the SHA-256 hex digits
+directly. It retains normalization, trimming, content framing, source references,
+media identity and all matching/contradiction rules. It adds no retained text
+cache, network request, model, dependency or native runtime.
+
+Compatibility includes the runtime's Unicode behavior. Android's regex character
+classes are Unicode-aware by default, unlike desktop Java's defaults. A one-time
+NEXT LINE check preserves that distinction; `Character.isWhitespace` alone would
+also consume other controls the previous expression preserves. The helper keeps
+the old `[\s\p{Z}]+` replacement semantics, including supplementary and malformed
+UTF-16 boundaries. See [Android's Pattern contract](https://developer.android.com/reference/java/util/regex/Pattern#UNICODE_CHARACTER_CLASS).
+
+Direct JVM comparison covers all 1,114,112 codepoint values and mixed/control
+boundaries. Native API 35 checks compare the complete existing signature recipe
+over the same generated Unicode range with the old runtime regex as oracle.
+Fixed signature vectors retain leading zero bytes, embedded controls and Unicode
+normalization. The Android check confirms NEXT LINE is whitespace there.
+
+Three process-restarted untraced samples per APK used the same private 517-post,
+24-source snapshot on the same API 35 emulator, without a concurrent compiler.
+All six retain 468 ordered groups, the same group membership/order digest, and
+the same digest of all 517 observation keys, signatures and source timestamps.
+
+| Local CPU stage | 0.38.27 | Candidate |
+| --- | ---: | ---: |
+| Observations, three samples | 1.245 / 1.227 / 1.242 s | 0.737 / 0.742 / 0.746 s |
+| Observation median | 1.242 s | 0.742 s |
+| Grouping median | 6.140 s | 5.768 s |
+
+Observation preparation takes 40.3% less time in this workload. A separate single
+paired native 240-post benchmark retains the same 120 cards, initial card and
+cards after eight swipes. Opening changes from 3.980 to 3.572 seconds; the
+eight-swipe wall time remains similar at 4.916 / 4.966 seconds. The 24-frame samples
+still have stalls, with p95 350 / 367 ms. This run does not demonstrate improved
+scrolling or phone FPS. It is a warm authored fixture; neither measurement is a
+complete cold-launch or live-source latency claim.
+
+Further exploratory native pairs use 100 authored posts each in English,
+Chinese, Arabic, emoji and mixed text. Each pair retains its complete group and
+observation digests and takes less observation-stage time with the candidate.
+A later original-snapshot control returns to 1.226 seconds on the baseline and
+0.710 seconds on the versioned candidate, retaining the same output digests.
+These controls support the measured mechanism; they are not broad language or
+physical-device benchmarks.
+
+Raw traces, frozen APKs, the private external fixture, exact-output checks and
+native screens are retained under `evidence/reading-preparation-20261025`.
+No private post material is bundled or published. The opt-in diagnostic now
+records an observation digest and can trace one selected stage without tracing
+the others. Those diagnostic flags default off.
+
 ## 0.38.26: reuse URL normalization during one complete grouping
 
 Repeated source, caption and media URLs now reuse their normalization result
