@@ -50,6 +50,7 @@ class InstagramPublicGraphQlTest {
             f.enqueue(timeline(listOf(node("DeAYvsnn4la")),more=false))
             val first=f.adapter.fetch(target);val second=f.adapter.fetch(target,first.next)
             assertEquals(2,first.posts.size);assertEquals("nasawebb",first.posts[1].author)
+            assertEquals(listOf("nasa","nasawebb"),first.posts.map {AdjacentDiscovery.author(it,routes)?.identity})
             assertTrue(first.posts.all {it.preview&&it.publishedAt==null});assertEquals(1,second.posts.size);assertNull(second.next)
             assertTrue(FeedRefresh.posts(first,Platform.INSTAGRAM).isEmpty());assertNotNull(FeedRefresh.pendingReason(first,Platform.INSTAGRAM))
             val a=f.request();val b=f.request();assertEquals("POST",a.method);assertEquals("/api/graphql",a.path)
@@ -66,9 +67,12 @@ class InstagramPublicGraphQlTest {
             val selected=node().apply {addProperty("taken_at",1791645302);add("video_versions",JsonArray().apply {add(JsonObject().apply {addProperty("url","https://videos.example/movie.mp4")})})
                 getAsJsonObject("user").add("polaris_ordered_timeline_connection",JsonParser.parseString(timeline(listOf(node("DeAYvsnn4la")))).asJsonObject)}
             f.enqueue(detail(selected))
-            val post=f.adapter.fetch(requireNotNull(routes.recognize("https://www.instagram.com/p/$code/"))).posts.single()
+            val page=f.adapter.fetch(requireNotNull(routes.recognize("https://www.instagram.com/p/$code/")))
+            val post=page.posts.single()
             assertFalse(post.preview);assertEquals(1791645302000L,post.publishedAt);assertEquals("video",post.media.single().type)
             assertEquals("https://videos.example/movie.mp4",post.media.single().url);assertEquals("NASA",post.author)
+            assertEquals("nasa",AdjacentDiscovery.author(post,routes)?.identity)
+            assertEquals("NASA",page.accounts.single().name);assertEquals("123",page.accounts.single().persistentId);assertTrue(page.accounts.single().displayNameSupplied)
             val vars=JsonParser.parseString(fields(f.request())["variables"]).asJsonObject
             assertEquals("4004634989362489982",vars["media_id"].asString)
         }

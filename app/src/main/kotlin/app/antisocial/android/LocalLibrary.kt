@@ -348,7 +348,7 @@ class LocalLibrary(private val repo: Repository) {
     }
     companion object {
         private fun safeUrl(url: String)=url.length<=16*1024&&url.none {it<=' '||it=='\\'}&&runCatching {java.net.URI(url).let {it.scheme in setOf("http","https")&&!it.host.isNullOrBlank()&&it.userInfo==null}}.getOrDefault(false)
-        private fun validMedia(post: Post): Boolean=PublicRelations.valid(post)&&PublicContextNotes.valid(post)&&post.media.size<=256&&post.media.all {m->safeUrl(m.url)&&(m.preview?.let(::safeUrl) ?: true)&&
+        private fun validMedia(post: Post): Boolean=PublicRelations.valid(post)&&PublicContextNotes.valid(post)&&PostAuthorAccounts.valid(post)&&post.media.size<=256&&post.media.all {m->safeUrl(m.url)&&(m.preview?.let(::safeUrl) ?: true)&&
             VisualFrames.valid(m.visualFingerprint)&&
             (m.audioUrl?.let(::safeUrl) ?: true)&&(m.audioUrl==null||m.type=="video")&&
             (m.audioMimeType?.let {mime->m.audioUrl!=null&&mime.length<=256&&mime.startsWith("audio/")} ?: true)}

@@ -34,7 +34,7 @@ internal object InstagramPublicMedia {
         if(caption.isBlank()&&media.isEmpty())return null
         val url="https://www.instagram.com/p/$code"
         return Post(ContentIdentity.key(Platform.INSTAGRAM,url),Platform.INSTAGRAM,url,handle,caption,
-            media=media,provenance=provenance,preview=true,extractionCoverage=ExtractionCoverage(
+            media=media,provenance=provenance,preview=true,authorAccount=PostAuthorAccounts.instagram(handle,user.get("pk")?.takeIf {it.isJsonPrimitive}?.asString),extractionCoverage=ExtractionCoverage(
                 text=if(caption.isBlank())ExtractionStatus.UNKNOWN else ExtractionStatus.PRESENT,
                 attachments=ExtractionStatus.PARTIAL,note="Public caption and media preview; publication time and full media were not supplied."))
     }

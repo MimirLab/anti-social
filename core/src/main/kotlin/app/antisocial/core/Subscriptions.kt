@@ -79,12 +79,14 @@ object CrossPosts {
     private fun uri(value: String)=runCatching {URI(value)}.getOrNull()?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
     private fun origin(value: URI)=value.host.lowercase()+":"+(if(value.port==-1)443 else value.port)
     fun originalKey(post: Post)=post.identityKey
-    /** An author-bearing original URL proves which public account posted it.
+    /** An author-bearing original URL or qualified source declaration identifies
+     * which public account posted it.
      * Display names, feed membership, opaque post IDs and matching handles on
      * other servers never supply this proof. */
     fun originalAccount(post: Post): String? {
         val url=uri(post.canonicalUrl) ?: return null
         if(post.platform !in ExpandedRoutes.federated&&SocialLinkHosts.platform(post.canonicalUrl)!=post.platform)return null
+        PostAuthorAccounts.target(post)?.let {return post.platform.id+":"+it.identity.lowercase(java.util.Locale.ROOT)}
         val parts=url.path.orEmpty().trim('/').split('/').filter(String::isNotBlank)
         val username=Regex("[A-Za-z0-9_.-]{1,100}")
         val token=Regex("[A-Za-z0-9_-]{1,200}")

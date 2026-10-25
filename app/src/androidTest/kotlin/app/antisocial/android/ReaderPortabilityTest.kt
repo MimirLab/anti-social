@@ -229,6 +229,42 @@ class ReaderPortabilityTest {
         assertEquals(newerKey,repo.feedMemory.get("all").anchorKey);assertEquals(17,repo.feedMemory.get("all").anchorOffset);assertTrue(olderKey in repo.feedMemory.get("all").readKeys)
     }
 
+    @Test fun savedInstagramAuthorBindingsRoundTripAndMalformedBindingsFailBeforeWrites()=runBlocking {
+        val saved=Post("ABC",Platform.INSTAGRAM,"https://www.instagram.com/p/ABC/","Readable publication name","A captured announcement",authorAccount=PostAuthorAccounts.instagram("actual_publication","123"))
+        savedKeys+=repo.key(saved)
+        val document=PortableDocument(PortableKind.STATE,now,emptyList(),statePayload=libraryPayload(emptyList(),listOf(PortableSaved(saved,now))))
+        val preview=repo.portability.preview(bytes(document));val before=snapshot()
+        for(binding in listOf(PostAuthorAccount("https://www.instagram.com/accounts/"),PostAuthorAccount("https://www.instagram.com/actual_publication/","0"),PostAuthorAccount("https://wrong.example/actual_publication/"))) {
+            val bad=document.copy(statePayload=libraryPayload(emptyList(),listOf(PortableSaved(saved.copy(authorAccount=binding),now))))
+            rejected {repo.portability.preview(bytes(bad))}
+            rejected {repo.portability.apply(preview.copy(document=bad),emptySet())}
+            assertEquals(before,snapshot())
+        }
+        repo.portability.apply(preview,emptySet(),PortableImportOptions(collections=true))
+        val restored=repo.gson.fromJson(repo.dao.bookmarksByKeys(listOf(repo.key(saved))).single().payload,Post::class.java)
+        assertEquals(saved,restored);assertEquals("actual_publication",AdjacentDiscovery.author(restored,repo.routes)?.identity)
+        val exported=repo.portability.preview(repo.portability.exportState(false))
+        val entry=exported.document.statePayload!!.getAsJsonObject("library").getAsJsonArray("saved").first {repo.gson.fromJson(it.asJsonObject["post"],Post::class.java).id==saved.id}
+        assertEquals(saved.authorAccount,repo.gson.fromJson(entry.asJsonObject["post"],Post::class.java).authorAccount)
+    }
+    @Test fun optionalAuthorBindingsHaveStrictScalarShapesAndLegacySnapshotsStayUnknown() {
+        val saved=post().copy(platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/ABC/",authorAccount=PostAuthorAccounts.instagram("reader","123"))
+        val json=repo.gson.toJsonTree(saved).asJsonObject
+        strictSavedModel(json,Post::class.java)
+        val snapshot=repo.gson.toJsonTree(PostSnapshot.from(saved)).asJsonObject
+        strictSavedModel(snapshot,PostSnapshot::class.java)
+        snapshot.remove("authorAccount");strictSavedModel(snapshot,PostSnapshot::class.java)
+        assertNull(repo.gson.fromJson(snapshot,PostSnapshot::class.java).asPost(saved).authorAccount)
+        json.getAsJsonObject("authorAccount").addProperty("persistentId",123)
+        try {strictSavedModel(json,Post::class.java);fail("Author identifiers must stay strings")}catch(expected:IllegalArgumentException) {}
+        json.getAsJsonObject("authorAccount").remove("persistentId")
+        strictSavedModel(json,Post::class.java)
+        json.getAsJsonObject("authorAccount").remove("profileUrl")
+        try {strictSavedModel(json,Post::class.java);fail("An account requires its original profile URL")}catch(expected:IllegalArgumentException) {}
+        json.remove("authorAccount");strictSavedModel(json,Post::class.java)
+        assertNull(repo.gson.fromJson(json,Post::class.java).authorAccount)
+    }
+
     @Test fun legacySavedRelationshipFieldsRemainOptionalAndNewSnapshotFieldsAreTyped() {
         val legacy=repo.gson.toJsonTree(post(20).copy(extractionCoverage=ExtractionCoverage(text=ExtractionStatus.PRESENT))).asJsonObject
         listOf("conversationId","relationId","sourceParentId").forEach(legacy::remove)

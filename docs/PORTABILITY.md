@@ -191,6 +191,15 @@ captures because they enforced one source edition per platform. Ordinary saved
 copies and earlier distinct-platform captures remain supported. Source packs and
 OPML never contain saved source editions.
 
+Since 0.38.22, a post or archive snapshot may include
+`authorAccount: {profileUrl, persistentId?}`. This optional source declaration
+currently accepts original Instagram HTTPS profile URLs and positive decimal
+account-ID strings. It preserves author hyperlinks when a display name differs
+from the handle, including captured replies. Old exports may omit the field.
+Names alone never populate it, and a snapshot without it stays unknown. It does
+not establish common control across sites. Source packs contain no saved posts
+or these per-post author bindings.
+
 Media bytes and offline download files are not embedded in reader JSON. An imported saved text copy and captured thread remain locally useful; its media references are marked missing unless the receiving device already has the same validated local bytes. No download starts during import. Video download/storage budgets remain separate from this text/metadata transfer.
 
 Saved posts and `PostSnapshot` records may include an optional nullable

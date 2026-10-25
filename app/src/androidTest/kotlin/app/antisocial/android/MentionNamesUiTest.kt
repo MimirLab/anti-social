@@ -104,6 +104,28 @@ class MentionNamesUiTest {
         ui.onNodeWithTag(tag).performTouchInput {click(center)}
     }
 
+    @Test fun identicalInstagramNamesOpenTheirOwnAccountsInOfflineSavedLabels() {
+        val opened=mutableListOf<String>()
+        show {CompositionLocalProvider(LocalMentionOpenAccount provides {url->opened+=url}) {
+            Column {
+                listOf("reader_one","reader_two").forEach {handle->
+                    MentionText("Shared display name",repo,Platform.INSTAGRAM,"https://www.instagram.com/p/ABC/c/17/",
+                        accountLabel=true,authorAccount=PostAuthorAccounts.instagram(handle,"123"),networkAllowed=false,modifier=Modifier.testTag(handle))
+                }
+            }
+        }}
+        listOf("reader_one","reader_two").forEach {handle->
+            ui.onNodeWithTag(handle).assertTextEquals("Shared display name")
+            tapSubstring(handle,"Shared display name")
+            ui.onNodeWithTag("Mention original handle").assertTextEquals("@$handle")
+            ui.onNodeWithTag("Mention authentic account link").assertTextEquals("https://www.instagram.com/$handle")
+            evidence("instagram-author-$handle")
+            ui.onNodeWithTag("Open mentioned account").performClick()
+        }
+        assertEquals(listOf("https://www.instagram.com/reader_one","https://www.instagram.com/reader_two"),opened)
+        assertTrue(source.observations.isNotEmpty());assertTrue(source.observations.none {it.networkAllowed})
+    }
+
     @Test fun unresolvedTextIsImmediateAndNewNamesWaitUntilReadingIsIdle() {
         var idle by mutableStateOf(true)
         val original=text.replace("@battery_lab","battery_lab")

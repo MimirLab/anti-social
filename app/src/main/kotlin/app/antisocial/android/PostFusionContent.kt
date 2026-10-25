@@ -45,7 +45,7 @@ import app.antisocial.core.PostPresentation
                     val platforms=segment.platforms.joinToString(" · "){it.label}
                     if(originals.isEmpty())Text(platforms,fontSize=11.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(bottom=4.dp))
                     else Column(Modifier.padding(bottom=4.dp).semantics(mergeDescendants=true){}) {
-                        originals.distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}.forEach {root->MentionText(root.author.ifBlank {"Author not supplied"},repo,root.platform,root.canonicalUrl,accountLabel=true,networkAllowed=networkAllowed,explicitProfileLinks=root.links.orEmpty(),fontSize=11.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                        originals.distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}.forEach {root->MentionText(root.author.ifBlank {"Author not supplied"},repo,root.platform,root.canonicalUrl,accountLabel=true,authorAccount=root.authorAccount,networkAllowed=networkAllowed,explicitProfileLinks=root.links.orEmpty(),fontSize=11.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
                         Text(platforms,fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -123,7 +123,7 @@ internal fun postDetailSections(caption: Post,fusion: PostFusion?,roots: List<Po
         }
         if(expanded) {
             sections.forEach {section->
-                if(section.authors.isNotEmpty())section.authors.forEach {root->MentionText(root.author.ifBlank {root.platform.label},repo,root.platform,root.canonicalUrl,accountLabel=true,networkAllowed=networkAllowed,explicitProfileLinks=root.links.orEmpty(),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(bottom=4.dp))}
+                if(section.authors.isNotEmpty())section.authors.forEach {root->MentionText(root.author.ifBlank {root.platform.label},repo,root.platform,root.canonicalUrl,accountLabel=true,authorAccount=root.authorAccount,networkAllowed=networkAllowed,explicitProfileLinks=root.links.orEmpty(),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(bottom=4.dp))}
                 else section.attribution?.let {PostAttribution(it,Modifier.padding(bottom=4.dp),repo,section.platform,section.sourceUrl,networkAllowed)}
                 SelectionContainer {MentionText(section.value,repo,section.platform,section.sourceUrl,fontSize=13.sp,lineHeight=20.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,networkAllowed=networkAllowed,explicitProfileLinks=section.explicitProfileLinks,modifier=Modifier.padding(bottom=8.dp).testTag("${section.tag} details text"))}
             }

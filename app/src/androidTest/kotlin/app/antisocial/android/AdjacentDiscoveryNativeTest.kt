@@ -127,6 +127,27 @@ class AdjacentDiscoveryNativeTest {
             bank.observe(root("graph_fixture","1"),replies(11));bank.observe(other,replies(21));now+=8*CachePolicy.DAY;bank.cleanup(false);assertTrue(bank.related(seed).isEmpty());assertFalse(file.exists())
         }finally {file.delete()}
     }
+    @Test fun sourceBoundInstagramParticipantsCrossPollinateWithoutDisplayNameOrHandleGuesses() {
+        val file=File(ui.activity.cacheDir,"instagram-participants-${System.nanoTime()}.json")
+        val bank=PublicParticipantBank(file,repo.routes){1000L}
+        fun root(handle:String,code:String)=Post(code,Platform.INSTAGRAM,"https://www.instagram.com/p/$code/","Same publication name","Post",authorAccount=PostAuthorAccounts.instagram(handle))
+        fun reply(handle:String,id:String)=Post(id,Platform.INSTAGRAM,"https://www.instagram.com/p/ABC/c/$id/","Same participant name","A reply",parentId="post:ABC",authorAccount=PostAuthorAccounts.instagram(handle))
+        val first=root("source_one","ABC");val other=root("source_two","DEF")
+        val profile=Profile(requireNotNull(PostAuthorAccounts.target(first)),first.author)
+        try {
+            bank.observe(first,Page(listOf(reply("shared_reader","11"),reply("unrelated_reader","12"))))
+            bank.observe(other,Page(listOf(reply("shared_reader","21"),reply("different_reader","22"))))
+            val value=bank.related(profile).single()
+            assertEquals("source_two",value.profile.target.identity);assertEquals("shared_reader",value.evidence.via?.identity)
+            val restored=PublicParticipantBank(file,repo.routes){1000L}
+            assertEquals(bank.related(profile),restored.related(profile))
+            bank.cleanup(true)
+            bank.observe(first.copy(authorAccount=null),Page(listOf(reply("shared_reader","31"))))
+            bank.observe(other,Page(listOf(reply("shared_reader","41").copy(authorAccount=null))))
+            assertTrue(bank.related(profile).isEmpty())
+        }finally {file.delete()}
+    }
+
     @Test fun selectedTorUnavailableKeepsCachedConnectionsAndNeverTurnsIntoDirectTraffic()=runBlocking {
         val old=repo.gateway.currentPolicy();val oldTor=repo.prefs.tor;val fallback=repo.prefs.originalFallback
         repo.tor.enable(false);delay(100);repo.prefs.tor=true;repo.gateway.configure(NetworkPolicy(tor=true))

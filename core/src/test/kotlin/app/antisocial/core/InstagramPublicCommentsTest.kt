@@ -86,6 +86,14 @@ class InstagramPublicCommentsTest {
             val author=page.accounts.single();assertEquals("reader10",author.target.identity);assertEquals("Mission reader 10",author.name);assertTrue(author.displayNameSupplied)
         }
     }
+    @Test fun identicalDisplayNamesDoNotLoseTheDistinctSourceCommenterAccounts():Unit=runBlocking {
+        Fixture().use {f->
+            val nodes=listOf(comment("10"),comment("11")).onEach {it.getAsJsonObject("user").addProperty("full_name","Shared display name")}
+            f.enqueue(body(nodes,more=false));val page=f.adapter.comments(target)
+            assertEquals(listOf("Shared display name","Shared display name"),page.posts.map {it.author})
+            assertEquals(listOf("reader10","reader11"),page.posts.map {AdjacentDiscovery.author(it,routes)?.identity})
+        }
+    }
     @Test fun repeatedCommentPagesStopAndNewCommentsSurviveAStalledCursor():Unit=runBlocking {
         for(repeated in listOf(true,false))Fixture().use {f->
             f.enqueue(body(listOf(comment("10"))));val first=f.adapter.comments(target)

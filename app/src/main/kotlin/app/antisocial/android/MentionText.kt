@@ -46,6 +46,8 @@ import app.antisocial.core.IdentityDisplay
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import app.antisocial.core.Platform
+import app.antisocial.core.PostAuthorAccount
+import app.antisocial.core.PostAuthorAccounts
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
@@ -82,15 +84,16 @@ internal val LocalMentionNameSource=staticCompositionLocalOf<MentionNameSource?>
     explicitProfileLinks: List<String> = emptyList(),
     accountLabel: Boolean=false,
     onTextLayout: ((TextLayoutResult)->Unit)?=null,
-    onAccountClick: (()->Unit)?=null
+    onAccountClick: (()->Unit)?=null,
+    authorAccount: PostAuthorAccount?=null
 ) {
     val bank=source ?: LocalMentionNameSource.current ?: repo?.mentionNames
     val raw=remember(value,repo,platform,accountLabel){(repo?.publicText(value,platform) ?: value).let {if(accountLabel)IdentityDisplay.controls(it)else it}}
     val available by bank?.names?.collectAsState() ?: remember {mutableStateOf(emptyMap())}
     val enabled by bank?.enabled?.collectAsState() ?: remember {mutableStateOf(false)}
-    val matches=remember(raw,platform,sourceUrl,repo,enabled,explicitProfileLinks,accountLabel) {
+    val matches=remember(raw,platform,sourceUrl,repo,enabled,explicitProfileLinks,accountLabel,authorAccount) {
         if(!enabled||platform==null||repo==null||(!accountLabel&&'@' !in raw&&"u/" !in raw))emptyList()
-        else if(accountLabel)MentionNames.label(raw,platform,sourceUrl.orEmpty(),repo.routes,explicitProfileLinks)
+        else if(accountLabel)MentionNames.label(raw,platform,sourceUrl.orEmpty(),repo.routes,explicitProfileLinks,PostAuthorAccounts.target(platform,authorAccount))
         else MentionNames.find(raw,platform,sourceUrl.orEmpty(),repo.routes,explicitProfileLinks)
     }
     val relevant=remember(matches,available){matches.mapNotNull {match->available[match.key.id]?.let {match.key.id to it}}.toMap()}

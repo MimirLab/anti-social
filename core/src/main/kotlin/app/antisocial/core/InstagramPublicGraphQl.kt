@@ -74,7 +74,7 @@ internal class InstagramPublicGraphQlAdapter(override val source:Source,private 
                 val payload=Payload(document.text,target.canonicalUrl,"application/json",document.status)
                 val labeled=PlatformAiLabels.attach(listOf(post),payload,target,provenance)
                 currentCoroutineContext().ensureActive();check()
-                return Page(labeled,provenance=provenance)
+                return Page(labeled,accounts=listOfNotNull(InstagramPublicGraphQl.authorProfile(root,post)),provenance=provenance)
             }
             val window=InstagramPublicGraphQl.window(root,target,provenance)
             if(previous?.owner?.takeIf {it.isNotEmpty()}?.let {it!=window.owner}==true)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public continuation returned a different account")
@@ -337,8 +337,16 @@ internal object InstagramPublicGraphQl {
             publishedAt=node.number("taken_at")?.takeIf {it in 1..253402300799L}?.times(1000),avatar=safe(user.s("profile_pic_url")) ?: safe(user.s("profile_image_uri")),
             media=attachments,replyCount=node.number("comment_count")?.coerceAtLeast(0),score=node.number("like_count")?.coerceAtLeast(0),provenance=provenance,
             publicRelations=relations.distinctBy {it.kind to it.url}.take(16).takeIf {it.isNotEmpty()},
+            authorAccount=PostAuthorAccounts.instagram(handle,user.get("pk")?.takeIf {it.isJsonPrimitive}?.asString),
             extractionCoverage=ExtractionCoverage(text=if(body.isBlank())ExtractionStatus.UNKNOWN else ExtractionStatus.PRESENT,
                 attachments=if(complete&&attachments.isNotEmpty())ExtractionStatus.PRESENT else ExtractionStatus.PARTIAL,
                 note=if(!complete)"The public source supplied only part of this post's media."else null))
+    }
+    fun authorProfile(data:JsonObject,post:Post):Profile? {
+        val target=PostAuthorAccounts.target(post) ?: return null
+        val user=data.o("xig_polaris_media")?.o("if_not_gated_logged_out")?.o("user") ?: return null
+        if(user.s("username")!=target.identity)return null
+        val name=user.s("full_name").take(400)
+        return Profile(target,name.ifBlank {target.identity},avatar=post.avatar,displayNameSupplied=name.isNotBlank(),persistentId=post.authorAccount?.persistentId)
     }
 }

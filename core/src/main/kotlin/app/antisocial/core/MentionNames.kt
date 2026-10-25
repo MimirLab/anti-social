@@ -65,7 +65,7 @@ object MentionNames {
 
     /** Account labels can be plain usernames or supplied names. A profile URL or
      * author-bearing permalink proves their destination; prose never supplies one. */
-    fun label(text: String, platform: Platform, contextUrl: String, routes: DarwinRoutes, explicitProfileLinks: List<String> = emptyList()): List<MentionMatch> {
+    fun label(text: String, platform: Platform, contextUrl: String, routes: DarwinRoutes, explicitProfileLinks: List<String> = emptyList(), declaredAuthor: Target? = null): List<MentionMatch> {
         if(text.isBlank()||text.length>1_024)return find(text,platform,contextUrl,routes,explicitProfileLinks)
         val canonical=safeUri(contextUrl)?.let {routes.recognize(contextUrl,platform.takeIf {it in federated})}?.takeIf {it.platform==platform}
         val direct=canonical?.let {account(it,routes)}
@@ -75,7 +75,10 @@ object MentionNames {
         val exact=ordinary.singleOrNull()?.takeIf {it.start==0&&it.endExclusive==text.length}
         // Reddit returns usernames in its dedicated author field, without u/.
         val redditAuthor=if(platform==Platform.REDDIT&&validUsername(platform,text))implicit(platform,text,contextUrl,routes,author=true)else null
-        val identity=exact?.let {MentionAccount(it.key,it.target)} ?: proven ?: redditAuthor
+        // A source's dedicated author field binds its label even when that label
+        // looks like another handle. Never apply this binding to body mentions.
+        val identity=declaredAuthor?.takeIf {it.platform==platform}?.let {account(it,routes)}
+            ?: exact?.let {MentionAccount(it.key,it.target)} ?: proven ?: redditAuthor
             ?: explicitProfileLinks.take(MAX_MATCHES).mapNotNull {routes.recognize(it)?.let {target->account(target,routes)}}
                 .filter {it.key.platform==platform&&matchesToken(it,text.removePrefix("@"))}.distinctBy {it.key.id}.singleOrNull()
             ?: return ordinary

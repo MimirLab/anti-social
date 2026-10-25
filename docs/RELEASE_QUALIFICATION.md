@@ -9,6 +9,42 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.22 source-bound Instagram authors
+
+Public grid previews, full posts and replies retain their literal source account
+behind the display name. A failing baseline reproduced two identical display
+names losing their distinct handles. The reader now preserves that binding in
+author links, original-account attribution, captured copies and archive
+snapshots, and reuses it in the existing bounded participant graph. Supplied
+selected-post names also seed the existing local-name bank. There is no new
+acquisition request, dependency or native runtime. The source declaration is not
+independent evidence of common control across sites.
+
+The JVM suite completed **2,159 cases**, zero failures/errors and one optional
+model-weight skip. The final API 35 Android batch covered **97 named methods**:
+95 passed, two opt-in live-Tor/NASA-neighborhood checks skipped, zero failures.
+It includes actual public Instagram discussion/history buttons, all nine
+subscription journeys, feed coverage/history, source-pause and connection
+controls, name storage/presentation, saved-state validation and participant
+discovery. Native screens confirmed two identical displayed names opening
+different authentic accounts. Release assembly and lint pass.
+
+Earlier mixed runs hit an existing subscription-dialog setup timeout; the
+standalone nine-method group passed, the prior 0.38.21 prefix passed, and candidate
+prefixes reproduced the timeout. A synchronized idle callback alone did not
+resolve it. The subscription test group now uses the installed Compose v2 test
+environment, following Android's [coroutine-scheduling migration guidance](https://developer.android.com/develop/ui/compose/testing/migrate-v2).
+All assertions and shipping subscription code remain unchanged. The complete
+97-method batch then passed as above. Failed logs, comparison and intermediate
+results remain separate under external `evidence/author-identity-20261025`; the
+precise earlier frame interleaving is not established.
+
+Old saved records may omit the optional binding. An old snapshot without it
+never inherits a current author, and imports reject malformed account fields
+before writing reader state. All 33 native APK library members remain identical
+to 0.38.21. These checks do not qualify complete Instagram history, physical-phone
+performance or fingerprint-based preview allowance renewal.
+
 ## 0.38.19 on-demand public profile history
 
 Ordinary Instagram browsing can continue a successful finite alternate snapshot

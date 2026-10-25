@@ -104,3 +104,24 @@ isolation, the previous 0.38.20 release passed all nine subscription methods,
 and the unchanged final 54-method batch passed with the skip above. This does not
 establish the transient failure's cause; its log and comparisons are retained.
 No subscription production code or assertion was changed to obtain a pass.
+
+## Source account bindings, 0.38.22
+
+Public grid previews, selected posts and comments now retain the literal
+Instagram username alongside their display label. A public name is not an
+identifier: two commenters may use the same name while belonging to different
+accounts. The optional `authorAccount` carries the original profile URL and,
+when supplied, its positive decimal account ID. It is a source declaration,
+not independent verification of common control across platforms.
+
+The native author link, existing local-name cache and bounded local participant
+graph reuse this binding. Selected-post responses also contribute their already
+present public name to the existing name bank. Body mentions retain their own
+identities. No new acquisition request, global graph crawler or dependency is
+added. Existing optional name lookups keep their normal controls.
+
+Saved copies, captured replies and archive snapshots retain the binding. Older
+records without it remain readable and unknown; an old snapshot never inherits
+a current account identity it did not capture. Imports require an original
+Instagram HTTPS profile path, typed optional ID and matching platform. Mutable
+handle observations do not become cross-platform ownership proofs.

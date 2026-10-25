@@ -40,6 +40,7 @@ object AdjacentDiscovery {
     fun profileKey(profile:Profile)=if(profile.target.platform==Platform.BLUESKY&&profile.persistentId?.startsWith("did:")==true)"bluesky:"+profile.persistentId else key(profile.target)
     /** Exact author locations only. A display name is not an account identifier. */
     fun author(post:Post,routes:DarwinRoutes):Target? {
+        PostAuthorAccounts.target(post)?.let {return it}
         val u=post.canonicalUrl.toHttpUrlOrNull() ?: return null;val parts=u.pathSegments.filter(String::isNotBlank)
         if(u.queryParameterNames.any {it in setOf("comment_id","reply_comment_id","cid")})return null
         val raw=when(post.platform) {

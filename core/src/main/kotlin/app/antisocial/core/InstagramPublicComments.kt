@@ -37,6 +37,7 @@ internal object InstagramPublicComments {
             Post("comment:${selected.value}:$id",Platform.INSTAGRAM,url,fullName.ifBlank {username ?: "Unavailable account"},text,
                 publishedAt=node.n("created_at")?.takeIf {it in 1..253402300799L}?.times(1000),avatar=avatar,
                 parentId=parent?.let {"comment:${selected.value}:$it"} ?: root.takeIf {top},conversationId=root,sourceParentId=parent,
+                authorAccount=username?.let {PostAuthorAccounts.instagram(it,user?.id("pk"))},
                 replyCount=node.n("child_comment_count")?.coerceAtLeast(0),score=node.n("comment_like_count")?.coerceAtLeast(0),provenance=provenance,
                 extractionCoverage=ExtractionCoverage(text=ExtractionStatus.PRESENT,replyParent=if(parent!=null||top)ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,
                     note=if((node.n("child_comment_count") ?: 0)>0)"Replies may require another public source."else null))

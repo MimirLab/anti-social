@@ -37,7 +37,7 @@ data class Source(val platform: Platform, val frontend: String, val root: String
 data class Provenance(val source: Source, val fetchedAt: Long, val finalUrl: String, val cached: Boolean = false)
 /** Runtime is optional source metadata; unknown runtime does not imply a short video. */
 data class Media(val url: String, val type: String = "image", val preview: String? = null, val description: String = "", val mimeType: String? = null,val aiMetadata: AiMetadata?=null,val durationMs: Long?=null,val audioUrl: String?=null,val audioMimeType: String?=null,val visualFingerprint: String?=null)
-data class Post(val id: String, val platform: Platform, val canonicalUrl: String, val author: String, val body: String, val title: String = "", val publishedAt: Long? = null, val avatar: String? = null, val media: List<Media> = emptyList(), val replyCount: Long? = null, val score: Long? = null, val parentId: String? = null, val provenance: Provenance? = null, val links: List<String>? = null,val preview: Boolean=false,val archivedVersion: ArchivedVersion?=null,val recoveredArchive: ArchiveRecovery?=null,val aiDisclosures: List<AiDisclosure>?=null,val extractionCoverage: ExtractionCoverage?=null,val conversationId: String?=null,val relationId: String?=null,val sourceParentId: String?=null,val contextNotes:List<PublicContextNote>?=null,val publicRelations:List<PublicRelation>?=null) {
+data class Post(val id: String, val platform: Platform, val canonicalUrl: String, val author: String, val body: String, val title: String = "", val publishedAt: Long? = null, val avatar: String? = null, val media: List<Media> = emptyList(), val replyCount: Long? = null, val score: Long? = null, val parentId: String? = null, val provenance: Provenance? = null, val links: List<String>? = null,val preview: Boolean=false,val archivedVersion: ArchivedVersion?=null,val recoveredArchive: ArchiveRecovery?=null,val aiDisclosures: List<AiDisclosure>?=null,val extractionCoverage: ExtractionCoverage?=null,val conversationId: String?=null,val relationId: String?=null,val sourceParentId: String?=null,val contextNotes:List<PublicContextNote>?=null,val publicRelations:List<PublicRelation>?=null,val authorAccount:PostAuthorAccount?=null) {
     // Identity depends only on immutable constructor fields. Keep this derived
     // value with its existing record, not in another retained URL/history bank.
     // Transient also keeps Gson captures, exports and old reader files identical.
@@ -52,8 +52,8 @@ val Post.contentSourceUrl: String get()=recoveredArchive?.archiveUrl ?: provenan
 }?.finalUrl ?: canonicalUrl
 /** An immutable data-only capture, paired with a current post rather than another feed entry. */
 data class PostSnapshot(val title: String="",val body: String="",val author: String="",val publishedAt: Long?=null,
-    val avatar: String?=null,val media: List<Media> = emptyList(),val links: List<String> = emptyList(),val aiDisclosures: List<AiDisclosure>?=null,val relationship: PostRelationship?=null,val contextNotes:List<PublicContextNote>?=null,val publicRelations:List<PublicRelation>?=null) {
-    fun asPost(current: Post): Post=current.copy(title=title,body=body,author=author,publishedAt=publishedAt,avatar=avatar,media=media,links=links,replyCount=null,score=null,preview=false,archivedVersion=null,aiDisclosures=aiDisclosures,contextNotes=contextNotes,publicRelations=publicRelations,
+    val avatar: String?=null,val media: List<Media> = emptyList(),val links: List<String> = emptyList(),val aiDisclosures: List<AiDisclosure>?=null,val relationship: PostRelationship?=null,val contextNotes:List<PublicContextNote>?=null,val publicRelations:List<PublicRelation>?=null,val authorAccount:PostAuthorAccount?=null) {
+    fun asPost(current: Post): Post=current.copy(title=title,body=body,author=author,publishedAt=publishedAt,avatar=avatar,media=media,links=links,replyCount=null,score=null,preview=false,archivedVersion=null,aiDisclosures=aiDisclosures,contextNotes=contextNotes,publicRelations=publicRelations,authorAccount=authorAccount,
         parentId=if(relationship!=null)relationship.parentId else current.parentId,
         conversationId=if(relationship!=null)relationship.conversationId else current.conversationId,
         relationId=if(relationship!=null)relationship.relationId else current.relationId,
@@ -61,7 +61,7 @@ data class PostSnapshot(val title: String="",val body: String="",val author: Str
         extractionCoverage=relationship?.parentCoverage?.let {ExtractionCoverage(text=if(body.isNotBlank()||title.isNotBlank())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,attachments=if(media.isNotEmpty())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,replyParent=it)})
     companion object {fun from(post: Post)=PostSnapshot(post.title,post.body,post.author,post.publishedAt,post.avatar,post.media,post.links.orEmpty(),post.aiDisclosures,
         if(post.parentId!=null||post.conversationId!=null||post.relationId!=null||post.sourceParentId!=null||post.extractionCoverage?.replyParent==ExtractionStatus.UNAVAILABLE)
-            PostRelationship(post.parentId,post.conversationId,post.relationId,post.sourceParentId,post.extractionCoverage?.replyParent)else null,post.contextNotes,post.publicRelations)}
+            PostRelationship(post.parentId,post.conversationId,post.relationId,post.sourceParentId,post.extractionCoverage?.replyParent)else null,post.contextNotes,post.publicRelations,post.authorAccount)}
 }
 /** Null snapshot relationship means a legacy capture did not record it. */
 data class PostRelationship(val parentId: String?=null,val conversationId: String?=null,val relationId: String?=null,val sourceParentId: String?=null,val parentCoverage: ExtractionStatus?=null)

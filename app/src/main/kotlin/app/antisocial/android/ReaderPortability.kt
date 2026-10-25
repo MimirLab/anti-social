@@ -248,6 +248,7 @@ class ReaderPortability(private val repo: Repository) {
             (it.audioUrl==null||it.type=="video")&&(it.audioMimeType?.let {mime->it.audioUrl!=null&&mime.length<=256&&mime.startsWith("audio/")} ?: true)}){"Invalid saved media URL."}
         require(post.links.orEmpty().all(::url)){"Invalid saved link."}
         require(PublicRelations.valid(post)){"Invalid saved public relationship."}
+        require(PostAuthorAccounts.valid(post)){"Invalid saved author account."}
         require(PublicContextNotes.valid(post)){"Invalid saved public annotation."}
         require(post.avatar?.let(::url) ?: true){"Invalid saved avatar URL."}
         post.provenance?.let {require(url(it.finalUrl)&&url(it.source.root)&&it.fetchedAt>=0){"Invalid saved source provenance."}}
