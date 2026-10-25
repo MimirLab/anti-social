@@ -32,6 +32,22 @@ class PostFusionTest {
         post(Platform.BLUESKY,"A note from our project office:\n\n$shared\n\nWe are not opening enrollment until Friday.")
     )
 
+    @Test fun mediaCopiesWithOnlyPlatformSpecificMentionsRetainEveryReferenceAndShareTheProse() {
+        val body="The workshop has published its complete equipment inventory. Our team is signing an agreement between @RepairCrew and @ToolLibrary and meeting with students at @LocalUniversity to show residents how to inspect battery connectors, replace damaged cables and safely recycle old cells. The same practical work will continue next weekend with another free community repair session."
+        val first=post(Platform.X,body)
+        val second=post(Platform.THREADS,body.replace("@RepairCrew","@repaircrewgroup").replace("@ToolLibrary","@locallibrary").replace("@LocalUniversity","@universitylocal"))
+        val groups=CrossPosts.group(listOf(first,second),emptyList())
+        assertEquals(1,groups.size)
+        val fusion=CrossPostFusion.composeMedia(groups.single().posts)!!
+        val text=fusion.segments.joinToString("\n"){it.text}
+        for(name in listOf("@RepairCrew","@ToolLibrary","@LocalUniversity","@repaircrewgroup","@locallibrary","@universitylocal"))assertTrue(name,text.contains(name))
+        assertEquals(1,Regex("complete equipment inventory").findAll(text).count())
+        assertEquals(1,Regex("safely recycle old cells").findAll(text).count())
+        assertEquals(2,CrossPosts.group(listOf(first,second.copy(media=listOf(Media("https://other.example.org/unproven.jpg")))),emptyList()).size)
+        for(changed in listOf(second.body.replace("safely recycle","do not recycle"),second.body.replace("next weekend","in 8 weeks")))assertEquals(2,CrossPosts.group(listOf(first,second.copy(body=changed)),emptyList()).size)
+        assertEquals(2,CrossPosts.group(listOf(first.copy(body=first.body+" Read example.org/Release."),second.copy(body=second.body+" Read example.org/release.")),emptyList()).size)
+    }
+
     @Test fun aSharedCaptionAndSameImageFuseWithEverySourcesLeadingAndTrailingContext() {
         val posts=editions();val before=posts.map {Gson().toJson(it)}
         assertTrue(CrossPostFusion.matches(posts[0],posts[1]))

@@ -78,6 +78,22 @@ object Extraction {
         HtmlAdmission.check(body)
         val document=Jsoup.parse(body,provenance.finalUrl,Parser.xmlParser())
         fun local(element: Element)=element.normalName().substringAfter(':')
+        // Some Nitter deployments render their configured public hostname even
+        // when fetched through another mirror. Scope that declaration to this
+        // selected profile/feed only; never add an untrusted global route alias.
+        val renderOrigin=runCatching {
+            if(target.platform!=Platform.X||target.kind!=TargetKind.PROFILE||provenance.source.platform!=Platform.X||
+                provenance.source.frontend!="nitter"||provenance.source.role!=SourceRole.ALTERNATE||
+                !target.identity.matches(Regex("[A-Za-z0-9_]{1,15}")))return@runCatching null
+            val fetched=provenance.finalUrl.toHttpUrlOrNull() ?: return@runCatching null
+            val expected=(routes.convert(target,provenance.source).substringBefore('#').substringBefore('?').trimEnd('/')+"/rss").toHttpUrlOrNull() ?: return@runCatching null
+            if(!fetched.isHttps||fetched.host!=expected.host||fetched.port!=expected.port||fetched.encodedPath!=expected.encodedPath||fetched.username.isNotEmpty()||fetched.password.isNotEmpty())return@runCatching null
+            val channel=document.getAllElements().filter {it.normalName()=="channel"}.singleOrNull() ?: return@runCatching null
+            val declaration=channel.children().filter {it.normalName()=="link"&&it.attr("rel").isBlank()}.singleOrNull()?.wholeText()?.trim()?.toHttpUrlOrNull() ?: return@runCatching null
+            if(!declaration.isHttps||declaration.port!=443||declaration.username.isNotEmpty()||declaration.password.isNotEmpty()||declaration.query!=null||declaration.fragment!=null||
+                !declaration.encodedPath.trim('/').equals(target.identity,true))return@runCatching null
+            declaration.scheme+"://"+declaration.host
+        }.getOrNull()
         val items=document.getAllElements().filter {local(it)=="item"}
         val nodes=if(items.isNotEmpty())items else document.getAllElements().filter {local(it)=="entry"}
         val posts=nodes.take(200).mapNotNull { e ->
@@ -87,7 +103,14 @@ object Extraction {
             val webLink=links.firstOrNull {it.attr("rel")=="alternate"} ?: links.firstOrNull {it.attr("rel").isBlank()}
             val raw=webLink?.wholeText()?.takeIf {it.isNotBlank()} ?: webLink?.attr("href").orEmpty()
             val link=safe(raw,provenance.finalUrl) ?: return@mapNotNull null
-            val canonical=routes.recognize(link)?.canonicalUrl ?: link
+            val renderPost=if(renderOrigin==null)null else link.toHttpUrlOrNull()?.takeIf {
+                it.scheme+"://"+it.host==renderOrigin&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.query==null&&it.fragment==null
+            }?.let {url->
+                val match=Regex("/([A-Za-z0-9_]{1,15})/status/([0-9]{1,40})").matchEntire(url.encodedPath) ?: return@let null
+                val handle=match.groupValues[1];val id=match.groupValues[2]
+                if(tag("dc:creator").removePrefix("@").equals(handle,true)&&tag("guid")==id)Platform.X.origin+url.encodedPath else null
+            }
+            val canonical=routes.recognize(link)?.canonicalUrl ?: renderPost ?: link
             val content=tag("content:encoded","content","description","summary")
             val markup=Jsoup.parse(content,provenance.finalUrl)
             val enclosed=elements.filter {local(it) in setOf("enclosure","content","thumbnail")&&it.hasAttr("url")}.mapNotNull {m->safe(m.attr("url"),provenance.finalUrl)?.let {

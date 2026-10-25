@@ -219,6 +219,50 @@ class FusionFeedTest {
         ui.onNode(matcher).assertIsDisplayed()
     }
 
+    @Test fun attachmentLayoutAndCdnCopiesRenderOneCaptionTwoPicturesAndBothCommentStreams() {
+        val (oldX,oldInstagram)=pair();val caption=shared.trimEnd('.')
+        fun imagePath(index:Int)="/v/t39.30808-6/123456${suffix}_${234567890+index}_345678901_n.jpg"
+        val first=Media("https://scontent-a.xx.fbcdn.net"+imagePath(0),description="First collected attachment")
+        val alias=first.copy(url="https://scontent-b.cdninstagram.com"+imagePath(0)+"?stp=dst-jpg_e35_p1080x1080_tt6&oh=other")
+        val second=Media("https://scontent-b.cdninstagram.com"+imagePath(1),description="Second collected attachment")
+        val x=oldX.copy(body=caption+" ⬇️",media=listOf(first))
+        val instagram=oldInstagram.copy(body=caption+":",media=listOf(alias,second))
+        records[records.indexOf(oldX)]=x;records[records.indexOf(oldInstagram)]=instagram
+        store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        for(media in listOf(first,alias,second)) {
+            val key=Repository.hash(media.url);mediaKeys+=key
+            val bitmap=Bitmap.createBitmap(256,160,Bitmap.Config.ARGB_8888).apply {eraseColor(if(media==second)Color.RED else Color.BLUE)}
+            val file=File(repo.context.cacheDir,"content/$key").apply {parentFile?.mkdirs()}
+            try {file.outputStream().use {assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}}finally {bitmap.recycle()}
+            runBlocking {repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))}
+        }
+        assertEquals(2,collectedMedia(listOf(x,instagram)).size)
+        seed("all",listOf(x,instagram));val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();ui.onAllNodesWithTag("Fused post text").assertCountEquals(1)
+        ui.onNodeWithText(caption+":").assertExists()
+        ui.onAllNodes(SemanticsMatcher("collected attachment nodes"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(2)
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Post image ${repo.key(x)} ${first.url}"))
+        ui.onNodeWithTag("Post image ${repo.key(x)} ${first.url}").performClick()
+        ui.onNodeWithText("1 / 2").assertIsDisplayed()
+        val decoded=hasContentDescription(first.description) and hasAnyAncestor(isDialog())
+        ui.waitUntil(10_000){ui.onAllNodes(decoded).fetchSemanticsNodes().isNotEmpty()}
+        ui.onNode(decoded).assertIsDisplayed();evidence("attachment-copies-viewer-two-pictures")
+        ui.onNodeWithContentDescription("Close image").performClick()
+        val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        val comments=hasContentDescription("Read Instagram comments") and fixtureCard
+        revealCombinedControl(comments);ui.onNode(comments).performClick()
+        ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.INSTAGRAM.id)?.page!=null}
+        ui.onNodeWithTag("Discussion tab twitter").performScrollTo().performClick()
+        ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.X.id)?.page!=null}
+        ui.onNodeWithTag("Discussion tab all").performScrollTo().performClick()
+        assertEquals(setOf(repo.key(x),repo.key(instagram)),vm.discussions.state.value!!.posts.map(repo::key).toSet())
+        assertEquals(2,vm.discussions.state.value!!.threads.values.sumOf {Discussions.comments(it.post,it.page!!).size})
+        evidence("attachment-copies-all-original-comment-streams")
+        ui.onNodeWithContentDescription("Close discussions").performClick()
+        assertEquals(x.body,runBlocking {repo.dao.post(repo.key(x))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.body)
+        assertEquals(instagram.media,runBlocking {repo.dao.post(repo.key(instagram))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.media)
+    }
+
     @Test fun allFeedFusesSharedPictureAndCaptionPreservesContextAndEveryCommentStream() {
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
         cachePicture(x);cachePicture(instagram,jpeg=true)

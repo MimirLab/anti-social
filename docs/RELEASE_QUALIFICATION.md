@@ -9,6 +9,51 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.30 attachment collections and source-bound retweets
+
+The White House gallery/member case exposed a colon-versus-layout-pointer caption
+variation and several CDN addresses for the same Meta objects. A narrow caption
+comparison and source-specific image identities collect those editions without
+changing request URLs or original fields. The renderer retains discarded copies'
+alias evidence within one collection and requires compatibility with every known
+pixel observation. A near JPEG cannot transitively swallow a different edit.
+Gallery containment also respects detailed contradictory observations. No new
+model, runtime, dependency, database schema or automatic request is added.
+
+The NASA example additionally exposed a Nitter rendering hostname different from
+the fetched origin and an alternate retweet heading. The parser binds that item
+to an agreeing selected feed/channel, creator and numeric GUID before retaining
+its original X URL; it grants no global hostname alias or fetch permission.
+Account-reference-only variants require independently corroborated media and
+preserve every different reference in the source-attributed composition. The
+normal quantity, negation, destination and ambiguity guards remain active.
+See [attachment evidence and boundaries](ATTACHMENT_COLLECTIONS.md).
+
+Eight initial regressions fail four cases against unchanged 0.38.29. The final
+JVM selection completes 2,219 cases with zero failures/errors and one optional
+model-weight skip. An extra direct phrase-aligner assertion was corrected to
+exercise the complete grouping boundary, which owns destination admission;
+the end-to-end changed-URL check passes without removing any admission guard.
+An early research harness requested more than Gateway's allowed eight operations;
+its setup failed before I/O and was corrected to the existing limit. Production
+request policy was unchanged.
+
+The frozen API 35 Android selection completes 178 methods: 176 pass, two explicit
+live-search/Tor checks skip, zero failures. New cases cover qualified CDN copies
+without decoding, retained alias bridges, contradictory pixels and a real combined
+card/gallery/comment journey. The viewer check waits for the decoded image before
+capturing evidence. Native screens show two pictures and both original streams;
+raw originals remain unchanged. Debug, instrumentation and release assembly plus
+release lint pass.
+
+The actual retained White House replay changes three editions/two cards into one
+card with five pictures and three originals, with zero Gateway requests. A separate
+NASA replay collects its two editions; the bounded image check retains five images
+from eight attachments, including an unqualified low-information pair. Physical-phone
+frame-time, energy and exhaustive source coverage are not claimed by these emulator
+and captured-source checks. Evidence remains external under
+`evidence/gallery-members-20261025`.
+
 ## 0.38.29 native public Threads keyword search
 
 The original fallback now reads Threads' ordinary public keyword-search HTML

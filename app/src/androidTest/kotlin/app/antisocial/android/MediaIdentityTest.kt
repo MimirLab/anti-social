@@ -26,6 +26,42 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun aRemovedPixelCopyStillConnectsItsCdnAliasWithoutSwallowingContraryEvidence() {
+        val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
+        val pixels=ByteArray(4096){100};val changed=pixels.clone().apply {this[150]=0}
+        val frame=VisualFrames.encode(1.25,40.0,0,0,List(48){100},pixels)!!
+        val edit=VisualFrames.encode(1.25,40.0,0,0,List(48){100},changed)!!
+        val a=Media("https://images.example.org/one.jpg",visualFingerprint=frame)
+        val b=Media("https://scontent-a.xx.fbcdn.net$path",visualFingerprint=frame)
+        val c=Media("https://scontent-b.cdninstagram.com$path")
+        fun records(vararg media:Media)=media.map {post(it.url).copy(media=listOf(it))}
+        assertEquals(listOf(a),collectedMedia(records(a,b,c)))
+        assertEquals(listOf(a,c.copy(visualFingerprint=edit)),collectedMedia(records(a,b,c.copy(visualFingerprint=edit))))
+        assertTrue(records(a,b,c).last().media.single().visualFingerprint==null)
+    }
+
+    @Test fun anIntermediateReencodingCannotBridgeTwoContradictoryPictures() {
+        val pixels=ByteArray(4096){100}
+        fun frame(value:Int)=VisualFrames.encode(1.25,40.0,0,0,List(48){100},pixels.clone().apply {this[150]=value.toByte()})!!
+        val first=Media(a,visualFingerprint=frame(20))
+        val second=Media(b,visualFingerprint=frame(100))
+        val bridge=Media("https://third.invalid/middle.jpg",visualFingerprint=frame(60))
+        assertFalse(VisualFrames.sameImage(first.visualFingerprint,second.visualFingerprint))
+        assertTrue(VisualFrames.sameImage(first.visualFingerprint,bridge.visualFingerprint));assertTrue(VisualFrames.sameImage(second.visualFingerprint,bridge.visualFingerprint))
+        assertEquals(3,collectedMedia(listOf(first,second,bridge).map {post(it.url).copy(media=listOf(it))}).size)
+    }
+
+    @Test fun qualifiedMetaCopiesCollapseWithoutDecodingWhileOtherObjectsAndCropsRemain() {
+        val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
+        val first="https://scontent-a.xx.fbcdn.net$path"
+        val copy="https://scontent-b.cdninstagram.com$path?stp=dst-jpg_e35_p1080x1080_tt6&oh=other"
+        val other=copy.replace("234567890","234567891")
+        val crop=first+"?stp=dst-jpg_c0.0.640.640a"
+        val posts=listOf(first,copy,other,crop).map(::post)
+        assertEquals(3,collectedMedia(posts).size)
+        assertEquals(listOf(first,other,crop),collectedMedia(posts).map {it.url})
+        assertTrue(posts.all {it.media.single().visualFingerprint==null})
+    }
     @Test fun detailedDarkAstronomyPictureDeduplicatesAfterReencoding() {
         val source=InstrumentationRegistry.getInstrumentation().context.assets.open("nasa-thats-our-jam.jpg").use(BitmapFactory::decodeStream)
         val small=Bitmap.createScaledBitmap(source,360,268,true)

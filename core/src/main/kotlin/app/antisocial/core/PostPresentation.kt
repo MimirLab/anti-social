@@ -14,6 +14,7 @@ data class PostTextPresentation(val title: String,val body: String,val attributi
 object PostPresentation {
     private val visibleUrl=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\\s<>]*)?",RegexOption.IGNORE_CASE)
     private val repostHeading=Regex("^RT by (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
+    private val alternateRepostHeading=Regex("^RT (@[a-zA-Z0-9_]{1,15}) \\(by (@[a-zA-Z0-9_]{1,15})\\):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
@@ -23,9 +24,11 @@ object PostPresentation {
         if(post.title.isBlank()||post.body.isBlank())return PostTextPresentation(post.title,post.body)
         val title=comparison(post.title)
         val author=comparison(post.author).removePrefix("@")
-        val repost=if(post.platform==Platform.X)repostHeading.matchEntire(Jsoup.parseBodyFragment(post.title).text())else null
-        val repostCaption=repost?.groupValues?.get(2)?.let(::comparison)
         val nitter=post.platform==Platform.X&&post.provenance?.source?.frontend=="nitter"
+        val rawHeading=if(post.platform==Platform.X)Jsoup.parseBodyFragment(post.title).text()else ""
+        val alternate=if(nitter)alternateRepostHeading.matchEntire(rawHeading)?.takeIf {it.groupValues[1].removePrefix("@").equals(author,true)}else null
+        val repost=if(post.platform==Platform.X)repostHeading.matchEntire(alternate?.let {"RT by ${it.groupValues[2]}: ${it.groupValues[3]}"} ?: rawHeading)else null
+        val repostCaption=repost?.groupValues?.get(2)?.let(::comparison)
         val pinnedCaption=title.takeIf {nitter&&it.startsWith("pinned: ")}?.removePrefix("pinned: ")
         // Some readers add attribution to a generated excerpt. It is redundant
         // only when the named source author and the actual body also agree.

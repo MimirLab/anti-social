@@ -235,3 +235,8 @@ policy; extra timeline measurements stay separate from the cheap feed head.
 This uses [the existing source pool within the refresh limits](FEED_COVERAGE.md#native-feed-recovery-03816),
 without giving a saved Page its own networking authority or adding a background
 crawler. Exhausted routes leave the missing interval visibly pending.
+
+The [attachment collection record](ATTACHMENT_COLLECTIONS.md) explains source-specific
+image aliases, evidence retained after a duplicate is removed, pixel-conflict guards
+and response-scoped Nitter rendering identities. Those operations do not authorize
+additional network destinations or share exact-file validation across copies.

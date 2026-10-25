@@ -41,14 +41,25 @@ internal fun collectedMedia(posts: List<Post>,identities: MediaIdentityStore?=nu
     val observed=if(identities==null)posts else posts.map(identities::captured)
     val near=CrossPosts.relatedVisualUpdates(observed)
     val media=observed.flatMap {it.media}
+    val assetKeys=media.filter {it.type=="image"}.mapNotNull {item->ImageAssetIdentity.key(item.url)?.let {item.url to it}}.toMap()
     val posters=media.filter {it.type=="video"}.mapNotNull {it.preview}.toSet()
-    val out=mutableListOf<Media>()
+    val clusters=mutableListOf<MutableList<Media>>()
+    fun compatible(a:Media,b:Media)=a.type!="image"||a.visualFingerprint==null||b.visualFingerprint==null||
+        VisualFrames.sameImage(a.visualFingerprint,b.visualFingerprint)||near&&VisualFrames.same(a.visualFingerprint,b.visualFingerprint,nearbyFrame=true)
+    fun equivalent(a:Media,b:Media)=a.type==b.type&&(a.url==b.url||a.type=="image"&&(
+        assetKeys[a.url]?.let {it==assetKeys[b.url]}==true&&ImageAssetIdentity.same(a,b)||
+        VisualFrames.sameImage(a.visualFingerprint,b.visualFingerprint)||near&&VisualFrames.same(a.visualFingerprint,b.visualFingerprint,nearbyFrame=true)))
     for(item in media) {
         // An RSS thumbnail is already represented by the collected playable
         // video. Its source record remains available in Collected originals.
         if(item.type=="image"&&item.url in posters)continue
-        if(out.none {previous->previous.type==item.type&&
-            (previous.url==item.url||item.type=="image"&&(VisualFrames.sameImage(previous.visualFingerprint,item.visualFingerprint)||near&&VisualFrames.same(previous.visualFingerprint,item.visualFingerprint,nearbyFrame=true)))})out+=item
+        // A discarded copy can establish another CDN alias for the retained
+        // picture. Keep that evidence within this call. Every known observation
+        // must remain compatible: an intermediate JPEG cannot bridge two edits.
+        val matches=clusters.filter {group->group.any {equivalent(it,item)}&&group.all {compatible(it,item)}}
+        val existing=matches.singleOrNull()
+        if(existing==null)clusters+=mutableListOf(item)
+        else if(existing.none {it.url==item.url&&it.visualFingerprint==item.visualFingerprint})existing+=item
     }
-    return out
+    return clusters.map {it.first()}
 }

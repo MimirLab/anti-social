@@ -19,6 +19,7 @@ object CrossPostFusion {
         val presentations=java.util.IdentityHashMap<Post,PostTextPresentation>()
         val comparisons=java.util.IdentityHashMap<Post,String>()
         val normalizedUrls=HashMap<String,String?>()
+        val imageAssets=HashMap<String,String?>()
         var bytes=0L;var computations=0;var hits=0
         var urlComputations=0;var urlHits=0
     }
@@ -42,6 +43,15 @@ object CrossPostFusion {
         val bytes=96L+(value.length.toLong()+(result?.length ?: 0))*2
         if(current.normalizedUrls.size<2_048&&current.bytes+bytes<=8L*1024*1024) {
             current.normalizedUrls[value]=result;current.bytes+=bytes
+        }
+        return result
+    }
+    internal fun imageAssetKey(value:String,resolve:()->String?):String? {
+        val current=workspace.get() ?: return resolve()
+        if(current.imageAssets.containsKey(value))return current.imageAssets[value]
+        val result=resolve();val bytes=96L+(value.length.toLong()+(result?.length ?: 0))*2
+        if(current.imageAssets.size<2_048&&current.bytes+bytes<=8L*1024*1024) {
+            current.imageAssets[value]=result;current.bytes+=bytes
         }
         return result
     }
@@ -271,6 +281,7 @@ object CrossPostFusion {
      * The substantial-overlap gate applies to their union, not each sentence.
      */
     private fun alignment(a: Prepared,b: Prepared,mediaConfirmed: Boolean=false): List<Match>? {
+        val namingVariants=mediaConfirmed&&mentionOnlyVariant(a.text,b.text)
         val aa=a.partIndex
         val bb=b.partIndex
         val matches=mutableListOf<Match>()
@@ -288,10 +299,10 @@ object CrossPostFusion {
         var endA=0;var endB=0
         for(match in matches) {
             val partA=a.parts[match.a];val partB=b.parts[match.b]
-            if(competingContext(a.text.substring(endA,partA.start),b.text.substring(endB,partB.start)))return null
+            if(!namingVariants&&competingContext(a.text.substring(endA,partA.start),b.text.substring(endB,partB.start)))return null
             endA=partA.end;endB=partB.end
         }
-        if(competingContext(a.text.substring(endA),b.text.substring(endB)))return null
+        if(!namingVariants&&competingContext(a.text.substring(endA),b.text.substring(endB)))return null
         // Reject conflicting additions before scanning the shared passage again.
         // Both guards remain mandatory; this only orders their pure work.
         val common=matches.joinToString(" "){a.text.substring(a.parts[it.a].start,a.parts[it.a].end)}
@@ -329,12 +340,35 @@ object CrossPostFusion {
         val first=prepare(a) ?: return false;val second=prepare(b) ?: return false
         // A local wording edit or an essay quoting a shorter post cannot become
         // two supposedly independent additions around a manufactured shared run.
-        if(competingContext(first.text,second.text))return false
+        if(competingContext(first.text,second.text)&&!mentionOnlyVariant(first.text,second.text))return false
         fun symbols(text: String)=Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]").findAll(text).joinToString(""){it.value}
         if(symbols(first.text)!=symbols(second.text))return false
         val pair=refineSharedPhrases(listOf(first,second))
         val matched=alignment(pair[0],pair[1],mediaConfirmed=true) ?: return false
         return compatibleContext(pair[0],pair[1],matched)
+    }
+
+    /** Only already corroborated media copies enter this exception. Equal
+     * surrounding prose permits collection, not an assertion that the mentioned
+     * accounts are identical. The ordinary aligner retains every changed span. */
+    private fun mentionOnlyVariant(first:String,second:String):Boolean {
+        if('@' !in first||'@' !in second)return false
+        if(visibleUrl.findAll(first).map {it.value}.toList()!=visibleUrl.findAll(second).map {it.value}.toList())return false
+        fun template(text:String):Pair<String,List<String>>? {
+            val urls=visibleUrl.findAll(text).map {it.range}.toList()
+            val matches=mention.findAll(text).filter {match->
+                (match.range.first==0||text[match.range.first-1].let {!it.isLetterOrDigit()&&it !in "_./:@"})&&urls.none {match.range.first in it}
+            }.take(9).toList()
+            if(matches.size !in 1..8)return null
+            val out=StringBuilder();var end=0
+            matches.forEachIndexed {index,m->out.append(text.substring(end,m.range.first));out.append("[account-$index]");end=m.range.last+1}
+            out.append(text.substring(end))
+            val prose=mention.replace(text," ")
+            if(prose.length<160||contextWords(prose).size<24)return null
+            return TextWhitespace.collapse(Normalizer.normalize(out.toString(),Normalizer.Form.NFC)).trim().lowercase(Locale.ROOT) to matches.map {it.value.lowercase(Locale.ROOT)}
+        }
+        val a=template(first) ?: return false;val b=template(second) ?: return false
+        return a.first==b.first&&a.second.size==b.second.size&&a.second.zip(b.second).count {it.first!=it.second} in 1..4
     }
 
     fun composeMedia(posts: List<Post>): PostFusion? {
@@ -443,6 +477,7 @@ object CrossPostFusion {
      */
     fun compose(posts: List<Post>): PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        AttachmentCaptions.compose(posts)?.let {return it}
         CaptionAliases.compose(posts)?.let {return it}
         // Grouping proves timing/content/corroboration independently; a copy
         // never certifies that its distinct publishers are the same person.

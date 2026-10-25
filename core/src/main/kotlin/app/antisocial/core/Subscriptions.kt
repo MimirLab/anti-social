@@ -292,7 +292,14 @@ object CrossPosts {
             if(tokens(text)!=tokens(full)||meaningfulSymbols.findAll(text).map {it.value}.toList()!=meaningfulSymbols.findAll(full).map {it.value}.toList())return false
             if(urlPattern.findAll(text).map {it.value}.toList()!=urlPattern.findAll(full).map {it.value}.toList())return false
         }
-        return post.media.all {image->anchor.media.any {other->sameImages(anchor.copy(media=listOf(other)),post.copy(media=listOf(image)),sameMedia)}}
+        return post.media.all {image->anchor.media.any {other->
+            // A complete gallery claims that every picture is already present.
+            // Detailed observations outrank a similar template/scene or a
+            // looser callback when a face, number or crop has changed.
+            if(other.visualFingerprint!=null&&image.visualFingerprint!=null)
+                VisualFrames.sameImage(other.visualFingerprint,image.visualFingerprint)
+            else sameImages(anchor.copy(media=listOf(other)),post.copy(media=listOf(image)),sameMedia)
+        }}
     }
     private fun collectGalleries(groups:List<PostGroup>,sameMedia:(Post,Post)->Boolean):List<PostGroup> {
         val scope=groups.flatMap {it.posts}
@@ -407,7 +414,7 @@ object CrossPosts {
         val base=tokens(trailingTags.replace(plain,"")).joinToString(" ")
         val literalLinks=PostPresentation.destinationLabels(content).mapNotNull(::normalizedUrl).toSet()
         val urls=(post.links.orEmpty().take(16).mapNotNull(::normalizedUrl)+literalLinks).toSet()
-        val media=post.media.take(12).mapNotNull {normalizedUrl(it.url)}.toSet()
+        val media=post.media.take(12).mapNotNull {if(it.type=="image")ImageAssetIdentity.key(it.url) ?: normalizedUrl(it.url)else normalizedUrl(it.url)}.toSet()
         return Features(post,owner,wordTokens.joinToString(" "),base,wordTokens,wordTokens.filter {it.any(Char::isDigit)},wordTokens.filter {it in negations},meaningfulSymbols.findAll(plain).joinToString(""){it.value},urls,
             // A literal non-social site address can itself be the announced
             // resource. Unmentioned generic homepages from attachment lists
@@ -428,7 +435,7 @@ object CrossPosts {
         if(distance>(if(linked)WINDOW else UNLINKED_WINDOW).toULong())return false
         if(a.text.isBlank()||b.text.isBlank())return false
         if(a.numbers!=b.numbers||a.negatives!=b.negatives)return false
-        if(a.symbols!=b.symbols)return false
+        if(a.symbols!=b.symbols&&!AttachmentCaptions.equivalent(a.post,b.post))return false
         if(a.text==b.text&&!completeCopyText(a,b))return false
         if(a.destinations.isNotEmpty()&&b.destinations.isNotEmpty()&&a.destinations!=b.destinations) {
             // Different opaque campaign codes do not establish different claims.
@@ -481,7 +488,7 @@ object CrossPosts {
         val left=a.media.filter {it.type=="image"}.take(12);val right=b.media.filter {it.type=="image"}.take(12)
         if(left.isEmpty()||right.isEmpty())return false
         val urls=left.mapNotNull {normalizedUrl(it.url)}.toSet()
-        return right.mapNotNull {normalizedUrl(it.url)}.any {it in urls}||left.any {x->right.any {y->VisualFrames.same(x.visualFingerprint,y.visualFingerprint)}}||sameMedia(a.copy(media=left),b.copy(media=right))
+        return right.mapNotNull {normalizedUrl(it.url)}.any {it in urls}||left.any {x->right.any {y->ImageAssetIdentity.same(x,y)||VisualFrames.same(x.visualFingerprint,y.visualFingerprint)}}||sameMedia(a.copy(media=left),b.copy(media=right))
     }
     private fun realOriginal(post: Post): Boolean {
         val url=uri(post.canonicalUrl) ?: return false
@@ -495,7 +502,7 @@ object CrossPosts {
             b.copy(media=b.media.filter {normalizedUrl(it.url)!=b.avatar?.let(::normalizedUrl)}),sameMedia)
     }
     private fun completeCopyText(a: Features,b: Features): Boolean {
-        if(a.text.isBlank()||a.text!=b.text||a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols)return false
+        if(a.text.isBlank()||a.text!=b.text||a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols&&!AttachmentCaptions.equivalent(a.post,b.post))return false
         // A question is not silently changed into an assertion. Ignore URL query
         // punctuation here; destinations are compared separately below.
         fun questions(post: Post)=Regex("[?]").findAll(PostPresentation.proseWithoutLinks(PostPresentation.content(post))).joinToString(""){it.value}
