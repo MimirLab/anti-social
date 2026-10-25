@@ -1,11 +1,58 @@
-# Feed performance qualification — 0.36.0-rc5
+# Feed performance qualification
+
+## 0.38.23: reject conflicts before repeated shared-text analysis
+
+Native method sampling found repeated ICU word scans while comparing nearly
+identical captions that were subsequently rejected for a changed bulletin
+number. Alignment now checks the existing unmatched-context conflicts before
+scanning the shared passage's lexical richness. Both checks remain mandatory.
+No matching threshold, source window, candidate limit, original edition or
+contradiction guard was removed. It adds no cache, network request or model call.
+Readers still receive one completely checked collection.
+
+The same opt-in 240-record X/Facebook fixture ran on the same isolated API 35
+x86_64 KVM/SwiftShader emulator, serialized without a concurrent compiler.
+Both runs produced the same **120 merged cards**, the same initial card and the
+same cards after eight scripted swipes.
+
+| Native measurement | 0.38.22 | 0.38.23 |
+| --- | ---: | ---: |
+| Core grouping, median of three | 6.830 s | 2.710 s |
+| Opening until first merged card | 8.765 s | 4.196 s |
+| Eight swipes with test synchronization | 4.830 s | 4.966 s |
+| Sampled frame duration, median | 147 ms | 150 ms |
+
+Opening improved in this workload; scrolling did not improve in this comparison.
+The window frame sample contains only 24 frames/run and still includes stalls.
+These are authored stress-fixture measurements with a warm runtime, not cold
+process-start latency, live-provider latency, phone FPS or battery measurements.
+The richer real cached-image startup path remains a separate profiling target.
+
+Desktop group/original-URL SHA digests also match at 80, 240 and 800 records.
+The 800-record workload remains constrained by the existing broad-candidate
+safety bound; it gains no speed in this comparison. Raw evidence is retained
+externally under `evidence/feed-startup-20261025`, including the unchanged
+baseline APK/core snapshot, native traces, untraced results and actual screens.
+
+The full JVM run completed 2,159 cases with zero failures/errors and one optional
+model-weight skip. The Android batch covered 122 named checks: 120 passed, two
+opt-in live-Tor/NASA-neighborhood checks skipped, zero failures. It includes
+reading anchors, frozen editions, source failures and cancellation, filters,
+source-window invalidation, privacy and native public comment/history controls.
+The opt-in benchmark passed separately. Release assembly and lint pass.
+
+The existing benchmark now has optional `antisocialTraceFeedPreparation` and
+`antisocialTraceFeedOpening` flags for native method sampling. They default off;
+traced runs are diagnostic and excluded from the timing comparison above.
+
+## Earlier 0.36.0-rc5 qualification
 
 This change removes repeated local work from feed opening and scrolling. It adds
 no network requests, language-model calls, or new reader controls. Darwin routing,
 progressive account discovery, late image/source enrichment, privacy protection,
 and the existing matching thresholds remain in place.
 
-## Work moved off the reading path
+### Work moved off the reading path
 
 - One combined-feed Room snapshot supplies both the reader and its cross-platform
   counterparts. Scoped feeds still retain their own window and source memberships.
@@ -30,7 +77,7 @@ and the existing matching thresholds remain in place.
   proof even when another source arrives. Stable link lists,
   filter decisions and read-key sets are reused across scroll recompositions.
 
-## Reproducible workload and limits
+### Reproducible workload and limits
 
 `FeedPerformanceTest` is opt-in and requires both
 `antisocialIsolatedFixtureDevice=true` and `antisocialFeedBenchmark=true`. Use a
@@ -85,7 +132,7 @@ The desktop workload also compares exact group/original-URL SHA-256 digests for
 already hits an existing candidate safety bound and shows no speed improvement;
 this change does not alter that bound to manufacture a better benchmark.
 
-## Validation
+### Validation
 
 The full core suite, Android feed/reading/filter/save/source/privacy regressions,
 release lint and debug/release assembly are required before preview promotion.

@@ -88,16 +88,25 @@ class FeedPerformanceTest {
                 }
             }}
             val grouping=mutableListOf<Double>()
-            repeat(3){val start=SystemClock.elapsedRealtimeNanos();val groups=CrossPosts.group(records,follows);grouping+=(SystemClock.elapsedRealtimeNanos()-start)/1e6;assertEquals(120,groups.size)}
+            repeat(3){iteration->
+                val trace=args.getString("antisocialTraceFeedPreparation")=="true"&&iteration==0
+                if(trace)android.os.Debug.startMethodTracingSampling(File(dir,"$label-grouping.trace").path,32*1024*1024,2_000)
+                try {val start=SystemClock.elapsedRealtimeNanos();val groups=CrossPosts.group(records,follows);grouping+=(SystemClock.elapsedRealtimeNanos()-start)/1e6;assertEquals(120,groups.size)}
+                finally {if(trace)android.os.Debug.stopMethodTracing()}
+            }
             repo.feedMemory.reconcile("all",records.map(repo::key))
             repo.feedMemory.anchor("all",repo.key(records.first()),0)
             val model=AntiSocialViewModel(repo).also {vm=it}
             val started=SystemClock.elapsedRealtimeNanos()
-            ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
+            val traceOpening=args.getString("antisocialTraceFeedOpening")=="true"
+            if(traceOpening)android.os.Debug.startMethodTracingSampling(File(dir,"$label-opening.trace").path,32*1024*1024,2_000)
             // Equal-time originals choose Facebook's stable original key first.
             val first="Feed row ${repo.key(records[1])}"
-            ui.waitUntil(90_000){ui.onAllNodesWithTag(first).fetchSemanticsNodes().isNotEmpty()}
-            ui.onNodeWithTag(first).assertIsDisplayed();ui.waitForIdle()
+            try {
+                ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
+                ui.waitUntil(90_000){ui.onAllNodesWithTag(first).fetchSemanticsNodes().isNotEmpty()}
+                ui.onNodeWithTag(first).assertIsDisplayed();ui.waitForIdle()
+            }finally {if(traceOpening)android.os.Debug.stopMethodTracing()}
             val openedMs=(SystemClock.elapsedRealtimeNanos()-started)/1e6
             ui.runOnIdle {ui.activity.window.addOnFrameMetricsAvailableListener(listener,Handler(handler.looper));listening=true}
             fun visible()=ui.onAllNodes(SemanticsMatcher("feed card") {it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Feed row ")==true}).fetchSemanticsNodes().mapNotNull {it.config.getOrNull(SemanticsProperties.TestTag)}

@@ -122,6 +122,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     var why by remember {mutableStateOf<FeedRuleExplanation?>(null)}
     val accounts=follows.filter {it.enabled}.distinctBy {it.id}
     val accountIds=accounts.map {it.id}
+    val updating=refresh.running&&refresh.requested.any {it in accountIds}
     val frozen=rows.orEmpty()
     val filterGroups=remember(frozen){frozen.map {it.bodyPosts}}
     val assessments=rememberFilterAssessments(repo,filtering,filterGroups)
@@ -435,7 +436,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                     Text(title,fontSize=17.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis)
                     Row(Modifier.then(if(incoming)Modifier.testTag("Feed incoming banner")else Modifier),verticalAlignment=Alignment.CenterVertically) {
                         Text(if(incoming){when {staged>0&&returned>0->"$staged new · $returned available";staged>0->"$staged new · $unread unread";returned>0->"$returned available · $unread unread";else->"Post updates ready"}}else "$fresh new · ${unread-fresh} unread",fontSize=10.sp,color=if(incoming)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false).testTag("Feed unread summary"))
-                        if(pending>0||state.loading||nearbyNotice!=null||state.error!=null)Text(if(pending>0)" · $pending pending"else " · status",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,modifier=Modifier.testTag("Feed check summary").clickable {showSources=true})
+                        if(updating||pending>0||state.loading||nearbyNotice!=null||state.error!=null)Text(if(updating)" · updating"else if(pending>0)" · $pending pending"else " · status",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,modifier=Modifier.testTag("Feed check summary").clickable {showSources=true})
                     }
                 }
                 if(canContinue)IconButton(onClick={continueReading()},enabled=!navigating&&!preparing,modifier=Modifier.testTag("Continue reading")){Icon(Icons.Rounded.History,"Continue reading",Modifier.size(20.dp))}
@@ -447,7 +448,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                         Text(subtitle,Modifier.padding(horizontal=16.dp,vertical=8.dp),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         nearbyNotice?.let {Text(it,Modifier.widthIn(max=260.dp).padding(horizontal=16.dp,vertical=8.dp),fontSize=12.sp)}
                         state.error?.let {Text(repo.publicText(it),Modifier.widthIn(max=260.dp).padding(horizontal=16.dp,vertical=8.dp),fontSize=12.sp)}
-                        DropdownMenuItem(text={Text("Refresh")},leadingIcon={Icon(Icons.Rounded.Refresh,null)},enabled=!refresh.running&&!state.loading,onClick={showOptions=false;requestRefresh()})
+                        if(state.loading)DropdownMenuItem(text={Text("Stop refresh")},leadingIcon={Icon(Icons.Rounded.Close,null)},onClick={showOptions=false;vm.stopLoading()})
+                        else DropdownMenuItem(text={Text("Refresh")},leadingIcon={Icon(Icons.Rounded.Refresh,null)},enabled=!refresh.running,onClick={showOptions=false;requestRefresh()})
                         DropdownMenuItem(text={Text("Subscription checks")},leadingIcon={Icon(Icons.Rounded.Info,null)},onClick={showOptions=false;showSources=true})
                         DropdownMenuItem(text={Text("Add a subscription")},leadingIcon={Icon(Icons.Rounded.Add,null)},onClick={showOptions=false;onAdd()})
                         onEditRules?.let {edit->DropdownMenuItem(text={Text("Edit channel rules")},leadingIcon={Icon(Icons.Rounded.Edit,null)},onClick={showOptions=false;edit()})}
@@ -457,7 +459,10 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             }
         if(!ready||rows==null&&!counterpartsReady)LinearProgressIndicator(Modifier.fillMaxWidth())
         CompositionLocalProvider(LocalArchiveChecksPaused provides (LocalArchiveChecksPaused.current||why!=null)) {
-        PullToRefreshBox(isRefreshing=refresh.running,onRefresh={requestRefresh()},modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
+        // The pull arrow belongs to the gesture and retracts after release.
+        // Long source checks use the fixed toolbar status, not a floating loop
+        // over an already readable card. requestRefresh still prevents overlap.
+        PullToRefreshBox(isRefreshing=false,onRefresh={requestRefresh()},modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
         ArchiveListViewport(list) {
             LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag(if(grouped)"Combined feed"else "Following feed"),contentPadding=PaddingValues(start=16.dp,end=16.dp,top=12.dp,bottom=24.dp+with(density){endFillPx.toDp()}),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(frozen.isEmpty()&&availableKeys.isEmpty())item(key="empty:$feedId") {Column(Modifier.padding(vertical=20.dp)) {

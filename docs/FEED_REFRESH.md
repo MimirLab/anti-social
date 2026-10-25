@@ -65,3 +65,20 @@ source pending/success state, UI-thread invocation and scoped/global generations
 Full test and native-screen results are recorded in
 [release qualification](RELEASE_QUALIFICATION.md). Raw measurements and private
 preview backups remain on the external build volume.
+
+## Quiet progress, 0.38.23
+
+A running source check now uses the existing fixed-height toolbar's “updating”
+status. The label is scoped to the current feed's requested subscriptions and
+opens their check details. A long background refresh no longer pins an animated
+pull indicator over cached post content. The native pull arrow still follows
+the gesture and retracts after release; the existing request guard prevents
+overlapping refreshes. This uses Material 3's existing gesture behavior, with
+no new dependency or timer.
+
+Explicit reader refreshes can be stopped through Feed options → Stop refresh.
+The same cancellation path retains cached content and unfinished sources remain
+pending. The regression fails on unchanged 0.38.22's floating indicator, then
+passes on the candidate while checking a fixed card anchor and toolbar bounds,
+visible status and cancellation. Legitimate per-card activity indicators remain
+separate. Native edge-pull, exact caught-up message and failed-source checks pass.

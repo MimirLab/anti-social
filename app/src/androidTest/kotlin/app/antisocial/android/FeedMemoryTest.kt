@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.getOrNull
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewModelScope
@@ -523,6 +525,32 @@ class FeedMemoryTest {
         ui.onNodeWithTag("Feed pending subscriptions").assertIsDisplayed()
         assertNotNull("A previous success remains history, not a current success",repo.feedMemory.refresh.value[second.id]?.lastSuccessAt)
         ui.onNodeWithTag("Feed caught up").assertDoesNotExist()
+    }
+
+    @Test fun backgroundRefreshKeepsCachedCardsUncoveredAndTheirAnchorFixed() {
+        val account=follow();val rows=posts(8);val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        repo.prefs.mentionLookups=false
+        runBlocking {repo.dao.putFollow(FollowRow(account.id,account.target.platform.id,repo.gson.toJson(account)));repo.store(Page(rows),account.id,true)}
+        repo.followLoader={started.complete(Unit);release.await();Page(rows)}
+        seed(personFeed,rows)
+        val vm=show(mutableStateOf(rows),listOf(account));waitForRow(rows.first())
+        val before=top(rows.first());val toolbar=ui.onNodeWithTag("Feed toolbar").fetchSemanticsNode().boundsInRoot
+        try {
+            ui.runOnIdle {vm.screen.value=vm.screen.value.copy(section="subscription",subscriptionId=person,combined=true);vm.refresh()}
+            ui.waitUntil(5_000){started.isCompleted}
+            ui.mainClock.advanceTimeBy(1_000);ui.waitForIdle()
+            row(rows.first()).assertIsDisplayed()
+            assertEquals(before,top(rows.first()),2f)
+            assertEquals(toolbar,ui.onNodeWithTag("Feed toolbar").fetchSemanticsNode().boundsInRoot)
+            val card=SemanticsMatcher("feed card") {it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("Feed row ")==true}
+            ui.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate) and !hasAnyAncestor(card)).assertCountEquals(0)
+            ui.onNodeWithTag("Feed check summary").assertTextContains("updating",substring=true)
+            evidence("background-refresh-keeps-cached-card-uncovered")
+            ui.onNodeWithTag("Feed options").performClick();ui.onNodeWithText("Stop refresh").performClick()
+            ui.waitUntil(5_000){!repo.feedRefresh.value.running}
+            assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[account.id]?.status)
+            row(rows.first()).assertIsDisplayed();assertEquals(before,top(rows.first()),2f)
+        }finally {release.complete(Unit);runBlocking {withTimeout(10_000){repo.feedRefresh.first {!it.running}}}}
     }
 
     @Test fun aSuccessfulNativePullAtTheNewestEdgeShowsTheExactCatchUpMessage() {

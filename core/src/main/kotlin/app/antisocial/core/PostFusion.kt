@@ -269,9 +269,6 @@ object CrossPostFusion {
         val minimum=if(mediaConfirmed)12 else MIN_WORDS
         if(count<minimum||count<minOf(a.words.count {!it.url},b.words.count {!it.url})*(if(mediaConfirmed).45 else .6)||
             mediaConfirmed&&count<maxOf(a.words.count {!it.url},b.words.count {!it.url})*.30)return null
-        val common=matches.joinToString(" "){a.text.substring(a.parts[it.a].start,a.parts[it.a].end)}
-        val prose=visibleUrl.replace(common," ")
-        if(prose.length<(if(mediaConfirmed)70 else MIN_CHARS)||contextWords(prose).distinct().size<(if(mediaConfirmed)8 else 12))return null
         var endA=0;var endB=0
         for(match in matches) {
             val partA=a.parts[match.a];val partB=b.parts[match.b]
@@ -279,6 +276,11 @@ object CrossPostFusion {
             endA=partA.end;endB=partB.end
         }
         if(competingContext(a.text.substring(endA),b.text.substring(endB)))return null
+        // Reject conflicting additions before scanning the shared passage again.
+        // Both guards remain mandatory; this only orders their pure work.
+        val common=matches.joinToString(" "){a.text.substring(a.parts[it.a].start,a.parts[it.a].end)}
+        val prose=visibleUrl.replace(common," ")
+        if(prose.length<(if(mediaConfirmed)70 else MIN_CHARS)||contextWords(prose).distinct().size<(if(mediaConfirmed)8 else 12))return null
         return matches
     }
 

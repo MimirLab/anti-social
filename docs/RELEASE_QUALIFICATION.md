@@ -9,6 +9,33 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.23 faster complete grouping and quiet refresh
+
+The existing conflicting-context check now precedes repeated shared-prose
+analysis in fusion alignment; every admission and contradiction guard remains
+in force. In the same native 240-post fixture, median grouping changed from
+6.830 to 2.710 seconds and first merged-card display from 8.765 to 4.196 seconds,
+with identical 120 groups and initial/scrolled card identities. Scrolling time
+and sampled frame durations did not improve. [Performance qualification](FEED_PERFORMANCE.md)
+records the workload, prior baseline, diagnostics and limits; these are not
+physical-phone or cold-process measurements.
+
+Background source checks use the fixed feed toolbar status. They no longer pin
+an animated pull indicator over cached cards. Pull gestures retain their arrow
+and existing overlap guard. Explicit refresh cancellation is reachable in Feed
+options. The new native regression fails against unchanged 0.38.22 on its one
+floating indicator, then verifies an uncovered card, unchanged anchor/toolbar,
+visible updating status and a cancelled source remaining pending.
+
+The full JVM suite completed 2,159 cases, zero failures/errors, one optional
+model-weight skip. The 122-method Android selection passed 120 methods with two
+opt-in live-Tor/NASA-neighborhood skips and zero failures. All 23 reading-memory
+journeys and both source-window invalidation checks are included alongside the
+preceding release's 97-method selection. The native benchmark passed separately;
+assembly and release lint pass. Actual native benchmark and refresh screens
+were inspected. Raw and intermediate evidence remains external under
+`evidence/feed-startup-20261025`.
+
 ## 0.38.22 source-bound Instagram authors
 
 Public grid previews, full posts and replies retain their literal source account
