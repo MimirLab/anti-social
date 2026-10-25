@@ -352,7 +352,8 @@ object CrossPosts {
         return invisible.replace(Normalizer.normalize(result,Normalizer.Form.NFKC),"").replace('’','\'').replace('‘','\'')
     }
     private fun tokens(value: String)=words.findAll(value.lowercase()).map {tokenWhitespace.replace(it.value,"").replace('−','-')}.toList()
-    private fun normalizedUrl(value: String): String? {
+    private fun normalizedUrl(value: String)=CrossPostFusion.normalizedUrl(value){normalizeUrl(value)}
+    private fun normalizeUrl(value: String): String? {
         val clean=decoded(value).trim()
         val alias=SocialLinkHosts.canonical(clean) ?: clean
         val parsed=alias.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()} ?: return null

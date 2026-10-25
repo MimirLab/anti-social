@@ -77,3 +77,18 @@ claim nor a responding endpoint establishes access to the missing replies.
 The current public reader's [coverage limits](INSTAGRAM_PUBLIC_COMMENTS.md#coverage)
 remain in force. These experiments, raw responses and intermediate failures are
 retained externally under `evidence/instagram-child-comments-20261025`.
+
+### Later child-query lead, October 25
+
+Exact code search found a different child document identifier in
+[reels](https://github.com/njyeung/reels/blob/1f4be97921070c46a00827b3fc26e53c37551e71/backend/graphql.go)
+and [dumpsta-gram](https://github.com/stafawashere/dumpsta-gram/blob/6dffc13bbd7d98c4075df25548fb941aa14d1fd7/engine/dumpstagram/_private/web/documents/media.py).
+Their inspected collectors use captured logged-in sessions; public repository
+access and public method names do not establish anonymous source access. A
+bounded anonymous Android Gateway probe used a parent ID from its own current
+selected-post response, then received an explicit rate-limit error on the first
+child read and stopped. No additional child request, login or identity rotation
+followed. That response does not prove the document exists or that the selected
+parent has no replies. No child capability was registered. The first-page and
+continuation operation leads, raw source hashes and negative live result remain
+external under `evidence/instagram-child-query-leads-20261025`.

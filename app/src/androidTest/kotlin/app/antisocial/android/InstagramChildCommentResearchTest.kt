@@ -58,6 +58,10 @@ class InstagramChildCommentResearchTest {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val code=args.getString("antisocialResearchShortcode") ?: "DeTUk4sDSp-"
         require(code.matches(Regex("[A-Za-z0-9_-]{5,16}")))
+        val childDocument=args.getString("antisocialResearchChildDocument") ?: "26914912424764761"
+        require(childDocument.matches(Regex("[0-9]{10,32}")))
+        val childOrder=args.getString("antisocialResearchChildOrder") ?: "true"
+        require(childOrder in setOf("true","null"))
         val post="https://www.instagram.com/p/$code/"
         val alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
         val media=code.fold(BigInteger.ZERO){n,c->n.shiftLeft(6)+BigInteger.valueOf(alphabet.indexOf(c).toLong())}.toString()
@@ -107,7 +111,11 @@ class InstagramChildCommentResearchTest {
                         records+=mapOf("step" to "rest-child-observation-$index","fields" to rest.keySet(),"children" to rest.getAsJsonArray("child_comments")?.map {it.asJsonObject.let {n->mapOf("id" to n.get("pk"),"parent" to n.get("parent_comment_id"),"fields" to n.keySet())}})
                         continue
                     }
-                    val data=query("children-$index","PolarisPostChildCommentsQuery","26914912424764761",variables().apply {addProperty("parent_comment_id",id);addProperty("is_chronological",true)})
+                    records+=mapOf("step" to "child-request-$index","documentId" to childDocument,"chronological" to childOrder,"parent" to id)
+                    val data=query("children-$index","PolarisPostChildCommentsQuery",childDocument,variables().apply {
+                        addProperty("parent_comment_id",id);add("after",JsonNull.INSTANCE)
+                        if(childOrder=="null")add("is_chronological",JsonNull.INSTANCE)else addProperty("is_chronological",true)
+                    })
                     val connection=data.getAsJsonObject("xdt_api__v1__media__media_id__comments__parent_comment_id__child_comments__connection")
                     val children=connection?.getAsJsonArray("edges")
                     records+=mapOf("step" to "child-observation-$index","parent" to id,"dataKeys" to data.keySet(),"rows" to children?.size(),

@@ -9,6 +9,40 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.26 bounded URL work reuse during grouping
+
+The fusion workspace reuses normalization of an exact URL input during one
+complete grouping operation. It shares the existing estimated 8 MiB budget and
+uses a 2,048-entry map cap; nested work shares it and independent threads do not.
+Return, failure and cancellation release it. The resolver, matching thresholds,
+original editions and contradiction guards are unchanged. No network request,
+model, runtime or persistent reader-state field was added.
+
+Three untraced process-restarted native stage runs per APK over the same private
+517-post snapshot changed median grouping from 6.841 to 6.116 seconds, 10.6% less
+time. Every run retained the same 468 ordered groups and membership/order digest.
+These are local-stage emulator measurements, not full cold-launch or phone
+performance. [Performance qualification](FEED_PERFORMANCE.md) gives the workload
+and remaining limits. Raw evidence stays external under
+`evidence/feed-url-work-20261025`.
+
+The full JVM suite completed 2,173 cases, zero failures/errors, one optional
+model-weight skip. The 77-method Android batch passed 76 methods with one
+opt-in live-Tor skip and zero failures. It covers merged images/cards, saved
+editions, reading memory, history/coverage and connection controls. Debug, test
+and release assembly plus release lint pass. Unit checks exercise exact URL
+spelling, null reuse, nested ownership, failure cleanup, shared memory bounds
+and concurrent reader isolation. Actual native merged-caption and attributed
+source-context screens were inspected.
+
+The research-only child-comment probe can select a source-reported document ID
+and true/null chronological input. Its separate live attempt returned an explicit
+rate limit on the first child read and stopped; no new child capability or
+fingerprint-based preview renewal is qualified. That negative result and its
+source references are retained under
+`evidence/instagram-child-query-leads-20261025` and described in
+[query research](INSTAGRAM_QUERY_RECOVERY.md#later-child-query-lead-october-25).
+
 ## 0.38.25 bounded Instagram query recovery and reuse
 
 The public reader recognizes the observed missing-document error only when every

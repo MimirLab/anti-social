@@ -17,6 +17,7 @@ class PostPreparationTest {
             val result=CrossPosts.group(posts,emptyList())
             val stats=CrossPostFusion.preparationStats()!!
             assertTrue(stats.computations<=posts.size);assertTrue(stats.hits>posts.size)
+            assertTrue(stats.urlHits>0);assertTrue(stats.urlComputations>0)
             result
         }
         assertNull(CrossPostFusion.preparationStats())
@@ -34,6 +35,34 @@ class PostPreparationTest {
         assertNull(CrossPostFusion.preparationStats())
         val full=short.copy(body=post(0).body)
         assertTrue(CrossPostFusion.matches(full,post(1,Platform.FACEBOOK)))
+    }
+    @Test fun urlReuseKeepsExactInputsAndNullsWithinTheOwningOperation() {
+        var calls=0
+        fun read(value:String)=CrossPostFusion.normalizedUrl(value){calls++;value.takeUnless {it=="invalid"}}
+        repeat(2){assertNull(read("invalid"))};assertEquals(2,calls)
+        CrossPostFusion.withPrepared {
+            repeat(3){assertNull(read("invalid"))};assertEquals(3,calls)
+            assertEquals("https://example.org/Part?key=A",read("https://example.org/Part?key=A"))
+            assertEquals("https://example.org/part?key=a",read("https://example.org/part?key=a"))
+            CrossPostFusion.withPrepared {assertEquals("https://example.org/Part?key=A",read("https://example.org/Part?key=A"))}
+            assertEquals(5,calls)
+        }
+        assertNull(CrossPostFusion.preparationStats());assertNull(read("invalid"));assertEquals(6,calls)
+        assertThrows(IllegalStateException::class.java){CrossPostFusion.withPrepared {read("invalid");error("Cancelled preparation")}}
+        assertNull(CrossPostFusion.preparationStats())
+        assertNull(read("invalid"));assertEquals(8,calls)
+    }
+    @Test fun urlReuseSharesTheExistingByteBoundAndCannotGrowWithReadingHistory() {
+        CrossPostFusion.withPrepared {
+            repeat(3000){i->val value="https://example.org/$i";CrossPostFusion.normalizedUrl(value){value}}
+            val stats=CrossPostFusion.preparationStats()!!
+            assertTrue(stats.urlEntries<=2048);assertTrue(stats.bytes<=8L*1024*1024)
+        }
+        CrossPostFusion.withPrepared {
+            repeat(300){i->val value="https://example.org/$i/"+"a".repeat(16_384);CrossPostFusion.normalizedUrl(value){value}}
+            val stats=CrossPostFusion.preparationStats()!!
+            assertTrue(stats.urlEntries<300);assertTrue(stats.bytes<=8L*1024*1024)
+        }
     }
     @Test fun aSupersededGroupingStopsDuringPairChecksWithoutPublishingPartialGroups()=runBlocking {
         val posts=(0 until 24).map {post(it,if(it%2==0)Platform.X else Platform.FACEBOOK).copy(media=listOf(Media("https://images.example.org/$it.jpg")))}
@@ -59,8 +88,17 @@ class PostPreparationTest {
         }
         val workers=Executors.newFixedThreadPool(2)
         try {
-            val first=workers.submit<Boolean> {CrossPostFusion.withPrepared {CrossPostFusion.matches(post(0),post(1,Platform.FACEBOOK))}}
-            val second=workers.submit<Boolean> {CrossPostFusion.withPrepared {CrossPostFusion.matches(post(0),post(1,Platform.FACEBOOK).copy(body=post(1).body.replace("Bulletin 0","Bulletin 7")))}}
+            val barrier=java.util.concurrent.CyclicBarrier(2)
+            val first=workers.submit<Boolean> {CrossPostFusion.withPrepared {
+                assertEquals("first",CrossPostFusion.normalizedUrl("same input"){"first"});barrier.await(10,java.util.concurrent.TimeUnit.SECONDS)
+                assertEquals("first",CrossPostFusion.normalizedUrl("same input"){error("Already resolved")})
+                CrossPostFusion.matches(post(0),post(1,Platform.FACEBOOK))
+            }}
+            val second=workers.submit<Boolean> {CrossPostFusion.withPrepared {
+                assertEquals("second",CrossPostFusion.normalizedUrl("same input"){"second"});barrier.await(10,java.util.concurrent.TimeUnit.SECONDS)
+                assertEquals("second",CrossPostFusion.normalizedUrl("same input"){error("Already resolved")})
+                CrossPostFusion.matches(post(0),post(1,Platform.FACEBOOK).copy(body=post(1).body.replace("Bulletin 0","Bulletin 7")))
+            }}
             assertTrue(first.get());assertFalse(second.get());assertNull(CrossPostFusion.preparationStats())
         }finally {workers.shutdownNow()}
     }

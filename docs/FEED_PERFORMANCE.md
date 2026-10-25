@@ -1,5 +1,31 @@
 # Feed performance qualification
 
+## 0.38.26: reuse URL normalization during one complete grouping
+
+Repeated source, caption and media URLs now reuse their normalization result
+inside the existing operation-local fusion workspace. The exact input string is
+the key, including case and parameters; the normalization rules are unchanged.
+Null results are reusable too. The new map shares the existing estimated 8 MiB
+workspace budget, has a 2,048-entry cap, and is discarded on return, cancellation
+or failure. It adds no persistent browsing cache or network request. Independent
+threads retain independent workspaces and nested work shares the current one.
+
+Three process-restarted untraced stage measurements per APK used the same private
+517-post snapshot, 24 sources and API 35 emulator, with no concurrent compiler.
+Every run produced the same 468 ordered groups and membership/order digest.
+
+| Grouping stage | 0.38.25 | Candidate |
+| --- | ---: | ---: |
+| Three samples | 6.859 / 6.800 / 6.841 s | 6.116 / 6.214 / 6.066 s |
+| Median | 6.841 s | 6.116 s |
+
+The measured stage takes 10.6% less time in this workload. No match threshold,
+source edition, contradiction guard or image-identity requirement changed.
+These measurements do not establish physical-phone, live-provider, actual-paint
+or complete cold-launch performance. The remaining reading-preparation and
+image-revision work remain separate targets. Raw results and the private fixture
+stay external under `evidence/feed-url-work-20261025`.
+
 ## 0.38.24: skip waits on missing cache files and reject distant galleries early
 
 The cold image-comparison rebuild previously delayed 40 ms after every unknown

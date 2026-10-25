@@ -11,13 +11,16 @@ data class PostFusion(val segments: List<FusionSegment>)
  * account ownership or image identity; CrossPosts verifies content independently.
  */
 object CrossPostFusion {
-    internal data class PreparationStats(val computations:Int,val hits:Int,val entries:Int,val bytes:Long)
+    internal data class PreparationStats(val computations:Int,val hits:Int,val entries:Int,val bytes:Long,
+        val urlComputations:Int,val urlHits:Int,val urlEntries:Int)
     private class Workspace {
         val documents=java.util.IdentityHashMap<Post,Prepared?>()
         val contexts=HashMap<String,ComparisonContext>()
         val presentations=java.util.IdentityHashMap<Post,PostTextPresentation>()
         val comparisons=java.util.IdentityHashMap<Post,String>()
+        val normalizedUrls=HashMap<String,String?>()
         var bytes=0L;var computations=0;var hits=0
+        var urlComputations=0;var urlHits=0
     }
     private val workspace=ThreadLocal<Workspace>()
     /** Reuse pure caption analysis inside one synchronous operation only.
@@ -28,7 +31,20 @@ object CrossPostFusion {
         workspace.set(Workspace())
         return try {block()}finally {workspace.remove()}
     }
-    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes)}
+    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size)}
+    /** Exact input strings only. Signed parameters and case stay the resolver's
+     * concern; this cache neither fetches URLs nor survives the operation. */
+    internal fun normalizedUrl(value:String,resolve:()->String?):String? {
+        val current=workspace.get() ?: return resolve()
+        if(current.normalizedUrls.containsKey(value)){current.urlHits++;return current.normalizedUrls[value]}
+        current.urlComputations++
+        val result=resolve()
+        val bytes=96L+(value.length.toLong()+(result?.length ?: 0))*2
+        if(current.normalizedUrls.size<2_048&&current.bytes+bytes<=8L*1024*1024) {
+            current.normalizedUrls[value]=result;current.bytes+=bytes
+        }
+        return result
+    }
     internal fun presentation(post:Post)=workspace.get()?.presentations?.get(post)
     internal fun rememberPresentation(post:Post,value:PostTextPresentation) {
         val current=workspace.get() ?: return
