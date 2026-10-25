@@ -30,22 +30,23 @@ internal fun eventWorkKeys(value:LocalEvent):Set<String> = buildSet {
     add(eventWorkKey(value.id));(value.urls+value.evidence.map {it.sourceUrl}).forEach {addAll(localSourceWorkKeys(it))}
 }
 
-@Composable internal fun CardActivity(work:CardWork,keys:Set<String>,tag:String,compact:Boolean=false) {
+@Composable internal fun CardActivity(work:CardWork,keys:Set<String>,tag:String,compact:Boolean=false,discoveryPending:Boolean=false) {
     val flow=remember(work,keys){work.activity(keys)}
     val tasks by flow.collectAsStateWithLifecycle(emptyList())
     var details by remember(tag){mutableStateOf(false)}
     val busy=tasks.isNotEmpty()
     // A fixed footprint avoids changing card geometry when status changes.
     Row(Modifier.width(88.dp).heightIn(min=if(compact)22.dp else 44.dp).testTag("Card activity $tag")
-        .semantics {stateDescription=if(busy)"Updating"else "Ready"}.clickable {details=true},
+        .semantics {stateDescription=if(busy)"Updating"else if(discoveryPending)"Searching"else "Ready"}.clickable {details=true},
         horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
-        if(busy)CircularProgressIndicator(Modifier.size(12.dp),strokeWidth=1.5.dp)
+        if(busy||discoveryPending)CircularProgressIndicator(Modifier.size(12.dp),strokeWidth=1.5.dp)
         else Icon(Icons.Rounded.Check,null,Modifier.size(14.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(4.dp))
-        Text(if(busy)"Updating…"else "Ready",fontSize=11.sp,lineHeight=14.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
+        Text(if(busy)"Updating…"else if(discoveryPending)"Searching…"else "Ready",fontSize=11.sp,lineHeight=14.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
     }
-    if(details)AlertDialog(onDismissRequest={details=false},title={Text(if(busy)"Adding details"else "Ready to read")},
+    if(details)AlertDialog(onDismissRequest={details=false},title={Text(if(busy)"Adding details"else if(discoveryPending)"Searching public sources"else "Ready to read")},
         text={Text(if(busy)"Working on: "+tasks.joinToString(", ")+". You can keep reading or move on; updates arrive automatically."
+            else if(discoveryPending)"Other source searches are still running. No update is running for this card right now; useful details can arrive as those searches finish. You can keep reading or move on."
             else "No background updates are running for this card. You can read it and move on. A later refresh may find new information.")},
         confirmButton={TextButton(onClick={details=false}){Text("Done")}})
 }

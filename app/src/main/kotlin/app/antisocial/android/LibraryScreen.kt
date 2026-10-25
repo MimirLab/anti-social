@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.collect
 
 /** Library searches and capture readers resolve only local records and selected local files. */
-@Composable internal fun LibraryScreen(repo: Repository,onOpenOriginal: (Post)->Unit,onStorage: ()->Unit={},onOpenLink:(String)->Unit={},onReadLink:(String)->Unit={}) {
+@Composable internal fun LibraryScreen(repo: Repository,onOpenOriginal: (Post)->Unit,onStorage: ()->Unit={},onOpenLink:(String)->Unit={},onReadLink:(String)->Unit={},onReadEvent:((String,LocalEvent)->Unit)?=null) {
     val focus=LocalFocusManager.current;val keyboard=LocalSoftwareKeyboardController.current
     var query by rememberSaveable {mutableStateOf("")}
     var filter by rememberSaveable {mutableStateOf("all")}
@@ -127,8 +127,8 @@ import kotlinx.coroutines.flow.collect
     }
     localSelected?.let {item->
         val remove={scope.launch {withContext(Dispatchers.IO){repo.localDiscovery.removeSaved(item.id)};localSelected=null};Unit}
-        item.business?.let {b->BusinessDetails(b,null,repo.prefs.localDistanceUnit,true,menuLoading=false,onMenuRefresh=null,onDismiss={localSelected=null},onSave=remove,onSocial={url->localSelected=null;onOpenLink(url)},onRead={url->localSelected=null;onReadLink(url)})}
-        item.event?.let {event->EventDetails(event,eventArea(event),saved=true,onDismiss={localSelected=null},onSave=remove,onRead=onReadLink,onImage={url,source->flyer=url to source})}
+        item.business?.let {b->BusinessDetails(b,null,repo.prefs.localDistanceUnit,true,menuLoading=false,onMenuRefresh=null,onDismiss={localSelected=null},onSave=remove,onSocial={url->localSelected=null;onOpenLink(url)},onRead={url->localSelected=null;onReadLink(url)},clean=repo.cleaner::clean,activity={CardActivity(repo.cardWork,businessWorkKeys(b),b.id)})}
+        item.event?.let {event->EventDetails(event,eventArea(event),saved=true,onDismiss={localSelected=null},onSave=remove,onRead={url->localSelected=null;if(repo.routes.recognize(url)!=null)onOpenLink(url)else onReadEvent?.invoke(url,event) ?: onReadLink(url)},onImage={url,source->flyer=url to source},repo=repo,activity={CardActivity(repo.cardWork,eventWorkKeys(event),event.id)})}
     }
     flyer?.let {(url,source)->MediaViewer(listOf(Media(url)),0,source,repo){flyer=null}}
     if(create)CreateLibraryCollection(repo,onCreated={collectionId=it;filter="saved";create=false},onDismiss={create=false})

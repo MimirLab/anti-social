@@ -39,6 +39,52 @@ discoveries. A subsequently identified owner can bind an earlier unowned source
 without clearing its failure cooldown. In-memory description fallback extends the
 newly extracted record and preserves its contacts and social connections.
 
+### Detail delivery and reading panels (0.38.33)
+
+An explicitly started regional search uses a local scheduling marker in
+NetworkGateway. Its initial directory/index requests can coexist with the search's
+deferred detail reads; ordinary article navigation and media still preempt deferred
+work. The marker changes scheduling only, retaining Tor/session enforcement,
+filters, request purposes, redirect checks and existing source/byte allowances.
+The first deck starts enrichment without waiting for unrelated discovery lanes.
+Published brand-location downloads have one separate slot, so they cannot hold the
+light contact-search slot. Late initial discoveries trigger another bounded pass;
+there is no unbounded rescan or background subscription.
+
+List cards and opened details distinguish actual owned work (Updating), continued
+searches that may find more information (Searching), and no pending work (Ready).
+Search complete and Search stopped are distinct. Stable status footprints and fixed
+reading viewports avoid moving sheet anchors as content changes. Content scrolling
+does not also drag the containing sheet; pinned Close, Back and outside-tap dismiss
+it. This shared viewport also applies to menus and the native article reader.
+
+Business chain grouping is a display projection over distinct location records.
+A shared declared brand or compatible name plus first-party domain can establish
+the group. Directory domains and name similarity alone do not. Selecting a branch
+retains its own address, telephone, hours, menu and saved record; grouping does not
+rewrite one branch with another's fields.
+
+Event actions clean and deduplicate destination URLs, prioritize registration,
+and tuck alternative announcements beneath one primary destination. Opening event
+details checks up to six unique links with two workers, a 20-second total allowance,
+a 10-second per-link limit and at most 1 MiB/four requests per check. These checks
+reuse Darwin's protected article/public-copy resolver and the existing bounded
+article bank. Successful checks last 30 minutes; unavailable results last five,
+and unverified temporary failures one. These are observations, not perpetual
+availability promises. Source inspection can deliberately open an unverified URL;
+confirmed unavailable actions stay muted. Action-bearing URLs never gain automatic
+retrieval permission. Expanding sources permits another bounded batch.
+
+A matching structured Event with an explicit date can supply a short factual native
+read when ordinary article extraction reports empty. Login/challenge pages and soft
+404s are not rescued by stale structured metadata. Android parsing stays in the
+permissionless document worker with read-only input, bounded output and scratch
+cleanup. Event-specific article-bank keys include the occurrence and modification
+identity, network session and request purpose. A prepared supplemental read can be
+reused by the reader; deliberate/private reads cannot be exported backward into
+automatic supplemental acquisition. Evidence rendering folds tracking variants,
+field names and repeated excerpts without deleting original provenance records.
+
 ## Current routes
 
 | Route | Use | Bound and source distinction |

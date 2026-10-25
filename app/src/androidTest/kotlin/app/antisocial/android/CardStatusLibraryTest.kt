@@ -92,7 +92,7 @@ class CardStatusLibraryTest {
         ui.onNodeWithTag("Local discovery results").performScrollToNode(hasTestTag("Business ${waiting.id}"))
         status(waiting.id,"Updating");assertFalse("A queued route is visible before it consumes a network slot",waiting.id in started)
         ui.onNodeWithTag("Local discovery results").performScrollToNode(hasTestTag("Business ${other.id}"))
-        status(other.id,"Ready");screen("business-scoped-updates")
+        status(other.id,"Searching");screen("business-scoped-updates")
         ui.runOnIdle {model.localSearch.stop()}
         ui.waitUntil(10_000){repo.cardWork.active.value.none {businessWorkKey(place.id) in it.keys}}
         ui.onNodeWithTag("Local discovery results").performScrollToNode(hasTestTag("Business ${place.id}"))
@@ -104,6 +104,7 @@ class CardStatusLibraryTest {
         val event=LocalEvent("status-fixture-event","Puppet workshop",LocalEventTime(area.today().plusDays(1).atTime(14,0).atZone(java.time.ZoneId.of("America/New_York")).toInstant().toString()),description="Learn to make shadow puppets",venue=place.name,address=place.address,locality=area.name,point=area.point,urls=listOf("https://status-fixture.invalid/puppets"),price="Free",checkedAt=System.currentTimeMillis())
         runBlocking(Dispatchers.IO) {
             repo.localDiscovery.save(place);repo.localDiscovery.save(event)
+            repo.localLinks.rememberReadable(event.urls.single(),"Library",event)
             repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(place.copy(phones=listOf("+1 321 555 9999"),checkedAt=System.currentTimeMillis()+1000))),area)
         }
         ui.runOnIdle {
@@ -129,7 +130,7 @@ class CardStatusLibraryTest {
         ui.waitUntil {ui.onAllNodesWithTag("Event ${event.id}").fetchSemanticsNodes().isNotEmpty()}
         ui.onNodeWithTag("Library search").performTextInput("puppet")
         ui.onNodeWithTag("Event ${event.id}").assertIsDisplayed();ui.onNodeWithText("14:00",substring=true).assertIsDisplayed();screen("library-events")
-        ui.onNodeWithTag("Event ${event.id}").performClick();ui.onNodeWithText("Read announcement").performScrollTo().assertIsDisplayed();ui.onAllNodesWithText("Learn to make shadow puppets").assertCountEquals(2)
+        ui.onNodeWithTag("Event ${event.id}").performClick();ui.onNodeWithTag("Announcement ${event.urls.single()}").assertIsDisplayed();ui.onAllNodesWithText("Learn to make shadow puppets").assertCountEquals(2)
         assertEquals(0,calls.get());assertFalse(model.localSearch.state.value.savedOnly)
     }
     @Test fun aMergedPostIncludesWorkOwnedByAnyOfItsSourceEditions() {

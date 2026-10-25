@@ -37,6 +37,7 @@ internal object ContentWire {
     const val PDF_EMBEDDED=7
     const val PDF_OCR_PAGE=8
     const val IMAGE_BOUNDS=9
+    const val ANNOUNCEMENT=10
     const val PROBE=100
     const val STALL=101
     const val MAGIC=0x41535231
@@ -100,12 +101,16 @@ open class ContentSandboxService:Service() {
                                 }
                             }
                         }
-                        ContentWire.ARTICLE->{
+                        ContentWire.ARTICLE,ContentWire.ANNOUNCEMENT->{
                             val input=DataInputStream(FileInputStream(fd.fileDescriptor))
                             val url=input.readUTF();val original=input.readUTF();val type=input.readUTF();val status=input.readInt();val at=input.readLong()
                             val size=input.readInt();require(size in 0..8*1024*1024)
                             val bytes=ByteArray(size);input.readFully(bytes)
-                            val article=ContextArticles.extract(Payload(bytes.toString(Charsets.UTF_8),url,type,status),original,at,readerChecks=true)
+                            val payload=Payload(bytes.toString(Charsets.UTF_8),url,type,status)
+                            val article=if(operation==ContentWire.ANNOUNCEMENT) {
+                                val title=input.readUTF();require(title.length in 1..1000)
+                                LocalAnnouncementReading.extract(payload,original,title,at)
+                            }else ContextArticles.extract(payload,original,at,readerChecks=true)
                             text(Gson().toJson(article),out)
                         }
                         ContentWire.PDF_TEXT->text(Gson().toJson(pdfText(fd,parameter)),out)
@@ -339,15 +344,18 @@ internal class ContentSandbox(private val context:Context,private val service:Cl
             else if(c=='"')quoted=true else if(c=='{'||c=='['){depth++;require(depth<=32)}else if(c=='}'||c==']'){depth--;require(depth>=0)}}
         require(depth==0&&!quoted);return text
     }
-    suspend fun article(payload:Payload,original:String,at:Long):ContextArticleEvidence=articleInputs.withPermit {
+    suspend fun article(payload:Payload,original:String,at:Long):ContextArticleEvidence=articleInput(payload,original,at,null)
+    suspend fun announcement(payload:Payload,original:String,at:Long,event:LocalEvent):ContextArticleEvidence=articleInput(payload,original,at,event.title)
+    private suspend fun articleInput(payload:Payload,original:String,at:Long,title:String?):ContextArticleEvidence=articleInputs.withPermit {
         val directory=File(context.cacheDir,"content-input").apply {mkdirs()}
         val file=synchronized(activeInputs){cleanup(context.cacheDir,reserve=MAX_INPUT);File.createTempFile("article-",".tmp",directory).also {activeInputs+=it.path}}
         try {
             withContext(Dispatchers.IO){DataOutputStream(file.outputStream()).use {out->
                 out.writeUTF(payload.finalUrl);out.writeUTF(original);out.writeUTF(payload.contentType);out.writeInt(payload.status);out.writeLong(at)
                 val text=payload.text.toByteArray(Charsets.UTF_8);if(text.size>8*1024*1024)throw SourceFailure(HealthStatus.UNSUPPORTED,"This article exceeds the extraction transfer allowance");out.writeInt(text.size);out.write(text)
+                title?.let {require(it.length in 1..1000);out.writeUTF(it)}
             }}
-            read(file,ContentWire.ARTICLE){stream->ContentOutput.article(json(stream)).also {doc->
+            read(file,if(title==null)ContentWire.ARTICLE else ContentWire.ANNOUNCEMENT){stream->ContentOutput.article(json(stream)).also {doc->
                 require(doc.originalUrl==original&&doc.finalUrl==payload.finalUrl&&doc.fetchedAt==at&&doc.title.length<=1000)
                 require(doc.blocks.size<=30_000&&doc.blocks.sumOf {it.text.length.toLong()}<=ContextArticles.MAX_TEXT_CHARS+1000)
             }}

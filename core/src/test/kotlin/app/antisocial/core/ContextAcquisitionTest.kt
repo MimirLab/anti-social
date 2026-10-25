@@ -52,6 +52,29 @@ class ContextAcquisitionTest {
             assertEquals("Another author",reader.article(url,url).author);assertEquals(2,server.requestCount)
         }
     }
+    @Test fun preparedAnnouncementsReuseTheExistingBankWithoutMixingEventsOrNetworkSessions():Unit=runBlocking {
+        MockWebServer().use {server->server.start()
+            val first=LocalEvent("radio","Radio repair workshop",LocalEventTime("2026-10-30",allDay=true))
+            val second=first.copy(id="coding",title="Community coding club")
+            fun short(event:LocalEvent)="""<html><head><title>${event.title}</title><script type="application/ld+json">{"@type":"Event","name":"${event.title}","startDate":"2026-10-30","location":{"@type":"Place","name":"Library"}}</script></head><body><h1>${event.title}</h1><p>At the library.</p></body></html>"""
+            listOf(first,second).forEach {server.enqueue(MockResponse().setHeader("Content-Type","text/html").setBody(short(it)))}
+            val (reader,gateway)=setup();val url=server.url("/announcements").toString()
+            val a=reader.articleConditional(url,url,ContextArticleValidators(),announcement=first) as ContextArticleFetch.Ready
+            val b=reader.articleConditional(url,url,ContextArticleValidators(),announcement=second) as ContextArticleFetch.Ready
+            assertEquals(first.title,a.document.title);assertEquals(second.title,b.document.title);assertEquals(2,server.requestCount)
+            assertEquals(a.document,reader.publicArticle(url,first));assertEquals(b.document,reader.publicArticle(url,second));assertNull(reader.publicArticle(url))
+            gateway.configure(NetworkPolicy(tor=true,ready=false));assertNull(reader.publicArticle(url,first))
+            gateway.configure(NetworkPolicy());assertNull(reader.publicArticle(url,first))
+            reader.clearArticleMemory();assertNull(reader.publicArticle(url,second))
+        }
+    }
+    @Test fun deliberateReadsDoNotBecomeAutomaticallyPreparedPublicArticles():Unit=runBlocking {
+        MockWebServer().use {server->server.start();server.enqueue(MockResponse().setHeader("Content-Type","text/html").setBody(article()))
+            val (reader,_)=setup();val url=server.url("/article").toString()
+            assertTrue(reader.articleConditional(url,url,ContextArticleValidators(),purpose=FetchPurpose.DELIBERATE) is ContextArticleFetch.Ready)
+            assertNull(reader.publicArticle(url));assertEquals(1,server.requestCount)
+        }
+    }
     @Test fun conditionalArticleReturnsTypedUnchangedAndKeepsValidators(): Unit=runBlocking {
         MockWebServer().use {server->
             server.start();server.enqueue(MockResponse().setHeader("Content-Type","text/html").setHeader("ETag","\"edition-2\"").setHeader("Last-Modified","Sun, 18 Oct 2026 12:30:00 GMT").setBody(article()))

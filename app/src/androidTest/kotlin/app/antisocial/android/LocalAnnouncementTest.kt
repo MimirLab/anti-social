@@ -62,6 +62,7 @@ class LocalAnnouncementTest {
         ui.onNodeWithText(candidate.title).assertDoesNotExist();evidence("family-search")
         ui.onNodeWithTag("Local discovery results").performScrollToNode(hasTestTag("Possible events toggle"))
         ui.onNodeWithTag("Possible events toggle").performClick()
+        ui.onNodeWithTag("Local discovery results").performScrollToNode(hasText(candidate.title))
         ui.onNodeWithText(candidate.title).assertIsDisplayed();evidence("possible-events")
         pending.complete(LocalExtraction());ui.waitUntil(5000){!model.localSearch.state.value.enriching}
         ui.onNodeWithText(candidate.title).performClick();ui.onAllNodesWithText("Date needs confirmation").onLast().assertIsDisplayed();evidence("announcement-details")

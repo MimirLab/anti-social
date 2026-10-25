@@ -168,6 +168,20 @@ class ContentSandboxTest {
             val text=sandbox.pdfText(file,index);assertEquals(2,text.pageCount);assertTrue(text.text.contains("Workshop menu page ${index+1}"));assertFalse(text.ocr)
         }
     }
+    @Test fun shortAnnouncementsKeepTheirFactsInsideThePermissionlessDocumentWorker():Unit=runBlocking {
+        val worker=(context.applicationContext as AntiSocialApplication).repo.documentSandbox
+        val secret=File(directory,"event-private-record").apply {writeText("Private fixture")}
+        val input=File(directory,"event-probe").apply {writeText(secret.absolutePath)}
+        val isolation=worker.probe(input)
+        assertNotEquals(android.os.Process.myUid(),isolation.first);assertFalse(isolation.second);assertFalse(isolation.third)
+        val event=LocalEvent("repair","Radio repair workshop",LocalEventTime("2026-10-30",allDay=true))
+        val body="""<html><head><title>${event.title}</title><script type="application/ld+json">{"@type":"Event","name":"${event.title}","startDate":"2026-10-30","location":{"@type":"Place","name":"Library","address":"10 Main St"}}</script></head><body><h1>${event.title}</h1><p>Bring a radio.</p></body></html>"""
+        val payload=Payload(body,"https://workshop.example/repair","text/html",200);val at=123456L
+        val result=worker.announcement(payload,payload.finalUrl,at,event)
+        assertEquals(LocalAnnouncementReading.extract(payload,payload.finalUrl,event,at),result)
+        assertTrue(result.text.contains("2026-10-30"));assertTrue(result.text.contains("10 Main St"));assertNull(result.publishedAt)
+        assertTrue(File(context.cacheDir,"content-input").listFiles().orEmpty().none {it.name.startsWith("article-")})
+    }
     @Test fun articleBlocksLinksAttributionAndCleanupMatchExistingExtraction():Unit=runBlocking {
         val body="<html><head><title>Battery repair guide</title><meta name='author' content='Community workshop'></head><body><article><h1>Battery repair guide</h1>"+
             (1..12).joinToString(""){"<p>Step $it: inspect the battery connector and compare its voltage against the repair manual. Use the correct replacement and disconnect the power before opening the case. The published instructions include measured test results and compatible part numbers.</p>"}+

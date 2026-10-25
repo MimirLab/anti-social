@@ -37,6 +37,15 @@ class PublicArticleResolverTest {
         assertFalse(t.calls.any {it.url==original});assertTrue(t.calls.last().strict)
         assertEquals("Reporter",result.document.author)
     }
+    @Test fun aMissingAnnouncementDoesNotPutEveryOtherPageOnItsPublisherIntoBackoff():Unit=runBlocking {
+        val t=Transport();val reader=resolver(t);val dead="https://events.example/removed";val live="https://events.example/repair"
+        val event=LocalEvent("repair","Radio repair workshop",LocalEventTime("2026-10-30",allDay=true))
+        t.documents={call->body(call.url,if(call.url==dead)"<html><title>Event not found</title><body>This announcement was removed.</body></html>"else article)}
+        val extraction:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->LocalAnnouncementReading.extract(payload,url,event,at)}
+        assertThrows(SourceFailure::class.java){runBlocking {reader.conditional(dead,dead,extractor=extraction)}}
+        val result=reader.conditional(live,live,extractor=extraction) as ContextArticleFetch.Ready
+        assertEquals(live,result.document.finalUrl);assertTrue(t.calls.any {it.url==live})
+    }
     @Test fun wrongArchiveIdentityCannotBecomeTheRequestedArticle():Unit=runBlocking {
         val t=Transport();t.indexes={if(it.startsWith("https://web.archive.org"))"""[["timestamp","original"],["$stamp","https://nytimes.com/different"]]"""else "<title>No results</title>"};t.documents={body(it.url)}
         val result=resolver(t).conditional(original,original) as ContextArticleFetch.Ready

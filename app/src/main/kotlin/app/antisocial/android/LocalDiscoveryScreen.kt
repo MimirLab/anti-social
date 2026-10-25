@@ -74,8 +74,13 @@ import java.time.format.DateTimeFormatter
                 item {FilterChip(selected=state.freeOnly,onClick={controller.free(!state.freeOnly)},label={Text("Free")})}
             }
         }
-        if(state.loading)Row(Modifier.padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {CircularProgressIndicator(Modifier.size(16.dp),strokeWidth=2.dp);Text("Finding public information…",Modifier.weight(1f).padding(start=8.dp),fontSize=12.sp);TextButton(onClick=controller::stop){Text("Stop")}}
-        Box(Modifier.fillMaxWidth().height(2.dp)) {if(state.enriching&&!state.loading)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).testTag("Enriching discovery details"),color=MaterialTheme.colorScheme.primary.copy(alpha=.35f),trackColor=MaterialTheme.colorScheme.surface)}
+        if(state.mode!=LocalSearchMode.POSTS&&state.area!=null)Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=20.dp).testTag("Local search progress"),verticalAlignment=Alignment.CenterVertically) {
+            val busy=state.loading||state.enriching
+            if(busy)CircularProgressIndicator(Modifier.size(14.dp),strokeWidth=1.5.dp)else Icon(Icons.Rounded.Check,null,Modifier.size(16.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(when(state.phase){LocalSearchPhase.FINDING->"Finding public information…";LocalSearchPhase.ENRICHING->"Adding details…";LocalSearchPhase.COMPLETE->"Search complete";LocalSearchPhase.STOPPED->"Search stopped";LocalSearchPhase.IDLE->"Ready to search"},Modifier.weight(1f).padding(start=8.dp),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(busy)TextButton(onClick=controller::stop){Text("Stop")}
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp)) {if(state.enriching)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).testTag("Enriching discovery details"),color=MaterialTheme.colorScheme.primary.copy(alpha=.35f),trackColor=MaterialTheme.colorScheme.surface)}
         state.message?.let {Text(it,Modifier.padding(horizontal=20.dp,vertical=8.dp).testTag("Discovery status"),fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         when(state.mode) {
             LocalSearchMode.POSTS->Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {Text("The useful parts, without an account",fontSize=20.sp,fontWeight=FontWeight.SemiBold);Text("Choose a site and search. Public posts and accounts open in your native reader.",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -85,8 +90,10 @@ import java.time.format.DateTimeFormatter
                     Text(when {state.savedOnly->"Saved places and events remain here offline until you remove them.";state.area==null->"Choose a city or area. It stays on this device; background location tracking is never needed.";state.mode==LocalSearchMode.EVENTS->"Try a topic such as markets, music or children. Only announcements with an actual event date and a matching venue or locality appear here.";else->"Try a business name, organic food or coffee. Public directories help connect its website and social accounts."},fontSize=14.sp,lineHeight=21.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     if(!state.savedOnly)TextButton(onClick={submit()}){Text(if(state.area==null)"Choose an area"else "Find ${if(state.mode==LocalSearchMode.EVENTS)"events"else "businesses"}")}
                 }}
-                if(state.mode==LocalSearchMode.BUSINESSES)items(state.businesses,key={it.id}) {place->BusinessCard(place,state.area,state.unit,place.id in state.saved,onOpen={business=place},onSave={controller.save(place)},onSocial=vm::openLink,activity={CardActivity(vm.repo.cardWork,businessWorkKeys(place),place.id)})}
-                if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,unknowns=LocalEventIntent.parse(state.text).match(session).unknowns,onOpen={event=session},onSave={controller.save(session)},activity={CardActivity(vm.repo.cardWork,eventWorkKeys(session),session.id)})}
+                if(state.mode==LocalSearchMode.BUSINESSES)items(state.groups,key={it.id}) {group->val place=group.primary
+                    BusinessCard(place,state.area,state.unit,group.locations.all {it.id in state.saved},onOpen={business=place},onSave={controller.save(group)},onSocial=vm::openLink,locations=group.locations.size,label=group.title,
+                        activity={CardActivity(vm.repo.cardWork,group.locations.flatMap(::businessWorkKeys).toSet(),place.id,discoveryPending=state.loading||state.enriching)})}
+                if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,unknowns=LocalEventIntent.parse(state.text).match(session).unknowns,onOpen={event=session},onSave={controller.save(session)},activity={CardActivity(vm.repo.cardWork,eventWorkKeys(session),session.id,discoveryPending=state.loading||state.enriching)})}
                 if(state.mode==LocalSearchMode.EVENTS&&state.announcements.isNotEmpty()) {
                     item {TextButton(onClick={showPossible=!showPossible},modifier=Modifier.testTag("Possible events toggle")){Icon(if(showPossible)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null);Text("Possible events · ${state.announcements.size}")}}
                     if(showPossible)items(state.announcements,key={"possible:"+it.id}) {item->OutlinedCard(onClick={candidate=item},modifier=Modifier.fillMaxWidth().testTag("Possible event ${item.id}")) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text(item.title,fontWeight=FontWeight.SemiBold);Text(item.missing.joinToString(" · "),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
@@ -112,31 +119,35 @@ import java.time.format.DateTimeFormatter
     LaunchedEffect(business?.id){business?.let {controller.menu(it)} ?: controller.stopMenu()}
     business?.let {selected->
         val value=state.businesses.firstOrNull {it.id==selected.id} ?: state.businesses.firstOrNull {LocalDiscoveryMerge.sameBusiness(selected,it)} ?: selected
+        val locations=state.groups.firstOrNull {group->group.locations.any {it.id==value.id}}?.locations.orEmpty()
         BusinessDetails(value,state.area,state.unit,value.id in state.saved,menuLoading=state.menuLoading==value.id,onMenuRefresh=if(state.savedOnly)null else ({controller.menu(value,true)}),onDismiss={business=null},onSave={controller.save(value)},
-            onSocial={business=null;vm.openLink(it)},onRead={business=null;vm.articles.open(it)})
+            onSocial={business=null;vm.openLink(it)},onRead={business=null;vm.articles.open(it)},locations=locations,onLocation={business=it},clean=vm.repo.cleaner::clean,
+            activity={CardActivity(vm.repo.cardWork,businessWorkKeys(value),value.id,discoveryPending=state.loading||state.enriching)})
     }
     event?.let {selected->
         val value=state.events.firstOrNull {it.id==selected.id} ?: state.events.firstOrNull {LocalDiscoveryMerge.sameEvent(selected,it)} ?: selected
-        EventDetails(value,state.area,state.text,onDismiss={event=null},saved=value.id in state.saved,onSave={controller.save(value)},onRead=vm.articles::open,onImage={url,source->flyer=url to source})
+        EventDetails(value,state.area,state.text,onDismiss={event=null},saved=value.id in state.saved,onSave={controller.save(value)},onRead={url->event=null;if(vm.repo.routes.recognize(url)!=null)vm.openLink(url)else vm.articles.open(url,value)},onImage={url,source->flyer=url to source},repo=vm.repo,
+            activity={CardActivity(vm.repo.cardWork,eventWorkKeys(value),value.id,discoveryPending=state.loading||state.enriching)})
     }
-    candidate?.let {value->ModalBottomSheet(onDismissRequest={candidate=null}) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    candidate?.let {value->LocalDetailSheet(onDismiss={candidate=null}) {Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Text(value.title,style=MaterialTheme.typography.headlineSmall)
         Text(value.missing.joinToString(" · "),color=MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value.text)
         value.image?.let {url->TextButton(onClick={flyer=url to value.sourceUrl}){Text("View flyer")}}
-        EvidenceDetails(value.evidence,onOpen={vm.articles.open(it)},onImage={url,source->flyer=url to source})
-        TextButton(onClick={vm.articles.open(value.sourceUrl)}){Text("Read announcement")}
+        EvidenceDetails(value.evidence,onOpen={candidate=null;vm.articles.open(it)},onImage={url,source->flyer=url to source},clean=vm.repo.cleaner::clean)
+        TextButton(onClick={candidate=null;if(vm.repo.routes.recognize(value.sourceUrl)!=null)vm.openLink(value.sourceUrl)else vm.articles.open(value.sourceUrl)}){Text("Read announcement")}
         Spacer(Modifier.height(24.dp))
     }}}
     flyer?.let {(url,source)->MediaViewer(listOf(Media(url)),0,source,vm.repo,onClose={flyer=null})}
     importError?.let {error->AlertDialog(onDismissRequest={importError=null},text={Text(error)},confirmButton={TextButton(onClick={importError=null}){Text("Close")}})}
 }
 
-@Composable internal fun BusinessCard(place:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,onOpen:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,activity:(@Composable ()->Unit)?=null) {
+@Composable internal fun BusinessCard(place:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,onOpen:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,activity:(@Composable ()->Unit)?=null,locations:Int=1,label:String=place.name) {
     val locale=LocalConfiguration.current.locales[0]
     ElevatedCard(onClick=onOpen,modifier=Modifier.fillMaxWidth().testTag("Business ${place.id}"),shape=RoundedCornerShape(20.dp),colors=CardDefaults.elevatedCardColors(containerColor=MaterialTheme.colorScheme.surface)) {Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment=Alignment.CenterVertically) {Column(Modifier.weight(1f)){Text(place.name,fontSize=19.sp,fontWeight=FontWeight.SemiBold);if(place.category.isNotBlank())Text(LocalBusinessContact.category(place.category),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)};IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved ${place.name}"else "Save ${place.name}")}}
-        if(place.address.isNotBlank())Text(place.address,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
+        Row(verticalAlignment=Alignment.CenterVertically) {Column(Modifier.weight(1f)){Text(label,fontSize=19.sp,fontWeight=FontWeight.SemiBold);if(place.category.isNotBlank())Text(LocalBusinessContact.category(place.category),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)};IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved $label"else "Save $label")}}
+        if(locations>1)Text("$locations nearby locations",fontSize=13.sp,color=MaterialTheme.colorScheme.primary)
+        else if(place.address.isNotBlank())Text(place.address,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
         area?.let {a->place.point?.let {p->Text(unit.away(a.point.distanceKm(p),locale),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         Row(verticalAlignment=Alignment.CenterVertically){Box(Modifier.weight(1f)){SocialAccounts(place.socials,onSocial)};activity?.invoke()}
     }}
@@ -157,11 +168,13 @@ import java.time.format.DateTimeFormatter
     if(accounts.isNotEmpty())Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(4.dp)) {accounts.forEach {(platform,url)->IconButton(onClick={onOpen(url)}){PlatformMark(platform,25.dp,"Open ${platform.label} account")}}}
 }
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun BusinessDetails(value:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,menuLoading:Boolean,onMenuRefresh:(()->Unit)?,onDismiss:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,onRead:(String)->Unit) {
+@Composable internal fun BusinessDetails(value:LocalBusiness,area:LocalArea?,unit:LocalDistanceUnit,saved:Boolean,menuLoading:Boolean,onMenuRefresh:(()->Unit)?,onDismiss:()->Unit,onSave:()->Unit,onSocial:(String)->Unit,onRead:(String)->Unit,
+    locations:List<LocalBusiness> = emptyList(),onLocation:((LocalBusiness)->Unit)?=null,clean:(String)->String={it},activity:(@Composable ()->Unit)?=null) {
     val context=LocalContext.current
     var relatedSources by remember(value.id) {mutableStateOf(false)}
     var visitDetails by remember(value.id) {mutableStateOf(false)}
     var menuOpen by remember(value.id) {mutableStateOf(false)}
+    var chooseLocation by remember {mutableStateOf(false)}
     if(menuOpen) {
         RestaurantMenuSheet(value,menuLoading,onRefresh=onMenuRefresh,onDismiss={menuOpen=false},onRead=onRead)
         return
@@ -170,7 +183,7 @@ import java.time.format.DateTimeFormatter
         try {context.startActivity(android.content.Intent(action,android.net.Uri.parse(uri)))}
         catch(_:android.content.ActivityNotFoundException){android.widget.Toast.makeText(context,"No app is available for this contact action",android.widget.Toast.LENGTH_SHORT).show()}
     }
-    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {Column(Modifier.padding(horizontal=24.dp).verticalScroll(rememberScrollState()).testTag("Business details"),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LocalDetailSheet(onDismiss,activity) {Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=24.dp).testTag("Business details"),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment=Alignment.Top) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(value.name,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold)
@@ -178,6 +191,15 @@ import java.time.format.DateTimeFormatter
                 if(subtitle.isNotBlank())Text(subtitle,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved copy"else "Save local copy")}
+        }
+        if(locations.size>1&&onLocation!=null) {
+            TextButton(onClick={chooseLocation=!chooseLocation},modifier=Modifier.testTag("Choose business location")){Icon(Icons.Rounded.LocationOn,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("${locations.size} nearby locations");Icon(if(chooseLocation)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null)}
+            if(chooseLocation)locations.forEach {location->OutlinedCard(onClick={onLocation(location);chooseLocation=false},modifier=Modifier.fillMaxWidth().testTag("Business location ${location.id}")) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                Text(location.address.ifBlank {location.locality.ifBlank {location.name}},fontWeight=FontWeight.SemiBold)
+                if(location.name!=value.name)Text(location.name,fontSize=12.sp)
+                location.phones.map {LocalBusinessContact.displayPhone(it,area?.countryCode)}.distinct().take(2).forEach {Text(it,fontSize=12.sp)}
+            }}}
+            Text("Selected location",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if(value.status.isNotBlank())Text(value.status,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Surface(shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surfaceContainerLow) {Column {
@@ -209,7 +231,7 @@ import java.time.format.DateTimeFormatter
         if(value.hours.isNotBlank())Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {Text("Hours",style=MaterialTheme.typography.titleSmall);Text(value.hours.replace(" · ","\n").replace(Regex("(\\d{1,2}:\\d{2}):00"),"$1"),style=MaterialTheme.typography.bodyMedium,lineHeight=23.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         if(value.description.isNotBlank())Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {Text("About",style=MaterialTheme.typography.titleSmall);Text(value.description,style=MaterialTheme.typography.bodyMedium,lineHeight=23.sp)}
         HorizontalDivider()
-        EvidenceDetails(value.evidence,onRead)
+        EvidenceDetails(value.evidence,onRead,clean=clean)
         if(value.related.orEmpty().any {it.role=="source publisher"}) {
             TextButton(onClick={relatedSources=!relatedSources}){Text(if(relatedSources)"Hide directory publishers"else "Directory publishers")}
             if(relatedSources)value.related.orEmpty().filter {it.role=="source publisher"}.forEach {entity->Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -230,16 +252,18 @@ import java.time.format.DateTimeFormatter
         if(onClick!=null)Icon(Icons.Rounded.ChevronRight,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-@Composable private fun EvidenceDetails(evidence:List<LocalFieldEvidence>,onOpen:(String)->Unit,onImage:((String,String)->Unit)?=null) {
+@Composable private fun EvidenceDetails(evidence:List<LocalFieldEvidence>,onOpen:(String)->Unit,onImage:((String,String)->Unit)?=null,clean:(String)->String={it},available:((String)->LocalLinkCheck?)?=null,onExpand:(()->Unit)?=null) {
     var expanded by remember {mutableStateOf(false)}
-    TextButton(onClick={expanded=!expanded}){Icon(Icons.Rounded.Info,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text(if(expanded)"Hide sources"else "Where this information came from")}
-    if(expanded)evidence.groupBy {it.sourceUrl}.entries.take(12).forEach {(url,fields)->Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
-        Text(fields.map {it.field.replaceFirstChar(Char::titlecase)}.distinct().joinToString(" · "),fontWeight=FontWeight.SemiBold,fontSize=12.sp)
-        Text("Retrieved "+Instant.ofEpochMilli(fields.maxOf {it.checkedAt}).atZone(ZoneId.systemDefault()).toLocalDate(),fontSize=11.sp)
-        fields.filter {it.kind in setOf(LocalEvidenceKind.PUBLIC_POST,LocalEvidenceKind.POSTER)}.map {it.excerpt}.filter(String::isNotBlank).distinct().take(5).forEach {Text(it,fontSize=12.sp)}
-        fields.mapNotNull {it.region?.imageUrl}.distinct().forEach {image->if(onImage!=null)TextButton(onClick={onImage(image,url)}){Text("Inspect source flyer")}}
-        fields.mapNotNull {it.license}.distinct().forEach {Text(it,fontSize=11.sp)}
-        TextButton(onClick={onOpen(url)}){Text(IdentityDisplay.domain(url),maxLines=1,overflow=TextOverflow.Ellipsis)}
+    TextButton(onClick={expanded=!expanded;if(expanded)onExpand?.invoke()}){Icon(Icons.Rounded.Info,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text(if(expanded)"Hide sources"else "Where this information came from")}
+    if(expanded)LocalDiscoveryPresentation.sources(evidence,clean).take(12).forEach {source->Column(verticalArrangement=Arrangement.spacedBy(4.dp),modifier=Modifier.testTag("Discovery source ${source.url}")) {
+        Text(source.fields.joinToString(" · "){it.replaceFirstChar(Char::titlecase)},fontWeight=FontWeight.SemiBold,fontSize=12.sp)
+        Text("Retrieved "+Instant.ofEpochMilli(source.checkedAt).atZone(ZoneId.systemDefault()).toLocalDate(),fontSize=11.sp)
+        source.excerpts.forEach {Text(it,fontSize=12.sp)}
+        source.images.forEach {image->if(onImage!=null)TextButton(onClick={onImage(image,source.url)}){Text("Inspect source flyer")}}
+        source.licenses.forEach {Text(it,fontSize=11.sp)}
+        val status=available?.invoke(source.url)
+        if(available!=null&&status?.state!=LocalLinkState.AVAILABLE)Text(IdentityDisplay.domain(source.url)+when(status?.state){LocalLinkState.UNAVAILABLE->" · unavailable";LocalLinkState.CHECKING->" · checking";else->" · not checked"},fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        if(available==null||status?.state !in setOf(LocalLinkState.UNAVAILABLE,LocalLinkState.CHECKING))TextButton(onClick={onOpen(status?.destination ?: source.url)}){Text(IdentityDisplay.domain(source.url)+(if(available!=null&&status?.state!=LocalLinkState.AVAILABLE)" · open source"else ""),maxLines=1,overflow=TextOverflow.Ellipsis)}
     }}
 }
 internal fun eventTime(event:LocalEvent,area:LocalArea?):String {
@@ -284,14 +308,16 @@ internal fun eventTime(event:LocalEvent,area:LocalArea?):String {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun EventDetails(value:LocalEvent,area:LocalArea?,query:String="",saved:Boolean,onDismiss:()->Unit,onSave:()->Unit,onRead:(String)->Unit,onImage:(String,String)->Unit) {
-        ModalBottomSheet(onDismissRequest=onDismiss) {Column(Modifier.padding(24.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+@Composable internal fun EventDetails(value:LocalEvent,area:LocalArea?,query:String="",saved:Boolean,onDismiss:()->Unit,onSave:()->Unit,onRead:(String)->Unit,onImage:(String,String)->Unit,repo:Repository?=null,activity:(@Composable ()->Unit)?=null) {
+        val checks=repo?.localLinks?.state?.collectAsState()?.value
+        val scope=rememberCoroutineScope()
+        LocalDetailSheet(onDismiss,activity) {Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp).testTag("Event details"),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Text(value.title,style=MaterialTheme.typography.headlineSmall);Text(eventTime(value,area),fontWeight=FontWeight.SemiBold)
+        if(repo!=null)EventAnnouncementLinks(value,repo,onRead)else LocalDiscoveryPresentation.eventLinks(value).take(1).forEach {link->TextButton(onClick={onRead(link.url)}){Text(if(link.registration)"Registration & details"else IdentityDisplay.domain(link.url))}}
         listOf(value.status.takeUnless {it=="scheduled"}.orEmpty(),value.venue,value.address,value.price,value.age.takeIf(String::isNotBlank)?.let {"Ages $it"}.orEmpty(),value.organizer).filter(String::isNotBlank).distinct().forEach {Text(it)}
         LocalEventIntent.parse(query).match(value).let {match->(match.reasons+match.unknowns).distinct().forEach {Text(it,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         if(value.description.isNotBlank())Text(value.description)
-        (listOfNotNull(value.registrationUrl)+value.urls).distinct().take(3).forEachIndexed {i,url->TextButton(onClick={onRead(url)}){Text(if(i==0&&value.registrationUrl!=null)"Registration & details"else "Read announcement")}}
-        EvidenceDetails(value.evidence,onOpen={onRead(it)},onImage={url,source->onImage(url,source)})
+        EvidenceDetails(value.evidence,onOpen={onRead(it)},onImage={url,source->onImage(url,source)},clean=repo?.cleaner?.let {it::clean} ?: {it},available=repo?.localLinks?.let {links->{url->links.check(url,value,checks.orEmpty())}},onExpand=repo?.let {{scope.launch {it.localLinks.inspect(value,includeSources=true)}}})
         TextButton(onClick={onSave()}){Text(if(saved)"Remove saved copy"else "Save local copy")};Spacer(Modifier.height(24.dp))
     }}
 }

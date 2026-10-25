@@ -2,6 +2,9 @@ package app.antisocial.android
 
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
@@ -420,6 +423,136 @@ class LocalDiscoveryTest {
             assertEquals(session,store.events(true).single())
         }}finally {store.close();ui.activity.deleteDatabase(name)}
     }
+    @Test fun detailEdgeDragsKeepTheBusinessAndEventReadingViewportFixed() {
+        val long=place.copy(description=(1..90).joinToString("\n"){"Useful visiting detail number $it for this location."})
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(long)),area)}
+        show();ui.waitUntil {model.localSearch.state.value.businesses.any {it.id==long.id}}
+        ui.onNodeWithTag("Business ${long.id}").performClick()
+        fun edge(tag:String,dy:Float) {
+            ui.waitForIdle();val node=ui.onNodeWithTag(tag);val top=node.fetchSemanticsNode().boundsInRoot.top
+            try {
+                node.performTouchInput {down(center);moveBy(Offset(0f,dy),100)}
+                ui.waitForIdle()
+                assertEquals("An edge drag must not also move the reading sheet",top,node.fetchSemanticsNode().boundsInRoot.top,2f)
+            }finally {node.performTouchInput {up()}}
+        }
+        edge("Business details",180f)
+        ui.onNodeWithTag("Business details").performSemanticsAction(SemanticsActions.ScrollBy){it(0f,100_000f)}
+        edge("Business details",-180f);evidence("business-fixed-edge-scroll")
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        ui.waitUntil {ui.onAllNodesWithTag("Business details").fetchSemanticsNodes().isEmpty()}
+        val event=LocalEvent("fixture-fixed-event","A long public workshop",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),description=long.description,locality=area.name,point=area.point)
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(events=listOf(event)),area)}
+        ui.runOnIdle {model.localSearch.mode(LocalSearchMode.EVENTS)}
+        ui.waitUntil {model.localSearch.state.value.events.any {it.id==event.id}}
+        ui.onNodeWithTag("Event ${event.id}").performClick();edge("Event details",180f)
+        ui.onNodeWithTag("Event details").performSemanticsAction(SemanticsActions.ScrollBy){it(0f,100_000f)}
+        edge("Event details",-180f);evidence("event-fixed-edge-scroll")
+        ui.onNodeWithContentDescription("Close details").performClick()
+        ui.waitUntil {ui.onAllNodesWithTag("Event details").fetchSemanticsNodes().isEmpty()}
+    }
+
+    @Test fun detailWorkStartsBeforeSlowDiscoveryAndBothViewsReportCompletion() {
+        val slow=CompletableDeferred<Unit>();val account=CompletableDeferred<Unit>();val finishAccount=CompletableDeferred<Unit>()
+        val value=place.copy(websites=emptyList(),socials=listOf(place.socials.first()))
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend {
+            override suspend fun areas(text:String)=listOf(area)
+            override suspend fun directory(query:LocalDiscoveryQuery):LocalExtraction {slow.await();return LocalExtraction()}
+            override suspend fun identities(point:LocalPoint)=LocalExtraction(businesses=listOf(value))
+            override suspend fun discover(query:LocalDiscoveryQuery):List<LocalWebHit>{slow.await();return emptyList()}
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                if(source.kind!=LocalSourceKind.SOCIAL)return LocalExtraction(validEmpty=true)
+                account.complete(Unit);finishAccount.await()
+                return LocalExtraction(businesses=listOf(value.copy(hours="Monday 9am - 5pm")))
+            }
+        };model.localSearch.search(force=true)}
+        try {
+            ui.waitUntil(5000){account.isCompleted&&model.localSearch.state.value.businesses.any {it.id==value.id}}
+            show();ui.onNodeWithTag("Business ${value.id}").performClick()
+            ui.onNode(hasTestTag("Card activity ${value.id}") and hasAnyAncestor(isDialog())).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"Updating"))
+            finishAccount.complete(Unit)
+            ui.waitUntil(5000){ui.onAllNodesWithText("Monday 9am - 5pm").fetchSemanticsNodes().isNotEmpty()}
+            assertTrue(model.localSearch.state.value.enriching);assertFalse(slow.isCompleted)
+            ui.waitUntil(5000){repo.cardWork.active.value.none {businessWorkKey(value.id) in it.keys}}
+            ui.onNode(hasTestTag("Card activity ${value.id}") and hasAnyAncestor(isDialog())).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"Searching"))
+            evidence("business-details-pending-search")
+            slow.complete(Unit)
+            ui.waitUntil(10_000){!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching}
+            ui.onNode(hasTestTag("Card activity ${value.id}") and hasAnyAncestor(isDialog())).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"Ready"))
+            ui.onNodeWithContentDescription("Close details").performClick()
+            ui.waitUntil {ui.onAllNodesWithTag("Business details").fetchSemanticsNodes().isEmpty()}
+            ui.onNodeWithText("Search complete").assertIsDisplayed();evidence("local-search-complete")
+        }finally {slow.complete(Unit);finishAccount.complete(Unit);ui.runOnIdle {model.localSearch.stop()}}
+    }
+
+    @Test fun aLightContactLookupStreamsWhileTheLargeBrandDatasetIsStillRunning() {
+        val large=CompletableDeferred<Unit>();val started=CompletableDeferred<Unit>()
+        val contact=place.websites.first()+"contact"
+        ui.runOnIdle {model.localSearch.text("Community Library");model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(place))) {
+            override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){started.complete(Unit);large.await()}
+            override suspend fun refine(query:LocalDiscoveryQuery,business:LocalBusiness)=listOf(LocalWebHit(contact,"Library contact"))
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?)=if(source.url==contact)LocalExtraction(businesses=listOf(place.copy(hours="Tuesday 8am - 4pm",checkedAt=place.checkedAt+1000)))else LocalExtraction(validEmpty=true)
+        };model.localSearch.search(force=true)}
+        try {
+            ui.waitUntil(8000){started.isCompleted&&model.localSearch.state.value.businesses.any {it.hours=="Tuesday 8am - 4pm"}}
+            assertFalse(large.isCompleted);assertTrue(model.localSearch.state.value.enriching)
+        }finally {large.complete(Unit);ui.runOnIdle {model.localSearch.stop()}}
+    }
+
+    @Test fun chainLocationsShareOneCardAndKeepTheirOwnContactDetails() {
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
+        val first=place.copy(id="fixture-chain-one",name="Northstar Coffee - Downtown",address="10 Main St, Melbourne",websites=listOf("https://northstarcoffee.fixture.invalid/locations/downtown"),socials=emptyList(),phones=listOf("+13215550101"),sourceIds=listOf("fixture-chain-one"))
+        val second=first.copy(id="fixture-chain-two",name="Northstar Coffee - Riverside",address="20 River Rd, Melbourne",phones=listOf("+13215550102"),sourceIds=listOf("fixture-chain-two"),point=LocalPoint(area.point.latitude+.002,area.point.longitude))
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(first,second)),area)}
+        show();ui.waitUntil {model.localSearch.state.value.businesses.size==2}
+        ui.onNodeWithText("2 nearby locations").assertIsDisplayed()
+        assertEquals(1,model.localSearch.state.value.groups.size)
+        val group=model.localSearch.state.value.groups.single();ui.onNodeWithTag("Business ${group.primary.id}").performClick()
+        ui.onNodeWithTag("Choose business location").performClick();ui.onNodeWithTag("Business location ${second.id}").performClick()
+        ui.onNodeWithText(second.address).assertIsDisplayed()
+        ui.onNodeWithText(LocalBusinessContact.displayPhone(second.phones.single(),area.countryCode)).assertIsDisplayed()
+        ui.onNodeWithText(first.address).assertDoesNotExist();evidence("chain-selected-branch")
+        ui.onNodeWithContentDescription("Close details").performClick()
+        ui.waitUntil {ui.onAllNodesWithTag("Business details").fetchSemanticsNodes().isEmpty()}
+        ui.onNodeWithContentDescription("Save ${group.title}").performClick()
+        ui.waitUntil {setOf(first.id,second.id).all {it in model.localSearch.state.value.saved}}
+        runBlocking(Dispatchers.IO){assertEquals(setOf(first.phones,second.phones),repo.localDiscovery.businesses(null,true).filter {it.id in setOf(first.id,second.id)}.map {it.phones}.toSet())}
+    }
+
+    @Test fun announcementActionsAndEvidenceDeduplicateAndDeadLinksStayOutOfTheButtons() {
+        val previous=repo.localLinks.probe;val calls=java.util.concurrent.ConcurrentHashMap<String,java.util.concurrent.atomic.AtomicInteger>()
+        val live="https://event.fixture.invalid/workshop";val other="https://calendar.fixture.invalid/workshop";val dead="https://old.fixture.invalid/gone"
+        val event=LocalEvent("fixture-link-event","Radio repair workshop",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),locality=area.name,point=area.point,
+            urls=listOf(dead,live+"?utm_source=social",live,other),registrationUrl=live,evidence=listOf(
+                LocalFieldEvidence("description","Bring a broken radio",live+"?utm_source=social",100,LocalEvidenceKind.PUBLIC_POST,"Bring a broken\nradio"),
+                LocalFieldEvidence("description","Bring a broken radio",live,200,LocalEvidenceKind.PUBLIC_POST,"Bring a broken radio"),
+                LocalFieldEvidence("description","Bring a broken radio",other,200,LocalEvidenceKind.PUBLIC_POST,"Bring a broken radio"),
+                LocalFieldEvidence("title","Radio repair workshop",dead,100,LocalEvidenceKind.PUBLISHER)))
+        repo.localLinks.probe={url,_->calls.computeIfAbsent(url){java.util.concurrent.atomic.AtomicInteger()}.incrementAndGet();LocalLinkCheck(url,if(url==dead)LocalLinkState.UNAVAILABLE else LocalLinkState.AVAILABLE,checkedAt=System.currentTimeMillis())}
+        try {
+            runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(events=listOf(event)),area)}
+            ui.runOnIdle {model.localSearch.mode(LocalSearchMode.EVENTS)};show()
+            ui.waitUntil {model.localSearch.state.value.events.any {it.id==event.id}};ui.onNodeWithTag("Event ${event.id}").performClick()
+            ui.waitUntil(8000){listOf(live,other,dead).all {repo.localLinks.check(it,event)?.state in setOf(LocalLinkState.AVAILABLE,LocalLinkState.UNAVAILABLE)}}
+            assertEquals("Every unique link must reach the checker",setOf(live,other,dead),calls.keys)
+            assertEquals(LocalLinkState.AVAILABLE,repo.localLinks.check(live,event)?.state)
+            assertEquals(LocalLinkState.AVAILABLE,repo.localLinks.check(other,event)?.state)
+            assertEquals(LocalLinkState.UNAVAILABLE,repo.localLinks.check(dead,event)?.state)
+            evidence("event-announcements-before-assert")
+            ui.onNodeWithTag("Announcement $live").assertIsDisplayed();ui.onNodeWithTag("Announcement $dead").assertDoesNotExist()
+            ui.onNodeWithTag("Announcement $other").assertDoesNotExist();ui.onNodeWithText("1 more announcement").performClick()
+            ui.onNodeWithTag("Announcement $other").assertIsDisplayed();ui.onNodeWithText("Read announcement").assertDoesNotExist()
+            ui.onNodeWithText("Where this information came from").performScrollTo().performClick()
+            ui.onAllNodesWithTag("Discovery source $live").assertCountEquals(1)
+            ui.onAllNodesWithText("Bring a broken radio").assertCountEquals(1)
+            assertEquals(3,calls.size);assertTrue(calls.values.all {it.get()==1})
+            runBlocking(Dispatchers.IO){assertTrue(repo.localDiscovery.events().single {it.id==event.id}.urls.contains(dead))}
+            evidence("event-clean-announcements")
+            ui.onNodeWithContentDescription("Close details").performClick();ui.waitUntil {ui.onAllNodesWithTag("Event details").fetchSemanticsNodes().isEmpty()}
+            ui.onNodeWithTag("Event ${event.id}").performClick();ui.waitForIdle();assertTrue(calls.values.all {it.get()==1})
+        }finally {repo.localLinks.probe=previous}
+    }
+
     @Test fun opportunityMigrationRequeuesSuccessfulPagesButPreservesFailureRestsAndSavedSnapshots():Unit=runBlocking {
         val name="opportunity-upgrade-${System.nanoTime()}.db"
         val healthy=LocalPublisherSource("https://library.fixture.invalid/calendar",nextCheckAt=System.currentTimeMillis()+86400000)

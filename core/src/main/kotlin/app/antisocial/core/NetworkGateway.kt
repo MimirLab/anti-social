@@ -42,6 +42,11 @@ private data class ExactFeedAddress(val url:HttpUrl)
 private class DeferredTraffic(val owner: kotlinx.coroutines.Job): kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key: kotlin.coroutines.CoroutineContext.Key<DeferredTraffic>
 }
+/** A bounded local-search acquisition can coexist with its own supplemental
+ * details. Actual content/media requests still preempt deferred work. */
+private class DiscoveryTraffic: kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    companion object Key: kotlin.coroutines.CoroutineContext.Key<DiscoveryTraffic>
+}
 private class PublicExtractor
 private data class PublicPreviewAccess(val source:Source,val target:Target,val lease:PublicPersonaBank.Lease,
     val session:NetworkSession,val cohort:Int,val max:Int,val factory:PublicReadEngineFactory)
@@ -107,6 +112,9 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     suspend fun <T> deferredRead(read: suspend ()->T): T=kotlinx.coroutines.coroutineScope {
         withContext(DeferredTraffic(kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]!!)){read()}
     }
+    /** Scheduling metadata only: all destination, Tor, credential and byte
+     * protections remain identical. Scope this to an explicitly started search. */
+    suspend fun <T> discoveryRead(read:suspend ()->T):T=withContext(DiscoveryTraffic()){read()}
     private val cleanup=java.util.concurrent.Executors.newSingleThreadExecutor {r->Thread(r,"anti social network cleanup").apply {isDaemon=true}}
     var onBlocked: (String,String)->Unit = { _,_ -> }
     @Volatile var onNetworkEvent: ((NetworkEvent)->Unit)?=null
@@ -275,12 +283,13 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                     object: EventListener() {
                         private val started=System.nanoTime()
                         private val owner=call.request().tag(DeferredTraffic::class.java)?.owner
+                        private val foreground=owner==null&&call.request().tag(DiscoveryTraffic::class.java)==null
                         private val finished=java.util.concurrent.atomic.AtomicBoolean()
                         private fun event(stage: String){onNetworkEvent?.let {runCatching {it(NetworkEvent(call.request().url.host,stage,(System.nanoTime()-started)/1_000_000))}}}
-                        private fun finish(){if(finished.compareAndSet(false,true)){if(owner==null)foregroundRequests.decrementAndGet()else deferredCalls.remove(call)}}
+                        private fun finish(){if(finished.compareAndSet(false,true)){if(foreground)foregroundRequests.decrementAndGet()else if(owner!=null)deferredCalls.remove(call)}}
                         override fun callStart(call: Call){
-                            if(owner==null){foregroundRequests.incrementAndGet();deferredCalls.values.toSet().forEach {it.cancel(kotlinx.coroutines.CancellationException("Content requests take priority"))}}
-                            else {deferredCalls[call]=owner;if(hasForegroundRequests||!owner.isActive)owner.cancel(kotlinx.coroutines.CancellationException("Content requests take priority"))}
+                            if(foreground){foregroundRequests.incrementAndGet();deferredCalls.values.toSet().forEach {it.cancel(kotlinx.coroutines.CancellationException("Content requests take priority"))}}
+                            else if(owner!=null){deferredCalls[call]=owner;if(hasForegroundRequests||!owner.isActive)owner.cancel(kotlinx.coroutines.CancellationException("Content requests take priority"))}
                             event("start")
                         }
                         override fun callEnd(call: Call){finish()}
@@ -444,7 +453,11 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         if(session!==currentSession(routeFor(request)))throw IOException("Network mode changed; request cancelled")
         validate(request.url,request);restrict(request,request.url)
         val deferred=continuation.context[DeferredTraffic]
-        val tagged=if(deferred==null)request else request.newBuilder().tag(DeferredTraffic::class.java,deferred).build()
+        val discovery=continuation.context[DiscoveryTraffic]
+        val tagged=request.newBuilder().apply {
+            if(deferred!=null)tag(DeferredTraffic::class.java,deferred)
+            if(discovery!=null)tag(DiscoveryTraffic::class.java,discovery)
+        }.build()
         val base=client(routeFor(tagged))
         val service=tagged.tag(ServiceScope::class.java)
         val transport=if(service!=null)base.newBuilder().retryOnConnectionFailure(false).apply {

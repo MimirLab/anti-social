@@ -61,12 +61,14 @@ internal data class ContextVideoMetadata(val videoId: String,val title: String,v
 
 /** Requested evidence only. It shares the existing source candidates/backoff,
  * never starts a heartbeat, follows article links, or claims media it has not read. */
-class ContextEvidenceReader(private val gateway: NetworkGateway,private val routes: DarwinRoutes,private val pool: SourcePool=SourcePool(gateway,routes),private val clock: ()->Long=System::currentTimeMillis,extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}) {
+class ContextEvidenceReader(private val gateway: NetworkGateway,private val routes: DarwinRoutes,private val pool: SourcePool=SourcePool(gateway,routes),private val clock: ()->Long=System::currentTimeMillis,
+    private val announcementExtract:suspend (Payload,String,Long,LocalEvent)->ContextArticleEvidence={payload,url,at,event->LocalAnnouncementReading.extract(payload,url,event,at)},
+    extract:suspend (Payload,String,Long)->ContextArticleEvidence={payload,url,at->ContextArticles.extract(payload,url,at,readerChecks=true)}) {
     val articles=PublicArticleResolver(gateway,clock,extract)
     private data class Cached(val at: Long,val value: ContextVideoMetadata)
     private val metadata=ConcurrentHashMap<String,Cached>()
     private data class ArticleMemo(val at:Long,val value:ContextArticleEvidence)
-    private data class ArticleMemoKey(val session:NetworkSession,val originals:Boolean,val purpose:FetchPurpose,val url:String)
+    private data class ArticleMemoKey(val session:NetworkSession,val originals:Boolean,val purpose:FetchPurpose,val url:String,val announcement:String?=null)
     private val articleMemo=linkedMapOf<ArticleMemoKey,ArticleMemo>()
     private var articleGeneration=0L
     @Synchronized fun clearArticleMemory(){articleGeneration++;articleMemo.clear();articles.clearValidationMemory()}
@@ -85,11 +87,21 @@ class ContextEvidenceReader(private val gateway: NetworkGateway,private val rout
         is ContextArticleFetch.NotModified->throw SourceFailure(HealthStatus.EMPTY,"The article source returned no new document")
         is ContextArticleFetch.PublicPdf->throw SourceFailure(HealthStatus.UNSUPPORTED,"The available public copy is a PDF")
     }
-    suspend fun articleConditional(url:String,sourceUrl:String,validators:ContextArticleValidators,knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):ContextArticleFetch=
+    /** Reuse an already washed supplemental document for deliberate reading.
+     * The reverse direction is excluded: an explicitly opened action/private
+     * destination does not become automatic-reading input. No request is made. */
+    @Synchronized fun publicArticle(url:String,announcement:LocalEvent?=null):ContextArticleEvidence? {
+        val session=gateway.currentSession();val originals=gateway.originalFallback
+        val context=announcement?.let(LocalAnnouncementReading::key)
+        articleMemo.entries.removeAll {clock()-it.value.at !in 0..15*60_000L}
+        return articleMemo.entries.lastOrNull {(key,value)->key.session===session&&key.originals==originals&&key.purpose==FetchPurpose.SUPPLEMENTAL&&key.announcement==context&&(key.url==url||value.value.finalUrl==url)}?.value?.value
+    }
+    suspend fun articleConditional(url:String,sourceUrl:String,validators:ContextArticleValidators,knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL,announcement:LocalEvent?=null):ContextArticleFetch=
         withContext(Dispatchers.IO){
-            val session=gateway.currentSession();val generation=articleGeneration();val key=ArticleMemoKey(session,gateway.originalFallback,purpose,url)
-            if(validators.etag==null&&validators.lastModified==null&&knownRetrieval==null)recentArticle(key)?.let {return@withContext ContextArticleFetch.Ready(it)}
-            articles.conditional(url,sourceUrl,validators,knownRetrieval,purpose).also {result->
+            val session=gateway.currentSession();val generation=articleGeneration();val key=ArticleMemoKey(session,gateway.originalFallback,purpose,url,announcement?.let(LocalAnnouncementReading::key))
+            if(validators.etag==null&&validators.lastModified==null&&knownRetrieval==null)recentArticle(key)?.takeIf {announcement==null||LocalAnnouncementReading.acceptable(it,announcement)&&(announcement.modifiedAt?.let {at->at<=it.fetchedAt}!=false)}?.let {return@withContext ContextArticleFetch.Ready(it)}
+            val extractor:(suspend (Payload,String,Long)->ContextArticleEvidence)?=announcement?.let {event->{payload,original,at->announcementExtract(payload,original,at,event)}}
+            articles.conditional(url,sourceUrl,validators,knownRetrieval,purpose,extractor).also {result->
                 if(result is ContextArticleFetch.Ready)rememberArticle(key,result.document,generation)
             }
         }

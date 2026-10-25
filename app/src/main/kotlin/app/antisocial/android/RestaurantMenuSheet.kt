@@ -26,8 +26,8 @@ import java.time.ZoneId
     var otherMenus by remember(business.id){mutableStateOf(false)}
     val otherSources=LocalMenuRouting.known(business).filter {source->menus.none {it.sourceUrl==source.url}}
     val dishes=remember(menu,query){menu?.items.orEmpty().filter {query.isBlank()||LocalDiscoveryFilter.matches(query,it.name+" "+it.section+" "+it.description)}}
-    ModalBottomSheet(onDismissRequest=onDismiss,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true)) {
-        LazyColumn(Modifier.fillMaxWidth().testTag("Restaurant menu"),contentPadding=PaddingValues(start=24.dp,end=24.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+    LocalDetailSheet(onDismiss) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("Restaurant menu"),contentPadding=PaddingValues(start=24.dp,end=24.dp,bottom=32.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
             item {Column(verticalArrangement=Arrangement.spacedBy(5.dp)) {
                 Text(business.name,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold)
                 Text("Menu",style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.primary)

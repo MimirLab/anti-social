@@ -30,6 +30,24 @@ class DeferredGatewayTest {
             assertFalse(gateway.hasForegroundRequests)
         }}
     }
+    @Test fun localSearchCanStreamDeferredDetailsUntilActualContentTakesPriority():Unit=runBlocking {
+        MockWebServer().use {search->MockWebServer().use {details->MockWebServer().use {content->
+            search.start();details.start();content.start()
+            search.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            details.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+            content.enqueue(MockResponse().setBody("article"))
+            val gateway=gateway()
+            val acquisition=async(Dispatchers.IO){gateway.discoveryRead {gateway.text(search.url("/places").toString())}}
+            assertNotNull(search.takeRequest(5,TimeUnit.SECONDS));assertFalse(gateway.hasForegroundRequests)
+            val enrichment=async(Dispatchers.IO){gateway.discoveryRead {gateway.deferredRead {gateway.text(details.url("/contact").toString())}}}
+            assertNotNull(details.takeRequest(5,TimeUnit.SECONDS));assertTrue(enrichment.isActive)
+            assertFalse(gateway.hasForegroundRequests)
+            assertEquals("article",gateway.text(content.url("/article").toString()).text)
+            withTimeout(5_000){enrichment.join()};assertTrue(enrichment.isCancelled)
+            assertTrue(acquisition.isActive);acquisition.cancelAndJoin()
+            withTimeout(5_000){while(gateway.hasForegroundRequests)delay(10)}
+        }}}
+    }
     @Test fun mediaUsingTheSharedClientAlsoPreventsDeferredLookups(): Unit=runBlocking {
         MockWebServer().use {server->
             server.start();server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))

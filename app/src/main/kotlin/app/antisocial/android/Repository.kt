@@ -60,7 +60,7 @@ class Repository(val context: Context) {
     private fun assetJson(name: String)=context.assets.open(name).bufferedReader().use { JsonParser.parseReader(it).asJsonObject }
     val cleaner=UrlCleaner(assetJson("clean-links.json"))
     val routes=DarwinRoutes(assetJson("darwin-routes.json"),cleaner)
-    val evidenceReader by lazy {ContextEvidenceReader(gateway,routes,pool,extract=documentSandbox::article)}
+    val evidenceReader by lazy {ContextEvidenceReader(gateway,routes,pool,announcementExtract=documentSandbox::announcement,extract=documentSandbox::article)}
     private val sourceRecordStore=lazy {SourceRecordStore(this)}
     internal val sourceRecords get()=sourceRecordStore.value
     internal val articleReadingCache:ArticleReadingCache by lazy {ArticleReadingCache(File(context.cacheDir,"article-reading"),
@@ -112,6 +112,8 @@ class Repository(val context: Context) {
     val library by lazy {LocalLibrary(this)}
     private val localDiscoveryStore=lazy {LocalDiscoveryStore(context)}
     internal val localDiscovery get()=localDiscoveryStore.value
+    private val localLinkStore=lazy {LocalDiscoveryLinks(this)}
+    internal val localLinks get()=localLinkStore.value
     val outgoing by lazy {ShareRouteStore(this)}
     suspend fun resolveOutgoing(post: Post,editions: List<Post> = emptyList(),action: ShareLinkAction=ShareLinkAction.COPY): ShareRouteResult=outgoing.resolve(post,editions,action)
     suspend fun resolveOutgoing(url: String,platform: Platform?=null,action: ShareLinkAction=ShareLinkAction.OPEN): ShareRouteResult=outgoing.resolve(url,platform,action)
@@ -956,6 +958,7 @@ class Repository(val context: Context) {
         if(sourceRecordStore.isInitialized())sourceRecords.cleanup(clearAll)
         mediaInfo.cleanup(clearAll)
         if(localDiscoveryStore.isInitialized())localDiscovery.cleanup(clearAll)
+        if(localLinkStore.isInitialized())localLinks.cleanup(clearAll)
         contextReader.cleanup(clearAll)
         if(clearAll)mentionNames.clear()else mentionNames.cleanup()
         if(clearAll)outgoing.clear()

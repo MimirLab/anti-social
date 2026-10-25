@@ -274,7 +274,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                     "discover"->LocalDiscoveryScreen(vm)
                     "image-search"->ImageSearchScreen(vm,savedKeys)
                     "subscription"->if(storedSnapshot==null)LinearProgressIndicator(Modifier.fillMaxWidth())else GroupedFeed(vm,storedPosts,follows,savedKeys,Subscriptions.bundles(follows).firstOrNull {it.id==state.subscriptionId}?.name ?: "Subscription","Linked accounts · latest first",counterparts=discussionGroups,counterpartsReady=counterpartsReady){showFollow=true}
-                    "saved"->LibraryScreen(repo,onOpenOriginal={post->vm.open(repo.postTarget(post) ?: Target(post.platform,TargetKind.POST,post.id,post.canonicalUrl))},onStorage={vm.settings(SettingsPage.STORAGE)},onOpenLink=vm::openLink,onReadLink=vm.articles::open)
+                    "saved"->LibraryScreen(repo,onOpenOriginal={post->vm.open(repo.postTarget(post) ?: Target(post.platform,TargetKind.POST,post.id,post.canonicalUrl))},onStorage={vm.settings(SettingsPage.STORAGE)},onOpenLink=vm::openLink,onReadLink=vm.articles::open,onReadEvent=vm.articles::open)
                     "pools"->PoolScreen(vm)
                     else->readerStates.SaveableStateProvider(readerKey) {
                         val displayed=state.page?.posts ?: if(state.target==null)storedPosts else emptyList()

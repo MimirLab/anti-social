@@ -40,15 +40,13 @@ import java.time.format.DateTimeFormatter
     var records by rememberSaveable(shown.url){mutableStateOf(false)}
     if(records)SourceDetailsSheet(reader.repo,listOf(shown.access?.originalUrl ?: shown.url),onOpen=onOpenLink,onDismiss={records=false})
     val document=shown.document
-    ModalBottomSheet(onDismissRequest=reader::close,sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),modifier=Modifier.testTag("Article reader")) {
-        LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.94f).testTag("Article reading list"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LocalDetailSheet(reader::close,tag="Article reader",closeLabel="Close article",activity={
+        Text("Reader",style=MaterialTheme.typography.titleMedium)
+        IconButton(onClick={ReaderClipboard.copy(clipboardContext,"Article link",shown.access?.originalUrl ?: shown.url)},modifier=Modifier.testTag("Copy article link")){Icon(Icons.Rounded.Link,"Copy original link")}
+    }) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("Article reading list"),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
             item {
                 Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment=Alignment.CenterVertically) {
-                        Text("Reader",Modifier.weight(1f),style=MaterialTheme.typography.headlineSmall)
-                        IconButton(onClick={ReaderClipboard.copy(clipboardContext,"Article link",shown.access?.originalUrl ?: shown.url)},modifier=Modifier.testTag("Copy article link")){Icon(Icons.Rounded.Link,"Copy original link")}
-                        IconButton(onClick=reader::close){Icon(Icons.Rounded.Close,"Close article")}
-                    }
                     Text(document?.title ?: if(shown.pdf!=null)"Document"else "Opening article…",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.SemiBold,modifier=Modifier.testTag("Article title"))
                     if(document!=null)Text(listOfNotNull(document.author,document.siteName).filter {it.isNotBlank()}.distinct().joinToString(" · "),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     shown.access?.let {access->AssistChip(onClick={sources=!sources},label={Text(articleAccessLabel(access))},leadingIcon={Icon(if(access.archivedAt!=null)Icons.Rounded.History else Icons.Rounded.Description,null,Modifier.size(16.dp))},modifier=Modifier.testTag("Article source"))}

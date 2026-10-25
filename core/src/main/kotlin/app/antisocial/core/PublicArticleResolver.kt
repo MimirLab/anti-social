@@ -86,10 +86,10 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
     @Synchronized private fun rejectUrl(url:String,mode:NetworkPolicy) {rejected.remove(mode.tor.toString()+"|"+url);rejected[mode.tor.toString()+"|"+url]=clock()+5*60_000;while(rejected.size>128)rejected.remove(rejected.keys.first())}
     @Synchronized fun reject(original:String,retrieved:String) {hints.entries.removeAll {it.key.endsWith("|$original")&&it.value.path.url==retrieved};rejectUrl(retrieved,transport.mode)}
 
-    suspend fun conditional(url:String,source:String,validators:ContextArticleValidators=ContextArticleValidators(),knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL):ContextArticleFetch=
-        withTimeoutOrNull(if(transport.mode.tor)120_000L else 45_000L){resolve(url,source,validators,knownRetrieval,purpose)}
+    suspend fun conditional(url:String,source:String,validators:ContextArticleValidators=ContextArticleValidators(),knownRetrieval:String?=null,purpose:FetchPurpose=FetchPurpose.SUPPLEMENTAL,extractor:(suspend (Payload,String,Long)->ContextArticleEvidence)?=null):ContextArticleFetch=
+        withTimeoutOrNull(if(transport.mode.tor)120_000L else 45_000L){resolve(url,source,validators,knownRetrieval,purpose,extractor)}
             ?: throw SourceFailure(HealthStatus.UNAVAILABLE,"Public copy lookup reached its time allowance")
-    private suspend fun resolve(url:String,source:String,validators:ContextArticleValidators,knownRetrieval:String?,purpose:FetchPurpose):ContextArticleFetch {
+    private suspend fun resolve(url:String,source:String,validators:ContextArticleValidators,knownRetrieval:String?,purpose:FetchPurpose,extractor:(suspend (Payload,String,Long)->ContextArticleEvidence)?):ContextArticleFetch {
         require(url.toHttpUrlOrNull()?.let {it.username.isEmpty()&&it.password.isEmpty()}==true){"Invalid article URL"}
         if(purpose==FetchPurpose.SUPPLEMENTAL&&!AutomaticLinks.mayRead(url))throw SourceFailure(HealthStatus.UNSUPPORTED,"Action links require deliberate opening")
         val session=transport.session;val mode=session.policy;val generation=validationGeneration()
@@ -137,7 +137,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
                         }else {
                             if(!path.jats)HtmlAdmission.check(response.text)
                             if(path.route=="Existing archive capture"&&!matchingCapture(response.finalUrl,response.text,original))throw SourceFailure(HealthStatus.EMPTY,"The capture did not identify this exact article")
-                            val body=extract(Payload(response.text,response.finalUrl,type,response.status),original,clock())
+                            val body=(extractor ?: extract)(Payload(response.text,response.finalUrl,type,response.status),original,clock())
                             if(path.jats&&(JatsArticles.endpointId(response.finalUrl)==null||path.doi!=null&&body.publicationDoi!=path.doi))
                                 throw SourceFailure(HealthStatus.EMPTY,"The structured copy did not match the discovered publication")
                             val abstractOnly=response.finalUrl.toHttpUrlOrNull()?.let {it.host=="arxiv.org"&&it.encodedPath.startsWith("/abs/")}==true
@@ -160,7 +160,7 @@ class PublicArticleResolver internal constructor(private val transport:ArticleTr
             }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e}
             catch(e:CancellationException){throw e}
             catch(e:Exception){last=e}
-            if((last as? SourceFailure)?.httpStatus in setOf(404,410)||path.route=="Original publisher"&&path.url!=original)rejectUrl(path.url,mode)else report(path.url,mode,started,false)
+            if((last as? SourceFailure)?.httpStatus in setOf(404,410)||extractor!=null&&(last as? SourceFailure)?.status==HealthStatus.EMPTY||path.route=="Original publisher"&&path.url!=original)rejectUrl(path.url,mode)else report(path.url,mode,started,false)
             checkMode();return null
         }
         suspend fun json(endpoint:String):com.google.gson.JsonObject? {

@@ -9,6 +9,58 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.33 business and event reading polish
+
+The old detail-sheet gesture was reproduced on the unchanged 0.38.32 debug build:
+a top-edge drag moved the business reading viewport by 116 pixels. The fixed
+shared viewport passes top and bottom edge gestures for both business and event
+details, while preserving Back and pinned Close dismissal. Menus and the native
+article reader use the same container. This qualifies the reported opened-panel
+case; it is not a claim about every scrollable surface in the app.
+
+Chain cards group compatible brand locations without merging their underlying
+records. The native branch selector retains the selected branch's own address
+and callable phone. Event actions deduplicate tracking variants, combine a shared
+registration/announcement destination and tuck other editions underneath. Source
+presentation deduplicates repeated fields and excerpts without deleting stored
+provenance. Confirmed unavailable routes do not become primary buttons;
+transport/budget/rate failures remain unverified, with deliberate source inspection
+available. The existing protected public-copy resolver can recover a readable
+edition. These checks are bounded, cached observations; no claim is made that an
+external destination cannot fail later.
+
+Initial discovery no longer delays all card enrichment. The scoped gateway
+scheduling regression holds a real owned directory request open, delivers a
+concurrent deferred detail request, then verifies that actual content reading
+still cancels deferred work. Other native fixtures hold the large brand dataset
+open while a light contact lookup streams. List cards and opened panels distinguish
+Updating, Searching and Ready, and the search itself reports completion or stop.
+The projection avoids reconciling both search modes for every background update.
+
+Short event pages with matching explicit structured dates can be read through
+the permissionless document worker. Native checks establish a distinct worker
+UID, no INTERNET permission, no private sentinel access, bounded factual output
+and scratch cleanup. Soft 404s, login pages and unrelated structured records remain
+rejected. Prepared announcement reads reuse the existing bounded article bank;
+keys retain event, network-session and request-purpose boundaries.
+
+Qualification on October 25, 2026: **2,244 core JVM cases**, zero failures/errors,
+one optional model-dependent skip; debug/test assembly and lint pass. The frozen
+API 35 native selection ran **94 methods: 92 passes, two opt-in skips, zero
+failures**. Skips require captured PMC material or a live Tor observation and do
+not qualify those external behaviors. The selection covers local search,
+branch/contact streaming, announcements, saved/offline records, menus, article/PDF
+reading, parser isolation, source scheduling, privacy and feed revalidation.
+Actual native announcement, branch, progress/completion, edge-scroll and PDF
+screens were inspected. The initial broader run exposed obsolete label/status
+assertions, an expanded lazy-list row requiring scrolling and a PDF timing failure;
+the PDF passed standalone, its test adopted the existing v2 Compose clock, and the
+corrected complete selection passed. No production timing allowance was increased.
+
+The increment adds no AI model, native library, dependency, setting or database
+migration. Ordinary link observations expire; saved records remain protected.
+See [delivery limits and implementation](LOCAL_DISCOVERY_ROUTING.md#detail-delivery-and-reading-panels-03833).
+
 ## 0.38.32 efficient public feed paths
 
 Two existing Nitter-compatible readers returned HTTPS RSS whose item and media
