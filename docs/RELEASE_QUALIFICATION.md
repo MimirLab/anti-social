@@ -9,6 +9,40 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.24 faster cached-media restoration and gallery grouping
+
+The image-comparison rebuild skips its artificial wait when a local media file
+is absent, while retaining the full scan bound and decoder throttling after
+cached-file work. Gallery matching applies its existing cheap time/media
+exclusions before its existing original-identity proofs. No matching threshold,
+source window, network policy, runtime or dependency was changed.
+
+On the same API 35 emulator, the native late-cache-pair case changed from 9.604
+to 1.957 seconds. Three CPU-stage samples per APK over the same private 517-post
+snapshot changed median grouping from 8.155 to 6.732 seconds, with identical
+468 ordered groups in all six runs. These are scoped local-stage measurements;
+the complete cold-reader delay remains under investigation. See
+[performance qualification](FEED_PERFORMANCE.md).
+
+The full JVM suite completed 2,159 cases, zero failures/errors, one optional
+model-weight skip. The final 76-method Android batch passed 75 methods with one
+opt-in live-Tor skip and zero failures. It covers images, cross-post and fusion
+cards, saved editions, all reading-memory journeys, source-window invalidation,
+history/coverage and connection controls. The private CPU diagnostic passed
+separately. Debug/test/release assembly and release lint pass; actual native
+fusion and retained-anchor screens were inspected. All 33 native-library ZIP
+members remain identical to 0.38.23.
+
+A supplementary history fixture initially equated completed pages with request
+starts. Its record contained the initial request plus three permitted recovery
+starts, both recovered roots and the pending state, but only three
+completed pages. A raced/cancelled route consumes an allowance without returning
+a page. The fixture now allows two to four completed pages while retaining its
+exact request-count/later-source assertions and requiring the exact recovered
+post set. Production history/routing code is unchanged. Intermediate failures
+and corrected final evidence remain external under
+`evidence/cached-feed-profile-20261025`.
+
 ## 0.38.23 faster complete grouping and quiet refresh
 
 The existing conflicting-context check now precedes repeated shared-prose

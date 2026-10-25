@@ -1,0 +1,72 @@
+/* anti social, GPL-3.0-or-later. Explicit private local CPU diagnostics. */
+package app.antisocial.android
+
+import android.os.Debug
+import android.os.SystemClock
+import androidx.test.platform.app.InstrumentationRegistry
+import app.antisocial.core.*
+import com.google.gson.Gson
+import com.google.gson.JsonParser
+import kotlinx.coroutines.*
+import org.junit.Assert.*
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+import org.json.JSONObject
+import java.io.File
+
+/** No fixture data is bundled, imported into Room or transmitted. The caller
+ * supplies a private captured pool on an explicitly disposable installation. */
+class CachedFeedProfileTest {
+    @Test fun measureCapturedPoolGroupingAndReadingPreparation():Unit=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialPrivateFeedProfile")=="true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo
+        repo.awaitReady()
+        val file=File(context.getExternalFilesDir("validation"),"private-captured-feed.json")
+        require(file.isFile&&file.length() in 1..4L*1024*1024)
+        val raw=JsonParser.parseString(file.readText()).asJsonObject
+        require(raw.getAsJsonArray("posts").size()<=1000&&raw.getAsJsonArray("follows").size()<=2000)
+        val original=repo.prefs.export().toString();val policy=repo.gateway.currentPolicy()
+        val output=File(context.getExternalFilesDir("validation"),"cached-feed-profile").apply {mkdirs()}
+        val trace=args.getString("antisocialTracePrivateFeed")=="true"
+        val timings=linkedMapOf<String,Double>()
+        suspend fun <T> measure(name:String,block:suspend ()->T):T {
+            if(trace)Debug.startMethodTracingSampling(File(output,"$name.trace").path,32*1024*1024,2_000)
+            val start=SystemClock.elapsedRealtimeNanos()
+            return try {block()}finally {timings[name]=(SystemClock.elapsedRealtimeNanos()-start)/1e6;if(trace)Debug.stopMethodTracing()}
+        }
+        try {
+            repo.prefs.intervalMinutes=0;repo.prefs.mentionLookups=false;repo.prefs.archiveChecks=false
+            repo.cancelSearchPreparation()
+            // Complete the controller's main-thread stop before installing the
+            // offline policy; a posted stop would otherwise overwrite it later.
+            withContext(Dispatchers.Main.immediate) {
+                repo.tor.enable(false)
+                repo.gateway.configure(NetworkPolicy(tor=true,ready=false))
+            }
+            assertTrue(repo.gateway.currentPolicy().tor);assertFalse(repo.gateway.currentPolicy().ready)
+            val gson=Gson()
+            val posts=measure("decode"){withContext(Dispatchers.Default){raw.getAsJsonArray("posts").map {gson.fromJson(it,Post::class.java)}}}
+            val follows=raw.getAsJsonArray("follows").map {gson.fromJson(it,Follow::class.java)}
+            val members=raw.getAsJsonObject("memberships").entrySet().associate {(key,value)->key to value.asJsonArray.map {it.asString}.toSet()}
+            val read=raw.getAsJsonArray("readKeys").map {it.asString}.toSet()
+            val groups=measure("grouping"){withContext(Dispatchers.Default){CrossPosts.groupCancellable(posts,follows,members)}}
+            assertEquals(posts.map(repo::key).toSet(),groups.flatMap {it.posts}.map(repo::key).toSet())
+            val groupingIdentity=groups.joinToString("\n") {group->group.posts.joinToString("\u0000",transform=repo::key)}
+            val groupingHash=java.security.MessageDigest.getInstance("SHA-256").digest(groupingIdentity.toByteArray()).joinToString(""){"%02x".format(it)}
+            val projected=measure("projection"){withContext(Dispatchers.Default){groups.map {group->group.posts.map {filterProjection(repo,it)} to group.posts.map {filterProjection(repo,it)}}}}
+            val observations=measure("observations"){withContext(Dispatchers.Default){ContentRevisions.observations(projected.flatMap {it.first})}}
+            suspend fun inheritance(name:String,keys:Set<String>)=measure(name){withContext(Dispatchers.Default){projected.filter {it.first.size>1}.count {(body,all)->!ContentRevisions.addsContext(body.filter {repo.key(it) in keys},all)}}}
+            val inherited=inheritance("capturedReadComparisons",read)
+            inheritance("allReadComparisons",posts.map(repo::key).toSet())
+            inheritance("unreadComparisons",emptySet())
+            val result=mapOf("scope" to "Private captured pool; pure local stages only. No Room import, actual paint, cached-image rebuild, phone or live-provider timing claim.","posts" to posts.size,"groups" to groups.size,"groupingSha256" to groupingHash,"sources" to follows.size,"capturedReadKeys" to read.size,"capturedInheritedGroups" to inherited,"observations" to observations.size,"timingsMs" to timings)
+            File(output,"results.json").writeText(gson.toJson(result))
+            assertTrue(repo.gateway.currentPolicy().tor);assertFalse(repo.gateway.currentPolicy().ready)
+        }finally {
+            context.getSharedPreferences("antisocial",android.content.Context.MODE_PRIVATE).edit().clear().commit()
+            repo.prefs.restore(JSONObject(original));repo.applyNetworkSettings();repo.gateway.configure(policy);scheduleRefresh(context,repo.prefs)
+        }
+    }
+}

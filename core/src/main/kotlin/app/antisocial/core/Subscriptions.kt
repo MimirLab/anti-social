@@ -276,10 +276,13 @@ object CrossPosts {
     private fun galleryAnchor(post: Post)=post.media.size in 2..12&&post.media.all {it.type=="image"&&it.url!=post.avatar}&&
         tokens(decoded(PostPresentation.content(post))).size>=8
     private fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean): Boolean {
-        if(anchor.preview||post.preview||anchor.parentId!=null||post.parentId!=null||!realOriginal(anchor)||!realOriginal(post))return false
+        if(anchor.preview||post.preview||anchor.parentId!=null||post.parentId!=null)return false
         val a=anchor.publishedAt?.takeIf {it>0} ?: return false;val b=post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(a>=b)a.toULong()-b.toULong()else b.toULong()-a.toULong()
         if(distance>UNLINKED_WINDOW.toULong()||post.media.isEmpty()||post.media.size>anchor.media.size||post.media.any {it.type!="image"||it.url==post.avatar})return false
+        // Most feed records are outside this gallery's time/media window. Keep
+        // the same mandatory identity proof after those cheap exclusions.
+        if(!realOriginal(anchor)||!realOriginal(post))return false
         // Only layout pointers may differ in an otherwise identical caption.
         // Numbers, negation, flags, meaningful symbols and links still matter.
         fun caption(p:Post)=decoded(PostPresentation.content(p)).replace(Regex("[⬇↓↘👇\\uFE0F]+\\s*$"),"").trim()

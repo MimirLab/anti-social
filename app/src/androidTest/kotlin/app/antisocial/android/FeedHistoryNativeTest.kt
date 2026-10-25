@@ -89,8 +89,12 @@ class FeedHistoryNativeTest {
     @Test fun nativeRecoveryStopsAfterThreeAdditionalRouteStartsAndStaysPending():Unit=runBlocking {
         isolated();Fixture(6,joins=false).use {f->
             val result=f.collect();f.evidence("bounded-gap",result)
-            assertNotNull(result.pendingReason);assertEquals(4,result.pages)
+            assertNotNull(result.pendingReason)
+            // A raced route consumes its start even if another route wins and
+            // cancels it. Completed pages need not equal request starts.
+            assertTrue(result.pages in 2..4)
             assertEquals(4,f.servers.sumOf {it.paths.size});assertEquals(0,f.servers.drop(3).sumOf {it.paths.size})
+            assertEquals(setOf("post:105","post:104"),result.page.posts.map {it.id}.toSet())
             assertTrue(result.page.posts.any {it.id=="post:105"&&it.media.size==1})
         }
     }

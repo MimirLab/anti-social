@@ -1,5 +1,50 @@
 # Feed performance qualification
 
+## 0.38.24: skip waits on missing cache files and reject distant galleries early
+
+The cold image-comparison rebuild previously delayed 40 ms after every unknown
+media URL, even when its file was absent. It now delays only after actual
+cached-file work and still yields between URLs. Its 2,048-URL bound, local-only
+retrieval, two-decoder limit, downsampling, cancellation and matching rules are
+unchanged. The existing native case scans 171 URLs with only the last two files
+available: both versions recover that late pair. Whole instrumentation-case
+time changed from 9.604 to 1.957 seconds on the same API 35 emulator. This is a
+single case comparison, including its setup, rather than a phone or full-reader
+startup measurement.
+
+Native CPU sampling of a private 517-post snapshot also found repeated original
+identity parsing during gallery comparisons, mostly for posts outside the
+gallery's time window. The existing time and media exclusions now precede the
+existing identity proofs. All proofs and thresholds remain mandatory.
+
+Three process-restarted, untraced diagnostic runs per APK used the same snapshot,
+24 sources and memberships on the same API 35 emulator, without a concurrent
+compiler or another instrumentation batch:
+
+| Grouping stage | 0.38.23 | 0.38.24 |
+| --- | ---: | ---: |
+| Three samples | 8.655 / 8.143 / 8.155 s | 6.847 / 6.732 / 6.599 s |
+| Median | 8.155 s | 6.732 s |
+| Complete ordered groups | 468 | 468 |
+
+The group-membership/order digest matches in all six native runs and both frozen
+desktop-core runs. Desktop content-signature digests also match. No private post
+text, reading history or captured fixture is bundled or published. The opt-in
+`CachedFeedProfileTest` requires an external fixture on an explicitly disposable
+installation; it neither imports posts into Room nor makes acquisition calls.
+Its initial offline-policy assertion caught a posted Tor-stop race in the test
+setup; the corrected setup completes that stop on the main thread before
+installing and checking the offline policy.
+
+These measurements isolate local CPU stages. Text projection and content
+observations still take about two seconds in the initial stage samples, and
+image-revision cancellation can restart work. They do not establish that the
+complete cold-reader delay is solved. The earlier hypothesis that inherited
+reading-history comparisons dominated this snapshot was not supported: they
+took about 22 ms with its captured read keys. Raw traces, intermediate failures,
+APK snapshots and comparisons remain external under
+`evidence/cached-feed-profile-20261025`.
+
 ## 0.38.23: reject conflicts before repeated shared-text analysis
 
 Native method sampling found repeated ICU word scans while comparing nearly

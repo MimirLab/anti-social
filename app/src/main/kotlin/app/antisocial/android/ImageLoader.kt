@@ -40,8 +40,11 @@ class ImageLoader(private val repo: Repository) {
                 try {val bitmap=decode(file,512);try {identities.observe(url,bitmap)}finally {bitmap.recycle()}}
                 catch(e: kotlinx.coroutines.CancellationException){throw e}
                 catch(_: Exception){/* Missing or undecodable ordinary cache is not evidence. */}
+                // Yield the decoder lane after actual cached-file work. A miss
+                // has no bitmap work to throttle and must not delay the bank.
+                delay(40)
             }
-            delay(40);yield()
+            yield()
         }
     }
     suspend fun load(url: String,source: String,maxEdge: Int,localOnly: Boolean=false,localFile: File?=null): Bitmap=withContext(Dispatchers.IO) {
