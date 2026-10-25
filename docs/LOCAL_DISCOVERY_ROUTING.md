@@ -51,6 +51,54 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### First-card admission and accumulated caches (0.38.35)
+
+The two ordinary publisher readers retain their existing slots. While no useful
+deck has appeared, one additional publisher can be admitted after 750 ms of
+waiting. Both admission paths use a semaphore bracket and claim the action only
+once: this races admission, not duplicate HTTP reads. Once the first deck exists,
+new rescue admissions stop. Pending normal work can still contribute useful data;
+one fast result does not discard the other publishers. Cancellation releases both
+admission paths and preserves the existing request generation and Gateway policy.
+
+The first result no longer depends on finding a readable publisher among only the
+first six queued links. A query can continue through its available candidates
+while no deck exists, borrowing unused enrichment capacity within the unchanged
+overall source/venue-attempt limit. The same policy handles newly streamed hits
+and a combined cached hit list. Once cards exist, the usual eight-initial and
+ten-supplemental phase limits apply, with the total limit still authoritative.
+The required private transport also starts before cached-record preparation, so
+local processing does not postpone connection startup. Saved-only reads stay local.
+
+Business matching prepares immutable name, brand, address, phone, destination and
+geographic keys once per record in a merge batch. Candidate comparisons reuse
+those keys; branch, suite, house-letter, phone, distance and identity rules retain
+their existing decisions. Empty/link-only extractions do not reconcile unrelated
+businesses or events or invalidate card contents. Typed factual batches prepare
+their relevant record types. Account metadata writes enforce their own cache
+bounds; publisher queues enforce their own expiry and size. Batched queue offers
+share a transaction. By-ID business reads enforce expiry before physical cleanup.
+Ordinary record cleanup and protected saved copies retain their separate paths. This follows the approach of reading/processing only needed
+data and batching mutations in [Android's SQLite performance guidance](https://developer.android.com/topic/performance/sqlite-performance-best-practices).
+
+Controlled API 35 diagnostics used the same synthetic records and three samples
+per fixture, with frozen before/after APKs. Medians below describe the named local
+operations in these debug emulator runs, not full search latency or phone speed.
+
+| Cached businesses / events | Business reconciliation, before → after (ms) | Link-only ingestion, before → after (ms) |
+| --- | --- | --- |
+| 20 / 40 | 157 → 25 | 251 → 1.39 |
+| 300 / 800 | 9,447 → 164 | 11,102 → 0.78 |
+| 1,200 / 2,500 | 38,132 → 548 | 42,684 → 0.74 |
+
+The frozen prior predicate and prepared matcher agreed across 32,400 synthetic
+business pairs. Native tests hold two publishers open while a third supplies the
+first business/event card, and cover later useful publishers in both streamed and
+cached batches. Dedicated databases check unchanged unrelated payloads, saved
+bytes, expiry, rediscovery and bounds. Physical-phone latency, battery and memory
+distributions remain unmeasured; [Android's benchmark guidance](https://developer.android.com/topic/performance/benchmarking/benchmarking-in-ci)
+explains why emulator timings do not establish those results.
+
 List cards and opened details distinguish actual owned work (Updating), continued
 searches that may find more information (Searching), and no pending work (Ready).
 Search complete and Search stopped are distinct. Stable status footprints and fixed
@@ -94,10 +142,11 @@ field names and repeated excerpts without deleting original provenance records.
 | Overpass | Targeted names/categories and local organizer hubs | Selected radius, 350 results, 2 MiB; unavailable routes rest. |
 | Selected public index | Discover publisher pages | Two initial regional queries; two additional field-directed queries, at most six hits each. Uses the selected provider and Tor. |
 | AllThePlaces | Existing first-party-derived brand outputs | Published run HTML and statistics select at most two matching files. Only spiders with 1–6,000 reported features qualify; each decoded file is limited to 8 MiB. No global ZIP or spider execution. |
-| Publisher/directory readers | Structured branch facts, contacts and explicit source links | Eight initial page reads plus ten supplemental reads; two readers share a semaphore. Each page is limited to 2 MiB and 18 seconds. |
+| Publisher/directory readers | Structured branch facts, contacts and explicit source links | Two ordinary readers and one delayed first-deck rescue slot. Eight initial plus ten supplemental reads normally; first-deck discovery may borrow unused capacity within the total source/venue-attempt cap. Each page is limited to 2 MiB and 18 seconds. |
 | Public social routing | Verified business profiles and linked public material | Existing Darwin-derived source pool, alternates and allowed original fallback. Eight account checks, two concurrent, 16 seconds each; an empty frontend is not an account. |
 
-The supplemental stage has a 70-second deadline after primary discovery finishes.
+The supplemental stage has a 70-second allowance beginning when the first deck
+becomes available, overlapping independent primary discovery.
 It can end sooner, yield to visible traffic or exhaust its request budget. Missing
 information stays missing. A specific public service may contribute nothing while
 other lanes continue to produce useful cards.

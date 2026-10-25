@@ -40,7 +40,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     }
     private fun rows(sql:String,args:Array<String> = emptyArray()):List<String> = readableDatabase.rawQuery(sql,args).use {c->buildList {while(c.moveToNext())add(c.getString(0))}}
     @Synchronized fun cache(key:String):String?=rows("SELECT payload FROM cache WHERE id=? AND expires>?",arrayOf(key,now().toString())).firstOrNull()
-    @Synchronized fun cache(key:String,value:String,ttl:Long) {require(value.length<=256*1024);writableDatabase.insertWithOnConflict("cache",null,ContentValues().apply {put("id",key);put("payload",value);put("expires",now()+ttl)},SQLiteDatabase.CONFLICT_REPLACE);trim()}
+    @Synchronized fun cache(key:String,value:String,ttl:Long) {require(value.length<=256*1024);writableDatabase.insertWithOnConflict("cache",null,ContentValues().apply {put("id",key);put("payload",value);put("expires",now()+ttl)},SQLiteDatabase.CONFLICT_REPLACE);trimCache()}
     @Synchronized fun businesses(area:LocalArea?,saved:Boolean=false):List<LocalBusiness> {
         val values=if(saved)rows("SELECT payload FROM copies WHERE kind='business' ORDER BY saved DESC LIMIT 2000")else if(area==null)rows("SELECT payload FROM records WHERE kind='business' AND expires>? ORDER BY checked DESC LIMIT 2000",arrayOf(now().toString()))else {
             val lat=area.radiusKm/110.0+.01;val lon=lat/kotlin.math.cos(Math.toRadians(area.point.latitude)).coerceAtLeast(.1)
@@ -83,25 +83,31 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
             }
         }}
     @Synchronized fun savedIds()=rows("SELECT id FROM copies").toSet()
-    @Synchronized fun sources(area:LocalArea):List<LocalPublisherSource> = rows("SELECT payload FROM sources WHERE area=? LIMIT 768",arrayOf(area.cacheKey)).mapNotNull {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
+    @Synchronized fun sources(area:LocalArea):List<LocalPublisherSource> = rows("SELECT payload FROM sources WHERE area=? AND expires>? LIMIT 768",arrayOf(area.cacheKey,now().toString())).mapNotNull {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
+    @Synchronized fun offerSources(area:LocalArea,sources:List<LocalPublisherSource>) {
+        if(sources.isEmpty())return
+        val db=writableDatabase;db.beginTransaction()
+        try {sources.forEach {offerSource(area,it)};db.setTransactionSuccessful()}finally {db.endTransaction()}
+    }
     @Synchronized fun offerSource(area:LocalArea,source:LocalPublisherSource) {
-        val old=rows("SELECT payload FROM sources WHERE url=? AND area=?",arrayOf(source.url,area.cacheKey)).firstOrNull()?.let {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
+        val old=rows("SELECT payload FROM sources WHERE url=? AND area=? AND expires>?",arrayOf(source.url,area.cacheKey,now().toString())).firstOrNull()?.let {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
         if(old==null)source(area,source)else if(source.businessId!=null&&(old.businessId==null||business(old.businessId)==null||source.kind==LocalSourceKind.MENU&&(old.kind!=LocalSourceKind.MENU||source.menuBranch==true&&old.menuBranch!=true)))
             source(area,old.copy(businessId=source.businessId,kind=source.kind,label=source.label.ifBlank {old.label},discoveredFrom=source.discoveredFrom ?: old.discoveredFrom,menuBranch=source.menuBranch ?: old.menuBranch,nextCheckAt=if(source.kind!=old.kind&&old.failures==0)0 else old.nextCheckAt))
     }
     @Synchronized fun source(area:LocalArea,source:LocalPublisherSource) {
         val payload=gson.toJson(source);require(payload.length<=16*1024)
         writableDatabase.insertWithOnConflict("sources",null,ContentValues().apply {put("url",source.url);put("area",area.cacheKey);put("payload",payload);put("expires",now()+30L*86400000)},SQLiteDatabase.CONFLICT_REPLACE)
+        trimSources()
     }
     @Synchronized fun business(id:String?):LocalBusiness?=id?.let {key->
         val owner=rows("SELECT owner FROM aliases WHERE alias=?",arrayOf(key)).firstOrNull() ?: key
-        rows("SELECT payload FROM records WHERE id=? AND kind='business'",arrayOf(owner)).firstOrNull()?.let {v->gson.fromJson(v,LocalBusiness::class.java)}
+        rows("SELECT payload FROM records WHERE id=? AND kind='business' AND expires>?",arrayOf(owner,now().toString())).firstOrNull()?.let {v->gson.fromJson(v,LocalBusiness::class.java)}
     }
     /** Reconcile cached occurrences too; saved snapshot bytes remain untouched. */
-    @Synchronized fun reconcileEvents() {
+    @Synchronized fun reconcileEvents():Boolean {
         val saved=savedIds();val original=events().sortedBy {if(it.id in saved)0 else 1}
         val merged=LocalDiscoveryMerge.events(original)
-        if(merged.size==original.size)return
+        if(merged.size==original.size)return false
         val retained=merged.mapTo(mutableSetOf()){it.id}
         val expiry=mutableMapOf<String,Long>()
         readableDatabase.rawQuery("SELECT id,expires FROM records WHERE kind='event'",null).use {c->while(c.moveToNext())expiry[c.getString(0)]=c.getLong(1)}
@@ -115,13 +121,18 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
             }
             db.setTransactionSuccessful()
         }finally {db.endTransaction()}
+        return true
     }
     /** Repair earlier ordinary records without rewriting protected saved copies. */
-    @Synchronized fun reconcile(area:LocalArea) {
+    @Synchronized fun reconcile(area:LocalArea):Boolean {
         val saved=savedIds();val original=businesses(area).sortedBy {if(it.id in saved)0 else 1}
         val merged=LocalDiscoveryMerge.businesses(original)
-        if(merged.size==original.size)return
-        val winners=original.associate {old->old.id to (merged.firstOrNull {it.id==old.id||LocalDiscoveryMerge.sameBusiness(it,old)}?.id ?: old.id)}
+        if(merged.size==original.size)return false
+        val retained=merged.associateBy {it.id};val prepared=merged.associate {it.id to LocalBusinessIdentity.prepare(it)}
+        val winners=original.associate {old->
+            val winner=retained[old.id]?.id ?: LocalBusinessIdentity.prepare(old).let {identity->merged.firstOrNull {LocalBusinessIdentity.same(prepared.getValue(it.id),identity)}?.id} ?: old.id
+            old.id to winner
+        }
         val db=writableDatabase;db.beginTransaction()
         try {
             winners.filter {it.key!=it.value}.forEach {(old,winner)->
@@ -140,60 +151,74 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
             updates.forEach {(url,region,payload)->db.update("sources",ContentValues().apply {put("payload",payload)},"url=? AND area=?",arrayOf(url,region))}
             db.setTransactionSuccessful()
         }finally {db.endTransaction()}
+        return true
     }
     @Synchronized fun ingest(extraction:LocalExtraction,area:LocalArea):Pair<Int,Int> {
-        reconcile(area)
-        reconcileEvents()
+        val hasBusinesses=extraction.businesses.isNotEmpty();val hasEvents=extraction.events.isNotEmpty()
+        // A link-only or valid-empty page cannot change card facts. In
+        // particular it must not decode/reconcile every cached record first.
+        if(!hasBusinesses&&!hasEvents&&extraction.announcements.isEmpty()) {
+            offerSources(area,extraction.sources.take(48));return 0 to 0
+        }
+        var altered=false
+        if(hasBusinesses)altered=reconcile(area)||altered
+        if(hasEvents)altered=reconcileEvents()||altered
         val db=writableDatabase;var places=0;var sessions=0
+        val identities=mutableMapOf<String,String>()
         db.beginTransaction()
         try {
-            val known=businesses(area).associateBy {it.id}.toMutableMap()
-            val names=mutableMapOf<String,MutableSet<String>>();val links=mutableMapOf<String,MutableSet<String>>();val streets=mutableMapOf<String,MutableSet<String>>();val cells=mutableMapOf<String,MutableSet<String>>()
-            fun index(place:LocalBusiness){names.getOrPut(LocalDiscoveryMerge.businessName(place.name)){mutableSetOf()}.add(place.id);LocalDiscoveryMerge.street(place.address)?.let {streets.getOrPut(it){mutableSetOf()}.add(place.id)};LocalDiscoveryMerge.locationKeys(place.point).forEach {cells.getOrPut(it){mutableSetOf()}.add(place.id)};(place.websites+place.socials).forEach {url->LocalDiscoveryIdentity.url(url)?.let {links.getOrPut(it){mutableSetOf()}.add(place.id)}}}
-            known.values.forEach(::index)
-            val identities=mutableMapOf<String,String>()
-            for(incoming in extraction.businesses.take(2000)) {
-                if(!LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),incoming))continue
-                val alias=incoming.sourceIds.firstNotNullOfOrNull {key->rows("SELECT owner FROM aliases WHERE alias=?",arrayOf(key)).firstOrNull()}
-                val candidateIds=names[LocalDiscoveryMerge.businessName(incoming.name)].orEmpty()+streets[LocalDiscoveryMerge.street(incoming.address)].orEmpty()+(incoming.websites+incoming.socials).flatMap {links[LocalDiscoveryIdentity.url(it)].orEmpty()}+LocalDiscoveryMerge.locationKeys(incoming.point).flatMap {cells[it].orEmpty()}
-                val old=alias?.let {known[it] ?: business(it)} ?: candidateIds.asSequence().mapNotNull {known[it]}.firstOrNull {LocalDiscoveryMerge.sameBusiness(it,incoming)}
-                val result=old?.let {LocalDiscoveryMerge.business(it,incoming)} ?: incoming
-                put(result.id,"business",gson.toJson(result),result.point,result.checkedAt,now()+30L*86400000,result.name+" "+result.category+" "+result.description+" "+result.address+" "+result.keywords.joinToString(" "))
-                result.sourceIds.forEach {key->db.insertWithOnConflict("aliases",null,ContentValues().apply {put("alias",key);put("owner",result.id)},SQLiteDatabase.CONFLICT_REPLACE)}
-                db.insertWithOnConflict("aliases",null,ContentValues().apply {put("alias",incoming.id);put("owner",result.id)},SQLiteDatabase.CONFLICT_REPLACE)
-                identities[incoming.id]=result.id;known[result.id]=result;index(result);places++
-
+            if(hasBusinesses) {
+                val known=businesses(area).associateBy {it.id}.toMutableMap()
+                val prepared=mutableMapOf<String,LocalBusinessIdentity.Prepared>()
+                val names=mutableMapOf<String,MutableSet<String>>();val links=mutableMapOf<String,MutableSet<String>>();val streets=mutableMapOf<String,MutableSet<String>>();val cells=mutableMapOf<String,MutableSet<String>>()
+                fun index(place:LocalBusiness,identity:LocalBusinessIdentity.Prepared=LocalBusinessIdentity.prepare(place)){prepared[place.id]=identity;names.getOrPut(identity.name){mutableSetOf()}.add(place.id);identity.street?.let {streets.getOrPut(it){mutableSetOf()}.add(place.id)};identity.cells.forEach {cells.getOrPut(it){mutableSetOf()}.add(place.id)};identity.links.forEach {links.getOrPut(it){mutableSetOf()}.add(place.id)}}
+                known.values.forEach {index(it)}
+                for(incoming in extraction.businesses.take(2000)) {
+                    if(!LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),incoming))continue
+                    val identity=LocalBusinessIdentity.prepare(incoming)
+                    val alias=incoming.sourceIds.firstNotNullOfOrNull {key->rows("SELECT owner FROM aliases WHERE alias=?",arrayOf(key)).firstOrNull()}
+                    val candidateIds=names[identity.name].orEmpty()+streets[identity.street].orEmpty()+identity.links.flatMap {links[it].orEmpty()}+identity.cells.flatMap {cells[it].orEmpty()}
+                    val old=alias?.let {known[it] ?: business(it)} ?: candidateIds.asSequence().mapNotNull {known[it]}.firstOrNull {LocalBusinessIdentity.same(prepared.getValue(it.id),identity)}
+                    val result=old?.let {LocalDiscoveryMerge.business(it,incoming)} ?: incoming
+                    put(result.id,"business",gson.toJson(result),result.point,result.checkedAt,now()+30L*86400000,result.name+" "+result.category+" "+result.description+" "+result.address+" "+result.keywords.joinToString(" "))
+                    result.sourceIds.forEach {key->db.insertWithOnConflict("aliases",null,ContentValues().apply {put("alias",key);put("owner",result.id)},SQLiteDatabase.CONFLICT_REPLACE)}
+                    db.insertWithOnConflict("aliases",null,ContentValues().apply {put("alias",incoming.id);put("owner",result.id)},SQLiteDatabase.CONFLICT_REPLACE)
+                    identities[incoming.id]=result.id;known[result.id]=result;index(result,if(old==null)identity else LocalBusinessIdentity.prepare(result));places++
+                }
             }
-            val existing=events().associateBy {it.id}.toMutableMap()
-            val pendingAnnouncements=announcements(area)
-            val eventAliases=mutableMapOf<String,String>();val eventKeys=mutableMapOf<String,MutableSet<String>>()
-            fun indexEvent(event:LocalEvent){event.sourceIds.forEach {eventAliases[it]=event.id};LocalEventIdentity.keys(event).forEach {eventKeys.getOrPut(it){mutableSetOf()}.add(event.id)}}
-            existing.values.forEach(::indexEvent)
-            for(incoming in extraction.events.take(512)) {
-                val candidates=(listOf(incoming.id)+incoming.sourceIds.mapNotNull {eventAliases[it]}+LocalEventIdentity.keys(incoming).flatMap {eventKeys[it].orEmpty()}).distinct()
-                val matches=candidates.mapNotNull(existing::get).filter {LocalDiscoveryMerge.sameEvent(it,incoming)}
-                // Regional feeds can contain distant events. Retain only local
-                // occurrences, but allow a known event's move/cancellation to
-                // update its existing row even when the new venue is outside.
-                if(matches.isEmpty()&&!LocalDiscoveryFilter.geographic(area,incoming))continue
-                val result=matches.fold(incoming){acc,old->LocalDiscoveryMerge.event(old,acc)}
-                matches.filter {it.id!=result.id}.forEach {old->existing.remove(old.id);db.delete("records","id=?",arrayOf(old.id));db.delete("search","id=?",arrayOf(old.id))}
-                val expires=maxOf(now()+7L*86400000,(result.end ?: result.start).instant()?.toEpochMilli()?.plus(7L*86400000) ?: now()+37L*86400000).coerceAtMost(now()+90L*86400000)
-                put(result.id,"event",gson.toJson(result),result.point,result.checkedAt,expires,result.title+" "+result.description+" "+result.venue+" "+result.locality)
-                existing[result.id]=result;indexEvent(result);sessions++
-                db.delete("records","id=? AND kind='announcement'",arrayOf(incoming.id))
-                pendingAnnouncements.filter {it.sourceUrl in incoming.urls&&(it.date==null||it.date==incoming.start.date()?.toString())}.forEach {old->
-                    db.delete("records","id=? AND kind='announcement'",arrayOf(old.id));if(old.id!=result.id)db.delete("search","id=?",arrayOf(old.id))
+            if(hasEvents) {
+                val existing=events().associateBy {it.id}.toMutableMap()
+                val pendingAnnouncements=announcements(area)
+                val eventAliases=mutableMapOf<String,String>();val eventKeys=mutableMapOf<String,MutableSet<String>>()
+                fun indexEvent(event:LocalEvent){event.sourceIds.forEach {eventAliases[it]=event.id};LocalEventIdentity.keys(event).forEach {eventKeys.getOrPut(it){mutableSetOf()}.add(event.id)}}
+                existing.values.forEach(::indexEvent)
+                for(incoming in extraction.events.take(512)) {
+                    val candidates=(listOf(incoming.id)+incoming.sourceIds.mapNotNull {eventAliases[it]}+LocalEventIdentity.keys(incoming).flatMap {eventKeys[it].orEmpty()}).distinct()
+                    val matches=candidates.mapNotNull(existing::get).filter {LocalDiscoveryMerge.sameEvent(it,incoming)}
+                    // Moves/cancellations can update known occurrences outside
+                    // the region; new distant occurrences remain inadmissible.
+                    if(matches.isEmpty()&&!LocalDiscoveryFilter.geographic(area,incoming))continue
+                    val result=matches.fold(incoming){acc,old->LocalDiscoveryMerge.event(old,acc)}
+                    matches.filter {it.id!=result.id}.forEach {old->existing.remove(old.id);db.delete("records","id=?",arrayOf(old.id));db.delete("search","id=?",arrayOf(old.id))}
+                    val expires=maxOf(now()+7L*86400000,(result.end ?: result.start).instant()?.toEpochMilli()?.plus(7L*86400000) ?: now()+37L*86400000).coerceAtMost(now()+90L*86400000)
+                    put(result.id,"event",gson.toJson(result),result.point,result.checkedAt,expires,result.title+" "+result.description+" "+result.venue+" "+result.locality)
+                    existing[result.id]=result;indexEvent(result);sessions++
+                    db.delete("records","id=? AND kind='announcement'",arrayOf(incoming.id))
+                    pendingAnnouncements.filter {it.sourceUrl in incoming.urls&&(it.date==null||it.date==incoming.start.date()?.toString())}.forEach {old->
+                        db.delete("records","id=? AND kind='announcement'",arrayOf(old.id));if(old.id!=result.id)db.delete("search","id=?",arrayOf(old.id))
+                    }
                 }
             }
             for(candidate in extraction.announcements.take(40)) {
-                if(candidate.id in existing||business(candidate.publisherId)?.let {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}!=true)continue
-                put(candidate.id,"announcement",gson.toJson(candidate),null,candidate.checkedAt,now()+7L*86400000,candidate.title+" "+candidate.text)
+                if(rows("SELECT id FROM records WHERE id=? AND kind='event' AND expires>?",arrayOf(candidate.id,now().toString())).isNotEmpty()||business(candidate.publisherId)?.let {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}!=true)continue
+                put(candidate.id,"announcement",gson.toJson(candidate),null,candidate.checkedAt,now()+7L*86400000,candidate.title+" "+candidate.text);altered=true
             }
             extraction.sources.take(48).forEach {candidate->offerSource(area,candidate.copy(businessId=identities[candidate.businessId] ?: candidate.businessId))}
             db.setTransactionSuccessful()
         }finally {db.endTransaction()}
-        trim();changed();return places to sessions
+        val expired=trim()
+        if(altered||places>0||sessions>0||expired)changed()
+        return places to sessions
     }
     private fun put(id:String,kind:String,payload:String,point:LocalPoint?,checked:Long,expires:Long,text:String) {
         require(payload.length<=256*1024)
@@ -201,20 +226,29 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         db.insertWithOnConflict("records",null,ContentValues().apply {put("id",id);put("kind",kind);put("payload",payload);put("lat",point?.latitude);put("lon",point?.longitude);put("checked",checked);put("expires",expires)},SQLiteDatabase.CONFLICT_REPLACE)
         db.delete("search","id=?",arrayOf(id));db.insert("search",null,ContentValues().apply {put("id",id);put("kind",kind);put("body",text.take(32000))})
     }
-    @Synchronized fun trim() {
+    private fun trimCache() {
         val db=writableDatabase
-        db.delete("records","expires<?",arrayOf(now().toString()));db.delete("cache","expires<?",arrayOf(now().toString()))
-        db.delete("sources","expires<?",arrayOf(now().toString()))
-        db.execSQL("DELETE FROM records WHERE id IN (SELECT id FROM records WHERE kind='announcement' ORDER BY checked DESC LIMIT -1 OFFSET 200)")
-        db.execSQL("DELETE FROM records WHERE id IN (SELECT id FROM records ORDER BY checked DESC LIMIT -1 OFFSET 7000)")
-        var size=readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM records",null).use {it.moveToFirst();it.getLong(0)}
-        while(size>32L*1024*1024) {db.execSQL("DELETE FROM records WHERE id IN (SELECT id FROM records ORDER BY checked LIMIT 64)");size=readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM records",null).use {it.moveToFirst();it.getLong(0)}}
-        db.execSQL("DELETE FROM aliases WHERE owner NOT IN (SELECT id FROM records)");db.execSQL("DELETE FROM search WHERE id NOT IN (SELECT id FROM records)")
+        db.delete("cache","expires<?",arrayOf(now().toString()))
         db.execSQL("DELETE FROM cache WHERE id IN (SELECT id FROM cache ORDER BY expires DESC LIMIT -1 OFFSET 256)")
         while(readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM cache",null).use {it.moveToFirst();it.getLong(0)}>8L*1024*1024)db.execSQL("DELETE FROM cache WHERE id IN (SELECT id FROM cache ORDER BY expires LIMIT 16)")
+    }
+    private fun trimSources() {
+        val db=writableDatabase
+        db.delete("sources","expires<?",arrayOf(now().toString()))
         db.execSQL("DELETE FROM sources WHERE rowid IN (SELECT rowid FROM sources ORDER BY rowid DESC LIMIT -1 OFFSET 768)")
     }
-    @Synchronized fun cleanup(clear:Boolean=false) {if(clear){val db=writableDatabase;db.beginTransaction();try {listOf("records","aliases","search","sources","cache").forEach {db.delete(it,null,null)};db.setTransactionSuccessful()}finally {db.endTransaction()};changed()}else trim()}
+    @Synchronized fun trim():Boolean {
+        val db=writableDatabase
+        var removed=db.delete("records","expires<?",arrayOf(now().toString()))
+        removed+=db.delete("records","id IN (SELECT id FROM records WHERE kind='announcement' ORDER BY checked DESC LIMIT -1 OFFSET 200)",null)
+        removed+=db.delete("records","id IN (SELECT id FROM records ORDER BY checked DESC LIMIT -1 OFFSET 7000)",null)
+        var size=readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM records",null).use {it.moveToFirst();it.getLong(0)}
+        while(size>32L*1024*1024) {removed+=db.delete("records","id IN (SELECT id FROM records ORDER BY checked LIMIT 64)",null);size=readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM records",null).use {it.moveToFirst();it.getLong(0)}}
+        db.execSQL("DELETE FROM aliases WHERE owner NOT IN (SELECT id FROM records)");db.execSQL("DELETE FROM search WHERE id NOT IN (SELECT id FROM records)")
+        trimCache();trimSources()
+        return removed>0
+    }
+    @Synchronized fun cleanup(clear:Boolean=false) {if(clear){val db=writableDatabase;db.beginTransaction();try {listOf("records","aliases","search","sources","cache").forEach {db.delete(it,null,null)};db.setTransactionSuccessful()}finally {db.endTransaction()};changed()}else if(trim())changed()}
     @Synchronized fun bytes(saved:Boolean=false):Long {val tables=if(saved)listOf("copies")else listOf("records","sources","cache");return tables.sumOf {table->readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(payload AS BLOB))),0) FROM $table",null).use {it.moveToFirst();it.getLong(0)}}+if(saved)0 else readableDatabase.rawQuery("SELECT COALESCE(SUM(length(CAST(body AS BLOB))),0) FROM search",null).use {it.moveToFirst();it.getLong(0)}}
     private fun changed(){revision.value=revision.value+1}
 }

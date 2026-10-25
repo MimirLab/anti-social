@@ -9,6 +9,63 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.35 first business/event cards and accumulated-cache work
+
+A controlled native regression on the previous implementation held two public
+publishers open and supplied a readable third publisher. No first card appeared
+within the six-second check. A delayed, single additional admission now lets that
+third publisher deliver first business and event cards while both older reads are
+still held. It does not issue a second request for the same action, shorten
+ordinary source timeouts or remove slower valid data. New rescue admissions stop
+after a useful deck arrives. Two normal readers and the one rescue slot have
+explicit bounds, error, single-execution and cancellation tests.
+
+Initial discovery can also continue beyond early empty publisher batches using
+unused capacity within the existing total limit. Native checks exercise both
+progressive batches and a combined cached list. Early local transport preparation
+overlaps cached-record projection. Gateway, selected-Tor failure, source identity,
+geographic/date admission, ownership and saved-record protections remain in place.
+
+The accumulated-cache diagnostic exposed tens of seconds of local work on a
+link-only update. Business matching now reuses prepared immutable comparison keys
+and compiled lexical patterns. A differential audit against the frozen prior
+predicate found **zero differences across 32,400 synthetic business pairs**.
+Typed/no-op ingestion avoids decoding and reconciling unrelated record types.
+Status-cache updates and publisher queues have independent cleanup/bounds, and
+queue offers use transactions. Dedicated native databases verify that source-only
+updates preserve unrelated payloads and protected copies, that explicit legacy
+repair still works, and that expired publishers can be rediscovered. By-ID reads
+enforce expiry before cleanup; an additional native case verifies that an expired
+alias cannot restore stale contact facts or alter a protected saved snapshot.
+
+For 1,200 synthetic businesses and 2,500 events, median business reconciliation
+changed from **38,132 ms to 548 ms**; median link-only ingestion changed from
+**42,684 ms to 0.74 ms**. Each fixture used three samples on the same API 35 emulator
+with frozen before/after APKs. These measure those local operations, not complete
+search latency or phone hardware. Smaller fixtures and the exact delivery limits
+are recorded in [local discovery routing](LOCAL_DISCOVERY_ROUTING.md#first-card-admission-and-accumulated-caches-03835).
+
+Qualification on October 25, 2026: **2,270 core JVM cases**, zero failures/errors,
+one optional model-weight skip; debug/test assembly and Android lint pass. The
+final frozen native selection ran **118 methods: 116 passes, two opt-in skips,
+zero failures**. It includes the new storage contracts and first-deck cases,
+local discovery, announcements, menus, Library/migration, social search/scope,
+privacy, scheduling and feed windows. A separate enabled synthetic performance
+method passed. Actual native first-business and first-event screens were inspected
+with invented place names. One earlier fixture demanded exactly nine completed
+reads although a useful result overtook a queued empty read; the final checks
+cover deterministic streamed batches and bounded combined-list admission instead.
+
+A separately enabled production-controller regional cuisine lookup returned an
+eligible card with Tor active. Its reproduction parameters and identifying output
+are kept privately. This is one source-dependent observation, not exhaustive
+inventory, universal provider uptime or controlled physical-phone qualification.
+Physical-phone latency, battery and memory distributions remain unmeasured.
+
+The increment introduces no model, dependency, native library, setting or database
+migration. Source/APK correspondence, unchanged signing identity, retained preview
+state and permanent-download checks follow the existing publishing procedure.
+
 ## 0.38.34 shared native search interpretation
 
 Business discovery now compiles category and cuisine intent into geographic

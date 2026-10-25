@@ -73,9 +73,11 @@ data class LocalDiscoveryQuery(val area:LocalArea,val text:String="",val mode:Lo
     }
 }
 object LocalDiscoveryIdentity {
+    private val combiningMarks=Regex("\\p{M}+")
+    private val lexicalWords=Regex("[\\p{L}\\p{N}]+")
     fun hash(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(""){"%02x".format(it)}
-    fun words(value:String)=Normalizer.normalize(value,Normalizer.Form.NFKD).replace(Regex("\\p{M}+"),"").lowercase(Locale.ROOT)
-        .let {Regex("[\\p{L}\\p{N}]+").findAll(it).take(256).map {m->m.value}.toList()}
+    fun words(value:String)=Normalizer.normalize(value,Normalizer.Form.NFKD).replace(combiningMarks,"").lowercase(Locale.ROOT)
+        .let {lexicalWords.findAll(it).take(256).map {m->m.value}.toList()}
     fun name(value:String)=words(value).joinToString(" ")
     fun url(value:String?,base:String?=null):String? {
         if(value.isNullOrBlank()||value.length>8192||value.any {it<' '||it=='\\'})return null
@@ -143,8 +145,9 @@ object LocalDiscoveryFilter {
 }
 /** Explicit publisher corrections beat directory snapshots. A chain's branches and recurring sessions stay distinct. */
 object LocalDiscoveryMerge {
-    private fun links(values:List<String>)=values.mapNotNull {LocalDiscoveryIdentity.url(it)}.toSet()
-    fun businessName(value:String)=LocalDiscoveryIdentity.words(value.replace(Regex("['’]"),"")).dropWhile {it=="the"}.filterNot {it in setOf("llc","inc","ltd","co","company","corp","corporation")}.joinToString(" ")
+    private val corporateWords=setOf("llc","inc","ltd","co","company","corp","corporation")
+    fun businessName(value:String)=businessName(LocalBusinessOwnership.nameWords(value))
+    internal fun businessName(words:List<String>)=words.dropWhile {it=="the"}.filterNot(corporateWords::contains).joinToString(" ")
     /** Geographic cells find candidates only. Distance, name, address and
      * branch/suite checks still decide whether two records are the same. */
     fun locationKeys(point:LocalPoint?):List<String> {
@@ -165,34 +168,7 @@ object LocalDiscoveryMerge {
         }
         return null
     }
-    fun sameBusiness(a:LocalBusiness,b:LocalBusiness):Boolean {
-        if(a.sourceIds.intersect(b.sourceIds.toSet()).isNotEmpty())return true
-        val sameName=businessName(a.name)==businessName(b.name)||LocalBusinessOwnership.sameBrand(a.name,b.name)
-        val distance=if(a.point!=null&&b.point!=null)a.point.distanceKm(b.point)else null
-        val sameAddress=a.address.isNotBlank()&&LocalDiscoveryIdentity.name(a.address)==LocalDiscoveryIdentity.name(b.address)
-        val aStreet=street(a.address);val bStreet=street(b.address)
-        var sameStreet=aStreet!=null&&aStreet==bStreet
-        val sameLocality=a.locality.isNotBlank()&&LocalDiscoveryIdentity.name(a.locality)==LocalDiscoveryIdentity.name(b.locality)
-        val phone=a.phones.mapNotNull(LocalBusinessContact::phoneKey).intersect(b.phones.mapNotNull(LocalBusinessContact::phoneKey).toSet()).isNotEmpty()
-        val unit=Regex("\\b(?:suite|ste|unit|#)\\s*([a-z0-9-]+)",RegexOption.IGNORE_CASE)
-        val aUnit=unit.find(a.address)?.groupValues?.get(1);val bUnit=unit.find(b.address)?.groupValues?.get(1)
-        if(aUnit!=null&&bUnit!=null&&!aUnit.equals(bUnit,true))return false
-        val number=Regex("^\\s*(\\d+[a-zA-Z]?)\\b")
-        val aNumber=aStreet?.substringBefore(' ') ?: number.find(a.address)?.groupValues?.get(1);val bNumber=bStreet?.substringBefore(' ') ?: number.find(b.address)?.groupValues?.get(1)
-        if(aNumber!=null&&bNumber!=null&&!aNumber.equals(bNumber,true)) {
-            val sameHouse=aNumber.takeWhile(Char::isDigit)==bNumber.takeWhile(Char::isDigit)
-            val omittedLetter=aNumber.last().isDigit()!=bNumber.last().isDigit()
-            if(!(sameHouse&&omittedLetter&&sameName&&(distance!=null&&distance<.10||sameLocality&&phone)))return false
-            if(aStreet!=null&&bStreet!=null&&aStreet.substringAfter(' ')==bStreet.substringAfter(' '))sameStreet=true
-        }
-        val shared=(links(a.websites)+links(a.socials)).intersect(links(b.websites)+links(b.socials)).isNotEmpty()
-        // Directory pins can be a car park away from the publisher's pin.
-        // Strong matching address + phone evidence may correct a small pin
-        // error; proximity alone never joins separate branches.
-        if(distance!=null&&distance>.20&&!(distance<=5.0&&sameName&&sameStreet&&sameLocality&&phone))return false
-        val addressMatch=sameAddress||sameStreet&&(sameLocality||distance!=null&&distance<.15||phone)
-        return sameName&&(addressMatch||distance!=null&&distance<.10)||(shared&&(addressMatch||distance!=null&&distance<.15))
-    }
+    fun sameBusiness(a:LocalBusiness,b:LocalBusiness)=LocalBusinessIdentity.same(a,b)
     private fun rank(evidence:List<LocalFieldEvidence>,field:String,value:String?=null)=evidence.filter {it.field==field&&(value==null||it.value==value)}.minOfOrNull {it.kind.ordinal} ?: 99
     private fun pointRank(business:LocalBusiness):Int {
         val p=business.point ?: return Int.MAX_VALUE
@@ -227,12 +203,14 @@ object LocalDiscoveryMerge {
     }
     fun businesses(values:List<LocalBusiness>):List<LocalBusiness> {
         val records=linkedMapOf<String,LocalBusiness>()
+        val prepared=mutableMapOf<String,LocalBusinessIdentity.Prepared>()
         val names=mutableMapOf<String,MutableSet<String>>();val streets=mutableMapOf<String,MutableSet<String>>();val cells=mutableMapOf<String,MutableSet<String>>()
-        fun index(place:LocalBusiness){names.getOrPut(businessName(place.name)){mutableSetOf()}.add(place.id);street(place.address)?.let {streets.getOrPut(it){mutableSetOf()}.add(place.id)};locationKeys(place.point).forEach {cells.getOrPut(it){mutableSetOf()}.add(place.id)}}
+        fun index(place:LocalBusiness,identity:LocalBusinessIdentity.Prepared){prepared[place.id]=identity;names.getOrPut(identity.name){mutableSetOf()}.add(place.id);identity.street?.let {streets.getOrPut(it){mutableSetOf()}.add(place.id)};identity.cells.forEach {cells.getOrPut(it){mutableSetOf()}.add(place.id)}}
         values.forEach {incoming->
-            val matches=(names[businessName(incoming.name)].orEmpty()+streets[street(incoming.address)].orEmpty()+locationKeys(incoming.point).flatMap {cells[it].orEmpty()}).distinct().mapNotNull(records::get).filter {sameBusiness(it,incoming)}
+            val identity=LocalBusinessIdentity.prepare(incoming)
+            val matches=(names[identity.name].orEmpty()+streets[identity.street].orEmpty()+identity.cells.flatMap {cells[it].orEmpty()}).distinct().mapNotNull(records::get).filter {LocalBusinessIdentity.same(prepared.getValue(it.id),identity)}
             val result=if(matches.isEmpty())incoming else matches.drop(1).fold(business(matches.first(),incoming)){left,right->business(left,right)}
-            matches.forEach {records.remove(it.id)};records[result.id]=result;index(result)
+            matches.forEach {records.remove(it.id)};records[result.id]=result;index(result,if(matches.isEmpty())identity else LocalBusinessIdentity.prepare(result))
         }
         return records.values.toList()
     }

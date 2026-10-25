@@ -25,6 +25,7 @@ class LocalDiscoveryTest {
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
     private val area=LocalArea("fixture-melbourne","Melbourne","Melbourne, Victoria, Australia",LocalPoint(-37.8136,144.9631),5,"Australia/Melbourne")
     private val place=LocalBusiness("fixture-library","Community Library","library","Books, workshops and a public calendar.","10 Main St, Melbourne","Melbourne",area.point,websites=listOf("https://library.fixture.invalid/"),socials=listOf("https://www.facebook.com/library_fixture","https://www.instagram.com/library_fixture/"),phones=listOf("+61 123"),sourceIds=listOf("fixture-library"),checkedAt=System.currentTimeMillis())
+    private val firstDeckArea=LocalArea("fixture-first-deck","Example City","Example City, Test Region",LocalPoint(10.0,20.0),5,"UTC",countryCode="ZZ")
     private lateinit var preferences:String
     private lateinit var backend:LocalDiscoveryBackend
     private val model get()=ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java]
@@ -571,6 +572,67 @@ class LocalDiscoveryTest {
             ui.onNodeWithContentDescription("Close details").performClick();ui.waitUntil {ui.onAllNodesWithTag("Event details").fetchSemanticsNodes().isEmpty()}
             ui.onNodeWithTag("Event ${event.id}").performClick();ui.waitForIdle();assertTrue(calls.values.all {it.get()==1})
         }finally {repo.localLinks.probe=previous}
+    }
+
+    @Test fun firstBusinessAndEventCardsCanPassTwoStalledPublisherReads() {
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS)) {
+            val waiting=java.util.concurrent.atomic.AtomicInteger()
+            val bothStarted=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+            val owner=place.copy(id="fixture-rescue-business",name="Community workshop",address="1 Example Street",locality=firstDeckArea.name,point=firstDeckArea.point,phones=emptyList(),socials=emptyList(),websites=emptyList(),sourceIds=listOf("fixture-rescue-business"))
+            val session=LocalEvent("fixture-rescue-event","Radio workshop",LocalEventTime(firstDeckArea.today().plusDays(1).toString(),allDay=true),venue=owner.name,locality=firstDeckArea.name,point=firstDeckArea.point,sourceIds=listOf("fixture-rescue-event"))
+            try {
+                runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}
+                ui.runOnIdle {
+                    model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+                        override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit)=coroutineScope {
+                            val early=launch {onHits(listOf(LocalWebHit("https://slow-one.fixture.invalid/","Slow publisher one"),LocalWebHit("https://slow-two.fixture.invalid/","Slow publisher two")))}
+                            withTimeout(5000){bothStarted.await()}
+                            onHits(listOf(LocalWebHit("https://quick.fixture.invalid/","Community workshop")))
+                            early.join()
+                        }
+                        override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                            if(source.url.startsWith("https://slow-")){if(waiting.incrementAndGet()==2)bothStarted.complete(Unit);release.await();return LocalExtraction(validEmpty=true)}
+                            if(source.url=="https://quick.fixture.invalid/")return if(mode==LocalSearchMode.BUSINESSES)LocalExtraction(businesses=listOf(owner))else LocalExtraction(events=listOf(session))
+                            return LocalExtraction(validEmpty=true)
+                        }
+                    }
+                    model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop");model.localSearch.search(force=true)
+                }
+                ui.waitUntil(6000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.id==owner.id}else model.localSearch.state.value.events.any {it.id==session.id}}
+                assertTrue(bothStarted.isCompleted);assertFalse("Fast cards must arrive while both slow publishers are still held",release.isCompleted)
+                if(mode==LocalSearchMode.BUSINESSES)ui.onNodeWithTag("Business ${owner.id}").assertIsDisplayed()else ui.onNodeWithTag("Event ${session.id}").assertIsDisplayed()
+                evidence("first-${mode.name.lowercase()}-card-rescue")
+            }finally {ui.runOnIdle {model.localSearch.stop()};release.complete(Unit);runBlocking(Dispatchers.IO){repo.localDiscovery.writableDatabase.delete("sources","area=?",arrayOf(firstDeckArea.cacheKey))}}
+        }
+    }
+
+    @Test fun firstCardsCanUseFallbackPublishersBeyondTheFirstBatch() {
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))for(streamed in listOf(false,true)) {
+            val calls=java.util.concurrent.atomic.AtomicInteger()
+            val owner=place.copy(id="fixture-fallback-business",name="Community workshop",address="1 Example Street",locality=firstDeckArea.name,point=firstDeckArea.point,phones=emptyList(),socials=emptyList(),websites=emptyList(),sourceIds=listOf("fixture-fallback-business"))
+            val session=LocalEvent("fixture-fallback-event","Radio workshop",LocalEventTime(firstDeckArea.today().plusDays(1).toString(),allDay=true),venue=owner.name,locality=firstDeckArea.name,point=firstDeckArea.point,sourceIds=listOf("fixture-fallback-event"))
+            runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}
+            ui.runOnIdle {
+                model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+                    override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit) {
+                        val batches=if(streamed)listOf((1..6).toList(),listOf(7,8),listOf(9))else listOf((1..9).toList())
+                        for(batch in batches)onHits(batch.map {LocalWebHit("https://publisher-$it.fixture.invalid/","Publisher $it")})
+                    }
+                    override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                        if(!source.url.contains("publisher-"))return LocalExtraction(validEmpty=true)
+                        calls.incrementAndGet()
+                        return if(source.url=="https://publisher-9.fixture.invalid/") {
+                            if(mode==LocalSearchMode.BUSINESSES)LocalExtraction(businesses=listOf(owner))else LocalExtraction(events=listOf(session))
+                        }else LocalExtraction(validEmpty=true)
+                    }
+                }
+                model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop");model.localSearch.search(force=true)
+            }
+            try {
+                ui.waitUntil(8000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.id==owner.id}else model.localSearch.state.value.events.any {it.id==session.id}}
+                if(streamed)assertEquals(9,calls.get())else assertTrue(calls.get() in 7..9)
+            }finally {ui.runOnIdle {model.localSearch.stop()};runBlocking(Dispatchers.IO){repo.localDiscovery.writableDatabase.delete("sources","area=?",arrayOf(firstDeckArea.cacheKey))}}
+        }
     }
 
     @Test fun opportunityMigrationRequeuesSuccessfulPagesButPreservesFailureRestsAndSavedSnapshots():Unit=runBlocking {

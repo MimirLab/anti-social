@@ -5,9 +5,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 object LocalBusinessOwnership {
     private val generic=setOf("the","co","company","inc","llc","ltd","restaurant","park","trampoline","store","shop")
-    private fun significant(value:String)=LocalDiscoveryIdentity.words(value.replace(Regex("['’]"),"")).filterNot(generic::contains)
-    fun sameBrand(name:String,other:String):Boolean {
-        val a=significant(name);val b=significant(other)
+    private val apostrophe=Regex("['’]")
+    internal fun nameWords(value:String)=LocalDiscoveryIdentity.words(value.replace(apostrophe,""))
+    internal fun brandWords(value:String)=brandWords(nameWords(value))
+    internal fun brandWords(words:List<String>)=words.filterNot(generic::contains)
+    private fun significant(value:String)=brandWords(value)
+    fun sameBrand(name:String,other:String)=sameBrand(brandWords(name),brandWords(other))
+    internal fun sameBrand(a:List<String>,b:List<String>):Boolean {
         if(a.isEmpty()||b.isEmpty())return false
         return a==b||a.size>=2&&a.all {it in b}||b.size>=2&&b.all {it in a}||a.size==1&&b.size==1&&a[0].length>=5&&a==b
     }
