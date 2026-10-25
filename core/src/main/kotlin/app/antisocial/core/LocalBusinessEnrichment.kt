@@ -26,7 +26,7 @@ object LocalBusinessEnrichment {
         val text=(source.url+" "+source.label).lowercase()
         return when {
             source.kind==LocalSourceKind.MENU->setOf(LocalBusinessField.MENU)
-            source.kind==LocalSourceKind.SOCIAL->setOf(LocalBusinessField.ACCOUNTS,LocalBusinessField.WEBSITE,LocalBusinessField.ABOUT)
+            source.kind==LocalSourceKind.SOCIAL->setOf(LocalBusinessField.ACCOUNTS,LocalBusinessField.WEBSITE,LocalBusinessField.ABOUT,LocalBusinessField.PHONE,LocalBusinessField.EMAIL,LocalBusinessField.HOURS,LocalBusinessField.MENU)
             Regex("contact|about|location|hours").containsMatchIn(text)->setOf(LocalBusinessField.PHONE,LocalBusinessField.EMAIL,LocalBusinessField.HOURS,LocalBusinessField.ACCOUNTS,LocalBusinessField.ABOUT)
             Regex("menu|reserv|booking|services|accessib|order").containsMatchIn(text)->setOf(LocalBusinessField.VISIT,LocalBusinessField.HOURS)
             else->LocalBusinessField.entries.toSet()

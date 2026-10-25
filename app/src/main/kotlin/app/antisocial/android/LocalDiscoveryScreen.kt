@@ -201,7 +201,7 @@ import java.time.format.DateTimeFormatter
         }
         if(value.socials.isNotEmpty())Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {Text("Public accounts",style=MaterialTheme.typography.titleSmall);SocialAccounts(value.socials,onSocial)}
         value.related.orEmpty().filter {it.role!="source publisher"}.forEach {entity->Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
-            Text(entity.role.replaceFirstChar(Char::titlecase),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if(entity.role=="linked account")"Linked account · identity not yet matched"else entity.role.replaceFirstChar(Char::titlecase),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text(entity.name,style=MaterialTheme.typography.bodyLarge)
             SocialAccounts(entity.accounts,onSocial)
             TextButton(onClick={onRead(entity.sourceUrl)}){Text("Source of this association")}

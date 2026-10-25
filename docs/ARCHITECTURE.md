@@ -178,7 +178,9 @@ uses actual demand, passive reads, shared host/global budgets, cancellation and
 increasing delays for stable or repeatedly failed plans. It does not continuously
 poll every registered source. Foreground reading takes priority. See
 [scheduling](ROUTE_SCHEDULING.md), [measurements](ROUTE_LATENCY.md) and
-[local-discovery routing](LOCAL_DISCOVERY_ROUTING.md).
+[local-discovery routing](LOCAL_DISCOVERY_ROUTING.md). Business/account bridges and their
+branch, candidate and availability boundaries are documented in
+[business and social information](BUSINESS_SOCIAL_BRIDGES.md).
 
 [Public-index continuations](SEARCH_SCHEDULING.md) retain a fast first answer
 and give unfinished query shapes their turn. The ordinary search feed can also

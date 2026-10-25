@@ -144,10 +144,9 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
             if(!ReaderScope.isFeedSource(target.platform))return LocalExtraction()
             val page=repo.pool.load(target,originalFallback=repo.prefs.originalFallback,requestedCapability=if(target.kind==TargetKind.PROFILE){if(query.mode==LocalSearchMode.EVENTS)Capability.TIMELINE else Capability.PROFILE}else null,background=true)
             val profile=page.profile
-            if(profile==null&&page.posts.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"This public social page did not provide readable business material")
+            if(!LocalAccountAvailability.usable(target,page))throw SourceFailure(HealthStatus.EMPTY,"This public social page did not provide readable business material")
             val known=business ?: return LocalExtraction(sources=profile?.links.orEmpty().mapNotNull {LocalDiscoveryIdentity.url(it)}.take(4).map {LocalPublisherSource(it,label=profile?.name.orEmpty())})
-            if(known.socials.none {url->repo.routes.recognize(url)?.let {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}==true})throw SourceFailure(HealthStatus.UNSUPPORTED,"This account is not identified as the business account")
-            val links=profile?.links.orEmpty().mapNotNull {LocalDiscoveryIdentity.url(it)}
+            if((known.socials+known.related.orEmpty().filter {it.role=="linked account"}.flatMap {it.accounts}).none {url->repo.routes.recognize(url)?.let {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}==true})throw SourceFailure(HealthStatus.UNSUPPORTED,"This account is not identified as the business account")
             val at=System.currentTimeMillis()
             val description=LocalDocumentWashing.text(profile?.description.orEmpty())
             val posts=if(query.mode==LocalSearchMode.EVENTS)page.posts.take(20).filter(LocalAnnouncements::likely)else emptyList()
@@ -156,12 +155,10 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
                 repo.routes.recognize(url)?.let {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}==true}}
             val publisherLocationVerified=!sharedBranch&&location.isNotBlank()&&LocalDiscoveryIdentity.name(profile?.name.orEmpty()+" "+description+" "+target.identity).contains(location)
             val announcements=posts.map {LocalAnnouncements.extract(it,known,query.area,at,publisherLocationVerified=publisherLocationVerified)}
-            return LocalExtraction(businesses=listOf(known.copy(description=description.ifBlank {known.description},
-                websites=(known.websites+links.filter {SocialLinkHosts.platform(it)==null}).distinct().take(12),socials=(known.socials+(profile?.target?.canonicalUrl ?: target.canonicalUrl)).distinct().take(24),checkedAt=at,
-                evidence=known.evidence+LocalDiscoveryIdentity.evidence("description",description,(profile?.target?.canonicalUrl ?: target.canonicalUrl),at,LocalEvidenceKind.PUBLIC_POST))),
-                events=announcements.flatMap {it.events},announcements=announcements.flatMap {it.announcements},
-                sources=posts.flatMap {it.links.orEmpty().take(2)}.mapNotNull {LocalDiscoveryIdentity.url(it)}.distinct().take(8)
-                    .map {LocalPublisherSource(it,LocalCalendarPlatforms.kind(it) ?: LocalSourceKind.WEB,label=known.name+" announcement",discoveredFrom=source.url)},
+            val social=profile?.let {LocalBusinessSocial.profile(known,it,repo.routes,at,sharedBranch)} ?: LocalExtraction(businesses=listOf(known),validEmpty=true)
+            return social.copy(events=announcements.flatMap {it.events},announcements=announcements.flatMap {it.announcements},
+                sources=(social.sources+posts.flatMap {it.links.orEmpty().take(2)}.mapNotNull {LocalDiscoveryIdentity.url(it)}.distinct().take(8)
+                    .map {LocalPublisherSource(it,LocalCalendarPlatforms.kind(it) ?: LocalSourceKind.WEB,label=known.name+" announcement",discoveredFrom=source.url)}).distinctBy {it.url}.take(20),
                 posters=posts.filter {post->post.media.any {it.type=="image"}&&announcements[posts.indexOf(post)].events.isEmpty()}.map {LocalPosterSource(it,known,publisherLocationVerified)})
         }
         // Ask for the source's actual representation. Some public HTML
@@ -307,7 +304,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
             current.copy(businesses=stable,events=records.second,saved=records.third,announcements=result.second)
         }else current}
     }
-    private fun accountKey(url:String):String {
+    internal fun accountKey(url:String):String {
         val identity=repo.routes.recognize(url)?.let {ContentIdentity.key(it.platform,it.canonicalUrl)} ?: url.trimEnd('/')
         return "local-account:v2:${repo.prefs.tor}:${repo.prefs.originalFallback}:${repo.prefs.archiveRecovery}:"+LocalDiscoveryIdentity.hash(identity)
     }
@@ -359,7 +356,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         relevant().take(8).forEach {owner->
                             owner.websites.sortedBy {LocalBusinessDetails.websitePriority(owner,it)}.take(2).forEach {store.offerSource(area,LocalPublisherSource(it,businessId=owner.id,label=owner.name))}
                             if(query.mode==LocalSearchMode.BUSINESSES)LocalMenuRouting.known(owner).forEach {store.offerSource(area,it)}
-                            if(query.mode==LocalSearchMode.EVENTS)owner.socials.take(1).forEach {store.offerSource(area,LocalPublisherSource(it,LocalSourceKind.SOCIAL,owner.id,owner.name))}
+                            LocalBusinessSocial.sources(owner).take(if(query.mode==LocalSearchMode.EVENTS)1 else 2).forEach {store.offerSource(area,it)}
                         }
                     }
                     suspend fun checkAccounts()=coroutineScope {
@@ -371,13 +368,36 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         val urls=(0 until (perBusiness.maxOfOrNull {it.size} ?: 0)).flatMap {i->perBusiness.mapNotNull {it.getOrNull(i)}}.distinctBy(::accountKey)
                         urls.map {url->launch {
                             val key=accountKey(url)
-                            if(store.cache(key)!=null||!accountChecks.add(key)||accountAttempts.incrementAndGet()>8)return@launch
                             val owners=accountOwners.filter {owner->url in owner.socials||owner.related.orEmpty().any {url in it.accounts}}
+                            val needsProjection=query.mode==LocalSearchMode.BUSINESSES&&owners.any {url in it.socials||it.related.orEmpty().any {e->e.role=="linked account"&&url in e.accounts}}
+                            val available=store.cache(key)
+                            val projectionKey="$key:business-facts:v1"
+                            if(url in visited||available!=null&&(available!="usable"||!needsProjection||store.cache(projectionKey)!=null)||!accountChecks.add(key)||accountAttempts.incrementAndGet()>8)return@launch
                             repo.cardWork.track(owners.map {businessWorkKey(it.id)},"Social accounts") {accountPermits.withPermit {
-                                try {val usable=withTimeout(16_000){backend.account(url)};store.cache(key,if(usable)"usable"else "unavailable",if(usable)6*3600000 else 30*60000)}
-                                catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();store.cache(key,"unavailable",2*60000)}
+                                val owner=owners.firstOrNull {url in it.socials||it.related.orEmpty().any {e->e.role=="linked account"&&url in e.accounts}}.takeIf {query.mode==LocalSearchMode.BUSINESSES}
+                                val social=owner?.let {LocalPublisherSource(url,LocalSourceKind.SOCIAL,it.id,it.name)}
+                                if(social!=null&&!visited.add(url))return@withPermit
+                                fun unavailable(ttl:Long) {
+                                    store.cache(key,"unavailable",ttl)
+                                    social?.let {store.source(area,it.copy(nextCheckAt=System.currentTimeMillis()+ttl,failures=1))}
+                                }
+                                try {
+                                    val usable=withTimeout(16_000) {
+                                        if(owner==null)backend.account(url)else {
+                                            val source=social!!
+                                            val data=backend.read(source,query,owner)
+                                            ingest(data);data.sources.forEach {currentSources.add(it.url)}
+                                            val at=System.currentTimeMillis()
+                                            store.source(area,source.copy(checkedAt=at,nextCheckAt=at+6*3600000))
+                                            store.cache(projectionKey,"read",6*3600000)
+                                            true
+                                        }
+                                    }
+                                    store.cache(key,if(usable)"usable"else "unavailable",if(usable)6*3600000 else 30*60000)
+                                }
+                                catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();unavailable(2L*60000)}
                                 catch(e:CancellationException){throw e}
-                                catch(_:Exception){store.cache(key,"unavailable",10*60000)}
+                                catch(_:Exception){unavailable(10L*60000)}
                                 if(store.cache(key)=="unavailable")note("Some published social accounts are unavailable from the current public routes. Their source records are retained for a later retry.")
                                 if(current())publish()
                             }}
@@ -387,7 +407,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                     suspend fun readSources(limit:Int,deep:Boolean=false) {
                         val owners=store.businesses(area).associateBy {it.id}
                         val candidates=store.sources(area).filter {source->
-                            source.url !in visited&&LocalOpportunityRouting.allowed(source,query)&&(source.kind!=LocalSourceKind.MENU||deep&&query.mode==LocalSearchMode.BUSINESSES&&owners[source.businessId]?.let {b->LocalMenuRouting.known(b).any {it.url==source.url}}==true)&&(force||source.nextCheckAt<=System.currentTimeMillis()||source.failures==0&&LocalCalendarPlatforms.window(source,query)?.let {it!=source.window}==true)&&
+                            source.url !in visited&&(source.kind!=LocalSourceKind.SOCIAL||query.mode==LocalSearchMode.EVENTS||owners[source.businessId]==null)&&LocalOpportunityRouting.allowed(source,query)&&(source.kind!=LocalSourceKind.MENU||deep&&query.mode==LocalSearchMode.BUSINESSES&&owners[source.businessId]?.let {b->LocalMenuRouting.known(b).any {it.url==source.url}}==true)&&(force||source.nextCheckAt<=System.currentTimeMillis()||source.failures==0&&LocalCalendarPlatforms.window(source,query)?.let {it!=source.window}==true)&&
                                 (source.url in currentSources||source.businessId?.let {owners[it]?.let {p->query.mode==LocalSearchMode.EVENTS||LocalBusinessRouting.relevance(query.text,p)<9}}==true||query.mode==LocalSearchMode.EVENTS&&LocalCalendarPlatforms.isCalendar(source))
                         }.sortedBy {LocalBusinessRouting.sourcePriority(it,query,owners[it.businessId],currentSources)+LocalBusinessEnrichment.priority(it,owners[it.businessId],history(it))-(if(deep&&it.url in detailSources)30 else 0)}.take(limit)
                         coroutineScope {candidates.map {source->launch {repo.cardWork.track(listOfNotNull(source.businessId?.let(::businessWorkKey))+localSourceWorkKeys(source.url),"Public details") {permits.withPermit {
@@ -400,6 +420,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                 try {
                                     val data=withTimeout(18_000){backend.read(source,query,owners[source.businessId])}
                                     if(data.businesses.isEmpty()&&data.events.isEmpty()&&data.sources.isEmpty()&&!data.validEmpty)throw SourceFailure(HealthStatus.EMPTY,"No readable business or calendar data")
+                                    if(source.kind==LocalSourceKind.SOCIAL&&source.businessId!=null)store.cache(accountKey(source.url),"usable",6*3600000)
                                     ingest(data)
                                     if(query.mode==LocalSearchMode.EVENTS) {
                                         val places=store.businesses(area)

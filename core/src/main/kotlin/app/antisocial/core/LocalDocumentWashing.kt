@@ -26,8 +26,9 @@ object LocalDocumentWashing {
         val markdown=try {ContextArticles.extract(payload,payload.finalUrl,at).readingText}
         catch(e:SourceFailure){if(e.status in setOf(HealthStatus.LOGIN_REQUIRED,HealthStatus.CHALLENGE))throw e;null}
         val structured=LocalStructuredData.html(payload.text,payload.finalUrl,at,area,business)
+        val directory=LocalBusinessSocial.directory(payload.text,payload.finalUrl,at,structured.businesses)
         val contact=if(structured.businesses.none {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)})LocalBusinessPages.extract(payload.text,payload.finalUrl,markdown,at,area)else LocalExtraction()
-        var facts=structured.copy(businesses=structured.businesses+contact.businesses,sources=(structured.sources+contact.sources).distinctBy {it.url}.take(48))
+        var facts=structured.copy(businesses=LocalDiscoveryMerge.businesses(structured.businesses+directory.businesses+contact.businesses),sources=(structured.sources+directory.sources+contact.sources).distinctBy {it.url}.take(48))
         val subject=business ?: facts.businesses.firstOrNull {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}
         subject?.let {owner->LocalBusinessFacts.html(payload.text,payload.finalUrl,at,owner,facts.businesses)?.let {extra->
             val existing=facts.businesses.firstOrNull {it.id==extra.id}

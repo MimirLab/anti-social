@@ -17,7 +17,7 @@ object LocalStructuredData {
         if(SocialLinkHosts.platform(url)==null)return false
         val parts=url.toHttpUrlOrNull()?.pathSegments.orEmpty().filter(String::isNotBlank)
         if(parts.isEmpty())return false
-        return parts.none {it.lowercase() in setOf("sharer.php","share.php","share","intent","login","dialog","status","statuses","posts","reel","reels","p","watch","embed")}
+        return parts.none {it.lowercase() in setOf("sharer.php","share.php","share","intent","login","dialog","status","statuses","posts","reel","reels","p","watch","embed","shorts","video","videos","events","search","explore","hashtag","sharer")}
     }
     private fun str(value:JsonElement?):String=when {value==null||value.isJsonNull->"";value.isJsonPrimitive->value.asString;else->""}
     private fun arr(value:JsonElement?):List<JsonElement> = when {value==null||value.isJsonNull->emptyList();value.isJsonArray->value.asJsonArray.take(128);else->listOf(value)}
@@ -25,6 +25,10 @@ object LocalStructuredData {
     private fun types(value:JsonObject)=arr(value["@type"]).map {str(it).substringAfterLast('/').substringAfterLast('#')}.toSet()
     private fun address(value:JsonElement?):Pair<String,String> {
         if(value==null)return "" to ""
+        if(value.isJsonArray) {
+            val locations=value.asJsonArray.take(16).map(::address).filter {it.first.isNotBlank()}.distinct()
+            return locations.singleOrNull() ?: ("" to "")
+        }
         if(!value.isJsonObject)return text(value,1000) to ""
         val a=value.asJsonObject
         return listOf("streetAddress","addressLocality","addressRegion","postalCode","addressCountry").mapNotNull {key->
@@ -118,7 +122,7 @@ object LocalStructuredData {
             }
             val phones=arr(o["telephone"]).map {text(it,100)}.filter(String::isNotBlank).take(8)
             val emails=arr(o["email"]).mapNotNull {LocalBusinessContact.email(str(it))}.distinct().take(8)
-            val related=listOf("owner","operator","founder").flatMap {role->arr(o[role]).mapNotNull {value->
+            val related=listOf("owner","operator","founder","brand").flatMap {role->arr(o[role]).mapNotNull {value->
                 val entity=resolve(value);val entityName=if(entity==null)text(value,300)else text(entity["name"],300)
                 if(entityName.isBlank())null else LocalRelatedEntity(entityName,role,if(entity==null)emptyList()else (arr(entity["url"])+arr(entity["sameAs"])).mapNotNull {LocalDiscoveryIdentity.url(str(it),url)}.filter(::accountLink).distinct().take(8),url)
             }}.take(16)
@@ -252,10 +256,10 @@ object LocalStructuredData {
             val licenses=arr(p["sources"]).filter(JsonElement::isJsonObject).map {it.asJsonObject}.map {str(it["dataset"])+" · "+str(it["license"])}.distinct().joinToString("; ").take(1000)
             val fields=mapOf("name" to name,"category" to category,"address" to street,"locality" to str(address?.get("locality")),"location" to "${point.latitude},${point.longitude}",
                 "socials" to arr(p["socials"]).joinToString(" · "){str(it)},"websites" to arr(p["websites"]).joinToString(" · "){str(it)},"phones" to arr(p["phones"]).joinToString(" · "){str(it)})
-            LocalBusiness("overture:$id",name.take(300),category.replace('_',' ').take(400),address=street,locality=str(address?.get("locality")).take(200),point=point,
+            LocalBusinessSocial.normalize(LocalBusiness("overture:$id",name.take(300),category.replace('_',' ').take(400),address=street,locality=str(address?.get("locality")).take(200),point=point,
                 websites=arr(p["websites"]).flatMap {LocalDiscoveryIdentity.urls(str(it))}.distinct().take(12),socials=arr(p["socials"]).mapNotNull {LocalDiscoveryIdentity.url(str(it))}.take(24),
                 phones=arr(p["phones"]).map {str(it).take(100)}.take(8),sourceIds=listOf("overture:$id"),checkedAt=at,
-                evidence=fields.filterValues(String::isNotBlank).map {(field,value)->LocalDiscoveryIdentity.evidence(field,value,url,at,LocalEvidenceKind.DIRECTORY,"Overture Maps · $licenses")} )
+                evidence=fields.filterValues(String::isNotBlank).map {(field,value)->LocalDiscoveryIdentity.evidence(field,value,url,at,LocalEvidenceKind.DIRECTORY,"Overture Maps · $licenses")} ))
         }
         return LocalExtraction(businesses=places)
     }

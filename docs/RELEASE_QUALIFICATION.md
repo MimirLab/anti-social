@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.31 business and social bridges
+
+Business search retains published social/contact fields across Overture, OSM and
+AllThePlaces, including supported handles, numeric Facebook pages and account
+URLs placed in generic website fields. Existing cached records receive that
+classification too, without deleting their original evidence. Scoped MemberZone
+contact blocks supply member accounts, hours and visiting directions. Identical
+repeated postal addresses no longer erase a typed business's location; different
+addresses remain unresolved. A captured public Coffee House 1420 page returned
+no address, hours or accounts with 0.38.30; the corrected replay retains its
+published Vero Beach address, hours and two accounts, excluding chamber accounts.
+See [business/social boundaries](BUSINESS_SOCIAL_BRIDGES.md).
+
+The existing background profile checks now retain useful business information
+from the read they already perform. Named local identity and contact/location
+corroboration gate branch hours, phones, email and menu routes. A shared phone
+alone cannot turn a person's profile into the business. Linked accounts remain
+explicitly unmatched until their returned profile qualifies. Brand, operator,
+owner and source-publisher relationships remain distinct. Qualified published
+profile hours can replace older directory hours. Menus enter the existing
+branch-aware reader; no model call, dependency or native runtime is added.
+
+The first 226-method Android batch exposed one genuine scheduling regression:
+putting social reads behind the shared detail permits delayed them while two
+slow supplemental tasks held those permits. Business profile checks now retain
+their separate two slots and stream their extracted data before the heavy work
+finishes. Focused native checks pass, including one read per account and three
+platforms. Availability and profile-projection receipts are separate: a previous
+positive check keeps its icon while new facts load once; negative rests and saved
+copies remain intact. Unbound social search hits retain their ordinary path into
+website discovery, rather than being mistaken for already-known accounts. Two unrelated UI checks passed in isolation; their fixture
+synchronization now waits for actual keyboard/sheet closure rather than assuming
+Android window animations end synchronously. Production UI timing and route
+deadlines were not widened.
+
+Expanded qualification also encountered the old Compose test factory resuming a
+frame on an image worker thread. The installed Compose 1.12.1 already supplies
+its v2 factory/standard dispatcher; the affected feed and discovery fixtures use
+that factory without changing production image dispatch or dependencies. One
+interrupted fixture had left a generated subscription and two posts behind.
+Setup removes only this fixture's generated subscriptions and their bound rows
+on the explicitly isolated device, after a private state backup. Caption checks
+now preserve exact signal and stored originals while allowing the proper-name
+bank to replace VP with its resolved display name. The test-only streaming
+backend explicitly overrides the streaming method, avoiding Kotlin delegation
+silently calling its delegate's empty discovery method. The focused five-case
+rerun and old-positive-cache journey pass. See the
+[official Compose test migration](https://developer.android.com/develop/ui/compose/testing/migrate-v2).
+The final complete selection is recorded below.
+
+The final suite completes 2,229 JVM cases: zero failures/errors and one optional
+model-weight skip. The frozen API 35 selection completes 229 Android methods:
+227 pass, two opt-in live-search/Tor checks skip, zero failures. Native frames
+show a first card while account reads are held, an updating indicator, then the
+completed email/hours/account details. Contact actions, menus, saved-copy
+protection, migration, filtering, search and feed/collection regressions pass.
+
+Two enabled live Gateway checks confirm scoped MemberZone extraction and
+first-party website social connections. The tested brewery's Instagram route
+returns a login requirement and its Facebook route fails selected-profile
+qualification; both remain unavailable. Published associations are retained,
+not falsely advertised as working accountless content. The equivalent real
+member-page replay also passes. These observations do not establish permanent
+availability of any provider or physical-phone latency/battery measurements.
+
+Release assembly and lint pass. The update retains application ID and signing
+identity. Preview state is backed up before installation; versioned APK/source
+artifacts and the fixed public download asset are retained.
+
 ## 0.38.30 attachment collections and source-bound retweets
 
 The White House gallery/member case exposed a colon-versus-layout-pointer caption

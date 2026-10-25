@@ -3,7 +3,7 @@ package app.antisocial.android
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -42,7 +42,7 @@ class LocalDiscoveryTest {
     }
     private fun show(){ui.runOnIdle {model.section("discover")}}
     private fun evidence(name:String) {
-        ui.waitForIdle();val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        ui.waitForIdle();android.os.SystemClock.sleep(300);val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         val dir=File(ui.activity.getExternalFilesDir("validation"),"local-discovery").apply {mkdirs()}
         File(dir,"$name.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
     }
@@ -67,6 +67,59 @@ class LocalDiscoveryTest {
         ui.onNodeWithText("Puppet storytime").assertIsDisplayed();ui.onNodeWithText("Community Library · Melbourne · Free").assertIsDisplayed();evidence("events")
         ui.onNodeWithContentDescription("Save Puppet storytime").performClick();ui.waitUntil {session.id in model.localSearch.state.value.saved}
         ui.onNodeWithContentDescription("Library",useUnmergedTree=true).performClick();ui.onNodeWithTag("Library scope events").performClick();ui.waitUntil {ui.onAllNodesWithTag("Event ${session.id}").fetchSemanticsNodes().isNotEmpty()};ui.onNodeWithText("Puppet storytime").assertIsDisplayed()
+    }
+    @Test fun businessCardsArriveBeforeSocialDetailsAndReadAccountsOnlyOnce() {
+        val first=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        val calls=java.util.concurrent.ConcurrentHashMap<String,java.util.concurrent.atomic.AtomicInteger>()
+        val accountCalls=java.util.concurrent.ConcurrentHashMap<String,java.util.concurrent.atomic.AtomicInteger>()
+        val social=place.copy(name="Community Library",phones=emptyList(),websites=emptyList(),socials=listOf("https://www.facebook.com/library_fixture","https://www.instagram.com/library_fixture/","https://x.com/library_fixture"))
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend {
+            override suspend fun areas(text:String)=listOf(area)
+            override suspend fun directory(query:LocalDiscoveryQuery)=LocalExtraction(businesses=listOf(social))
+            override suspend fun identities(point:LocalPoint)=LocalExtraction()
+            override suspend fun discover(query:LocalDiscoveryQuery)=emptyList<LocalWebHit>()
+            override suspend fun account(url:String):Boolean {accountCalls.computeIfAbsent(url){java.util.concurrent.atomic.AtomicInteger()}.incrementAndGet();return true}
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                calls.computeIfAbsent(source.url){java.util.concurrent.atomic.AtomicInteger()}.incrementAndGet()
+                if(source.kind!=LocalSourceKind.SOCIAL)return LocalExtraction(validEmpty=true)
+                first.complete(Unit);release.await()
+                val profile=Profile(repo.routes.recognize(source.url)!!,social.name,"Melbourne\nHours: Monday - Friday 9am - 5pm\nEmail: hello@library.fixture.invalid",links=listOf("https://www.instagram.com/library_fixture/"),displayNameSupplied=true)
+                return LocalBusinessSocial.profile(business!!,profile,repo.routes,System.currentTimeMillis())
+            }
+        }}
+        runBlocking(Dispatchers.IO){repo.localDiscovery.cache(model.localSearch.accountKey(social.socials.first()),"usable",6*3600000)}
+        show();ui.onNodeWithTag("Run discovery search").performClick()
+        ui.waitUntil(10_000){first.isCompleted&&model.localSearch.state.value.businesses.isNotEmpty()}
+        assertFalse(model.localSearch.state.value.loading);assertTrue(model.localSearch.state.value.enriching)
+        assertTrue(model.localSearch.state.value.businesses.single().hours.isBlank())
+        ui.onNodeWithContentDescription("Open Facebook account").assertIsDisplayed()
+        ui.onNodeWithText(social.name).assertIsDisplayed();evidence("business-before-social-details")
+        release.complete(Unit)
+        ui.waitUntil(15_000){!model.localSearch.state.value.enriching&&model.localSearch.state.value.businesses.single().hours.isNotBlank()}
+        assertEquals(1,calls[social.socials.first()]?.get());assertEquals(1,calls[social.socials.last()]?.get());assertTrue(accountCalls.isEmpty())
+        ui.onNodeWithContentDescription("Open Facebook account").assertIsDisplayed()
+        ui.onNodeWithContentDescription("Open Instagram account").assertIsDisplayed()
+        ui.onNodeWithTag("Business ${social.id}").performClick()
+        ui.onNodeWithText("hello@library.fixture.invalid").assertIsDisplayed()
+        evidence("business-social-details")
+    }
+    @Test fun anUnboundSocialSearchResultCanStillLeadToUsefulLocalWebsiteFacts() {
+        val unknown="https://x.com/local_library_updates";val website="https://library.fixture.invalid/contact"
+        val calls=java.util.Collections.synchronizedList(mutableListOf<String>())
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(place.copy(socials=emptyList(),websites=emptyList(),phones=emptyList())))) {
+            override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend (List<LocalWebHit>)->Unit){onHits(listOf(LocalWebHit(unknown,"Community Library")))}
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                calls+=source.url
+                return when(source.url) {
+                    unknown->LocalExtraction(sources=listOf(LocalPublisherSource(website,label="Community Library",discoveredFrom=unknown)))
+                    website->LocalExtraction(businesses=listOf(place.copy(socials=emptyList(),websites=listOf(website),phones=listOf("3212598005"),checkedAt=System.currentTimeMillis())))
+                    else->LocalExtraction(validEmpty=true)
+                }
+            }
+        };model.localSearch.search(force=true)}
+        show();ui.waitUntil(15_000){!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching}
+        assertTrue("Social source was not read: $calls",calls.contains(unknown));assertTrue("Offered website was not read: $calls",calls.contains(website))
+        assertEquals(listOf("3212598005"),model.localSearch.state.value.businesses.single().phones)
     }
     @Test fun savedSnapshotSurvivesExpiryAndOrdinaryDirectoryCorrections()=runBlocking {
         var clock=System.currentTimeMillis();val dbName="local-fixture-${System.nanoTime()}.db"
@@ -147,7 +200,11 @@ class LocalDiscoveryTest {
         override suspend fun directory(query:LocalDiscoveryQuery)=data
         override suspend fun identities(point:LocalPoint)=LocalExtraction()
         override suspend fun discover(query:LocalDiscoveryQuery)=emptyList<LocalWebHit>()
-        override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?)=LocalExtraction()
+        override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+            if(source.kind!=LocalSourceKind.SOCIAL)return LocalExtraction()
+            if(!accessible(source.url))throw SourceFailure(HealthStatus.UNAVAILABLE,"Fixture account is unavailable")
+            return LocalExtraction(businesses=listOfNotNull(business),validEmpty=true)
+        }
         override suspend fun account(url:String)=accessible(url)
     }
     @Test fun unitSwitchPreservesRadiusAndPersistsAcrossControllerRecreation() {
@@ -368,9 +425,10 @@ class LocalDiscoveryTest {
         val healthy=LocalPublisherSource("https://library.fixture.invalid/calendar",nextCheckAt=System.currentTimeMillis()+86400000)
         val failed=healthy.copy(url="https://library.fixture.invalid/offline",failures=3)
         try {withContext(Dispatchers.IO) {
-            LocalDiscoveryStore(ui.activity,databaseName=name).use {store->store.save(place);store.source(area,healthy);store.source(area,failed);store.writableDatabase.version=6}
+            LocalDiscoveryStore(ui.activity,databaseName=name).use {store->store.save(place);store.source(area,healthy);store.source(area,failed);store.cache("local-account:v2:old-success","usable",86400000);store.cache("local-account:v2:old-failure","unavailable",86400000);store.writableDatabase.version=8}
             LocalDiscoveryStore(ui.activity,databaseName=name).use {store->
-                assertEquals(8,store.readableDatabase.version)
+                assertEquals(9,store.readableDatabase.version)
+                assertEquals("usable",store.cache("local-account:v2:old-success"));assertEquals("unavailable",store.cache("local-account:v2:old-failure"))
                 assertEquals(0L,store.sources(area).single {it.url==healthy.url}.nextCheckAt)
                 assertEquals(failed,store.sources(area).single {it.url==failed.url})
                 assertEquals(place,store.businesses(null,true).single())

@@ -73,6 +73,7 @@ class SearchScopeUiTest {
         ui.onNodeWithTag("Search scope option ${kind.name}").performClick()
         ui.onNodeWithTag("Search scope value").performTextInput(value)
         ui.onNodeWithTag("Apply search scope").performScrollTo().performClick()
+        ui.waitUntil(5_000){ui.onAllNodesWithTag("Search scope sheet").fetchSemanticsNodes().isEmpty()}
         ui.onNodeWithTag("Search scope sheet").assertDoesNotExist()
     }
     private fun evidence(name: String) {

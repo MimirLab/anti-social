@@ -57,16 +57,12 @@ object LocalAllThePlaces {
             val id="atp:"+LocalDiscoveryIdentity.hash(spider+"|"+ref)
             val websites=LocalDiscoveryIdentity.urls(s("website"));val phone=s("phone").split(';').filter {LocalBusinessContact.phone(it)!=null}.take(8)
             val email=s("email").split(';').mapNotNull(LocalBusinessContact::email).distinct().take(8)
-            val socials=listOf("facebook","instagram","twitter").flatMap {kind->
-                val value=s("contact:$kind");LocalDiscoveryIdentity.urls(value).ifEmpty {
-                    if(value.matches(Regex("[A-Za-z0-9_.-]{1,200}")))listOf("https://"+when(kind){"twitter"->"x.com";else->"$kind.com"}+"/$value")else emptyList()
-                }
-            }.filter(LocalStructuredData::accountLink).distinct().take(24)
+            val socials=(LocalBusinessSocial.tagged(::s)+websites.filter(LocalStructuredData::accountLink)).distinct().take(24)
             val category=s("cuisine").ifBlank {listOf("amenity","shop","leisure","tourism").firstNotNullOfOrNull {s(it).takeIf(String::isNotBlank)}.orEmpty()}.replace('_',' ')
             val lineage=("AllThePlaces · CC0 · spider $spider"+s("@source_uri").takeIf(String::isNotBlank)?.let {" · upstream $it"}.orEmpty()).take(1000)
             val fields=linkedMapOf("name" to name,"category" to category,"address" to address,"locality" to s("addr:city"),"phones" to phone.joinToString(" · "),"emails" to email.joinToString(" · "),"websites" to websites.joinToString(" · "),"socials" to socials.joinToString(" · "),"hours" to s("opening_hours"),"cuisine" to s("cuisine"),"brand id" to s("brand:wikidata"))
             point?.let {fields["location"]="${it.latitude},${it.longitude}"}
-            val place=LocalBusiness(id,name.take(300),category.take(400),address=address.take(2000),locality=s("addr:city").take(200),point=point,websites=websites.take(12),socials=socials,phones=phone.map {it.take(100)},hours=s("opening_hours"),sourceIds=listOf(id),checkedAt=at,
+            val place=LocalBusiness(id,name.take(300),category.take(400),address=address.take(2000),locality=s("addr:city").take(200),point=point,websites=websites.filterNot(LocalStructuredData::accountLink).take(12),socials=socials,phones=phone.map {it.take(100)},hours=s("opening_hours"),sourceIds=listOf(id),checkedAt=at,
                 keywords=listOf(s("brand"),s("branch"),s("brand:wikidata")).filter(String::isNotBlank).map {it.take(1000)},emails=email.takeIf {it.isNotEmpty()},related=s("operator").takeIf(String::isNotBlank)?.let {listOf(LocalRelatedEntity(it.take(300),"operator",emptyList(),url))},
                 evidence=fields.filterValues(String::isNotBlank).map {(k,v)->LocalDiscoveryIdentity.evidence(k,v,url,at,LocalEvidenceKind.DIRECTORY,lineage)})
             if(LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),place))places+=place

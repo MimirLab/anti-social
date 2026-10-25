@@ -21,6 +21,17 @@ class LocalEnrichmentLiveTest {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         File(context.filesDir,"local-enrichment-$name.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(value))
     }
+    @Test fun memberContactBlockRetainsLocalAccountsHoursAndAddressThroughGatewayWashing()=runBlocking {
+        val repo=repo();repo.awaitReady()
+        val area=LocalArea("public-vero","Vero Beach","Vero Beach, Florida, United States",LocalPoint(27.6386,-80.3973),10,"America/New_York",countryCode="US")
+        val source=LocalPublisherSource("https://business.indianriverchamber.com/list/member/coffee-house-1420-5222")
+        val data=withTimeout(40_000){PublicLocalDiscoveryBackend(repo).read(source,LocalDiscoveryQuery(area),null)}
+        evidence("member-accounts",data)
+        val b=data.businesses.single {it.name=="Coffee House 1420"}
+        Assert.assertTrue(b.address.contains("2001 14th Ave"));Assert.assertTrue(b.hours.contains("7:00am"))
+        Assert.assertEquals(setOf("https://www.facebook.com/coffeehouse1420vero","https://www.instagram.com/coffeehouse1420"),b.socials.toSet())
+        Assert.assertTrue(data.sources.any {it.kind==LocalSourceKind.SOCIAL&&it.businessId==b.id})
+    }
     @Test fun publishedAllThePlacesBrandSliceEnrichesMelbourneWithoutAGlobalDownload()=runBlocking {
         val repo=repo();repo.awaitReady();val prefs=repo.prefs.export().toString()
         val area=LocalArea("public-melbourne-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")

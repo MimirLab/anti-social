@@ -144,6 +144,11 @@ class ContentFiltersUiTest {
         ui.onNodeWithTag("Feed filter editor").performScrollToNode(hasTestTag("Filter linked websites"))
         ui.onNodeWithTag("Filter linked websites").performTextInput("https://www.example.org/projects?tracking=123")
         evidence("website-link-option")
+        // The Android IME can bring the focused multiline field back into view
+        // after LazyColumn scroll returns. Wait for the real window to close.
+        ui.runOnIdle {androidx.core.view.WindowCompat.getInsetsController(ui.activity.window,ui.activity.window.decorView).hide(androidx.core.view.WindowInsetsCompat.Type.ime())}
+        ui.waitUntil(5_000){androidx.core.view.ViewCompat.getRootWindowInsets(ui.activity.window.decorView)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime())!=true}
+        ui.waitForIdle()
         ui.onNodeWithTag("Feed filter editor").performScrollToNode(hasTestTag("Preview feed filter"))
         ui.onNodeWithTag("Preview feed filter").performClick()
         ui.onNodeWithTag("Feed filter editor").performScrollToNode(hasTestTag("Save feed filter"))

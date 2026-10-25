@@ -32,7 +32,8 @@ object LocalBusinessOwnership {
     }
     /** 0.35.37's footer-only evidence is recognizable. Preserve it as related
      * source information, while removing its false business-account association. */
-    fun repairLegacy(business:LocalBusiness):LocalBusiness {
+    fun repairLegacy(original:LocalBusiness):LocalBusiness {
+        val business=LocalBusinessSocial.normalize(original)
         val fields=business.evidence.filter {it.field=="socials"&&it.kind==LocalEvidenceKind.PUBLISHER&&!firstParty(business.name,it.sourceUrl)}
         if(fields.isEmpty())return business
         val moved=fields.flatMap {it.value.split(" · ")}.mapNotNull {LocalDiscoveryIdentity.url(it)}.toSet().intersect(business.socials.toSet())

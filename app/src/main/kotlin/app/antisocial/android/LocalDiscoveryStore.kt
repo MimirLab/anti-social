@@ -12,7 +12,7 @@ import java.time.Instant
 
 internal data class LocalSavedDiscovery(val id:String,val savedAt:Long,val business:LocalBusiness?=null,val event:LocalEvent?=null)
 
-internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,8) {
+internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,9) {
     private val gson=Gson()
     val revision=MutableStateFlow(0L)
     override fun onConfigure(db:SQLiteDatabase){db.enableWriteAheadLogging();db.rawQuery("PRAGMA journal_size_limit=1048576",null).use {it.moveToFirst()}}
@@ -27,9 +27,9 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     }
     override fun onUpgrade(db:SQLiteDatabase,oldVersion:Int,newVersion:Int){
         if(oldVersion<2)db.execSQL("ALTER TABLE sources ADD COLUMN expires INTEGER NOT NULL DEFAULT 0")
-        if(oldVersion<8) {
+        if(oldVersion<9) {
             // Re-read formerly successful pages with the corrected ownership
-            // and visit/calendar/opportunity projections on the next explicit search. Keep failure backoffs.
+            // and business/social/visit/calendar/opportunity projections on the next explicit search. Keep failure backoffs.
             val updates=mutableListOf<Triple<String,String,String>>()
             db.rawQuery("SELECT url,area,payload FROM sources",null).use {c->while(c.moveToNext()) {
                 val source=runCatching {gson.fromJson(c.getString(2),LocalPublisherSource::class.java)}.getOrNull() ?: continue

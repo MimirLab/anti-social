@@ -104,15 +104,10 @@ object LocalPlaceSources {
             val address=listOf(street,s(tags,"addr:city").take(200),s(tags,"addr:state").take(200),s(tags,"addr:postcode").take(100)).filter(String::isNotBlank).joinToString(", ")
             val category=listOf("shop","amenity","tourism","leisure","office","craft","healthcare").firstNotNullOfOrNull {key->s(tags,key).takeIf(String::isNotBlank)}.orEmpty().replace('_',' ')
             val websites=listOf("website","contact:website","url").flatMap {key->s(tags,key).split(Regex("[;\\n]|,\\s+(?=https?://)",RegexOption.IGNORE_CASE))}.mapNotNull {LocalDiscoveryIdentity.url(it.trim())}.distinct()
-            val socials=listOf("facebook","instagram","twitter","youtube","tiktok","mastodon","threads","bluesky","linkedin").flatMap {platform->
-                listOf(s(tags,"contact:$platform"),s(tags,platform)).filter(String::isNotBlank).mapNotNull {literal->
-                    val full=if(literal.contains("://"))literal else when(platform){"facebook"->"https://www.facebook.com/"+literal.removePrefix("@");"instagram"->"https://www.instagram.com/"+literal.removePrefix("@");"twitter"->"https://x.com/"+literal.removePrefix("@");"tiktok"->"https://www.tiktok.com/@"+literal.removePrefix("@");else->return@mapNotNull null}
-                    LocalDiscoveryIdentity.url(full)
-                }
-            }.filter {SocialLinkHosts.platform(it)!=null&&ReaderScope.isFeedSource(SocialLinkHosts.platform(it)!!)}.distinct()
+            val socials=(LocalBusinessSocial.tagged {s(tags,it)}+websites.filter(LocalStructuredData::accountLink)).distinct().take(24)
             val hours=s(tags,"opening_hours").take(8000);val status=when {s(tags,"disused")=="yes"->"Reported closed";s(tags,"opening_hours")=="closed"->"Reported closed";else->""}
-            val fields=mapOf("name" to name,"category" to category,"address" to address,"locality" to s(tags,"addr:city"),"hours" to hours,"status" to status,"location" to "${geo.latitude},${geo.longitude}")
-            LocalBusiness(identity,name.take(300),category,s(tags,"description").take(4000),address,s(tags,"addr:city").take(200),geo,websites,socials,
+            val fields=mapOf("name" to name,"category" to category,"address" to address,"locality" to s(tags,"addr:city"),"hours" to hours,"socials" to socials.joinToString(" · "),"websites" to websites.joinToString(" · "),"status" to status,"location" to "${geo.latitude},${geo.longitude}")
+            LocalBusiness(identity,name.take(300),category,s(tags,"description").take(4000),address,s(tags,"addr:city").take(200),geo,websites.filterNot(LocalStructuredData::accountLink),socials,
                 listOf(s(tags,"phone").take(100),s(tags,"contact:phone").take(100)).filter(String::isNotBlank).distinct(),hours,status,listOf(identity),
                 fields.filterValues(String::isNotBlank).map {(field,value)->LocalDiscoveryIdentity.evidence(field,value,url,at,LocalEvidenceKind.DIRECTORY,"© OpenStreetMap contributors · ODbL")}+
                     listOf("website:menu","contact:menu").flatMap {LocalDiscoveryIdentity.urls(s(tags,it))}.distinct().take(3).map {LocalDiscoveryIdentity.evidence("menu",it,url,at,LocalEvidenceKind.DIRECTORY,"© OpenStreetMap contributors · ODbL")},at,
