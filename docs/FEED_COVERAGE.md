@@ -221,8 +221,9 @@ complete history.
 
 October 24 production-Gateway checks, with compiled protection and a 1 MiB/read
 limit, found several maintainer-listed roots unavailable, refused or outside the
-audit budget. Others redirected RSS to readable HTML. None of these live checks
-established a public `Min-Id` continuation. Owned unit and native fixtures qualify
+audit budget. Other reads returned HTML. The audit tool then appended `/rss`
+after Darwin's `#m` fragment, so those observations qualify HTML rather than
+establishing an RSS redirect or the absence of RSS support. Owned unit and native fixtures qualify
 that protocol path separately; source code support is not a live-uptime claim.
 
 The [Shitter maintainer's directory](https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json)
@@ -232,7 +233,39 @@ two dated twenty-post NASA HTML windows with zero overlap through Gateway.
 They are now separately registered Nitter-compatible alternatives. Both start
 UNKNOWN, use normal content-based learning, and retain the existing budgets and
 backoff. The observations do not establish independent upstream infrastructure,
-every target/operation, RSS header support or live-Tor availability.
+every target/operation or live-Tor availability. The corrected October 25 RSS
+qualification follows below.
+
+### Secure legacy rendering references (0.38.32)
+
+Both deployments serve RSS over HTTPS but declare their own HTTP rendering URLs,
+including the ordinary `#m` item fragment. The old decoder discarded those
+references and loaded HTML instead. The scoped Nitter decoder now accepts this
+record identity only when the fetched HTTPS feed matches the selected source and
+account, the channel names that account on the same mirror's default HTTP port,
+and each status handle/numeric ID agrees with its creator and GUID. Only the empty
+or `m` fragment is admitted. Foreign HTTP render hosts, credentials, unusual
+ports, queries and disagreeing records retain their rejection.
+
+Admitted records become original HTTPS X URLs. Their own-host media/link
+references become HTTPS references to that same selected mirror, retaining their
+path and query; they still pass through Gateway when fetched. Other HTTP links
+remain excluded. This does not permit an HTTP connection or register a global
+alias. Generic feeds retain their previous behavior.
+
+Corrected direct production-Gateway checks on October 25 read two dated
+twenty-post NASA RSS windows from each deployment, with zero overlap and distinct
+published header cursors. Bodies were approximately 23–26 KiB, rather than the
+previous RSS-plus-HTML fallback. These are dated observations, not a phone speed
+benchmark or a claim about every account or connection.
+
+The operator-published `teapawt.net` entry adds a fallback Nitter-compatible route.
+Its NASA and WhiteHouse RSS heads returned dated posts; both advertised RSS
+continuations repeated their head. Separate two-window HTML checks returned
+older posts for both accounts. Existing bounded catch-up detects repeated cursors
+and can try native timelines without borrowing another source's cursor. The
+operator's spare hostnames share this entry; they are not counted as independent
+infrastructure. Search, other operations and live Tor remain unqualified.
 
 The opt-in audit accepts at most two explicit HTTPS roots and two pages each;
 it does not add a tested candidate to the runtime pool automatically. It stores
@@ -246,7 +279,12 @@ scripts/gradle.sh :core:nitterFeedAudit \
 
 By default it follows only admitted RSS header navigation. Explicit
 `-PantisocialNitterFollowHtml=true` also tests a returned ordinary HTML cursor,
-within the same two-page limit. See [release qualification](RELEASE_QUALIFICATION.md)
+within the same two-page limit. `-PantisocialNitterOperation=timeline` selects the
+production timeline reader instead; `-PantisocialNitterAccount=WhiteHouse` selects
+another explicit public account. The initial RSS read uses the production
+adapter's `feed()` method. Response type, query-field names, body hashes and XML
+extraction outcomes distinguish a source response from parser fallback, without
+retaining bodies or raw cursors. See [release qualification](RELEASE_QUALIFICATION.md)
 for the exact build and Android regression record.
 
 ## Further route research

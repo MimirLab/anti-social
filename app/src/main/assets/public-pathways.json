@@ -509,7 +509,7 @@
       "sourceReferences": [
         "https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json"
       ],
-      "limitations": "Shitter/Nitter-compatible public deployment. October 24 direct Gateway check read two dated 20-post NASA HTML windows without overlap. RSS redirected to HTML; header pagination, other targets and live Tor are not established. Starts UNKNOWN; normal content checks and backoff apply."
+      "limitations": "Shitter/Nitter-compatible public deployment. October 24 checks qualified two dated NASA HTML windows. Corrected October 25 production-Gateway checks read two dated 20-post NASA RSS windows with no overlap through the published Min-Id cursor. Legacy own-host HTTP rendering references are normalized only inside the admitted HTTPS feed; no HTTP request is allowed. Other targets and live Tor are unverified. Starts UNKNOWN; normal content checks and backoff apply."
     },
     {
       "platform": "twitter",
@@ -524,7 +524,22 @@
       "sourceReferences": [
         "https://codeberg.org/mv12star/shitter/raw/branch/master/instances.json"
       ],
-      "limitations": "Shitter/Nitter-compatible public deployment. October 24 direct Gateway check read two dated 20-post NASA HTML windows without overlap. RSS redirected to HTML; header pagination, other targets and live Tor are not established. Starts UNKNOWN; normal content checks and backoff apply."
+      "limitations": "Shitter/Nitter-compatible public deployment. October 24 checks qualified two dated NASA HTML windows. Corrected October 25 production-Gateway checks read two dated 20-post NASA RSS windows with no overlap through the published Min-Id cursor. Legacy own-host HTTP rendering references are normalized only inside the admitted HTTPS feed; no HTTP request is allowed. Other targets and live Tor are unverified. Starts UNKNOWN; normal content checks and backoff apply."
+    },
+    {
+      "platform": "twitter",
+      "frontend": "nitter",
+      "root": "https://teapawt.net",
+      "role": "ALTERNATE",
+      "scope": "static",
+      "priority": 1,
+      "fallbackOnly": true,
+      "enabled": true,
+      "initialHealth": "UNKNOWN",
+      "sourceReferences": [
+        "https://teapawt.net/"
+      ],
+      "limitations": "Operator-published Nitter-compatible deployment. October 25 direct production-Gateway checks read dated NASA and WhiteHouse RSS heads and two HTML windows per account, with older posts in the second window. Advertised RSS Min-Id requests repeated the head; they do not establish RSS history. Existing bounded catch-up can recover through the native timeline. Operator aliases share this entry rather than counting as independent providers. Other operations, live Tor and phone performance are unverified. Starts UNKNOWN; normal target validation, backoff and source budgets apply."
     },
     {
       "platform": "instagram",

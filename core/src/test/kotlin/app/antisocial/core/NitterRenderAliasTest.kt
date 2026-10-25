@@ -41,4 +41,30 @@ class NitterRenderAliasTest {
         assertTrue(PostPresentation.text(post).title.startsWith("RT @RepairCrew"))
         assertNull(PostPresentation.text(post).attribution)
     }
+
+    @Test fun aSecureSelectedFeedCanNormalizeItsOwnLegacyHttpRenderingReferences() {
+        val body=rss().replace("https://render.example/","http://reader.example/")
+            .replace("/status/910001</link>","/status/910001#m</link>")
+            .replace("<description>$prose</description>","""<description><![CDATA[$prose<img src="http://reader.example/pic/media%2Fnotice.jpg"/><a href="http://elsewhere.example/article">Elsewhere</a><a href="http://reader.example/RepairCrew/status/910001#m">Original</a>]]></description>""")
+        val post=page(body).posts.single()
+        assertEquals("https://x.com/RepairCrew/status/910001",post.canonicalUrl)
+        assertEquals("https://reader.example/pic/media%2Fnotice.jpg",post.media.single().url)
+        assertFalse(post.links.orEmpty().any {it.startsWith("http://")||it.contains("elsewhere.example")})
+        assertEquals(source,post.provenance!!.source)
+        assertNull(routes.recognize("https://render.example/Other/status/910002"))
+    }
+
+    @Test fun legacyHttpReferencesNeedTheSelectedMirrorAndAnAgreeingRecord() {
+        val valid=rss().replace("https://render.example/","http://reader.example/")
+        val rejected=listOf(valid.replace("http://reader.example/","http://unrelated.example/"),
+            valid.replace("http://reader.example/","http://reader.example:8080/"),
+            valid.replace("http://reader.example/","http://user@reader.example/"),
+            valid.replace("/status/910001</link>","/status/910001#other</link>"),
+            valid.replace("<guid isPermaLink=\"false\">910001", "<guid isPermaLink=\"false\">910002"),
+            valid.replace("<dc:creator>@RepairCrew", "<dc:creator>@SomeoneElse"),
+            valid.replace("http://reader.example/Workshop</link>","http://reader.example/Other</link>"))
+        for(body in rejected)assertThrows(SourceFailure::class.java){page(body)}
+        assertThrows(SourceFailure::class.java){page(valid,source.copy(frontend="other"))}
+        assertThrows(SourceFailure::class.java){Extraction.parse(Payload(valid,"http://reader.example/Workshop/rss","application/rss+xml",200),target,source,routes)}
+    }
 }

@@ -80,6 +80,18 @@ class NitterFeedHistoryTest {
             assertNull(result.pendingReason);assertEquals(1,f.requests.size)
         }
     }
+    @Test fun aRepeatedRssWindowCanRecoverThroughItsNativeTimeline():Unit=runBlocking {
+        Fixture().use {f->
+            f.respond {request->if(request.requestUrl!!.encodedPath=="/NASA/rss")response()else MockResponse().setHeader("Content-Type","text/html").setBody("""<div class="timeline-item"><a class="tweet-link" href="https://x.com/NASA/status/100"></a><div class="tweet-content">Earlier public arrival instructions.</div><span class="tweet-date"><a title="Oct 23, 2026 · 12:00 PM UTC"></a></span></div>""")}
+            val result=FeedCatchUp(timeoutMillis=3_000).collect(Platform.X,setOf("twitter:post:100"),first={f.head()},next={f.next(it)})
+            assertNull(result.pendingReason)
+            assertEquals(setOf("post:105","post:100"),result.page.posts.map {it.id}.toSet())
+            assertEquals(3,result.pages);assertEquals(3,f.requests.size)
+            assertEquals(listOf("/NASA/rss","/NASA/rss","/NASA"),f.requests.map {it.requestUrl!!.encodedPath})
+            assertEquals("DAA+/=:KeepCase",f.requests[1].requestUrl!!.queryParameter("cursor"))
+            assertNull(f.requests.last().requestUrl!!.query)
+        }
+    }
     @Test fun identicalBodiesUseTheCurrentHeaderAndDoNotReparseTheXml():Unit=runBlocking {
         Fixture().use {f->
             val cursors=listOf("first+/=","second+/=",null)

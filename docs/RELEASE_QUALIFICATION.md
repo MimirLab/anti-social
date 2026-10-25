@@ -9,6 +9,61 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.32 efficient public feed paths
+
+Two existing Nitter-compatible readers returned HTTPS RSS whose item and media
+references used their own HTTP rendering hostname. The decoder discarded those
+items and fell back to a larger HTML read. The bounded source/profile/creator/GUID
+binding now recognizes that legacy representation, produces original HTTPS X
+identities and preserves same-mirror media over HTTPS. Generic HTTP links,
+foreign insecure render hosts, credentials, unusual ports and disagreeing
+records remain excluded. No HTTP networking is enabled. See the exact
+[feed boundaries and dated observations](FEED_COVERAGE.md#secure-legacy-rendering-references-03832).
+
+The new positive regression fails with the unchanged decoder; six focused alias
+cases pass with the correction, including hostile alternatives. Corrected direct
+production-Gateway reads, with compiled protection and a 1 MiB/read budget,
+returned two dated twenty-post NASA RSS windows from each of
+`nitter.meowing.monster` and `nitter.mie.foundation`. The windows had no overlap
+and used distinct published Min-Id cursors. First bodies were approximately
+26 kB and needed one response, replacing the observed RSS-plus-HTML fallback.
+These observations establish usable payloads and navigation, not a phone latency
+distribution or live-Tor uptime.
+
+`teapawt.net` adds one UNKNOWN fallback entry before permitted originals. Its
+operator-listed aliases are not separate independent providers. NASA and
+WhiteHouse returned readable RSS heads, but their advertised RSS continuations
+repeated both body and cursor. Separate two-window Gateway HTML reads supplied
+older posts. Owned JVM and Android regressions verify that existing bounded
+catch-up can recover from repeated RSS through a fresh native timeline, preserve
+the initial posts and reach the prior window in three reads. No cursor is
+transferred between providers or invented from a timestamp.
+
+The audit tool now invokes the production feed adapter rather than appending
+`/rss` after Darwin's `#m` fragment. Earlier HTML observations remain valid; their
+inference of an RSS redirect is corrected in this record and the source catalog.
+Explicit account/operation selectors and response-type, query-name, body-hash and
+extraction diagnostics distinguish parser fallback from actual RSS behavior.
+The audit retains counts rather than response bodies or raw public cursors.
+
+Qualification on October 25, 2026: **2,232 core JVM cases**, zero failures/errors
+and one optional model-dependent skip; debug/test assembly and lint pass. The
+frozen API 35 native selection ran **84 methods**: **83 passes**, one opt-in live
+Tor check skipped, zero failures. This includes native RSS continuation and loop
+recovery, strict sessions and redirects, feed history/coverage/revalidation,
+source scheduling/heartbeat, privacy, reading windows/memory, saved public-source
+cards and business detail streaming. Actual native gallery and business-detail
+screens were inspected. A separate enabled public-source check on the same
+frozen Android build returned twenty dated NASA posts directly from
+`nitter.mie.foundation/NASA/rss` and twenty-one dated WhiteHouse posts from
+`teapawt.net/WhiteHouse/rss`, retaining original X identities and HTTPS media.
+This is source-dependent public behavior, not an independent security audit.
+
+The increment adds no model, dependency, native engine, setting, database
+migration or background polling job. The existing business/social bridge remains
+in the qualified build. Signing, source correspondence, private preview-state
+backup and the permanent public APK alias follow the existing release procedure.
+
 ## 0.38.31 business and social bridges
 
 Business search retains published social/contact fields across Overture, OSM and
@@ -545,8 +600,10 @@ Production-Gateway direct audits inspected seventeen distinct selected HTTPS
 roots with compiled protection, at most two pages/source and 1 MiB/read. Failed
 or refused reads stopped rather than immediately retrying. Several old and new
 maintainer-listed deployments refused, failed DNS, exceeded this audit budget
-or redirected RSS to HTML. These observations do not establish a live public
-Min-Id path. The maintainer-listed Shitter deployments
+or returned HTML. A later audit correction found `/rss` had been appended after
+Darwin's `#m` fragment; those old reads do not establish an RSS redirect or lack
+of RSS support. See the corrected [0.38.32 feed qualification](FEED_COVERAGE.md#secure-legacy-rendering-references-03832).
+The maintainer-listed Shitter deployments
 `https://nitter.meowing.monster` and `https://nitter.mie.foundation` each supplied
 two dated twenty-post NASA HTML windows with no overlap. Both are now
 Nitter-compatible runtime alternatives, initially UNKNOWN, with the existing

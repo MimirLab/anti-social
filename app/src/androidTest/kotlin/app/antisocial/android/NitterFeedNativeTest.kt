@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 class NitterFeedNativeTest {
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
     private fun isolated()=assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
-    private inner class Fixture(val redirect:Boolean=false):Closeable {
+    private inner class Fixture(val redirect:Boolean=false,val repeatedRss:Boolean=false):Closeable {
         private val listener=ServerSocket(0,8,InetAddress.getByName("127.0.0.1"))
         private val active=ConcurrentHashMap.newKeySet<Socket>()
         private val workers=Executors.newCachedThreadPool()
@@ -49,11 +49,13 @@ class NitterFeedNativeTest {
                     for(i in 0 until 64){val line=requireNotNull(reader.readLine());require(line.length<=8192);if(line.isEmpty()){ended=true;break}}
                     check(ended);paths+=path
                     val head=path=="/NASA/rss";val cursor=path.startsWith("/NASA/rss?cursor=")
-                    val status=if(cursor&&redirect)"302 Found"else if(head||cursor)"200 OK"else "503 Unavailable"
-                    val id=if(head)105 else 100
-                    val body=(if(head||cursor)"<rss><channel><title>NASA</title><link>https://x.com/NASA</link><item><title>Notice $id</title><link>https://x.com/NASA/status/$id</link><description>Public arrival instructions $id.</description><pubDate>Fri, 23 Oct 2026 12:00:00 GMT</pubDate></item></channel></rss>"else "No native HTML route").toByteArray()
-                    val extra=if(head)"Min-Id: $token\r\n"else if(cursor&&redirect)"Location: $root/Other/rss?cursor=other\r\n"else ""
-                    connection.getOutputStream().apply {write(("HTTP/1.1 $status\r\nContent-Type: application/rss+xml\r\n$extra"+"Content-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray());write(body);flush()}
+                    val html=repeatedRss&&path=="/NASA"
+                    val status=if(cursor&&redirect)"302 Found"else if(head||cursor||html)"200 OK"else "503 Unavailable"
+                    val id=if(head||cursor&&repeatedRss)105 else 100
+                    val body=(if(html)"""<div class="timeline-item"><a class="tweet-link" href="https://x.com/NASA/status/100"></a><div class="tweet-content">Earlier public arrival instructions.</div><span class="tweet-date"><a title="Oct 23, 2026 · 12:00 PM UTC"></a></span></div>""" else if(head||cursor)"<rss><channel><title>NASA</title><link>https://x.com/NASA</link><item><title>Notice $id</title><link>https://x.com/NASA/status/$id</link><description>Public arrival instructions $id.</description><pubDate>Fri, 23 Oct 2026 12:00:00 GMT</pubDate></item></channel></rss>"else "No native HTML route").toByteArray()
+                    val extra=if(head||cursor&&repeatedRss)"Min-Id: $token\r\n"else if(cursor&&redirect)"Location: $root/Other/rss?cursor=other\r\n"else ""
+                    val type=if(html)"text/html"else "application/rss+xml"
+                    connection.getOutputStream().apply {write(("HTTP/1.1 $status\r\nContent-Type: $type\r\n$extra"+"Content-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray());write(body);flush()}
                 }}finally {active-=socket}}
             }
         }}
@@ -82,6 +84,16 @@ class NitterFeedNativeTest {
         isolated();for(known in listOf(emptySet(),setOf("twitter:post:105")))Fixture().use {f->
             val result=f.collect(known);assertNull(result.pendingReason);assertEquals(listOf("/NASA/rss"),f.paths)
             f.evidence(if(known.isEmpty())"initial"else "overlapping",result)
+        }
+    }
+    @Test fun nativeRepeatedRssWindowRecoversThroughTheSameSourcesTimeline():Unit=runBlocking {
+        isolated();Fixture(repeatedRss=true).use {f->
+            val result=f.collect();f.evidence("repeated-rss-native-recovery",result)
+            assertNull(result.pendingReason)
+            assertEquals(setOf("post:105","post:100"),result.page.posts.map {it.id}.toSet())
+            assertEquals(3,result.pages);assertEquals(3,f.paths.size)
+            assertEquals("/NASA/rss",f.paths[0]);assertTrue(f.paths[1].startsWith("/NASA/rss?cursor="))
+            assertEquals("/NASA",f.paths[2])
         }
     }
     @Test fun nativeModeRoundTripCannotReplayTheHeaderBookmark():Unit=runBlocking {

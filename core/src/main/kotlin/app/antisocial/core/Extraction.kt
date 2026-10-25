@@ -90,9 +90,14 @@ object Extraction {
             if(!fetched.isHttps||fetched.host!=expected.host||fetched.port!=expected.port||fetched.encodedPath!=expected.encodedPath||fetched.username.isNotEmpty()||fetched.password.isNotEmpty())return@runCatching null
             val channel=document.getAllElements().filter {it.normalName()=="channel"}.singleOrNull() ?: return@runCatching null
             val declaration=channel.children().filter {it.normalName()=="link"&&it.attr("rel").isBlank()}.singleOrNull()?.wholeText()?.trim()?.toHttpUrlOrNull() ?: return@runCatching null
-            if(!declaration.isHttps||declaration.port!=443||declaration.username.isNotEmpty()||declaration.password.isNotEmpty()||declaration.query!=null||declaration.fragment!=null||
+            val secure=declaration.isHttps&&declaration.port==443
+            // A few deployments emit their own HTTP render URLs inside a feed
+            // fetched over HTTPS. These identify records; they authorize no
+            // HTTP request and cannot declare another insecure render host.
+            val ownLegacy=declaration.scheme=="http"&&declaration.port==80&&declaration.host==expected.host&&expected.port==443
+            if((!secure&&!ownLegacy)||declaration.username.isNotEmpty()||declaration.password.isNotEmpty()||declaration.query!=null||declaration.fragment!=null||
                 !declaration.encodedPath.trim('/').equals(target.identity,true))return@runCatching null
-            declaration.scheme+"://"+declaration.host
+            declaration
         }.getOrNull()
         val items=document.getAllElements().filter {local(it)=="item"}
         val nodes=if(items.isNotEmpty())items else document.getAllElements().filter {local(it)=="entry"}
@@ -102,18 +107,28 @@ object Extraction {
             val links=elements.filter {local(it)=="link"}
             val webLink=links.firstOrNull {it.attr("rel")=="alternate"} ?: links.firstOrNull {it.attr("rel").isBlank()}
             val raw=webLink?.wholeText()?.takeIf {it.isNotBlank()} ?: webLink?.attr("href").orEmpty()
-            val link=safe(raw,provenance.finalUrl) ?: return@mapNotNull null
-            val renderPost=if(renderOrigin==null)null else link.toHttpUrlOrNull()?.takeIf {
-                it.scheme+"://"+it.host==renderOrigin&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.query==null&&it.fragment==null
+            val renderPost=if(renderOrigin==null)null else raw.trim().toHttpUrlOrNull()?.takeIf {
+                it.scheme==renderOrigin.scheme&&it.host==renderOrigin.host&&it.port==renderOrigin.port&&it.username.isEmpty()&&it.password.isEmpty()&&it.query==null&&it.fragment in setOf(null,"m")
             }?.let {url->
                 val match=Regex("/([A-Za-z0-9_]{1,15})/status/([0-9]{1,40})").matchEntire(url.encodedPath) ?: return@let null
                 val handle=match.groupValues[1];val id=match.groupValues[2]
                 if(tag("dc:creator").removePrefix("@").equals(handle,true)&&tag("guid")==id)Platform.X.origin+url.encodedPath else null
             }
-            val canonical=routes.recognize(link)?.canonicalUrl ?: renderPost ?: link
+            val canonical=renderPost ?: safe(raw,provenance.finalUrl)?.let {routes.recognize(it)?.canonicalUrl ?: it} ?: return@mapNotNull null
+            val ownLegacy=renderPost!=null&&renderOrigin?.scheme=="http"
+            fun reference(value:String):String? {
+                safe(value,provenance.finalUrl)?.let {return it}
+                if(!ownLegacy)return null
+                val url=value.trim().toHttpUrlOrNull() ?: return null
+                if(url.scheme!="http"||url.host!=renderOrigin?.host||url.port!=80||url.username.isNotEmpty()||url.password.isNotEmpty())return null
+                return url.newBuilder().scheme("https").build().toString()
+            }
             val content=tag("content:encoded","content","description","summary")
             val markup=Jsoup.parse(content,provenance.finalUrl)
-            val enclosed=elements.filter {local(it) in setOf("enclosure","content","thumbnail")&&it.hasAttr("url")}.mapNotNull {m->safe(m.attr("url"),provenance.finalUrl)?.let {
+            if(ownLegacy)markup.select("img[src],video[src],video[poster],source[src],a[href]").forEach {element->
+                for(name in listOf("src","poster","href"))if(element.hasAttr(name))reference(element.attr(name))?.let {element.attr(name,it)}
+            }
+            val enclosed=elements.filter {local(it) in setOf("enclosure","content","thumbnail")&&it.hasAttr("url")}.mapNotNull {m->reference(m.attr("url"))?.let {
                 if(m.attr("type").startsWith("audio/"))null else {
                     val isVideo=VideoExtraction.mime(m.attr("type"))!=null||m.attr("type").startsWith("video/")
                     Media(it,if(isVideo)"video"else "image",mimeType=VideoExtraction.mime(m.attr("type")),durationMs=if(isVideo&&m.normalName()=="media:content")MediaDuration.seconds(m.attr("duration"))else null)

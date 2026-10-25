@@ -36,6 +36,8 @@ tasks.register<JavaExec>("nitterFeedAudit") {
     systemProperty("antisocial.nitterEvidence",providers.gradleProperty("antisocialNitterEvidence").getOrElse(""))
     systemProperty("antisocial.nitterRoots",providers.gradleProperty("antisocialNitterRoots").getOrElse(""))
     systemProperty("antisocial.nitterFollowHtml",providers.gradleProperty("antisocialNitterFollowHtml").getOrElse("false"))
+    systemProperty("antisocial.nitterAccount",providers.gradleProperty("antisocialNitterAccount").getOrElse("NASA"))
+    systemProperty("antisocial.nitterOperation",providers.gradleProperty("antisocialNitterOperation").getOrElse("feed"))
 }
 tasks.register<JavaExec>("feedPaginationAudit") {
     dependsOn(tasks.testClasses)
