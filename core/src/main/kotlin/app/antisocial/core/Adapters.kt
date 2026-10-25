@@ -967,15 +967,26 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val known=source in routes.sources||source in pathways.sources(target)||source in routes.searchSources.map {it.copy(platform=target.platform)}||source in fallbackSources(target.platform,if(target.kind==TargetKind.SEARCH)Capability.SEARCH else Capability.TIMELINE,target)
         require(known){"Unrecognized pagination source"}
         val capability=if(history!=null||NitterFeedHistory.bookmark(cursor))Capability.TIMELINE else requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
-        if(source!=previous.provenance?.source) {
+        val handoff=source!=previous.provenance?.source
+        if(handoff) {
             require(capability in adapter(source).capabilities&&adapter(source).accepts(target)){"Continuation changed its operation"}
-            if(!learning.eligible(source,capability,usesTor(source),target))throw learning.failure(source,capability,usesTor(source),target)
-                ?: SourceFailure(HealthStatus.UNAVAILABLE,"The public history source is paused; try again later")
         }
-        indexPause(source,capability,target)?.let {throw it}
+        // A cursor stays retryable, but does not exempt its issuer from a
+        // learned pause. Refuse locally outside the observation catch so clicks
+        // neither count as failed requests nor extend the original deadline.
+        fun checkPause() {
+            val tor=usesTor(source)
+            // A validated cursor can lead past an empty head/window. Account-
+            // specific head failures are admission evidence for a new reader,
+            // not an endpoint pause for its already-issued continuation.
+            val until=learning.eligibleAt(source,capability,tor,if(handoff)target else null)
+            if(until>clock())throw (if(handoff||source.frontend in PublicSearchAdapter.frontends)learning.failure(source,capability,tor,target)else null)
+                ?: SourceFailure(HealthStatus.UNAVAILABLE,"This source is temporarily paused; try again later.",(until-clock()).coerceAtLeast(0))
+        }
+        checkPause()
         if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
         checkAccess(source)
-        indexPause(source,capability,target)?.let {throw it}
+        checkPause()
         val updates=currentCoroutineContext()[SearchDiscoveryUpdates]?.takeIf {it.target==target&&capability==Capability.SEARCH&&source.frontend in PublicSearchAdapter.frontends}
         val session=gateway.sessionFor(source.root)
         fun checkPolicy() {

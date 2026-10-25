@@ -49,6 +49,11 @@ This lets startup finish without treating it as a user mode change, while stale
 queued work still stops. [Source-check admission](ROUTE_SCHEDULING.md#transport-readiness-and-source-checks-03813)
 separates local preparation time/failures from provider health and read permits.
 
+[Continuation admission](CONTINUATION_PAUSES.md) also preserves learned source
+pauses while keeping issued cursors retryable. Explicit server deadlines survive
+in-flight success and the bounded routing snapshot; an empty page with a valid
+next cursor can still advance.
+
 ## A source route never bypasses the protection path
 
 ```mermaid

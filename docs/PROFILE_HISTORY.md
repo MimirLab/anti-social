@@ -82,3 +82,6 @@ private preview backups and native screenshots remain under external
 `evidence/profile-history-20261025`. They are separate from public source assets.
 See [the public-query route](INSTAGRAM_PUBLIC_PAGING.md) for its protocol and
 media-completeness boundaries.
+
+Version 0.38.20 also [preserves source pauses during continuation](CONTINUATION_PAUSES.md),
+including ordinary same-reader pages and cached cross-reader navigation.

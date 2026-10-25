@@ -28,6 +28,7 @@ import java.net.ServerSocket
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 class ProfileHistoryNativeTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
@@ -68,12 +69,13 @@ class ProfileHistoryNativeTest {
             ui.runOnIdle {vm.following();repo.context.getSharedPreferences("antisocial",Context.MODE_PRIVATE).edit().clear().commit();repo.prefs.restore(JSONObject(preferences));repo.applyNetworkSettings();repo.gateway.configure(policy);scheduleRefresh(repo.context,repo.prefs)}
         }
     }
-    private class Server(private val rss:String,private val pages:Map<String?,String>):Closeable {
+    private class Server(private val rss:String,private val pages:Map<String?,String>,private val refusalAfter:String?=null):Closeable {
         private val socket=ServerSocket(0,4,InetAddress.getByName("127.0.0.1"))
         private val executor=Executors.newSingleThreadExecutor()
         val requests=CopyOnWriteArrayList<Map<String,String?>>()
         val root get()="http://127.0.0.1:${socket.localPort}"
         init {executor.submit {
+            var refused=false
             while(!socket.isClosed) {
                 val client=try {socket.accept()}catch(e:java.io.IOException){if(socket.isClosed)break else throw e}
                 client.use {
@@ -93,8 +95,11 @@ class ProfileHistoryNativeTest {
                     val after=fields.queryParameter("variables")?.let {JsonParser.parseString(it).asJsonObject.get("after")?.asString}
                     requests+=mapOf("method" to first[0],"path" to first[1],"after" to after)
                     val body=if(first[0]=="GET"&&first[1].startsWith("/feed/"))rss else if(first[0]=="POST"&&first[1]=="/api/graphql")pages[after]else null
-                    val bytes=(body ?: "{}").toByteArray()
-                    it.getOutputStream().apply {write("HTTP/1.1 ${if(body!=null)200 else 404} Fixture\r\nContent-Length: ${bytes.size}\r\nContent-Type: ${if(body?.startsWith('<')==true)"application/rss+xml"else "application/json"}\r\nConnection: close\r\n\r\n".toByteArray());write(bytes);flush()}
+                    val rateLimited=refusalAfter!=null&&after==refusalAfter&&!refused
+                    if(rateLimited)refused=true
+                    val bytes=(if(rateLimited)"{}"else body ?: "{}").toByteArray()
+                    val retry=if(rateLimited)"Retry-After: 120\r\n"else ""
+                    it.getOutputStream().apply {write("HTTP/1.1 ${if(rateLimited)429 else if(body!=null)200 else 404} Fixture\r\n${retry}Content-Length: ${bytes.size}\r\nContent-Type: ${if(body?.startsWith('<')==true)"application/rss+xml"else "application/json"}\r\nConnection: close\r\n\r\n".toByteArray());write(bytes);flush()}
                 }
             }
         }}
@@ -117,11 +122,11 @@ class ProfileHistoryNativeTest {
         val cleaner=UrlCleaner(JsonParser.parseString("{\"providers\":{}}").asJsonObject)
         val gateway=NetworkGateway(cleaner,object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)},true)
         val client=gateway.client();var stored=emptyList<String>()
-        try {Server(rss,mapOf(null to grid(codes.take(2),"one",true),"one" to grid(listOf(codes[2]),"two",true),"two" to grid(listOf(codes[3]),null,false))).use {server->
+        try {Server(rss,mapOf(null to grid(codes.take(2),"one",true),"one" to grid(listOf(codes[2]),"two",true),"two" to grid(listOf(codes[3]),null,false)),refusalAfter="two").use {server->
             val routes=DarwinRoutes(repo.context.assets.open("darwin-routes.json").bufferedReader().use {JsonParser.parseReader(it).asJsonObject}.apply {
                 add("sources",JsonParser.parseString("""[{"platform":"instagram","frontend":"rsshub","root":"${server.root}/feed","fallbackOnly":false},{"platform":"instagram","frontend":"instagram-public-graphql","root":"${server.root}","fallbackOnly":true}]"""));add("searchSources",JsonArray())
             },cleaner)
-            val pool=SourcePool(gateway,routes)
+            val clock=AtomicLong(System.currentTimeMillis());val pool=SourcePool(gateway,routes,clock=clock::get)
             val headSource=routes.sources.first()
             pool.restore(listOf(ProbeResult(headSource,Capability.TIMELINE,HealthStatus.HEALTHY,1,System.currentTimeMillis(),false)))
             val first=pool.load(target,originalFallback=false);assertEquals(1,server.requests.size);assertNotNull(first.next)
@@ -129,20 +134,30 @@ class ProfileHistoryNativeTest {
             val extra=pool.continuePage(target,first,false);val merged=PageContinuation.merge(first,extra)
             assertEquals(3,merged.posts.size);assertEquals(headSource,merged.provenance!!.source)
             assertEquals("instagram-public-graphql",merged.continuationSource!!.frontend)
+            val refused=assertThrows(SourceFailure::class.java){runBlocking {pool.continuePage(target,extra,false)}}
+            assertEquals(HealthStatus.RATE_LIMITED,refused.status)
+            val count=server.requests.size;val observations=pool.learning.snapshot()
+            // Exercise Android's actual JSON storage shape as well as the
+            // same-issuer path. A local refusal cannot consume the next page.
+            pool.learning.restore(Gson().fromJson(Gson().toJson(observations),Array<RouteStats>::class.java).toList())
+            clock.addAndGet(30_000)
+            val paused=assertThrows(SourceFailure::class.java){runBlocking {pool.continuePage(target,extra,false)}}
+            assertEquals(90_000L,paused.retryAfterMs);assertEquals(count,server.requests.size)
+            assertEquals(observations,pool.learning.snapshot());clock.addAndGet(90_001)
             stored=merged.posts.map {repo.key(it)};repo.store(merged);repo.rememberPage(target,merged)
             val cached=requireNotNull(repo.cachedPage(target));assertEquals(merged.next,cached.next);assertEquals(merged.continuationSource,cached.continuationSource);assertTrue(cached.limitedTimeline)
             val last=pool.continuePage(target,cached,false);val complete=PageContinuation.merge(cached,last)
             assertEquals(4,complete.posts.size);assertNull(complete.next)
             // Reusing saved cards must not certify a fresh subscription read.
             assertEquals(0,FeedRefresh.posts(complete,Platform.INSTAGRAM).size)
-            assertEquals(listOf(null,null,"one","two"),server.requests.map {it["after"]})
+            assertEquals(listOf(null,null,"one","two","two"),server.requests.map {it["after"]})
             ui.runOnUiThread {ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()){Surface(Modifier.fillMaxSize()){
                 LazyColumn(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp)){items(complete.posts.size){index->PostCard(complete.posts[index],vm,false){}}}
             }}}}
             ui.waitUntil(10_000){ui.onAllNodes(hasText("Complete workshop notice",substring=true)).fetchSemanticsNodes().isNotEmpty()};ui.waitForIdle()
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             File(output,"owned-native-history.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
-            File(output,"owned-result.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(mapOf("requests" to server.requests,"posts" to complete.posts.size,"initialRequests" to 1,"cachedNavigationOwner" to cached.continuationSource,"feedPosts" to FeedRefresh.posts(complete,Platform.INSTAGRAM).size,"scope" to "Owned loopback Gateway and actual adapters, native cache and cards; no live-provider claim.")))
+            File(output,"owned-result.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(mapOf("requests" to server.requests,"posts" to complete.posts.size,"initialRequests" to 1,"cachedNavigationOwner" to cached.continuationSource,"feedPosts" to FeedRefresh.posts(complete,Platform.INSTAGRAM).size,"blockedRetryTraffic" to 0,"remainingWaitMs" to paused.retryAfterMs,"scope" to "Owned loopback Gateway and actual adapters, persisted pause, native cache and cards; no live-provider claim.")))
         }}finally {
             client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()
             repo.dao.removePosts(stored)

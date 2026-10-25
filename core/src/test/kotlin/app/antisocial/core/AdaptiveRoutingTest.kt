@@ -190,6 +190,25 @@ class AdaptiveRoutingTest {
         val bounded=policy();bounded.observe(result(HealthStatus.RATE_LIMITED).copy(retryAfterMs=Long.MAX_VALUE),first)
         assertEquals(now+86_400_000,bounded.get(source,Capability.TIMELINE,false)!!.cooldownUntil)
     }
+    @Test fun anInFlightSuccessKeepsAnExplicitServerWaitScopedAndRestorable() {
+        val routing=policy()
+        routing.observe(result(HealthStatus.RATE_LIMITED).copy(retryAfterMs=120_000),first)
+        val until=now+120_000
+        now+=30_000
+        routing.observe(result(HealthStatus.HEALTHY,100),second)
+        assertEquals(until,routing.eligibleAt(source,Capability.TIMELINE,false,first))
+        assertEquals(until,routing.eligibleAt(source,Capability.TIMELINE,false,second))
+        assertTrue(routing.eligible(source,Capability.TIMELINE,true,first))
+        assertTrue(routing.eligible(source,Capability.POST,false,first))
+        assertTrue(routing.eligible(source.copy(root="https://other.example"),Capability.TIMELINE,false,first))
+        val restored=policy();restored.restore(routing.snapshot())
+        assertEquals(until,restored.eligibleAt(source,Capability.TIMELINE,false,second))
+        assertEquals(1,restored.get(source,Capability.TIMELINE,false)!!.deliverySamples)
+        now=until+1
+        assertTrue(restored.eligible(source,Capability.TIMELINE,false,second))
+        restored.observe(result(HealthStatus.HEALTHY,100),second)
+        assertEquals(0L,restored.get(source,Capability.TIMELINE,false)!!.retryAfterUntil)
+    }
     @Test fun earliestEligibilityIncludesBothTargetAndGlobalPauses() {
         val routing=policy()
         assertEquals(now,routing.eligibleAt(source,Capability.TIMELINE,false,first))

@@ -204,7 +204,7 @@ class Repository(val context: Context) {
                 pool.restore(dao.allHealth().mapNotNull {runCatching {gson.fromJson(it.payload,ProbeResult::class.java)}.getOrNull()}.filter {sameReader||it.status==HealthStatus.HEALTHY})
                 if(routingFile.exists()&&routingFile.length()<=1024*1024)runCatching {
                     pool.learning.restore(gson.fromJson(routingFile.readText(),Array<RouteStats>::class.java).toList().map {row->
-                        if(!sameReader&&row.source.platform==Platform.FACEBOOK&&row.capability==Capability.SEARCH)row.copy(cooldownUntil=0)else row
+                        if(!sameReader&&row.source.platform==Platform.FACEBOOK&&row.capability==Capability.SEARCH)row.copy(cooldownUntil=0,retryAfterUntil=0)else row
                     })
                 }
                 routeHeartbeat.restore()

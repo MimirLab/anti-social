@@ -5,7 +5,7 @@ import java.security.MessageDigest
 /** Local observations contain routing metadata only, never post/search text. */
 data class RouteStats(val source: Source,val capability: Capability,val tor: Boolean,val samples: Int=0,val successes: Int=0,
     val deliveryMs: Double=1500.0,val deviationMs: Double=500.0,val lastObservedAt: Long=0,val lastSuccessAt: Long=0,
-    val cooldownUntil: Long=0,val consecutiveFailures: Int=0,val deliverySamples: Int=0) {
+    val cooldownUntil: Long=0,val consecutiveFailures: Int=0,val deliverySamples: Int=0,val retryAfterUntil:Long=0) {
     val successRate get()=(successes+2.0)/(samples+3.0)
 }
 
@@ -33,7 +33,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     }
     @Synchronized fun restore(values: List<RouteStats>) {
         val now=clock()
-        values.takeLast(512).filter {it.lastObservedAt in (now-7*DAY)..(now+60_000)&&it.samples in 1..1_000_000&&it.successes in 0..it.samples&&it.deliverySamples in 0..it.successes&&it.deliveryMs.isFinite()&&it.deviationMs.isFinite()&&it.deliveryMs in 0.0..180_000.0&&it.deviationMs in 0.0..180_000.0}.forEach {stats[key(it.source,it.capability,it.tor)]=it.copy(cooldownUntil=it.cooldownUntil.coerceIn(0,now+DAY),consecutiveFailures=it.consecutiveFailures.coerceIn(0,100))}
+        values.takeLast(512).filter {it.lastObservedAt in (now-7*DAY)..(now+60_000)&&it.samples in 1..1_000_000&&it.successes in 0..it.samples&&it.deliverySamples in 0..it.successes&&it.deliveryMs.isFinite()&&it.deviationMs.isFinite()&&it.deliveryMs in 0.0..180_000.0&&it.deviationMs in 0.0..180_000.0}.forEach {stats[key(it.source,it.capability,it.tor)]=it.copy(cooldownUntil=maxOf(it.cooldownUntil,it.retryAfterUntil).coerceIn(0,now+DAY),retryAfterUntil=it.retryAfterUntil.coerceIn(0,now+DAY),consecutiveFailures=it.consecutiveFailures.coerceIn(0,100))}
         stats.values.forEach {value->providerKey(value.source,value.capability,value.tor)?.let {k->
             if(value.cooldownUntil>now)providerCooldowns[k]=maxOf(providerCooldowns[k] ?: 0,value.cooldownUntil)
         }}
@@ -89,7 +89,11 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
         val holding=providerUntil(result.source,result.capability,result.tor)>now
         val failures=if(global)old.consecutiveFailures+1 else if(success){if(holding)old.consecutiveFailures else 0}else old.consecutiveFailures+1
         val serverDelay=result.retryAfterMs?.coerceIn(0,DAY) ?: 0L
-        val cooldown=if(global)maxOf(old.cooldownUntil,now+(if(result.status in setOf(HealthStatus.RATE_LIMITED,HealthStatus.CHALLENGE)||providerKey(result.source,result.capability,result.tor)!=null&&result.status==HealthStatus.LOGIN_REQUIRED)60_000L else 15_000L)*(1L shl (failures-1).coerceIn(0,3)),now+serverDelay) else if(success)providerUntil(result.source,result.capability,result.tor).takeIf {it>now} ?: 0 else old.cooldownUntil
+        // An already in-flight success can update delivery estimates, but cannot
+        // revoke an explicit server wait. Keep that absolute deadline separate
+        // from adaptive backoff, which a later healthy read may clear.
+        val retryAfterUntil=maxOf(old.retryAfterUntil.takeIf {it>now} ?: 0,if(global&&serverDelay>0)now+serverDelay else 0)
+        val cooldown=if(global)maxOf(old.cooldownUntil,now+(if(result.status in setOf(HealthStatus.RATE_LIMITED,HealthStatus.CHALLENGE)||providerKey(result.source,result.capability,result.tor)!=null&&result.status==HealthStatus.LOGIN_REQUIRED)60_000L else 15_000L)*(1L shl (failures-1).coerceIn(0,3)),now+serverDelay) else if(success)maxOf(providerUntil(result.source,result.capability,result.tor).takeIf {it>now} ?: 0,retryAfterUntil) else old.cooldownUntil
         if(global)providerKey(result.source,result.capability,result.tor)?.let {k->
             val until=maxOf(providerCooldowns[k] ?: 0,cooldown);providerCooldowns.remove(k);providerCooldowns[k]=until
         }
@@ -97,7 +101,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
         val delivered=success&&delivery
         val deliveryMs=if(delivered){if(old.deliverySamples==0)sample else old.deliveryMs*.75+sample*.25}else old.deliveryMs
         val deviation=if(delivered){if(old.deliverySamples==0)sample*.25 else old.deviationMs*.75+kotlin.math.abs(sample-old.deliveryMs)*.25}else old.deviationMs
-        val next=old.copy(samples=old.samples.coerceAtMost(999_999)+1,successes=old.successes.coerceAtMost(999_999)+(if(success)1 else 0),deliveryMs=deliveryMs,deviationMs=deviation,lastObservedAt=now,lastSuccessAt=if(success)now else old.lastSuccessAt,cooldownUntil=cooldown,consecutiveFailures=failures.coerceAtMost(100),deliverySamples=old.deliverySamples.coerceAtMost(999_999)+(if(delivered)1 else 0))
+        val next=old.copy(samples=old.samples.coerceAtMost(999_999)+1,successes=old.successes.coerceAtMost(999_999)+(if(success)1 else 0),deliveryMs=deliveryMs,deviationMs=deviation,lastObservedAt=now,lastSuccessAt=if(success)now else old.lastSuccessAt,cooldownUntil=cooldown,consecutiveFailures=failures.coerceAtMost(100),deliverySamples=old.deliverySamples.coerceAtMost(999_999)+(if(delivered)1 else 0),retryAfterUntil=retryAfterUntil)
         stats.remove(k);stats[k]=next
         if(target!=null) {
             val sk=scope(result.source,result.capability,result.tor,target)

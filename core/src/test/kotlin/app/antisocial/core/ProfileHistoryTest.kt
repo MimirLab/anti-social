@@ -117,6 +117,28 @@ class ProfileHistoryTest {
             assertEquals(1,f.server.requestCount)
         }
     }
+    @Test fun aSameIssuerRetryAfterPausesWithoutLosingItsCursorOrExtendingTheWait():Unit=runBlocking {
+        for(status in listOf(429,503))Fixture().use {f->
+            f.enqueue(grid(listOf(firstCode),"after-first"))
+            val first=f.pool.sourceReader(f.history).fetch(f.target);f.request()
+            f.server.enqueue(MockResponse().setResponseCode(status).setHeader("Retry-After","120"))
+            val refused=assertThrows(SourceFailure::class.java){runBlocking {f.pool.continuePage(f.target,first,false)}}
+            assertEquals(status,refused.httpStatus);assertEquals(120_000L,refused.retryAfterMs);f.request()
+            val observed=f.pool.learning.get(f.history,Capability.TIMELINE,false)!!
+            // This response must remain queued until the learned deadline. On
+            // the old same-issuer branch the next click consumes it too early.
+            f.enqueue(grid(listOf(secondCode),more=false))
+            f.clock.addAndGet(30_000)
+            val paused=assertThrows("A second click must not send another request during Retry-After",SourceFailure::class.java){runBlocking {f.pool.continuePage(f.target,first,false)}}
+            assertEquals(90_000L,paused.retryAfterMs);assertEquals(2,f.server.requestCount)
+            assertEquals(observed,f.pool.learning.get(f.history,Capability.TIMELINE,false))
+            f.clock.addAndGet(90_001)
+            val next=f.pool.continuePage(f.target,first,false)
+            assertEquals(1,next.posts.size);assertEquals(3,f.server.requestCount)
+            val fields=("https://fixture.example/?"+f.request().body.readUtf8()).let {okhttp3.HttpUrl.Companion.run {it.toHttpUrl()}}
+            assertEquals("after-first",JsonParser.parseString(fields.queryParameter("variables")).asJsonObject["after"].asString)
+        }
+    }
     @Test fun modeRoundTripAndUnknownContinuationSourceAreRejectedBeforeTraffic():Unit=runBlocking {
         Fixture().use {f->
             f.enqueue(rss(listOf(firstCode)));val first=f.pool.load(f.target,originalFallback=false)
