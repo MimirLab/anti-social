@@ -30,56 +30,72 @@ internal class InstagramPublicGraphQlAdapter(override val source:Source,private 
         "https://www.instagram.com/p/DeTUk4sDSp-/" else "https://www.instagram.com/nasa/"))
     override suspend fun feed(target:Target):Page=throw SourceFailure(HealthStatus.UNSUPPORTED,"Public profile previews do not supply publication dates for a chronological feed")
     override suspend fun profile(target:Target):Page=throw SourceFailure(HealthStatus.UNSUPPORTED,"This public route supplies posts rather than complete account profiles")
+    override fun historyCursor(target:Target,known:List<Post>):String? {
+        val selected=InstagramPublicGraphQl.identity(target)?.takeIf {it.profile} ?: return null
+        if(known.isEmpty()||known.size>256||known.any {it.platform!=Platform.INSTAGRAM})return null
+        return cursors.issue(source,target,gateway.sessionFor(source.root),InstagramPublicGraphQl.query(selected),"",null,
+            emptyList(),emptyList(),known.map {it.identityKey})
+    }
     override suspend fun fetch(target:Target,cursor:String?):Page {
         val selected=InstagramPublicGraphQl.identity(target) ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"Select a public Instagram profile or post")
         val session=gateway.sessionFor(source.root)
         fun check(){if(gateway.sessionFor(source.root)!==session)throw CancellationException("Connection changed; refresh this page")}
         currentCoroutineContext().ensureActive();check()
         if(!selected.profile&&cursor!=null)throw SourceFailure(HealthStatus.UNSUPPORTED,"Individual posts have no profile continuation")
-        val previous=cursor?.let {cursors.resolve(it,source,target,session)}
-        var query=previous?.query ?: InstagramPublicGraphQl.query(selected)
-        var document:GatewayDocument
-        var root:JsonObject
-        try {
-            document=request(target,query,previous?.after,session)
-            root=InstagramPublicGraphQl.envelope(document,source,clock())
-        }catch(e:InstagramQueryChanged) {
-            // Refresh only a changed readonly protocol. Refusals, login walls,
-            // challenges, quotas and transport errors never trigger this retry.
-            if(previous!=null)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public query changed; refresh this page")
+        val original=cursor?.let {cursors.resolve(it,source,target,session)}
+        var previous=original
+        // Most snapshots overlap just one or two grid windows. Keep each click
+        // bounded, and retain duplicate-only checkpoints if more work remains.
+        repeat(3) {step->
+            var query=previous?.query ?: InstagramPublicGraphQl.query(selected)
+            var document:GatewayDocument
+            var root:JsonObject
+            try {
+                document=request(target,query,previous?.after,session)
+                root=InstagramPublicGraphQl.envelope(document,source,clock())
+            }catch(e:InstagramQueryChanged) {
+                if(previous?.after!=null)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public query changed; refresh this page")
+                check()
+                val address=source.root.trimEnd('/')+requireNotNull(target.canonicalUrl.toHttpUrlOrNull()).encodedPath
+                val head=gateway.extractorDocument(address,headers=InstagramPublicGraphQl.navigationHeaders,
+                    sourceUrl=target.canonicalUrl,sameOrigin=true,maxBytes=4L*1024*1024,expectedSession=session)
+                check();InstagramPublicGraphQl.requireStatus(head,clock())
+                query=InstagramPublicGraphQl.bootstrap(head.text,selected)
+                    ?: throw SourceFailure(HealthStatus.UNAVAILABLE,"The public page did not declare a supported readonly query")
+                document=request(target,query,null,session)
+                root=try {InstagramPublicGraphQl.envelope(document,source,clock())}catch(_:InstagramQueryChanged){throw SourceFailure(HealthStatus.UNAVAILABLE,"The public query is temporarily unavailable")}
+            }
+            currentCoroutineContext().ensureActive();check()
+            val provenance=Provenance(source,clock(),document.finalUrl)
+            if(!selected.profile) {
+                val post=InstagramPublicGraphQl.post(root,selected.value,provenance)
+                // Exact transport and both media identities were checked. Use
+                // the logical post address for labels; retain API provenance.
+                val payload=Payload(document.text,target.canonicalUrl,"application/json",document.status)
+                val labeled=PlatformAiLabels.attach(listOf(post),payload,target,provenance)
+                currentCoroutineContext().ensureActive();check()
+                return Page(labeled,provenance=provenance)
+            }
+            val window=InstagramPublicGraphQl.window(root,target,provenance)
+            if(previous?.owner?.takeIf {it.isNotEmpty()}?.let {it!=window.owner}==true)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public continuation returned a different account")
+            val fresh=window.posts.filter {it.identityKey !in previous?.seen.orEmpty()}
+            if(window.posts.isNotEmpty()&&fresh.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"The public source repeated its previous page; refresh to continue")
+            val visible=fresh.filter {it.identityKey !in previous?.omit.orEmpty()}
+            val stalled=window.more&&(window.after==null||window.after==previous?.after||window.after in previous?.issued.orEmpty())
             check()
-            val address=source.root.trimEnd('/')+requireNotNull(target.canonicalUrl.toHttpUrlOrNull()).encodedPath
-            val head=gateway.extractorDocument(address,headers=InstagramPublicGraphQl.navigationHeaders,
-                sourceUrl=target.canonicalUrl,sameOrigin=true,maxBytes=4L*1024*1024,expectedSession=session)
-            check();InstagramPublicGraphQl.requireStatus(head,clock())
-            query=InstagramPublicGraphQl.bootstrap(head.text,selected)
-                ?: throw SourceFailure(HealthStatus.UNAVAILABLE,"The public page did not declare a supported readonly query")
-            document=request(target,query,null,session)
-            root=try {InstagramPublicGraphQl.envelope(document,source,clock())}catch(_:InstagramQueryChanged){throw SourceFailure(HealthStatus.UNAVAILABLE,"The public query is temporarily unavailable")}
+            val next=if(window.more&&!stalled&&fresh.isNotEmpty())cursors.issue(source,target,session,query,window.owner,
+                requireNotNull(window.after),(previous?.seen.orEmpty()+fresh.map {it.identityKey}).takeLast(128),
+                (previous?.issued.orEmpty()+window.after).takeLast(8),previous?.omit.orEmpty(),(previous?.position ?: 0)+1)else null
+            if(visible.isNotEmpty()||next==null||step==2)return Page(visible,next=next,provenance=provenance,limitedTimeline=true,
+                notice=if(visible.isEmpty()&&next!=null)"Known posts skipped; earlier pages are still available."else "Public profile previews; open a post for its available full media.",
+                continuationIssue=if(stalled)"The public source did not supply an advancing continuation"else null,
+                continuationProgress=visible.isEmpty()&&next!=null)
+            previous=cursors.resolve(next,source,target,session)
+            // Only duplicate-only windows advance this retry checkpoint. No
+            // undelivered new post can be skipped after cancellation or failure.
+            if(cursor!=null&&original!=null)cursors.checkpoint(cursor,original,requireNotNull(previous))
         }
-        currentCoroutineContext().ensureActive();check()
-        val provenance=Provenance(source,clock(),document.finalUrl)
-        if(!selected.profile) {
-            val post=InstagramPublicGraphQl.post(root,selected.value,provenance)
-            // The exact transport root and both post identities were checked.
-            // The label reader receives the logical post document address;
-            // provenance retains the actual API response address.
-            val payload=Payload(document.text,target.canonicalUrl,"application/json",document.status)
-            val labeled=PlatformAiLabels.attach(listOf(post),payload,target,provenance)
-            check();return Page(labeled,provenance=provenance)
-        }
-        val window=InstagramPublicGraphQl.window(root,target,provenance)
-        if(previous!=null&&previous.owner!=window.owner)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public continuation returned a different account")
-        val fresh=window.posts.filter {it.id !in previous?.seen.orEmpty()}
-        if(window.posts.isNotEmpty()&&fresh.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"The public source repeated its previous page; refresh to continue")
-        val stalled=window.more&& (window.after==null||window.after==previous?.after||window.after in previous?.issued.orEmpty())
-        check()
-        val next=if(window.more&&!stalled&&fresh.isNotEmpty())cursors.issue(source,target,session,query,window.owner,
-            requireNotNull(window.after),(previous?.seen.orEmpty()+fresh.map {it.id}).takeLast(128),
-            (previous?.issued.orEmpty()+window.after).takeLast(8))else null
-        return Page(fresh,next=next,provenance=provenance,limitedTimeline=true,
-            notice="Public profile previews; open a post for its available full media.",
-            continuationIssue=if(stalled)"The public source did not supply an advancing continuation" else null)
+        error("Bounded public paging did not finish")
     }
     private suspend fun request(target:Target,query:InstagramPublicGraphQl.Query,after:String?,session:NetworkSession):GatewayDocument {
         val lsd=UUID.randomUUID().toString().replace("-","").take(12)
@@ -99,7 +115,7 @@ internal class InstagramPublicGraphQlAdapter(override val source:Source,private 
  * cache only: bounded, expiring, memory-only and unusable after mode changes. */
 internal class InstagramPublicCursors(private val clock:()->Long,private val maxEntries:Int=32,private val ttl:Long=10*60_000L) {
     data class Entry(val source:Source,val target:Target,val session:NetworkSession,val query:InstagramPublicGraphQl.Query,
-        val owner:String,val after:String,val seen:List<String>,val issued:List<String>,val created:Long)
+        val owner:String,val after:String?,val seen:List<String>,val issued:List<String>,val created:Long,val omit:List<String> = emptyList(),val position:Long=0)
     private val entries=linkedMapOf<String,Entry>()
     init {require(maxEntries in 1..64&&ttl in 1..10*60_000L)}
     private fun trim(session:NetworkSession) {
@@ -107,16 +123,21 @@ internal class InstagramPublicCursors(private val clock:()->Long,private val max
         while(entries.size>maxEntries)entries.remove(entries.keys.first())
     }
     @Synchronized fun issue(source:Source,target:Target,session:NetworkSession,query:InstagramPublicGraphQl.Query,owner:String,
-        after:String,seen:List<String>,issued:List<String>):String {
+        after:String?,seen:List<String>,issued:List<String>,omit:List<String> = emptyList(),position:Long=0):String {
         trim(session)
         val key="ig-public-v1:"+UUID.randomUUID()
-        entries[key]=Entry(source,target,session,query.copy(variables=query.variables.deepCopy()),owner,after,seen.takeLast(128),issued.takeLast(8),clock())
+        entries[key]=Entry(source,target,session,query.copy(variables=query.variables.deepCopy()),owner,after,seen.takeLast(128),issued.takeLast(8),clock(),omit.take(256),position)
         trim(session);return key
     }
     @Synchronized fun resolve(key:String,source:Source,target:Target,session:NetworkSession):Entry {
         trim(session)
         return entries[key]?.takeIf {it.source==source&&it.target==target&&it.session===session}
             ?: throw SourceFailure(HealthStatus.EMPTY,"Refresh this profile to continue its public posts")
+    }
+    @Synchronized fun checkpoint(key:String,original:Entry,updated:Entry) {
+        val current=entries[key] ?: return
+        if(current.created==original.created&&current.source==updated.source&&current.target==updated.target&&current.session===updated.session&&
+            current.position<=updated.position)entries[key]=updated.copy(created=original.created)
     }
     @Synchronized internal fun size()=entries.size
 }

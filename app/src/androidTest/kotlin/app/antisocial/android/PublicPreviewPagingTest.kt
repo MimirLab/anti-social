@@ -15,6 +15,35 @@ import org.junit.Test
 import java.io.File
 
 class PublicPreviewPagingTest {
+    @Test fun ordinaryProfileRoutingCanReachItsLongerPublicHistory()=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLivePublicPaging")=="true")
+        val context=ApplicationProvider.getApplicationContext<Context>()
+        fun asset(name:String)=context.assets.open(name).bufferedReader().use {JsonParser.parseReader(it).asJsonObject}
+        val cleaner=UrlCleaner(asset("clean-links.json"));val routes=DarwinRoutes(asset("darwin-routes.json"),cleaner)
+        val target=routes.recognize("https://www.instagram.com/nasa/")!!
+        val folder=File(requireNotNull(context.getExternalFilesDir("validation")),"public-preview/ordinary-history").apply {mkdirs()}
+        NativeFilter.restore(context.assets.open("network-rules.compiled").use {it.readBytes()}).use {filter->
+            val gateway=NetworkGateway(cleaner,filter);val client=gateway.client()
+            val rows=mutableListOf<Map<String,Any?>>()
+            try {
+                val pool=SourcePool(gateway,routes,PublicPathways(asset("public-pathways.json")))
+                val start=System.nanoTime();var page=withTimeout(60_000){pool.load(target,originalFallback=true)}
+                val initial=page.posts.map {it.identityKey}.toSet()
+                rows+=mapOf("step" to "ordinary-head","posts" to page.posts.size,"source" to page.provenance?.source,"nextSource" to page.continuationSource,"next" to (page.next!=null),"ms" to (System.nanoTime()-start)/1_000_000)
+                assertNotNull(page.next)
+                repeat(2) {index->
+                    val now=System.nanoTime();val next=withTimeout(30_000){pool.continuePage(target,page,originalFallback=true)}
+                    page=PageContinuation.merge(page,next)
+                    rows+=mapOf("step" to "more-$index","new" to next.posts.size,"total" to page.posts.size,"source" to next.provenance?.source,"nextSource" to page.continuationSource,"next" to (page.next!=null),"ms" to (System.nanoTime()-now)/1_000_000)
+                }
+                assertTrue(page.posts.any {it.identityKey !in initial})
+            }finally {
+                File(folder,"results.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(rows))
+                client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()
+            }
+        }
+    }
     @Test fun qualifiedReaderPagesAndOpensAvailableFullMedia()=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialLivePublicPaging")=="true")

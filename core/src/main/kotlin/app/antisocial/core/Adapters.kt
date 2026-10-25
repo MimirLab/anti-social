@@ -290,6 +290,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             override val capabilities=delegate.capabilities
             override val separateFeedRepresentation=delegate.separateFeedRepresentation
             override fun accepts(target: Target)=delegate.accepts(target)
+            override fun historyCursor(target:Target,known:List<Post>)=delegate.historyCursor(target,known)
             override suspend fun fetch(target: Target,cursor: String?)=SearchScopes.scopePage(target,delegate.fetch(target,cursor))
             override suspend fun searchUpdates(target:Target,cursor:String,onPartial:suspend (Page)->Unit)=
                 SearchScopes.scopePage(target,delegate.searchUpdates(target,cursor){onPartial(SearchScopes.scopePage(target,it))})
@@ -414,6 +415,21 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         if(capability==Capability.FEED&&checkAccess!=null&&historyContent(page,target))page.provenance?.source?.let {source->
             currentCoroutineContext()[FeedHistoryScope]?.bind(this,target,source,adapter(source).separateFeedRepresentation,originalFallback&&gateway.originalFallback,checkAccess)
+        }
+        // A finite snapshot is useful immediately. Offer another reader's
+        // qualified history locally; do not fetch its head until requested.
+        if(capability==Capability.TIMELINE&&target.kind==TargetKind.PROFILE&&page.limitedTimeline&&page.next==null&&
+            page.posts.isNotEmpty()&&page.provenance?.cached==false&&page.provenance.source.role!=SourceRole.CACHE&&
+            currentCoroutineContext()[FeedHistoryPlan]==null&&currentCoroutineContext()[FeedHistoryScope]==null) {
+            for(candidate in requestedOrder(sourcesFor(target,capability,originalFallback&&gateway.originalFallback).filter {
+                it!=page.provenance.source&&it.role!=SourceRole.CACHE&&routeAllowed(it,capability)&&
+                    learning.eligible(it,capability,usesTor(it),target)&&capability in adapter(it).capabilities&&adapter(it).accepts(target)
+            },capability)) {
+                checkAccess?.invoke(candidate)
+                val cursor=adapter(candidate).historyCursor(target,page.posts) ?: continue
+                checkAccess?.invoke(candidate)
+                return page.copy(next=cursor,continuationSource=candidate)
+            }
         }
         return page
     }
@@ -940,7 +956,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         if(history!=null&&previous.next.isNullOrBlank())return@withContext feedHistory(target,history,originalFallback)
         val currentAccess=readPolicy()
         val checkAccess:(Source)->Unit={s->currentAccess(s);history?.check(s)}
-        val source=requireNotNull(previous.provenance?.source){"Missing pagination source"}
+        val source=requireNotNull(previous.continuationSource ?: previous.provenance?.source){"Missing pagination source"}
         val cursor=requireNotNull(previous.next){"No further page"}
         val selected=searchProvider;val originalPermission=gateway.originalFallback
         require(source.platform==target.platform){"Pagination changed platform"}
@@ -951,6 +967,11 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val known=source in routes.sources||source in pathways.sources(target)||source in routes.searchSources.map {it.copy(platform=target.platform)}||source in fallbackSources(target.platform,if(target.kind==TargetKind.SEARCH)Capability.SEARCH else Capability.TIMELINE,target)
         require(known){"Unrecognized pagination source"}
         val capability=if(history!=null||NitterFeedHistory.bookmark(cursor))Capability.TIMELINE else requestedCapability ?: if(target.kind==TargetKind.SEARCH)Capability.SEARCH else if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD))Capability.POST else Capability.TIMELINE
+        if(source!=previous.provenance?.source) {
+            require(capability in adapter(source).capabilities&&adapter(source).accepts(target)){"Continuation changed its operation"}
+            if(!learning.eligible(source,capability,usesTor(source),target))throw learning.failure(source,capability,usesTor(source),target)
+                ?: SourceFailure(HealthStatus.UNAVAILABLE,"The public history source is paused; try again later")
+        }
         indexPause(source,capability,target)?.let {throw it}
         if(source.frontend in setOf("bing-rss","duckduckgo"))awaitSearchConnection()
         checkAccess(source)
@@ -980,7 +1001,10 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             checkPolicy()
             val usable=if(history!=null)historyContent(page,target)else content(page,capability,target)
             if(usable||feedback?.refusal!=null)recordRead(ProbeResult(source,capability,if(usable)HealthStatus.HEALTHY else HealthStatus.EMPTY,firstDelivery ?: (System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Continuation data checked"),feedback,delivery=source.role!=SourceRole.CACHE)
-            delivered(target,capability,page,originalFallback)
+            // A continuation belongs to the adapter that issued it, even if
+            // extraction reports another acquisition origin after a redirect.
+            val navigable=if(page.next!=null&&page.continuationSource==null)page.copy(continuationSource=source)else page
+            delivered(target,capability,navigable,originalFallback,{checkPolicy()})
         }catch(e: CancellationException){if(e !is TimeoutCancellationException)throw e;currentCoroutineContext().ensureActive();record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),"Timed out"));throw SourceFailure(HealthStatus.UNAVAILABLE,"Public source timed out")}catch(e: Exception){if((e as? SourceFailure)?.status!=HealthStatus.EMPTY)record(ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,(System.nanoTime()-started)/1_000_000,clock(),usesTor(source),e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs));throw e}
         }finally {readFinished()}
     }

@@ -9,6 +9,30 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.19 on-demand public profile history
+
+Ordinary Instagram browsing can continue a successful finite alternate snapshot
+through the qualified public paged reader. The initial read adds no history
+request. In the live API 35 routing test, RSS-Bridge supplied six dated NASA
+posts, then two continuations expanded the same page to twelve and twenty-four
+unique posts in 1,067 and 479 ms. A separate native test pressed the actual
+Load more button twice and observed the same 6 → 12 → 24 progression.
+
+A new regression first failed on unchanged 0.38.18: its successful finite head
+provided no continuation. The candidate preserves that one-request initial
+control. Cursor ownership is stored separately from card provenance, survives
+ordinary page caching, and remains registry-, target-, policy- and session-bound.
+Known windows are skipped in bounded batches; duplicate-only checkpoints can
+advance without inventing new cards or certifying empty content as healthy.
+Dated subscription recovery keeps its separate operation-local scope and rules.
+
+The full JVM suite passed 2,140 cases with zero failures/errors and one optional
+skip. Across sixteen unique native methods, fifteen passed and one opt-in
+live-platform check skipped. The owned cache/card and live profile grid screens
+were inspected. [Profile history](PROFILE_HISTORY.md) documents the exact checks,
+first harness failure, public-source and transport limits. External evidence is
+retained separately under `evidence/profile-history-20261025`.
+
 ## 0.38.18 public Instagram pagination and selected full media
 
 The new ordinary-build public reader returned 36 distinct NASA grid previews

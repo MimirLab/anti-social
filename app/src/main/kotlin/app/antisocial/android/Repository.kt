@@ -35,7 +35,7 @@ private data class FeedPostRecord(val key:String,val payload:String,val publishe
 data class FilterSource(val id: String,val url: String,val name: String,val enabled: Boolean=true)
 data class FilterState(val ready: Boolean=false,val updating: Boolean=false,val rules: Int=0,val message: String="Preparing privacy filters",val lastCheckedAt:Long=0)
 data class Backup(val schema: Int=2,val settings: JsonObject,val follows: List<FollowRow>,val bookmarks: List<BookmarkRow>,val history: List<HistoryRow>,val savedDetails: List<SavedDetailRow>?=null,val collections: List<LibraryCollectionRow>?=null,val collectionLinks: List<SavedCollectionRow>?=null,val retainedHistory: List<RetainedHistoryRow>?=null)
-private data class PageRecord(val postKeys: List<String>,val next: String?,val profile: Profile?,val provenance: Provenance?,val collections: List<app.antisocial.core.Collection>,val accounts: List<Profile>?=null,val notice: String?=null,val continuationIssue: String?=null)
+private data class PageRecord(val postKeys: List<String>,val next: String?,val profile: Profile?,val provenance: Provenance?,val collections: List<app.antisocial.core.Collection>,val accounts: List<Profile>?=null,val notice: String?=null,val continuationIssue: String?=null,val limitedTimeline:Boolean=false,val continuationSource:Source?=null,val continuationProgress:Boolean=false)
 
 class AntiSocialApplication: Application() {
     lateinit var repo: Repository;private set
@@ -421,7 +421,7 @@ class Repository(val context: Context) {
         val record=runCatching {gson.fromJson(file.readText(),PageRecord::class.java).also {it.postKeys.size;it.collections.size}}.getOrNull() ?: return@withLock null
         val posts=record.postKeys.chunked(400).flatMap {keys->dao.bookmarksByKeys(keys).map {it.key to it.payload}+dao.postsByKeys(keys).map {it.key to it.payload}}.associate {it}
         val ordered=record.postKeys.mapNotNull {key->posts[key]?.let {runCatching {gson.fromJson(it,Post::class.java)}.getOrNull()}}.filter(::readableRecord)
-        val page=Page(ordered,record.next,record.profile,record.provenance,record.collections,record.accounts.orEmpty(),record.notice,record.continuationIssue)
+        val page=Page(ordered,record.next,record.profile,record.provenance,record.collections,record.accounts.orEmpty(),record.notice,record.continuationIssue,limitedTimeline=record.limitedTimeline,continuationSource=record.continuationSource,continuationProgress=record.continuationProgress)
         rememberAccountNames(page)
         registerTargetOrigin(target);registerPageOrigins(page)
         dao.putMedia(row.copy(lastViewedAt=System.currentTimeMillis()))
@@ -429,7 +429,7 @@ class Repository(val context: Context) {
     }}
     suspend fun rememberPage(target: Target,page: Page)=withContext(Dispatchers.IO) {
         rememberAccountNames(page)
-        val bytes=gson.toJson(PageRecord(page.posts.map {key(it)},page.next,page.profile,page.provenance,page.collections,page.accounts,page.notice,page.continuationIssue)).toByteArray()
+        val bytes=gson.toJson(PageRecord(page.posts.map {key(it)},page.next,page.profile,page.provenance,page.collections,page.accounts,page.notice,page.continuationIssue,page.limitedTimeline,page.continuationSource,page.continuationProgress)).toByteArray()
         if(bytes.size<=4*1024*1024)mediaMutex.withLock {
             val key=pageKey(target);val file=File(dataDir,key);atomic(file,bytes)
             val now=System.currentTimeMillis();dao.putMedia(MediaRow(key,file.path,bytes.size.toLong(),now,lastViewedAt=now))

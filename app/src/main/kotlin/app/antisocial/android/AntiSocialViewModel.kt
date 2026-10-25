@@ -291,8 +291,7 @@ class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScop
                 val next=repo.pool.continuePage(target,page,originalFallback=repo.prefs.originalFallback)
                 repo.store(next)
                 if(generation==boundGeneration) {
-                    val added=next.posts.any {post->page.posts.none {repo.key(it)==repo.key(post)}}||next.collections.any {item->page.collections.none {it.target==item.target}}||next.accounts.any {account->page.accounts.none {it.target==account.target}}
-                    val merged=page.copy(posts=(page.posts+next.posts).distinctBy {repo.key(it)},collections=(page.collections+next.collections).distinctBy {it.target.canonicalUrl},accounts=(page.accounts+next.accounts).distinctBy {it.target.canonicalUrl},next=next.next?.takeIf {it!=cursor&&added},notice=if(!added&&next.next!=null)"This source supplied no new results."else page.notice)
+                    val merged=PageContinuation.merge(page,next)
                     pages.put(target,merged)
                     screen.value=screen.value.copy(page=merged,loading=false)
                     repo.rememberPage(target,merged)

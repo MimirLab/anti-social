@@ -75,3 +75,6 @@ are retained separately under external `evidence/public-preview-paging-20261024`
 Private state and raw captures are not repository or release assets. The native
 experiment's separate qualification remains in
 [PUBLIC_PREVIEW_QUALIFICATION.md](PUBLIC_PREVIEW_QUALIFICATION.md).
+
+The ordinary-profile integration in 0.38.19 can offer this route after a fast
+finite alternate snapshot. See [on-demand history and cursor ownership](PROFILE_HISTORY.md).

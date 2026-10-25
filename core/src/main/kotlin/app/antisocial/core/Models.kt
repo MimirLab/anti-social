@@ -71,7 +71,13 @@ data class ArchivedVersion(val provider: String,val capturedAt: Long,val archive
 }
 data class Profile(val target: Target, val name: String, val description: String = "", val avatar: String? = null, val followers: Long? = null, val links: List<String>? = null,val displayNameSupplied: Boolean=false,val persistentId:String?=null,val verifiedWebsites:List<ProfileWebsite>?=null,val following:Long?=null)
 data class Collection(val target: Target, val name: String, val image: String? = null, val detail: String = "",val navigation: Boolean=false)
-data class Page(val posts: List<Post>, val next: String? = null, val profile: Profile? = null, val provenance: Provenance? = null, val collections: List<Collection> = emptyList(), val accounts: List<Profile> = emptyList(),val notice: String?=null,val continuationIssue: String?=null,val limitedTimeline:Boolean=false,val syndicationId:String?=null)
+data class Page(val posts: List<Post>, val next: String? = null, val profile: Profile? = null, val provenance: Provenance? = null, val collections: List<Collection> = emptyList(), val accounts: List<Profile> = emptyList(),val notice: String?=null,val continuationIssue: String?=null,val limitedTimeline:Boolean=false,val syndicationId:String?=null,
+    /** Navigation can move to another qualified reader without rewriting the
+     * acquisition provenance of cards already delivered. */
+    val continuationSource:Source?=null,
+    /** A locally validated checkpoint advanced, but supplied no new cards.
+     * This is navigation progress, never evidence of working new content. */
+    val continuationProgress:Boolean=false)
 data class ProbeResult(val source: Source, val capability: Capability, val status: HealthStatus, val latencyMs: Long, val checkedAt: Long, val tor: Boolean, val detail: String = "",val retryAfterMs: Long?=null)
 data class Follow(val id: String, val target: Target, val name: String, val group: String = "", val enabled: Boolean = true, val feedUrl: String? = null, val personId: String? = null, val personName: String? = null)
 data class CacheEntry(val key: String, val bytes: Long, val createdAt: Long, val lastViewedAt: Long?, val saved: Boolean, val active: Boolean = false)
@@ -93,6 +99,9 @@ interface DataAdapter {
     val separateFeedRepresentation:Boolean get()=false
     /** Some data paths serve only particular target forms or an explicitly scoped account. */
     fun accepts(target: Target): Boolean = target.platform==source.platform
+    /** Pure local offer, no I/O. Only qualified paged readers implement this.
+     * The selected route validates the resulting capability when consumed. */
+    fun historyCursor(target:Target,known:List<Post>):String?=null
     suspend fun fetch(target: Target, cursor: String? = null): Page
     /** Selected-source continuation only. Partials are checkpointed discovery
      * deltas, not completed pages or fabricated post bodies. The caller owns
