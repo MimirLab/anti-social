@@ -206,7 +206,7 @@ class InstagramPublicGraphQlTest {
         assertTrue(pool.sourcesFor(target,Capability.TIMELINE,true).any {it.frontend==original.frontend})
         assertFalse(pool.sourcesFor(target,Capability.TIMELINE,false).any {it.frontend==original.frontend})
         assertFalse(pool.sourceReader(original).capabilities.contains(Capability.FEED))
-        assertFalse(pool.sourceReader(original).capabilities.contains(Capability.COMMENTS))
+        assertTrue(pool.sourceReader(original).capabilities.contains(Capability.COMMENTS))
         assertTrue(pool.sourceReader(original).accepts(target));assertFalse(pool.sourceReader(original).accepts(target.copy(canonicalUrl="https://other.example/nasa/")))
     }
 }

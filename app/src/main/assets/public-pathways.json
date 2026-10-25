@@ -19,7 +19,7 @@
         "https://github.com/vvzvlad/research-mcp/blob/main/src/providers/instagram.py",
         "https://github.com/FxEmbed/FxEmbed/tree/main/packages"
       ],
-      "limitations": "Anonymous public profile-grid pagination and selected public post/media queries. Grid previews omit dates and cannot certify feed freshness. No account, cookies, global search, follower graph or comment-pagination claim. Source login gates and quotas remain failures; protocol identifiers can change."
+      "limitations": "Anonymous public profile-grid pagination, selected public post/media queries and recent public comment pagination. Comment replies can remain incomplete. Grid previews omit dates and cannot certify feed freshness. No account, cookies, global search or follower-graph claim. Source login gates and quotas remain failures; protocol identifiers can change."
     },
     {
       "platform": "twitter",

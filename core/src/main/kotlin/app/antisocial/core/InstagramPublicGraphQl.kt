@@ -23,10 +23,10 @@ import java.util.UUID
  * A returned cursor is a local capability, not a caller-selected Relay query. */
 internal class InstagramPublicGraphQlAdapter(override val source:Source,private val gateway:NetworkGateway,
     private val routes:DarwinRoutes,private val clock:()->Long=System::currentTimeMillis):DataAdapter {
-    override val capabilities=setOf(Capability.TIMELINE,Capability.POST,Capability.MEDIA)
+    override val capabilities=setOf(Capability.TIMELINE,Capability.POST,Capability.MEDIA,Capability.COMMENTS)
     private val cursors=InstagramPublicCursors(clock)
     override fun accepts(target:Target)=InstagramPublicGraphQl.identity(target)!=null
-    override fun sentinel(capability:Capability)=requireNotNull(routes.recognize(if(capability in setOf(Capability.POST,Capability.MEDIA))
+    override fun sentinel(capability:Capability)=requireNotNull(routes.recognize(if(capability in setOf(Capability.POST,Capability.MEDIA,Capability.COMMENTS))
         "https://www.instagram.com/p/DeTUk4sDSp-/" else "https://www.instagram.com/nasa/"))
     override suspend fun feed(target:Target):Page=throw SourceFailure(HealthStatus.UNSUPPORTED,"Public profile previews do not supply publication dates for a chronological feed")
     override suspend fun profile(target:Target):Page=throw SourceFailure(HealthStatus.UNSUPPORTED,"This public route supplies posts rather than complete account profiles")
@@ -97,6 +97,40 @@ internal class InstagramPublicGraphQlAdapter(override val source:Source,private 
         }
         error("Bounded public paging did not finish")
     }
+    override suspend fun comments(target:Target,cursor:String?):Page {
+        val selected=InstagramPublicGraphQl.identity(target)?.takeUnless {it.profile}
+            ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"Select an Instagram post for its public comments")
+        val session=gateway.sessionFor(source.root)
+        val context=currentCoroutineContext()
+        fun check(){context.ensureActive();if(gateway.sessionFor(source.root)!==session)throw CancellationException("Connection changed; retry this discussion")}
+        check()
+        val previous=cursor?.let {cursors.resolve(it,source,target,session)}
+        var query=previous?.query ?: InstagramPublicGraphQl.commentsQuery(selected.value)
+        require(query.name==InstagramPublicGraphQl.COMMENTS){"This cursor belongs to another operation"}
+        var document:GatewayDocument;var data:JsonObject
+        try {document=request(target,query,previous?.after,session);data=InstagramPublicGraphQl.envelope(document,source,clock())}
+        catch(_:InstagramQueryChanged) {
+            if(previous!=null)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public comment query changed; reopen this discussion")
+            check()
+            val head=gateway.extractorDocument(source.root.trimEnd('/')+requireNotNull(target.canonicalUrl.toHttpUrlOrNull()).encodedPath,
+                headers=InstagramPublicGraphQl.navigationHeaders,sourceUrl=target.canonicalUrl,sameOrigin=true,maxBytes=4L*1024*1024,expectedSession=session)
+            check();InstagramPublicGraphQl.requireStatus(head,clock())
+            query=InstagramPublicGraphQl.bootstrap(head.text,selected,query) ?: throw SourceFailure(HealthStatus.UNAVAILABLE,"The public page did not declare a supported comment query")
+            document=request(target,query,null,session)
+            data=try {InstagramPublicGraphQl.envelope(document,source,clock())}catch(_:InstagramQueryChanged){throw SourceFailure(HealthStatus.UNAVAILABLE,"The public comment query is temporarily unavailable")}
+        }
+        currentCoroutineContext().ensureActive();check()
+        val provenance=Provenance(source,clock(),document.finalUrl)
+        val window=InstagramPublicComments.parse(data,target,provenance)
+        val fresh=window.posts.filter {it.identityKey !in previous?.seen.orEmpty()}
+        if(window.posts.isNotEmpty()&&fresh.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"The public comment source repeated its previous page")
+        val stalled=window.more&&(window.after==null||window.after==previous?.after||window.after in previous?.issued.orEmpty())
+        check()
+        val next=if(window.more&&!stalled&&fresh.isNotEmpty())cursors.issue(source,target,session,query,InstagramPublicGraphQl.mediaId(selected.value),
+            requireNotNull(window.after),(previous?.seen.orEmpty()+fresh.map {it.identityKey}).takeLast(128),(previous?.issued.orEmpty()+window.after).takeLast(8))else null
+        return Page(fresh,next=next,accounts=window.accounts,provenance=provenance,
+            notice="Public comments; some replies may be unavailable.",continuationIssue=if(stalled)"The public source did not supply an advancing comment cursor"else null)
+    }
     private suspend fun request(target:Target,query:InstagramPublicGraphQl.Query,after:String?,session:NetworkSession):GatewayDocument {
         val lsd=UUID.randomUUID().toString().replace("-","").take(12)
         val fields=linkedMapOf("lsd" to lsd,"fb_api_caller_class" to "RelayModern","fb_api_req_friendly_name" to query.name,
@@ -150,6 +184,7 @@ internal object InstagramPublicGraphQl {
     data class Window(val owner:String,val posts:List<Post>,val more:Boolean,val after:String?)
     private const val PROFILE="PolarisLoggedOutDesktopWWWProfilePostsTabContentQuery"
     private const val POST="PolarisLoggedOutDesktopWWWPostRootContentQuery"
+    const val COMMENTS="PolarisPostCommentsPaginationQuery"
     private const val ALPHABET="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
     private val types=setOf("XIGPolarisImageMedia","XIGPolarisVideoMedia","XIGPolarisCarouselMedia","XIGPolarisSidecarMedia")
     private val userPattern=Regex("[A-Za-z0-9_.]{1,30}")
@@ -177,6 +212,10 @@ internal object InstagramPublicGraphQl {
     }
     fun query(selected:Identity)=Query(if(selected.profile)PROFILE else POST,if(selected.profile)"29483846714553007"else "27130156389949648",
         JsonObject().apply {if(selected.profile){addProperty("first",12);addProperty("username",selected.value);addProperty("__relay_internal__pv__PolarisSEOIsCrawlerrelayprovider",false)}else addProperty("media_id",mediaId(selected.value))})
+    fun commentsQuery(code:String)=Query(COMMENTS,"25516980651312394",JsonObject().apply {
+        addProperty("media_id",mediaId(code));addProperty("first",12);add("last",JsonNull.INSTANCE);add("before",JsonNull.INSTANCE)
+        addProperty("sort_order","recent");addProperty("__relay_internal__pv__PolarisIsLoggedInrelayprovider",false)
+    })
     private val browser="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
     val apiHeaders=mapOf("User-Agent" to browser,"Accept-Language" to "en-US,en;q=0.9","Accept" to "*/*","X-IG-App-ID" to "936619743392459",
         "Sec-Fetch-Site" to "same-origin","Sec-Fetch-Mode" to "cors","Sec-Fetch-Dest" to "empty")
@@ -217,9 +256,9 @@ internal object InstagramPublicGraphQl {
         }
         return root.o("data") ?: fail("The public source returned no selected data")
     }
-    fun bootstrap(html:String,selected:Identity):Query? {
+    fun bootstrap(html:String,selected:Identity,expected:Query=query(selected)):Query? {
         HtmlAdmission.check(html)
-        val expected=query(selected);val found=mutableListOf<Query>();var remaining=80_000
+        val found=mutableListOf<Query>();var remaining=80_000
         fun walk(value:JsonElement,depth:Int) {
             if(depth>64||--remaining<0)return
             if(value.isJsonObject) {
@@ -229,6 +268,7 @@ internal object InstagramPublicGraphQl {
                     val matches=if(selected.profile)vars?.s("username")==selected.value else vars?.s("media_id")==mediaId(selected.value)
                     if(matches)found+=expected.copy(id=node.s("queryID"),variables=expected.variables.deepCopy().apply {
                         vars?.entrySet()?.filter {it.key.matches(Regex("__relay_internal__pv__[A-Za-z0-9_]{1,100}relayprovider"))&&it.value.isJsonPrimitive&&it.value.asJsonPrimitive.isBoolean}?.take(16)?.forEach {add(it.key,it.value)}
+                        if(expected.name==COMMENTS)addProperty("__relay_internal__pv__PolarisIsLoggedInrelayprovider",false)
                     })
                 }
                 node.entrySet().forEach {walk(it.value,depth+1)}

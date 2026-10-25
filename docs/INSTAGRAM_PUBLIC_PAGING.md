@@ -1,5 +1,9 @@
 # Instagram public paging, October 24, 2026
 
+The later [0.38.21 public-comment route](INSTAGRAM_PUBLIC_COMMENTS.md) adds
+separately qualified comment pagination. The observations below describe the
+original profile/post/media increment.
+
 The additional `instagram-public-graphql` route reads public profile-grid pages
 and selected public posts through NetworkGateway. It runs in ordinary builds,
 without the experimental TLS library, a browser, account cookies or site scripts.

@@ -54,6 +54,10 @@ pauses while keeping issued cursors retryable. Explicit server deadlines survive
 in-flight success and the bounded routing snapshot; an empty page with a valid
 next cursor can still advance.
 
+[Public Instagram comments](INSTAGRAM_PUBLIC_COMMENTS.md) use this same path,
+then the existing discussion, local-name and Context consumers. Their source
+comment identities remain distinct from the parent post.
+
 ## A source route never bypasses the protection path
 
 ```mermaid

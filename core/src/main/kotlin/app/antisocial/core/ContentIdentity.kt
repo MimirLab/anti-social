@@ -6,6 +6,7 @@ import java.net.URI
 object ContentIdentity {
     private val number=Regex("[0-9]+")
     private val boundedNumber=Regex("[0-9]{1,40}")
+    private val instagramComment=Regex("^/(?:p|reel|reels|tv)/([^/]+)/c/([0-9]{1,40})/?$")
     private val blueskyReference=Regex("^at://([^/]+)/app\\.bsky\\.feed\\.post/([^/?#]+)$")
     private val expandedPatterns=mapOf(
         Platform.FACEBOOK to Regex("/(?:posts|videos|reel)/([A-Za-z0-9_-]+)"),
@@ -23,7 +24,7 @@ object ContentIdentity {
         Platform.REDDIT to Regex("/comments/([^/]+)(?:/[^/]+/([^/]+))?"),
         Platform.TUMBLR to Regex("/(?:post/)?([0-9]+)(?:/|$)"),
         Platform.TIKTOK to Regex("/(?:video|photo)/([^/]+)"),
-        Platform.INSTAGRAM to Regex("/(?:p|reel|reels)/([^/]+)"),
+        Platform.INSTAGRAM to Regex("/(?:p|reel|reels|tv)/([^/]+)"),
         Platform.PINTEREST to Regex("/pin/([^/]+)"),
         Platform.TIEBA to Regex("/p/([^/]+)"),
         Platform.THREADS to Regex("/(?:post|t)/([^/]+)"),
@@ -44,6 +45,8 @@ object ContentIdentity {
             Platform.IFUNNY -> "post:${m.groupValues[1].substringAfterLast('-')}"
             Platform.TIEBA -> runCatching {DarwinRoutes.queryValue(URI(url),"pid")}.getOrNull()?.takeIf {it.matches(number)&&it!="1"}?.let {"comment:${m.groupValues[1]}:$it"} ?: "post:${m.groupValues[1]}"
             Platform.TIKTOK -> uri?.let {DarwinRoutes.queryValue(it,"comment_id")}?.takeIf {it.matches(boundedNumber)}?.let {"comment:${m.groupValues[1]}:$it"} ?: "post:${m.groupValues[1]}"
+            Platform.INSTAGRAM -> (instagramComment.matchEntire(path)?.groupValues?.get(2) ?: uri?.let {DarwinRoutes.queryValue(it,"comment_id")}?.takeIf {boundedNumber.matches(it)})
+                ?.let {"comment:${m.groupValues[1]}:$it"} ?: "post:${m.groupValues[1]}"
             else -> "post:${m.groupValues[1]}"
         }
         } ?: url.substringBefore('#').trimEnd('/')
