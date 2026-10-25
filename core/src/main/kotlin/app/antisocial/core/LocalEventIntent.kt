@@ -5,9 +5,9 @@ data class LocalEventMatch(val matches:Boolean,val unknowns:List<String> = empty
 
 /** Facets guide discovery, not claims about a venue's unpublished suitability. */
 data class LocalEventIntent(val topics:List<String>,val audience:String?=null,val outdoors:Boolean=false,
-    val free:Boolean=false,val exclusions:List<String> = emptyList(),val window:LocalEventWindow?=null) {
+    val free:Boolean=false,val exclusions:List<String> = emptyList(),val window:LocalEventWindow?=null,val phrases:List<SearchClause> = emptyList()) {
     val family:Boolean get()=audience in setOf("baby","toddler","preschool","children","teen")
-    val discoveryText:String get()=(topics+listOfNotNull(if(family)"children"else audience,if(outdoors)"outdoors"else null,if(free)"free"else null)).joinToString(" ")
+    val discoveryText:String get()=(topics+phrases.map {(if(it.excluded)"-"else "")+"\""+it.words.joinToString(" ")+"\""}+listOfNotNull(if(family)"children"else audience,if(outdoors)"outdoors"else null,if(free)"free"else null)).joinToString(" ")
     fun publisherAffinity(business:LocalBusiness):Int {
         val category=LocalDiscoveryIdentity.name(business.category)
         return when {
@@ -20,6 +20,7 @@ data class LocalEventIntent(val topics:List<String>,val audience:String?=null,va
     }
     fun match(event:LocalEvent)=matchText(listOf(event.title,event.description,event.venue,event.organizer,event.age,event.price).joinToString(" "),event.age,event.price)
     fun matchText(content:String,age:String="",price:String="",linkOnly:Boolean=false):LocalEventMatch {
+        if(phrases.any {!SearchIntent("",listOf(it)).matches(content)})return LocalEventMatch(false)
         val text=LocalDiscoveryIdentity.name(content);val words=LocalDiscoveryIdentity.words(text).toSet()
         if(exclusions.any {it in words||it.removeSuffix("s") in words||(it+"s") in words})return LocalEventMatch(false)
         if(topics.any {!topic(it,words)})return LocalEventMatch(false)
@@ -52,14 +53,16 @@ data class LocalEventIntent(val topics:List<String>,val audience:String?=null,va
         private val groups=listOf(setOf("nature","wildlife","birdwatching","ecology","environment"),setOf("walk","walks","walking","hike","hikes","hiking"),setOf("art","arts","craft","crafts","crafting"),setOf("music","concert","concerts","gig","gigs"),setOf("workshop","workshops","class","classes","lesson","lessons","training"),setOf("repair","repairs","fix","fixing"))
         private fun topic(term:String,words:Set<String>)=(groups.firstOrNull {term in it} ?: setOf(term,term+"s")).any {it in words}||LocalDiscoveryFilter.matches(term,words.joinToString(" "))
         fun parse(value:String):LocalEventIntent {
-            val words=LocalDiscoveryIdentity.words(LocalDiscoveryFilter.normalizedQuery(value.replace(Regex("['’]s\\b"),"")))
+            val phrases=SearchIntent.parse(value,conversational=false).clauses.filter {it.quoted}
+            val unquoted=value.replace(Regex("[\"“][^\"”]+[\"”]")," ")
+            val words=LocalDiscoveryIdentity.words(LocalDiscoveryFilter.normalizedQuery(unquoted.replace(Regex("['’]s\\b"),"")))
             val negative=mutableListOf<String>();val positive=mutableListOf<String>();var exclude=false
             words.forEach {word->when {word in setOf("not","without","exclude","excluding","except","no")->exclude=true;word=="but"->exclude=false;exclude&&word !in filler->negative+=word;!exclude->positive+=word}}
             val audience=positive.firstNotNullOfOrNull {audiences[it]}
             return LocalEventIntent(positive.filterNot {it in filler||it in audiences||it in setOf("outdoor","outdoors","outside","free")}.distinct().take(12),audience,
                 positive.any {it in setOf("outdoor","outdoors","outside")},"free" in positive,negative.distinct().take(8),when {
                     "weekend" in positive->LocalEventWindow.WEEKEND;"today" in positive->LocalEventWindow.TODAY
-                    "month" in positive->LocalEventWindow.MONTH;"week" in positive->LocalEventWindow.WEEK;else->null})
+                    "month" in positive->LocalEventWindow.MONTH;"week" in positive->LocalEventWindow.WEEK;else->null},phrases)
         }
         internal fun ageRange(value:String,knownAgeField:Boolean=false):IntRange? {
             val text=value.lowercase()

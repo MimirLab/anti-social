@@ -9,6 +9,60 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.34 shared native search interpretation
+
+Business discovery now compiles category and cuisine intent into geographic
+source predicates and uses the same interpretation for returned-record admission.
+The literal business-name path remains available. The custom native layer combines
+conservative morphology, complete phrase alternatives, bounded category typo
+candidates and 518 compiled iD place concepts. General concept expansion also
+serves Library, scoped public feeds, menus and selected public social-index routes.
+Cuisine correction remains scoped to businesses: an ordinary topic such as
+“space” does not become “spice”, and “Indian Example Coffee” remains a name.
+Quoted phrases bypass expansion; negative clauses, hyphenated names, technical
+literals, regional boundaries and frozen concrete-query continuations have checks.
+See [search interpretation, limits and source notices](SEARCH_INTERPRETATION.md).
+
+Native qualification exposed an important difference from string-only tests:
+Android FTS4's implicit-AND/OR behavior did not retain complete alternative paths.
+Library now binds independent MATCH expressions and unions their row IDs in SQL.
+The original owner grouping, collection, saved/history and result limits remain
+in the shared template. Direct wording precedes the separately marked related
+bank; retained content stays local and requires no index migration. Source health
+calibration has a separate one-literal-request operation, delegated through the
+scope wrapper, so reader query expansion does not multiply health probes.
+
+Qualification on October 25, 2026: **2,259 core JVM cases**, zero failures/errors,
+one optional model-weight skip; debug/test assembly and Android lint pass. The
+final frozen API 35 native selection ran **110 methods: 108 passes, two opt-in
+skips, zero failures**. It covers regional discovery, announcements, menus,
+Library migration and saved records, social search/scope, privacy, scheduling and
+feed windows. Native screens were inspected for cuisine matching and Library
+wording/order. The cuisine fixture finds a restaurant whose name omits “Indian”
+while excluding unrelated and out-of-area records. The real SQLite fixture checks
+quotes, plurals, exclusions and concept alternatives. An earlier menu visibility
+assertion passed alone; moving that fixture to the existing v2 Compose clock
+was followed by two successful complete selections. Production timeouts were
+not increased. Earlier failures and their reruns remain in the private record.
+
+A separately enabled test uses the final frozen Android build's complete
+production discovery controller and NetworkGateway. A regional cuisine search
+returned an eligible business from its own website, with Tor active, after
+approximately 9.3 seconds. Reproduction locations and identifying source details
+are retained privately rather than included in the public report. Two
+observations reached that first useful card; collection was
+then deliberately stopped, so neither establishes exhaustive local coverage.
+Earlier direct Overpass attempts returned HTTP 502/timeouts through Tor; the
+complete router's alternate first-party path succeeded. External uptime and
+cold-start physical-phone latency, battery and memory distributions are not
+qualified by these observations.
+
+This increment adds no AI model, native library, dependency, database migration,
+background crawl or setting. Vocabulary data is pinned and compiled at build
+time; original query paths remain, network alternatives are bounded and private
+query memo entries expire. Existing protected sources, Tor failure behavior,
+ordinary cache cleanup and saved-record protections retain their boundaries.
+
 ## 0.38.33 business and event reading polish
 
 The old detail-sheet gesture was reproduced on the unchanged 0.38.32 debug build:
@@ -1411,7 +1465,7 @@ receipts do not establish physical-phone qualification.
 
 | Journey | What must work | Measurements |
 |---|---|---|
-| Family events near Melbourne, FL, 25 km | Relevant activities, exact dates/locality, visible unknowns, optional uncertain announcements | Cold/cached first useful card, staged completion, missed relevant events and wrong-area results |
+| Family events within a selected regional radius | Relevant activities, exact dates/locality, visible unknowns, optional uncertain announcements | Cold/cached first useful card, staged completion, missed relevant events and wrong-area results |
 | Restaurant branch and menu | Correct branch, useful contact actions, preserved menu type/source, working public social account | First card/detail time, false merges, missing fields and unavailable-route recovery |
 | Subscription catch-up | Stable reading position, merged cross-posts/images, incoming banner and truthful caught-up boundary | Scroll behavior, repeated content and pending unavailable subscriptions |
 | Post and Context evidence | One press, cached brief, concrete useful details, conditions retained, noise-only updates reused | Fact retention, unsupported statements, noise admission, calls/time, memory and cancellation |

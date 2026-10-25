@@ -103,6 +103,8 @@ interface DataAdapter {
      * The selected route validates the resulting capability when consumed. */
     fun historyCursor(target:Target,known:List<Post>):String?=null
     suspend fun fetch(target: Target, cursor: String? = null): Page
+    /** A health observation need not execute optional reader enhancements. */
+    suspend fun probe(target:Target):Page=fetch(target)
     /** Selected-source continuation only. Partials are checkpointed discovery
      * deltas, not completed pages or fabricated post bodies. The caller owns
      * all work and can apply backpressure or cancel the complete operation. */

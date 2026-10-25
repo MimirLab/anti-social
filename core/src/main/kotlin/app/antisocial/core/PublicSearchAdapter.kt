@@ -17,13 +17,16 @@ import kotlinx.coroutines.selects.select
 /** Link discovery, not a substitute for a site's posts or account search API. */
 class PublicSearchAdapter(override val source: Source,private val gateway: NetworkGateway,private val routes: DarwinRoutes): DataAdapter {
     override val capabilities=setOf(Capability.SEARCH)
+    private fun usesPlan(target:Target)=SearchScopes.from(target)==null&&(target.platform in setOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK)||SearchMeaning.remoteAlternative(target.identity)!=null)
+    /** Source calibration measures this route, not a reader's expanded intent. */
+    override suspend fun probe(target:Target)=fetchQuery(target,query(target),null)
     override suspend fun fetch(target: Target,cursor: String?): Page {
         require(target.kind==TargetKind.SEARCH) {"Public index discovery requires a search"}
-        return if(target.platform in setOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK)&&SearchScopes.from(target)==null)indexedPosts(target,cursor)else fetchQuery(target,query(target),cursor)
+        return if(usesPlan(target))indexedPosts(target,cursor)else fetchQuery(target,query(target),cursor)
     }
     override suspend fun searchUpdates(target:Target,cursor:String,onPartial:suspend (Page)->Unit):Page {
         require(target.kind==TargetKind.SEARCH&&target.platform==source.platform){"Search update changed its selected platform"}
-        return if(target.platform in setOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK)&&SearchScopes.from(target)==null)indexedPosts(target,cursor,onPartial)else fetch(target,cursor)
+        return if(usesPlan(target))indexedPosts(target,cursor,onPartial)else fetch(target,cursor)
     }
     /** Independent entity lookup through this already-selected index. The caller
      * must hydrate destinations before showing account/community metadata. */
@@ -249,12 +252,14 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         }
         internal fun postQueries(target: Target): List<String> {
             if(SearchScopes.from(target)!=null)return listOf(query(target))
-            return when(target.platform) {
+            val primary=when(target.platform) {
                 Platform.FACEBOOK->facebookQueries(target)
                 Platform.INSTAGRAM->listOf("site:instagram.com/p/ ${target.identity}","site:instagram.com/reel/ ${target.identity}",query(target))
                 Platform.TIKTOK->listOf(query(target),"site:tiktok.com inurl:photo ${target.identity}","site:tiktok.com ${target.identity}")
                 else->listOf(query(target))
             }.distinct()
+            val alternative=SearchMeaning.remoteAlternative(target.identity)
+            return (primary+listOfNotNull(alternative?.let {query(target.copy(identity=it))})).distinct().take(4)
         }
         fun query(target: Target)=SearchScopes.publicIndexQuery(target) ?: "site:${target.platform.searchDomain} "+when(target.platform) {
             Platform.BLUESKY,Platform.THREADS->"inurl:post "

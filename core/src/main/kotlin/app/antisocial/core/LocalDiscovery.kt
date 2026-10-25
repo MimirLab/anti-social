@@ -102,31 +102,20 @@ object LocalDiscoveryFilter {
         "makerspace" to setOf("makerspace","makerspaces","hackerspace","hackerspaces","fab","fabrication"),
         "astronomy" to setOf("astronomy","stargazing","telescope","observing"),
         "volunteer" to setOf("volunteer","volunteers","volunteering"))
-    private val singular=mapOf("tacos" to "taco","burgers" to "burger","hamburgers" to "hamburger","restaurants" to "restaurant","cafes" to "cafe","trampolines" to "trampoline","parks" to "park","shops" to "shop","stores" to "store","workshops" to "workshop","classes" to "class","makerspaces" to "makerspace")
-    private fun term(value:String)=singular[value] ?: value
-    // Correct only a small, unambiguous public-category vocabulary. Never
-    // rewrite an unfamiliar business name to a different business.
-    fun normalizedQuery(value:String):String=LocalDiscoveryIdentity.words(value.take(256)).joinToString(" ") {word->
-        val canonical=term(word)
-        if(canonical in alternatives||canonical in singular.values||word.length<5)canonical else {
-            val choices=(alternatives.keys+singular.keys).filter {it.length>=4&&oneEdit(word,it)}.map(::term).distinct()
-            if(choices.size==1)choices.single()else canonical
-        }
-    }
-    private fun oneEdit(a:String,b:String):Boolean {
-        if(kotlin.math.abs(a.length-b.length)>1)return false
-        var i=0;var j=0;var edits=0
-        while(i<a.length&&j<b.length) {
-            if(a[i]==b[j]){i++;j++;continue}
-            if(++edits>1)return false
-            when {a.length>b.length->i++;b.length>a.length->j++;else->{i++;j++}}
-        }
-        return edits+(a.length-i)+(b.length-j)<=1
+    fun normalizedQuery(value:String):String=SearchText.words(value.take(256)).joinToString(" "){word->
+        val canonical=SearchText.plural(word)
+        if(canonical in alternatives||word.length<5)canonical else (alternatives.keys+alternatives.values.flatten()).asSequence().filter {SearchText.oneEdit(word,it)}.map(SearchText::plural).distinct().take(2).toList().singleOrNull() ?: canonical
     }
     fun matches(query:String,content:String):Boolean {
-        val terms=LocalDiscoveryIdentity.words(normalizedQuery(query)).filterNot(stop::contains).distinct().take(12)
-        val available=LocalDiscoveryIdentity.words(content.take(32000)).map(::term).toSet()
-        return terms.all {term->(alternatives[term] ?: setOf(term)).any {it in available}}
+        val intent=SearchIntent.parse(query)
+        val available=SearchText.words(content.take(32000)).map(SearchText::plural).toSet()
+        fun has(clause:SearchClause):Boolean {
+            if(clause.quoted||clause.protected||clause.words.size!=1)return SearchIntent("",listOf(clause.copy(excluded=false))).matches(content.take(32000))
+            val word=clause.words.single();val canonical=SearchText.plural(word)
+            val corrected=PlaceSearchVocabulary.correction(canonical)
+            return (alternatives[word] ?: alternatives[canonical] ?: setOf(word,canonical)).any {SearchText.plural(it) in available}||corrected in available
+        }
+        return SearchMeaning.variants(intent).any {variant->variant.clauses.filterNot {!it.quoted&&it.words.singleOrNull() in stop}.all {if(it.excluded)!has(it)else has(it)}}
     }
     fun eventQuery(value:String)=LocalEventIntent.parse(value).discoveryText
     fun business(query:LocalDiscoveryQuery,business:LocalBusiness)=LocalGeography.inside(query.area,business.point,business.locality,business.address,business.evidence)

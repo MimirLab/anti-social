@@ -18,6 +18,15 @@ are excluded from GitHub's Latest mechanism.
 
 ## Release procedure
 
+Personal reproduction details stay private. Release notes, documentation, test
+fixtures, screenshots and source archives must not disclose a reader's location,
+routine, saved material or other details learned in conversation. Use synthetic
+or unrelated examples, accept real test locations privately at execution time,
+and keep identifying validation evidence in the private external build area.
+Review the rendered release body and corresponding-source changes for these
+details before uploading; a public business address can still reveal a reader's
+location when used as their reproduction example.
+
 1. Build, test and package the app using the existing external build root. Keep
    the application ID and signing key compatible with previous installed builds.
 2. Commit and tag the matching source. Upload the versioned APK and full

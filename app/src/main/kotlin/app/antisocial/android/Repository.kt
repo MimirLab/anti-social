@@ -959,6 +959,7 @@ class Repository(val context: Context) {
         mediaInfo.cleanup(clearAll)
         if(localDiscoveryStore.isInitialized())localDiscovery.cleanup(clearAll)
         if(localLinkStore.isInitialized())localLinks.cleanup(clearAll)
+        PlaceSearchVocabulary.cleanup(clearAll)
         contextReader.cleanup(clearAll)
         if(clearAll)mentionNames.clear()else mentionNames.cleanup()
         if(clearAll)outgoing.clear()

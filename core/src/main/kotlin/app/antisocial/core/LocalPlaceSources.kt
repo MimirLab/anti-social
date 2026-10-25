@@ -41,19 +41,22 @@ object LocalPlaceSources {
         val latitude=String.format(Locale.ROOT,"%.5f",area.point.latitude);val longitude=String.format(Locale.ROOT,"%.5f",area.point.longitude)
         val radius=area.radiusKm*1000
         val around="(around:$radius,$latitude,$longitude)"
-        val words=LocalDiscoveryIdentity.words(LocalDiscoveryFilter.normalizedQuery(topic)).toSet()
-        val interest=when {"organic" in words->"[organic~\"^(yes|only)$\"]";"coffee" in words||"cafe" in words->"[amenity=cafe]";"taco" in words->"[cuisine~\"mexican|tex.mex|taco\",i]";"burger" in words->"[cuisine~\"burger\",i]";"trampoline" in words->"[leisure=trampoline_park]";else->null}
+        val interpretation=PlaceSearchVocabulary.parse(topic)
+        val words=interpretation.terms.filterNot {it.excluded}.flatMap {it.words}.toSet()
+        val interest=if(interpretation.terms.any {it.quoted})null else when {"organic" in words->"[organic~\"^(yes|only)$\"]";"coffee" in words||"cafe" in words->"[amenity=cafe]";"taco" in words->"[cuisine~\"mexican|tex.mex|taco\",i]";"burger" in words->"[cuisine~\"burger\",i]";"trampoline" in words->"[leisure=trampoline_park]";else->null}
         val shops=if(interest!=null)"nwr$interest[name]$around;"else if(hubs)""else "nwr[shop][name]$around;"
         val amenities=if(hubs)"library|community_centre|arts_centre|theatre|cinema|place_of_worship|marketplace|college|school|social_centre|townhall"else "cafe|restaurant|bar|pub|library|community_centre|arts_centre|theatre|cinema|place_of_worship|marketplace|college|school|social_centre"
-        val meaningful=words.filterNot {it in setOf("near","me","in","at","the","and","for")}.take(8)
+        val meaningful=interpretation.terms.filterNot {it.excluded}.flatMap {term->term.words.filterNot {!term.quoted&&it in setOf("near","me","in","at","the","and","for")}}.take(8)
         // Words contain only Unicode letters/numbers. No user punctuation or
         // Overpass syntax can enter this generated expression.
         val named=if(hubs||meaningful.isEmpty())""else listOf("name","brand","alt_name").joinToString("") {key->"nwr[$key~\"${meaningful.joinToString(".*")}\",i]$around;"}
         val others=if(!hubs&&interest!=null)""else if(!hubs&&meaningful.isNotEmpty())""else "nwr[amenity~\"^($amenities)$\"][name]$around;nwr[tourism~\"^(museum|gallery|information|attraction)$\"][name]$around;nwr[leisure~\"^(trampoline_park|sports_centre|fitness_centre|bowling_alley)$\"][name]$around;"
         val selectedShops=if(meaningful.isNotEmpty()&&interest==null)""else shops
+        val category=if(hubs)emptyList()else interpretation.predicates()
+        val classified=category.joinToString(""){predicate->"nwr$predicate[name]$around;"}
         // Overpass maxsize is server working RAM, not response size. Keep
         // transfer/storage capped separately at 2 MiB in NetworkGateway.
-        val query="[out:json][timeout:18][maxsize:33554432];($named $selectedShops $others);out center tags 350;"
+        val query="[out:json][timeout:18][maxsize:33554432];($named $classified $selectedShops $others);out center tags 350;"
         return requireNotNull(endpoint.toHttpUrlOrNull()).newBuilder().addQueryParameter("data",query).build().toString()
     }
     /** One explicit, cached request. Photon supplies OSM name/address/coordinates;

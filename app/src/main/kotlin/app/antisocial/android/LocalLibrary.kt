@@ -251,9 +251,12 @@ class LocalLibrary(private val repo: Repository) {
         LibraryEntry(key,"saved",post,row.savedAt,dao.allCollections().filter {it.id in links},details(key),dao.savedAssetsByOwners(listOf(key)))
     }
     fun entries(query: String,scope: String="all",collectionId: String?=null): Flow<List<LibraryEntry>> {
-        val match=LocalSearch.query(query)
-        val docs=if(match==null)dao.browseDocuments(scope!="history",scope!="saved",collectionId)else dao.searchDocuments(match,scope!="history",scope!="saved",collectionId)
-        return combine(docs,revision,dao.collections(),dao.collectionLinks()) {documents,_,folders,links->
+        val literal=LocalSearch.literalQueries(query);val excluded=LocalSearch.excludedQueries(query)
+        val original=if(literal.isEmpty()&&excluded.isEmpty())dao.browseDocuments(scope!="history",scope!="saved",collectionId)else dao.searchDocumentPaths(librarySearchPaths(literal,scope!="history",scope!="saved",collectionId,excluded=excluded))
+        val expanded=LocalSearch.expandedQueries(query)
+        val docs=if(expanded.isEmpty())original.map {rows->rows to rows.map {it.rowid}.toSet()}else combine(original,dao.searchDocumentPaths(librarySearchPaths(expanded,scope!="history",scope!="saved",collectionId,excluded=excluded)).onStart {emit(emptyList())}) {literalRows,related->(literalRows+related) to literalRows.map {it.rowid}.toSet()}
+        return combine(docs,revision,dao.collections(),dao.collectionLinks()) {batch,_,folders,links->
+            val documents=batch.first
             val selected=documents.distinctBy {it.kind+":"+it.ownerKey}.take(200)
             val savedKeys=selected.filter {it.kind=="saved"}.map {it.ownerKey}
             val historyKeys=selected.filter {it.kind=="history"}.map {it.ownerKey}
@@ -265,7 +268,7 @@ class LocalLibrary(private val repo: Repository) {
             selected.mapNotNull {d->
                 val root=if(d.kind=="saved")saved[d.ownerKey]?.let {parse(it.payload)}else history[d.ownerKey]?.let {parse(it.payload)}
                 val matched=if(d.entryKey!=d.ownerKey)Platform.entries.firstOrNull {it.id==d.platform}?.let {Post(ContentIdentity.key(it,d.url),it,d.url,d.author,d.body,d.title)}else null
-                root?.let {p->LibraryEntry(d.ownerKey,d.kind,p,d.sortAt,if(d.kind=="saved")ownerFolders[d.ownerKey].orEmpty()else emptyList(),null,if(d.kind=="saved")assets[d.ownerKey].orEmpty()else emptyList(),matched)}
+                root?.let {p->LibraryEntry(d.ownerKey,d.kind,p,d.sortAt,if(d.kind=="saved")ownerFolders[d.ownerKey].orEmpty()else emptyList(),null,if(d.kind=="saved")assets[d.ownerKey].orEmpty()else emptyList(),matched,relatedMatch=d.rowid !in batch.second)}
             }
         }.flowOn(Dispatchers.IO)
     }

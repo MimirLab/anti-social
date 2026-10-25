@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import com.google.gson.*
 import org.junit.*
 import org.junit.runner.RunWith
@@ -14,6 +15,37 @@ import java.io.File
  * uses the production backend and NetworkGateway with Tor for regional data. */
 @RunWith(AndroidJUnit4::class)
 class LocalDiscoveryLiveTest {
+    @Test fun indianFoodStreamsThroughTheProtectedProductionSearchRouter()=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        val suppliedArea=args.getString("antisocialLocalCuisineArea")
+        Assume.assumeTrue(args.getString("antisocialLocalCuisineLive")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true"&&!suppliedArea.isNullOrBlank())
+        // Real reproduction areas are supplied privately, never committed.
+        val area=Gson().fromJson(requireNotNull(suppliedArea),LocalArea::class.java)
+        require(area.valid())
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
+        val before=repo.prefs.export().toString();val report=JsonObject()
+        val work=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
+        val controller=LocalDiscoveryController(repo,work)
+        try {
+            repo.prefs.originalFallback=true
+            val start=android.os.SystemClock.elapsedRealtime()
+            withContext(Dispatchers.Main){controller.area(area);controller.mode(LocalSearchMode.BUSINESSES);controller.text("indian food");controller.search(force=true)}
+            val result=withTimeout(150_000){controller.state.first {it.businesses.isNotEmpty()||it.phase==LocalSearchPhase.COMPLETE}}
+            report.addProperty("torReady",repo.tor.state.value.ready);report.addProperty("firstUsefulOrCompletedMs",android.os.SystemClock.elapsedRealtime()-start)
+            report.addProperty("eligibleLocalCuisineRecords",result.businesses.size);report.add("names",Gson().toJsonTree(result.businesses.map {it.name}))
+            report.add("coverage",Gson().toJsonTree(result.coverage));report.add("sources",Gson().toJsonTree(result.businesses.flatMap {it.evidence}.map {it.sourceUrl}.distinct()))
+            report.addProperty("status",if(result.businesses.isEmpty())"unavailable"else "observed")
+            Assert.assertTrue("Expected a local cuisine card through available public routes",result.businesses.isNotEmpty())
+            Assert.assertTrue(result.businesses.all {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)&&LocalBusinessRouting.matches("indian food",it)})
+        }catch(e:Exception){report.addProperty("unavailable",e.javaClass.simpleName+": "+e.message);report.add("coverage",Gson().toJsonTree(controller.state.value.coverage));throw e}
+        finally {
+            withContext(Dispatchers.Main){controller.close();work.cancel()}
+            val dir=File(context.getExternalFilesDir("validation"),"search-intent").apply {mkdirs()}
+            File(dir,"public-search-router.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(report))
+            repo.prefs.restore(JSONObject(before));repo.applyNetworkSettings();repo.localSearchConnection(false)
+        }
+    }
     @Test fun melbourneIdentityGraphOverProtectedProductionTransport()=runBlocking {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialLocalDiscoveryLive")=="true")
         val context=InstrumentationRegistry.getInstrumentation().targetContext

@@ -42,6 +42,13 @@ class SourceProbeAdmissionTest {
             assertFalse(f.gateway.currentPolicy().tor)
         }
     }
+    @Test fun aConceptSearchStillUsesOnlyOneRequestForSourceCalibration():Unit=runBlocking {
+        Fixture().use {f->
+            f.indexed();f.pool.awaitSearchConnection={f.ready()}
+            val result=f.pool.probe(f.source,Capability.SEARCH,force=true,probeTarget=f.routes.search(Platform.X,"spaceflight"))
+            assertEquals(HealthStatus.HEALTHY,result.status);assertEquals(1,f.server.requestCount)
+        }
+    }
     @Test fun waitingForTorDoesNotOccupyAllSourceReadPermits():Unit=runBlocking {
         Fixture().use {f->
             val waiting=AtomicInteger();val allWaiting=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()

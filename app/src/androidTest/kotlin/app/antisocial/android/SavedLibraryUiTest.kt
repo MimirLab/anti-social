@@ -88,6 +88,21 @@ class SavedLibraryUiTest {
     private fun sheetTo(matcher: SemanticsMatcher) {
         ui.onNode(SemanticsMatcher.keyIsDefined(androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange) and hasAnyAncestor(hasTestTag("Save copy sheet"))).performScrollToNode(matcher)
     }
+    @Test fun rememberedConceptsFindSavedTextWhileQuotedWordingAndLiteralPriorityStayAvailable() {
+        val literal=post("Rocket launch schedule and the original flight plan.",40)
+        val related=post("A successful spaceflight with a new crew capsule.",41)
+        runBlocking {repo.library.save(literal,emptyList());kotlinx.coroutines.delay(5);repo.library.save(related,emptyList())}
+        library();ui.onNodeWithTag("Library search").performTextInput("rocket launch")
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library entry ${repo.key(literal)}").fetchSemanticsNodes().isNotEmpty()&&ui.onAllNodesWithTag("Library entry ${repo.key(related)}").fetchSemanticsNodes().isNotEmpty()}
+        val a=ui.onNodeWithTag("Library entry ${repo.key(literal)}").fetchSemanticsNode().boundsInRoot.top
+        val b=ui.onNodeWithTag("Library entry ${repo.key(related)}").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Direct wording stays above related wording even when the related save is newer",a<b)
+        ui.onNodeWithText("Related wording",substring=true).assertExists();evidence("library-concept-search")
+        ui.onNodeWithTag("Library search").performTextReplacement("\"rocket launch\"")
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library entry ${repo.key(related)}").fetchSemanticsNodes().isEmpty()}
+        ui.onNodeWithTag("Library entry ${repo.key(literal)}").assertIsDisplayed()
+        assertTrue(repo.gateway.currentPolicy().tor)
+    }
     @Test fun selectedGalleryAndAvailableRepliesBecomeACollectionAndOpenWithoutTheFrontend() {
         val one=image("battery-guide");val two=image("second-photo")
         val video="https://videos.example.invalid/$suffix/repair.mp4"

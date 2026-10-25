@@ -108,6 +108,24 @@ class LocalLibraryMigrationTest {
             assertTrue(dao.allRetainedHistory().isEmpty());assertEquals(2,dao.allDocuments().size)
         }finally {db.close()}
     }
+    @Test fun conceptAndPluralPathsRunOnTheRealFtsIndexWhileQuotedNamesStayExact()=runBlocking {
+        val db=Room.inMemoryDatabaseBuilder(context,AntiSocialDatabase::class.java).build()
+        try {
+            val dao=db.dao()
+            val rows=mapOf("literal" to "The rocket launch opens tomorrow", "related" to "A successful spaceflight", "separated" to "Rocket recovery after an unrelated launch", "singular" to "A burger", "plural" to "Fresh burgers", "pastries" to "Fresh pastries", "pastry" to "A pastry")
+            rows.forEach {(key,body)->dao.putBookmark(BookmarkRow(key,"twitter","root",100));dao.putDocument(document(owner=key,body=body))}
+            suspend fun owners(q:String)=dao.searchDocuments(q).first().map {it.ownerKey}.toSet()
+            assertEquals(setOf("singular","plural"),owners(LocalSearch.query("burger")!!))
+            assertEquals(setOf("singular","plural"),owners(LocalSearch.query("burgers")!!))
+            val related=dao.searchDocumentPaths(librarySearchPaths(LocalSearch.expandedQueries("rocket launch"))).first().map {it.ownerKey}.toSet()
+            assertTrue("related" in related)
+            assertEquals(setOf("literal"),owners(LocalSearch.query("\"rocket launch\"")!!))
+            assertEquals(setOf("pastry","pastries"),owners(LocalSearch.query("pastry")!!)+dao.searchDocumentPaths(librarySearchPaths(LocalSearch.expandedQueries("pastry"))).first().map {it.ownerKey}.toSet())
+            assertTrue(LocalSearch.expandedQueries("\"rocket launch\"").isEmpty())
+            val excluded=dao.searchDocumentPaths(librarySearchPaths(LocalSearch.literalQueries("rocket -unrelated"),excluded=LocalSearch.excludedQueries("rocket -unrelated"))).first().map {it.ownerKey}.toSet()
+            assertEquals(setOf("literal"),excluded)
+        }finally {db.close()}
+    }
     @Test fun oneLargeCapturedThreadCannotConsumeEveryLocalSearchResultSlot()=runBlocking {
         val db=Room.inMemoryDatabaseBuilder(context,AntiSocialDatabase::class.java).build()
         try {

@@ -36,3 +36,10 @@ link stays usable. Publish with `scripts/publish_release.py` after uploading the
 versioned APK and corresponding source. Preserve versioned assets and source tags;
 see `docs/PUBLISHING.md`. Keep Android application ID and signing identity compatible
 across updates. Never publish credentials, private reader state or build caches.
+
+Never publish personal locations, routines or other private details learned from
+the owner conversation in release notes, documentation, tests, screenshots or
+source archives. Use synthetic or unrelated fixtures. Supply real reproduction
+details privately at execution time and retain their evidence only in the private
+external build area. Public validation reports describe the behavior without
+identifying the owner's area or personally visited businesses.

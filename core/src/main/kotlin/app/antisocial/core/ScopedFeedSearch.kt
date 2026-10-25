@@ -1,8 +1,6 @@
 /* AntiSocial, GPL-3.0-or-later. Darwin remains the routing donor. */
 package app.antisocial.core
 
-import java.text.Normalizer
-import java.util.Locale
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -17,9 +15,11 @@ class ScopedFeedSearch(
     private val maxPosts: Int = 400,
     private val maxCharacters: Int = 1024 * 1024
 ) {
-    private val terms = Regex("\"([^\"]*)\"|(\\S+)").findAll(query).map {
-        normalize(it.groups[1]?.value ?: it.groups[2]!!.value)
-    }.filter(String::isNotBlank).distinct().toList()
+    private val intent=SearchIntent.parse(query)
+    private val interpretations=SearchMeaning.variants(intent)
+    private val literal=SearchMeaning.literal(intent)
+    private val literalTerms=Regex("\"([^\"]*)\"|(\\S+)").findAll(query).map {it.groups[1]?.value ?: it.groups[2]!!.value}.filter {it.isNotBlank()}.map {java.text.Normalizer.normalize(it,java.text.Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT).replace(Regex("[\\s\\p{Z}]+")," ")}.toList()
+    private val interpret=SearchMeaning.mayInterpret(query)&&intent.clauses.isNotEmpty()
     private var sourcePage: Page? = null
     private var inspectedPages = 0
     private var inspectedPosts = 0
@@ -31,7 +31,7 @@ class ScopedFeedSearch(
     private var repeated = false
 
     init {
-        require(terms.isNotEmpty()) { "Enter a search term" }
+        require(literalTerms.isNotEmpty()) { "Enter a search term" }
         require(maxPages > 0 && maxPosts > 0 && maxCharacters > 0)
     }
 
@@ -60,8 +60,10 @@ class ScopedFeedSearch(
                 }
                 posts++
                 characters += size.toInt()
-                val text = normalize(post.title + "\n" + post.body)
-                if (terms.all { text.contains(it) }) matches += post
+                val content=post.title+"\n"+post.body
+                val normalized=java.text.Normalizer.normalize(content,java.text.Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT).replace(Regex("[\\s\\p{Z}]+")," ")
+                val literalMatch=literal.excluded.isEmpty()&&(!interpret||intent.clauses.none {it.quoted})&&literalTerms.all {normalized.contains(it)}
+                if (literalMatch||interpret&&SearchDocument(content).let {document->interpretations.any {it.matches(document,prefix=true)}}) matches += post
             }
             currentCoroutineContext().ensureActive()
             sourcePage = page
@@ -94,8 +96,4 @@ class ScopedFeedSearch(
         ).distinct().joinToString(" ")
     )
 
-    companion object {
-        private fun normalize(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC)
-            .lowercase(Locale.ROOT).replace(Regex("[\\s\\p{Z}]+"), " ").trim()
-    }
 }

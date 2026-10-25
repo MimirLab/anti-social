@@ -46,13 +46,13 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
                 val u=LocalPlaceSources.overpassUrl(query.area,endpoint,hubs=query.mode==LocalSearchMode.EVENTS,topic=query.text)
                 val p=withTimeout(24_000){repo.gateway.extractorDocument(u,maxBytes=2L*1024*1024,route=NetworkRoute.TOR,headers=mapOf("Accept" to "application/json","User-Agent" to "AntiSocial/0.35.39 (accountless reader; cached regional discovery)"))}
                 if(p.status==429) {repo.localDiscovery.cache(key,"rate limited",30*60000);throw SourceFailure(HealthStatus.RATE_LIMITED,"The place directory requested a pause")}
-                if(p.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"The place directory is unavailable")
+                if(p.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"The place directory is unavailable",httpStatus=p.status)
                 return LocalPlaceSources.overpass(p.text,"https://www.openstreetmap.org",System.currentTimeMillis())
             }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e;repo.localDiscovery.cache(key,"timed out",15*60000)}
             catch(e:CancellationException){throw e}
             catch(e:Exception){if((e as? SourceFailure)?.status==HealthStatus.RATE_LIMITED)throw e;last=e;repo.localDiscovery.cache(key,"unavailable",15*60000)}
         }
-        throw SourceFailure(HealthStatus.UNAVAILABLE,last?.message ?: "Place directories are resting after an unavailable response; cached discoveries remain available")
+        throw SourceFailure(HealthStatus.UNAVAILABLE,last?.message ?: "Place directories are resting after an unavailable response; cached discoveries remain available",httpStatus=(last as? SourceFailure)?.httpStatus).also {if(last!=null)it.initCause(last)}
     }
     override suspend fun identities(point:LocalPoint):LocalExtraction {protected();val p=repo.gateway.text(LocalPlaceSources.overtureUrl(point),maxBytes=2L*1024*1024,route=NetworkRoute.TOR);return LocalStructuredData.overture(p.text,p.finalUrl,System.currentTimeMillis())}
     override suspend fun places(query:LocalDiscoveryQuery):LocalExtraction {
@@ -293,9 +293,9 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         if(fingerprint==published)return@withLock
         val result=withContext(Dispatchers.IO) {
             if(!saved&&area!=null){if(snapshot.mode==LocalSearchMode.BUSINESSES)store.reconcile(area)else store.reconcileEvents()}
-            val businesses=if(snapshot.mode!=LocalSearchMode.BUSINESSES)emptyList()else store.businesses(if(saved)null else area,saved).filter {LocalDiscoveryFilter.matches(snapshot.text,LocalBusinessRouting.text(it))}
-                .sortedWith(compareBy<LocalBusiness> {LocalBusinessRouting.relevance(snapshot.text,it)}.thenBy {area?.point?.let {p->it.point?.let(p::distanceKm)} ?: Double.MAX_VALUE}.thenBy {it.name}).take(160)
-                .map {business->business.copy(socials=business.socials.filter {store.cache(accountKey(it))=="usable"},related=business.related?.map {it.copy(accounts=it.accounts.filter {url->store.cache(accountKey(url))=="usable"})})}
+            val businesses=if(snapshot.mode!=LocalSearchMode.BUSINESSES)emptyList()else store.businesses(if(saved)null else area,saved).map {it to LocalBusinessRouting.relevance(snapshot.text,it)}.filter {it.second<9}
+                .sortedWith(compareBy<Pair<LocalBusiness,Int>> {it.second}.thenBy {area?.point?.let {p->it.first.point?.let(p::distanceKm)} ?: Double.MAX_VALUE}.thenBy {it.first.name}).take(160)
+                .map {(business,_)->business.copy(socials=business.socials.filter {store.cache(accountKey(it))=="usable"},related=business.related?.map {it.copy(accounts=it.accounts.filter {url->store.cache(accountKey(url))=="usable"})})}
             val query=area?.let {LocalDiscoveryQuery(it,snapshot.text,snapshot.mode,snapshot.window,saved,snapshot.freeOnly)}
             val eventIntent=LocalEventIntent.parse(snapshot.text)
             val announcementAdmission=LocalEventIntent(emptyList(),free=snapshot.freeOnly||eventIntent.free)
@@ -370,8 +370,11 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                     }
                     val venueAttempts=java.util.concurrent.atomic.AtomicInteger()
                     val venueChecks=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-                    fun relevant()=store.businesses(area).filter {query.mode==LocalSearchMode.EVENTS||query.text.isBlank()||LocalBusinessRouting.relevance(query.text,it)<9}
-                        .sortedWith(compareBy<LocalBusiness> {if(query.mode==LocalSearchMode.EVENTS)LocalEventIntent.parse(query.text).publisherAffinity(it)else 0}.thenBy {LocalBusinessRouting.relevance(query.text,it)}.thenBy {it.point?.distanceKm(area.point) ?: 1e9})
+                    fun relevant():List<LocalBusiness> {
+                        val intent=if(query.mode==LocalSearchMode.EVENTS)LocalEventIntent.parse(query.text)else null
+                        return store.businesses(area).map {it to LocalBusinessRouting.relevance(query.text,it)}.filter {query.mode==LocalSearchMode.EVENTS||it.second<9}
+                            .sortedWith(compareBy<Pair<LocalBusiness,Int>> {intent?.publisherAffinity(it.first) ?: 0}.thenBy {it.second}.thenBy {it.first.point?.distanceKm(area.point) ?: 1e9}).map {it.first}
+                    }
                     fun queueRelevant() {
                         relevant().take(8).forEach {owner->
                             owner.websites.sortedBy {LocalBusinessDetails.websitePriority(owner,it)}.take(2).forEach {store.offerSource(area,LocalPublisherSource(it,businessId=owner.id,label=owner.name))}
@@ -490,7 +493,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         launch {readSources(3)}
                         if(!more)launch {overtureAt(area.point)}
                         if(!more&&query.text.length>=2)launch {lane("Public name search") {
-                            val key="photon:v1:"+LocalDiscoveryIdentity.hash(area.cacheKey+LocalDiscoveryFilter.normalizedQuery(query.text))
+                            val key="photon:v2:"+LocalDiscoveryIdentity.hash(area.cacheKey+LocalDiscoveryFilter.normalizedQuery(query.text))
                             if(force||store.cache(key)==null) {
                                 val data=withTimeout(18_000){backend.places(query)};ingest(data);store.cache(key,"ok",6*3600000)
                                 // A precise result supplies a geographic bridge to
@@ -499,12 +502,12 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             }
                         }}
                         if(!more)launch {lane("Place directory") {
-                            val key="directory:v2:${area.cacheKey}:${snapshot.mode==LocalSearchMode.EVENTS}:${LocalDiscoveryFilter.normalizedQuery(query.text)}"
+                            val key="directory:v4:${area.cacheKey}:${snapshot.mode==LocalSearchMode.EVENTS}:${LocalDiscoveryIdentity.hash(PlaceSearchVocabulary.parse(query.text).fingerprint)}"
                             if(force||store.cache(key)==null){ingest(withTimeout(50_000){backend.directory(query)});store.cache(key,"ok",86400000)}
                             queueRelevant();readSources(3)
                         }}
                         if(!more)launch {lane("Publisher search") {
-                            val key="search:v3:"+LocalDiscoveryIdentity.hash(query.toString()+repo.prefs.searchProvider.id+LocalBusinessRouting.queries(query).joinToString("\n"))
+                            val key="search:v4:"+LocalDiscoveryIdentity.hash(PlaceSearchVocabulary.parse(query.text).fingerprint+query.toString()+repo.prefs.searchProvider.id+LocalBusinessRouting.queries(query).joinToString("\n"))
                             suspend fun accept(hits:List<LocalWebHit>) {
                                 val hosts=mutableMapOf<String,Int>()
                                 hits.take(24).forEach {hit->

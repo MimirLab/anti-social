@@ -296,6 +296,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             override fun accepts(target: Target)=delegate.accepts(target)
             override fun historyCursor(target:Target,known:List<Post>)=delegate.historyCursor(target,known)
             override suspend fun fetch(target: Target,cursor: String?)=SearchScopes.scopePage(target,delegate.fetch(target,cursor))
+            override suspend fun probe(target:Target)=SearchScopes.scopePage(target,delegate.probe(target))
             override suspend fun searchUpdates(target:Target,cursor:String,onPartial:suspend (Page)->Unit)=
                 SearchScopes.scopePage(target,delegate.searchUpdates(target,cursor){onPartial(SearchScopes.scopePage(target,it))})
             override suspend fun feed(target: Target)=SearchScopes.scopePage(target,delegate.feed(target))
@@ -569,7 +570,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                     return@withTimeout true
                 }
                 var contentTarget=target
-                var page=if(capability==Capability.FEED)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target)else a.fetch(target)
+                var page=if(capability==Capability.FEED)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target)else if(capability==Capability.SEARCH)a.probe(target)else a.fetch(target)
                 if(redirectedOriginal(source,page))throw SourceFailure(HealthStatus.UNSUPPORTED,ORIGINAL_REDIRECT)
                 if(capability in setOf(Capability.POST,Capability.COMMENTS)&&target.kind !in setOf(TargetKind.POST,TargetKind.THREAD)) {
                     val post=page.posts.firstOrNull()?.canonicalUrl?.let {routes.recognize(it)}

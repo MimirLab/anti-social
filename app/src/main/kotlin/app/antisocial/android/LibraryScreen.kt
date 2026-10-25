@@ -70,7 +70,7 @@ import kotlinx.coroutines.flow.collect
             value=withContext(Dispatchers.IO){repo.localDiscovery.savedDiscoveries(query).filter {item->filter=="all"||filter=="businesses"&&item.business!=null||filter=="events"&&item.event!=null}}
         }
     }
-    val cards=remember(entries,discoveries){(entries.map {LibraryCard(it.savedAt,post=it)}+discoveries.map {LibraryCard(it.savedAt,discovery=it)}).sortedByDescending {it.savedAt}}
+    val cards=remember(entries,discoveries,query){(entries.map {LibraryCard(it.savedAt,post=it)}+discoveries.map {LibraryCard(it.savedAt,discovery=it)}).sortedWith(compareBy<LibraryCard>{if(query.isNotBlank()&&it.post?.relatedMatch==true)1 else 0}.thenByDescending {it.savedAt})}
     val revision by repo.library.revision.collectAsState()
     var selected by remember {mutableStateOf<LibraryEntry?>(null)}
     var loading by remember {mutableStateOf(false)}
@@ -148,7 +148,7 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
             entry.matchedPost?.takeIf {it!=entry.post}?.let {match->MentionText("Matched saved text · "+match.body,repo,match.platform,match.canonicalUrl,networkAllowed=false,explicitProfileLinks=match.links.orEmpty(),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)}
             RecoveredArchiveLabel(entry.post)
             if(entry.collections.isNotEmpty())Text(entry.collections.joinToString(" · "){it.name},fontSize=12.sp,color=MaterialTheme.colorScheme.primary,maxLines=1,overflow=TextOverflow.Ellipsis)
-            Text(if(entry.kind=="saved")assetSummary(entry.assets)else "Retained locally · "+libraryDate(entry.savedAt),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text((if(entry.kind=="saved")assetSummary(entry.assets)else "Retained locally · "+libraryDate(entry.savedAt))+(if(entry.relatedMatch)" · Related wording"else ""),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

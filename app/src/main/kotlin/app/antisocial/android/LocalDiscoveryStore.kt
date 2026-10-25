@@ -74,7 +74,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
                 if(c.getString(1)=="business") {
                     val b=LocalBusinessOwnership.repairLegacy(gson.fromJson(c.getString(2),LocalBusiness::class.java))
                     val body=LocalBusinessRouting.text(b)+" "+(b.phones+b.emails+b.websites+b.socials).joinToString(" ")+" "+b.menus.orEmpty().joinToString(" "){m->m.title+" "+m.text+" "+m.items.joinToString(" "){it.name+" "+it.description}}
-                    if(LocalDiscoveryFilter.matches(query,body))add(LocalSavedDiscovery(id,saved,business=b))
+                    if(LocalBusinessRouting.matches(query,b))add(LocalSavedDiscovery(id,saved,business=b))
                 }else if(c.getString(1)=="event") {
                     val v=gson.fromJson(c.getString(2),LocalEvent::class.java)
                     val body=listOf(v.title,v.description,v.venue,v.address,v.locality,v.organizer,v.price,v.age,v.start.value).joinToString(" ")

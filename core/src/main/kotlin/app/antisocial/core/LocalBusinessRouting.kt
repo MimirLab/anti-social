@@ -21,24 +21,30 @@ object LocalBusinessRouting {
     fun queries(query:LocalDiscoveryQuery):List<String> {
         val area=query.area.label.replace(Regex(",?\\s*United States(?: of America)?$",RegexOption.IGNORE_CASE),"").trim()
         val topic=(if(query.mode==LocalSearchMode.EVENTS)LocalDiscoveryFilter.eventQuery(query.text)else LocalDiscoveryFilter.normalizedQuery(query.text)).ifBlank {if(query.mode==LocalSearchMode.EVENTS)"community"else "local businesses"}
+        if(query.mode==LocalSearchMode.BUSINESSES&&SearchIntent.parse(query.text).clauses.any {it.quoted})return listOf("${query.text.trim()} $area","${query.text.trim()} $area website address contact").map {it.take(512)}
         return if(query.mode==LocalSearchMode.EVENTS)listOf("$topic $area events ${query.dates().first} calendar",LocalOpportunityRouting.focus(query)?.let {"$area $it"} ?: "$topic $area public calendar")
         else when(topic) {
             "taco"->listOf("tacos $area","Mexican restaurants $area menus")
             "burger"->listOf("burgers $area","burger restaurants $area")
             "coffee"->listOf("coffee shops $area","cafes $area")
             "organic food"->listOf("organic food $area","organic grocery stores $area")
-            else->listOf("$topic $area", "$topic $area website address contact")
+            else->{val plan=PlaceSearchVocabulary.parse(query.text)
+                val original=query.text.trim().take(256)
+                listOf("$original $area",plan.alternative()?.let {"$it $area"} ?: "$topic $area website address contact")
+            }
         }.distinct().map {it.take(512)}
     }
     fun text(business:LocalBusiness)=listOf(business.name,business.category,business.locality,business.address,business.keywords.joinToString(" "),business.description,LocalBusinessDetails.facts(business).filter {it.field in LocalBusinessDetails.text}.joinToString(" "){it.value}).joinToString(" ")
+    fun matches(query:String,business:LocalBusiness)=relevance(query,business)<9
     fun relevance(query:String,business:LocalBusiness):Int {
         if(query.isBlank())return 0
-        val topic=LocalDiscoveryFilter.normalizedQuery(query)
+        val plan=PlaceSearchVocabulary.parse(query);val literal=plan.literal
+        val named=plan.terms.none {it.excluded}&&literal.positive.isNotEmpty()&&literal.matches(business.name)
+        if(!named&&!plan.matches(business))return 9
         return when {
-            LocalDiscoveryFilter.matches(topic,business.name)->0
-            LocalDiscoveryFilter.matches(topic,business.category+" "+business.keywords.joinToString(" "))->1
-            LocalDiscoveryFilter.matches(topic,text(business))->2
-            else->9
+            named->0
+            literal.matches(business.category+" "+business.keywords.joinToString(" "))->1
+            else->2
         }
     }
     /** Favour the current query's known owners and indexed pages, not old searches' queues. */

@@ -3,7 +3,25 @@ package app.antisocial.android
 import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteQuery
+import androidx.sqlite.db.SimpleSQLiteQuery
 import kotlinx.coroutines.flow.Flow
+
+private const val LIBRARY_SEARCH_SQL="SELECT d.* FROM local_documents d JOIN local_documents_fts ON d.rowid=local_documents_fts.rowid WHERE local_documents_fts MATCH :match AND ((:includeSaved AND d.kind='saved') OR (:includeHistory AND d.kind='history')) AND (:collectionId IS NULL OR (d.kind='saved' AND EXISTS (SELECT 1 FROM saved_collections c WHERE c.ownerKey=d.ownerKey AND c.collectionId=:collectionId))) GROUP BY d.kind,d.ownerKey ORDER BY d.sortAt DESC,d.ownerKey,d.entryKey LIMIT MIN(200,MAX(0,:limit))"
+/** Only fixed SQL and parameter names enter this compiler. All words remain
+ * bound MATCH arguments; original ownership/scope/collection limits are shared. */
+internal fun librarySearchPaths(paths:List<String>,includeSaved:Boolean=true,includeHistory:Boolean=false,collectionId:String?=null,limit:Int=200,excluded:List<String> = emptyList()):SupportSQLiteQuery {
+    require(paths.size<=8&&excluded.size<=8&&(paths+excluded).all {it.length in 1..8192})
+    fun union(prefix:String,values:List<String>)=values.indices.joinToString(" UNION "){"SELECT rowid FROM local_documents_fts WHERE local_documents_fts MATCH :$prefix$it"}
+    val positive=if(paths.isEmpty())"d.entryKey=d.ownerKey"else "d.rowid IN ("+union("path",paths)+")"
+    val negative=if(excluded.isEmpty())""else " AND d.rowid NOT IN ("+union("excluded",excluded)+")"
+    val sql=LIBRARY_SEARCH_SQL.replace(" JOIN local_documents_fts ON d.rowid=local_documents_fts.rowid","")
+        .replace("local_documents_fts MATCH :match",positive+negative)
+    val values=linkedMapOf<String,Any?>("includeSaved" to if(includeSaved)1 else 0,"includeHistory" to if(includeHistory)1 else 0,"collectionId" to collectionId,"limit" to limit)
+    paths.forEachIndexed {i,path->values["path$i"]=path};excluded.forEachIndexed {i,path->values["excluded$i"]=path}
+    val bindings=Regex(":([A-Za-z][A-Za-z0-9]*)").findAll(sql).map {it.groupValues[1]}.distinct().map {key->require(values.containsKey(key));values[key]}.toList().toTypedArray()
+    return SimpleSQLiteQuery(sql,bindings)
+}
 
 @Entity(tableName="follows") data class FollowRow(@PrimaryKey val id: String,val platform: String,val payload: String)
 @Entity(tableName="posts",indices=[Index("platform"),Index("publishedAt")]) data class PostRow(@PrimaryKey val key: String,val platform: String,val payload: String,val publishedAt: Long?,val createdAt: Long,val lastViewedAt: Long?=null,val bytes: Long,val followId: String?=null)
@@ -119,8 +137,10 @@ data class PostCacheRow(val key: String,val bytes: Long,val createdAt: Long,val 
     @Query("DELETE FROM local_documents WHERE (kind='saved' AND NOT EXISTS (SELECT 1 FROM bookmarks b WHERE b.`key`=local_documents.ownerKey)) OR (kind='history' AND NOT EXISTS (SELECT 1 FROM retained_history h WHERE h.`key`=local_documents.ownerKey))") suspend fun pruneOrphanDocuments()
     @Query("DELETE FROM local_documents WHERE ownerKey=:owner AND kind=:kind") suspend fun deleteDocuments(owner: String,kind: String)
     @Query("DELETE FROM local_documents WHERE kind=:kind") suspend fun clearDocumentKind(kind: String)
-    @Query("SELECT d.* FROM local_documents d JOIN local_documents_fts ON d.rowid=local_documents_fts.rowid WHERE local_documents_fts MATCH :match AND ((:includeSaved AND d.kind='saved') OR (:includeHistory AND d.kind='history')) AND (:collectionId IS NULL OR (d.kind='saved' AND EXISTS (SELECT 1 FROM saved_collections c WHERE c.ownerKey=d.ownerKey AND c.collectionId=:collectionId))) GROUP BY d.kind,d.ownerKey ORDER BY d.sortAt DESC,d.ownerKey,d.entryKey LIMIT MIN(200,MAX(0,:limit))")
+    @Query(LIBRARY_SEARCH_SQL)
     fun searchDocuments(match: String,includeSaved: Boolean=true,includeHistory: Boolean=false,collectionId: String?=null,limit: Int=200): Flow<List<LocalDocumentRow>>
+    @RawQuery(observedEntities=[LocalDocumentRow::class,LocalDocumentFts::class,SavedCollectionRow::class,BookmarkRow::class,RetainedHistoryRow::class])
+    fun searchDocumentPaths(query:SupportSQLiteQuery):Flow<List<LocalDocumentRow>>
     @Query("SELECT d.* FROM local_documents d WHERE d.entryKey=d.ownerKey AND ((:includeSaved AND d.kind='saved') OR (:includeHistory AND d.kind='history')) AND (:collectionId IS NULL OR (d.kind='saved' AND EXISTS (SELECT 1 FROM saved_collections c WHERE c.ownerKey=d.ownerKey AND c.collectionId=:collectionId))) ORDER BY d.sortAt DESC,d.ownerKey,d.entryKey LIMIT MIN(200,MAX(0,:limit))")
     fun browseDocuments(includeSaved: Boolean=true,includeHistory: Boolean=false,collectionId: String?=null,limit: Int=200): Flow<List<LocalDocumentRow>>
     @Query("SELECT * FROM health") suspend fun allHealth(): List<HealthRow>

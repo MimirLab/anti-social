@@ -423,6 +423,26 @@ class LocalDiscoveryTest {
             assertEquals(session,store.events(true).single())
         }}finally {store.close();ui.activity.deleteDatabase(name)}
     }
+    @Test fun cuisineIntentFindsUnnamedRestaurantsAndExactNamesStillWorkFromTheSameCache() {
+        val indian=LocalBusiness("fixture-indian","Saffron Palace","restaurant",address="10 Main Street",locality=area.name,point=area.point,keywords=listOf("cuisine","indian"))
+        val italian=indian.copy(id="fixture-italian",name="Garden Table",keywords=listOf("cuisine","italian"))
+        val far=indian.copy(id="fixture-distant-indian",name="Distant Curry",point=LocalPoint(0.0,0.0))
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend {
+            override suspend fun areas(text:String)=listOf(area)
+            override suspend fun directory(query:LocalDiscoveryQuery)=LocalExtraction(businesses=listOf(indian,italian,far))
+            override suspend fun identities(point:LocalPoint)=LocalExtraction()
+            override suspend fun discover(query:LocalDiscoveryQuery)=emptyList<LocalWebHit>()
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?)=LocalExtraction(validEmpty=true)
+        };model.localSearch.text("indian food");model.localSearch.search(force=true)}
+        show();ui.waitUntil(10_000){model.localSearch.state.value.businesses.map {it.id}==listOf(indian.id)}
+        ui.onNodeWithTag("Business ${indian.id}").assertIsDisplayed();evidence("indian-food-concept")
+        ui.runOnIdle {model.localSearch.text("indain resturants")}
+        ui.waitUntil(5000){model.localSearch.state.value.businesses.map {it.id}==listOf(indian.id)}
+        ui.runOnIdle {model.localSearch.text("\"Saffron Palace\"")}
+        ui.waitUntil(5000){model.localSearch.state.value.businesses.map {it.id}==listOf(indian.id)}
+        ui.onNodeWithTag("Business ${indian.id}").assertIsDisplayed()
+    }
+
     @Test fun detailEdgeDragsKeepTheBusinessAndEventReadingViewportFixed() {
         val long=place.copy(description=(1..90).joinToString("\n"){"Useful visiting detail number $it for this location."})
         runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(long)),area)}
