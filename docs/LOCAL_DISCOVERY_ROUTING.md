@@ -51,6 +51,31 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Sparse records and established chains (0.38.41)
+
+Many name-directory results contain only a name, address and coordinates. They
+can lack both a brand identifier and a website, so retaining richer brand fields
+alone cannot group the resulting deck. After direct grouping, two physically
+distinct branches connected by a qualified common site or brand identifier can
+establish a chain for an exact normalized name. Sparse records with that name
+join only when there is one such chain and no conflicting brand/site assertion.
+Known incompatible categories stay separate; unknown categories remain unknown.
+A single website claim or repeated names alone do not establish this context.
+Every location and its original field evidence remain intact.
+
+A website explicitly bound by the place's scoped website field can participate
+even when its hostname abbreviates the business name. Matching published branch
+address evidence can also qualify that site's association. Directory, social and
+ordering-provider hosts do not become chain-site evidence. This changes the
+reading projection, not the shared account-ownership or business-record matcher.
+Group keys use the qualified evidence across the group so a sparse first arrival
+does not discard a later site's stable key.
+
+The Overture reader retains the optional [brand record](https://docs.overturemaps.org/schema/reference/places/types/brand/),
+including its primary name and validated Wikidata identifier, as scoped field
+evidence. All preparation stays in the existing background projection. No new
+request, source, installed library, model, permission or cache is introduced.
+
 ### Chain cards and distance-ordered branches (0.38.40)
 
 The reading deck groups locations after relevance/locality filtering and before

@@ -33,7 +33,7 @@ class LocalBusinessLiveTest {
                 val watcher=launch {controller.state.first {it.businesses.any {b->LocalDiscoveryFilter.matches(query,LocalBusinessRouting.text(b))}};firstMs=android.os.SystemClock.elapsedRealtime()-start}
                 val state=withTimeout(180_000){controller.state.first {!it.loading&&!it.enriching}}
                 watcher.cancelAndJoin()
-                val row=JsonObject().apply {addProperty("query",query);addProperty("elapsedMs",android.os.SystemClock.elapsedRealtime()-start);addProperty("firstCardMs",firstMs);addProperty("cards",state.businesses.size);add("coverage",Gson().toJsonTree(state.coverage));add("businesses",Gson().toJsonTree(state.businesses.take(20)))}
+                val row=JsonObject().apply {addProperty("query",query);addProperty("elapsedMs",android.os.SystemClock.elapsedRealtime()-start);addProperty("firstCardMs",firstMs);addProperty("cards",state.groups.size);addProperty("locations",state.businesses.size);add("coverage",Gson().toJsonTree(state.coverage));add("businesses",Gson().toJsonTree(state.businesses));add("groups",Gson().toJsonTree(state.groups))}
                 runs.add(row);report.add("runs",runs)
                 File(context.filesDir,"local-business-live.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(report))
                 Assert.assertTrue("No native business cards for $query",state.businesses.isNotEmpty())
@@ -41,6 +41,11 @@ class LocalBusinessLiveTest {
                 case.excludedAccount?.let {excluded->Assert.assertFalse(state.businesses.any {it.socials.any {url->url.contains(excluded,true)}})}
                 case.uniqueName?.let {name->Assert.assertEquals("The same physical business must occupy one card",1,state.businesses.count {LocalDiscoveryMerge.businessName(it.name).contains(LocalDiscoveryMerge.businessName(name))})}
                 case.uniqueAddress?.let {address->Assert.assertEquals("Address copies must be one physical business",1,state.businesses.count {it.address.contains(address,true)})}
+                case.groupedName?.let {name->
+                    val groups=state.groups.filter {g->g.locations.any {LocalBusinessOwnership.sameBrand(name,LocalBusinessDeck.label(it))}}
+                    Assert.assertTrue("The live chain check requires multiple retrieved locations",groups.sumOf {it.locations.size}>=2)
+                    Assert.assertEquals("A chain's locations must occupy one reading card",1,groups.size)
+                }
             }
             report.addProperty("torReady",repo.tor.state.value.ready);report.addProperty("status","verified")
         }finally {

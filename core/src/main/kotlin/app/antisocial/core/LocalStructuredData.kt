@@ -10,6 +10,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 object LocalStructuredData {
     const val MAX_DOCUMENT=2*1024*1024
+    private val brandWikidata=Regex("Q[1-9][0-9]{0,18}")
     private val businesses=setOf("LocalBusiness","Organization","Store","Restaurant","CafeOrCoffeeShop","FoodEstablishment","GroceryStore","Library","PerformingArtsTheater","CivicStructure","TouristAttraction","SportsActivityLocation","CommunityCenter","Place","HealthAndBeautyBusiness","ProfessionalService","MedicalBusiness","LodgingBusiness","ShoppingCenter","Church","School","ChildCare","FoodEvent",
         "AmusementPark","EntertainmentBusiness","BowlingAlley","MovieTheater","NightClub","Casino","ComedyClub","ArtGallery","Museum","Zoo","Aquarium","Park","SportsClub","SportsComplex","ExerciseGym","HealthClub","GolfCourse","TennisComplex","StadiumOrArena","SwimmingPool","SkiResort","TouristInformationCenter","TravelAgency","AutomotiveBusiness","AutoRepair","AutoDealer","AutoPartsStore","GasStation","CarWash","BikeStore","BookStore","ClothingStore","ComputerStore","ConvenienceStore","DepartmentStore","ElectronicsStore","Florist","FurnitureStore","GardenStore","HardwareStore","HomeGoodsStore","JewelryStore","LiquorStore","PetStore","Pharmacy","ShoeStore","SportingGoodsStore","ToyStore","WholesaleStore","Bakery","BarOrPub","Brewery","FastFoodRestaurant","IceCreamShop","Winery","FoodTruck","Deli","Dentist","Physician","Hospital","VeterinaryCare","Optician","BeautySalon","HairSalon","NailSalon","DaySpa","TattooParlor","RealEstateAgent","FinancialService","BankOrCreditUnion","InsuranceAgency","LegalService","Attorney","AccountingService","EmploymentAgency","HomeAndConstructionBusiness","Electrician","GeneralContractor","Plumber","RoofingContractor","HVACBusiness","Locksmith","MovingCompany","DryCleaningOrLaundry","Hotel","Motel","BedAndBreakfast","Resort","Campground")
     private val eventTypes=setOf("Event","BusinessEvent","ChildrensEvent","ComedyEvent","DanceEvent","EducationEvent","Festival","FoodEvent","LiteraryEvent","MusicEvent","SaleEvent","ScreeningEvent","SocialEvent","SportsEvent","TheaterEvent","VisualArtsEvent","ExhibitionEvent","CourseInstance")
@@ -253,12 +254,15 @@ object LocalStructuredData {
             val address=arr(p["addresses"]).firstOrNull()?.takeIf(JsonElement::isJsonObject)?.asJsonObject
             val street=listOf("freeform","locality","region","postcode","country").map {str(address?.get(it)).take(300)}.filter(String::isNotBlank).joinToString(", ")
             val category=str(p["basic_category"]).ifBlank {str(p["taxonomy"]?.takeIf(JsonElement::isJsonObject)?.asJsonObject?.get("primary"))}.ifBlank {str(p["categories"]?.takeIf(JsonElement::isJsonObject)?.asJsonObject?.get("primary"))}
+            val brand=p["brand"]?.takeIf(JsonElement::isJsonObject)?.asJsonObject
+            val brandName=str(brand?.get("names")?.takeIf(JsonElement::isJsonObject)?.asJsonObject?.get("primary")).take(300)
+            val brandId=str(brand?.get("wikidata")).takeIf(brandWikidata::matches).orEmpty()
             val licenses=arr(p["sources"]).filter(JsonElement::isJsonObject).map {it.asJsonObject}.map {str(it["dataset"])+" · "+str(it["license"])}.distinct().joinToString("; ").take(1000)
             val fields=mapOf("name" to name,"category" to category,"address" to street,"locality" to str(address?.get("locality")),"location" to "${point.latitude},${point.longitude}",
-                "socials" to arr(p["socials"]).joinToString(" · "){str(it)},"websites" to arr(p["websites"]).joinToString(" · "){str(it)},"phones" to arr(p["phones"]).joinToString(" · "){str(it)})
+                "socials" to arr(p["socials"]).joinToString(" · "){str(it)},"websites" to arr(p["websites"]).joinToString(" · "){str(it)},"phones" to arr(p["phones"]).joinToString(" · "){str(it)},"brand" to brandName,"brand id" to brandId)
             LocalBusinessSocial.normalize(LocalBusiness("overture:$id",name.take(300),category.replace('_',' ').take(400),address=street,locality=str(address?.get("locality")).take(200),point=point,
                 websites=arr(p["websites"]).flatMap {LocalDiscoveryIdentity.urls(str(it))}.distinct().take(12),socials=arr(p["socials"]).mapNotNull {LocalDiscoveryIdentity.url(str(it))}.take(24),
-                phones=arr(p["phones"]).map {str(it).take(100)}.take(8),sourceIds=listOf("overture:$id"),checkedAt=at,
+                phones=arr(p["phones"]).map {str(it).take(100)}.take(8),sourceIds=listOf("overture:$id"),checkedAt=at,keywords=listOf(brandName,brandId).filter(String::isNotBlank),
                 evidence=fields.filterValues(String::isNotBlank).map {(field,value)->LocalDiscoveryIdentity.evidence(field,value,url,at,LocalEvidenceKind.DIRECTORY,"Overture Maps · $licenses")} ))
         }
         return LocalExtraction(businesses=places)

@@ -39,7 +39,7 @@ object LocalBusinessDeck {
     private val brandId=Regex("Q[1-9][0-9]{0,18}")
     private val legacyTags=setOf("cuisine","organic","diet:vegan","diet:vegetarian","wheelchair","brand","operator")
     fun label(b:LocalBusiness)=b.name.substringBefore(" - ").substringBefore(" – ").substringBefore(" — ").replace(atSuffix,"")
-    private data class Identity(val business:LocalBusiness,val name:String,val ids:Set<String>,val brands:Map<String,String>,val domains:Set<String>) {
+    private data class Identity(val business:LocalBusiness,val name:String,val ids:Set<String>,val brands:Map<String,String>,val domains:Set<String>,val unresolvedSite:Boolean,val street:String?) {
         val ambiguous:Boolean get()=ids.size>1||ids.isEmpty()&&brands.size>1
     }
     private fun identity(b:LocalBusiness):Identity {
@@ -53,11 +53,25 @@ object LocalBusinessDeck {
             b.related.orEmpty().filter {it.role=="brand"}.map {it.name}+listOfNotNull(legacy)).map {it.trim().take(300)}.filter {it.isNotBlank()}
             .distinctBy {LocalDiscoveryMerge.businessName(it)}.associateBy {LocalDiscoveryMerge.businessName(it)}.filterKeys(String::isNotBlank)
         val label=label(b)
-        val domains=b.websites.mapNotNull {raw->raw.toHttpUrlOrNull()?.host?.removePrefix("www.")?.takeIf {host->
-            !LocalBusinessDetails.directorySite(b,raw)&&(LocalBusinessOwnership.firstParty(label,raw)||LocalDiscoveryIdentity.words(label).any {word->word.length>=5&&host.split('.').any {it==word}})
-        }}.toSet()
-        return Identity(b,LocalDiscoveryMerge.businessName(label),ids,brands,domains)
+        val boundHosts=declared.filter {it.field in setOf("website","websites")}.flatMap {LocalDiscoveryIdentity.urls(it.value)}
+            .mapNotNull {it.toHttpUrlOrNull()?.host?.removePrefix("www.")}.toSet()
+        val sites=b.websites.mapNotNull {raw->raw.toHttpUrlOrNull()?.host?.removePrefix("www.")?.takeIf {
+            !LocalBusinessDetails.directorySite(b,raw)&&SocialLinkHosts.platform(raw)==null&&LocalMenuRouting.provider(raw)==null
+        }?.let {it to raw}}
+        val domains=sites.filter {(host,raw)->host in boundHosts||LocalBusinessOwnership.firstParty(label,raw)||
+            LocalDiscoveryIdentity.words(label).any {word->word.length>=5&&host.split('.').any {it==word}}||
+            LocalBusinessDetails.verifiedWebsite(b,raw)&&declared.any {it.field=="address"&&it.kind==LocalEvidenceKind.PUBLISHER&&it.sourceUrl.toHttpUrlOrNull()?.host?.removePrefix("www.")==host}
+        }.map {it.first}.toSet()
+        return Identity(b,LocalDiscoveryMerge.businessName(label),ids,brands,domains,sites.any {it.first !in domains},LocalDiscoveryMerge.street(b.address))
     }
+    private data class Category(val name:String,val concepts:Set<String>,val food:Boolean)
+    private val foodAmenities=setOf("restaurant","fast_food","cafe","bar","pub","ice_cream","food_court")
+    private fun category(value:String):Category {
+        val name=SearchText.normalized(LocalBusinessContact.category(value))
+        val concepts=PlaceSearchVocabulary.parse(name).concepts
+        return Category(name,concepts.map {it.id}.toSet(),concepts.any {it.cuisine||it.tags.any {tag->tag["amenity"] in foodAmenities}})
+    }
+
     /** Prepare URL/name keys once, then join bounded index buckets. Weak links
      * with conflicting brand IDs never attach an ambiguous record to either one. */
     fun groups(values:List<LocalBusiness>,origin:LocalPoint?=null):List<LocalBusinessGroup> {
@@ -95,14 +109,48 @@ object LocalBusinessDeck {
         candidates.forEach {rows->val first=rows.first();rows.drop(1).forEach {join(potential,first,it)}}
         val claims=identities.indices.groupBy {root(potential,it)}.mapValues {(_,rows)->rows.flatMap {identities[it].ids}.toSet()}
         candidates.forEach {rows->val first=rows.first();if(claims[root(potential,first)].orEmpty().size<=1)rows.drop(1).forEach {join(parent,first,it)}}
+        // Sparse map rows often publish only name/address/coordinates. An
+        // already connected multi-location chain can supply that missing context;
+        // a lone name/site guess cannot. Freeze the direct groups before joining.
+        val direct=IntArray(values.size){root(parent,it)}
+        val names=identities.indices.filter {identities[it].name.isNotBlank()}.groupBy {identities[it].name}
+        val categories=mutableMapOf<String,Category>()
+        fun categoryOf(i:Int)=categories.getOrPut(identities[i].business.category){category(identities[i].business.category)}
+        data class Established(val root:Int,val members:List<Int>)
+        val established=mutableMapOf<String,MutableList<Established>>()
+        identities.indices.groupBy {direct[it]}.forEach {(_,members)->
+            members.groupBy {identities[it].name}.forEach nameGroup@{(name,rows)->
+                if(name.isBlank()||rows.size<2)return@nameGroup
+                val distinctStreets=rows.mapNotNull {identities[it].street}.distinct().size>=2
+                val points=rows.mapNotNull {identities[it].business.point}
+                if(!distinctStreets&&(points.firstOrNull()?.let {first->points.any {first.distanceKm(it)>=.1}}!=true))return@nameGroup
+                val sharedSite=rows.flatMap {identities[it].domains}.groupingBy {it}.eachCount().any {it.value>=2}
+                val sharedBrand=rows.flatMap {identities[it].ids}.groupingBy {it}.eachCount().any {it.value>=2}
+                if(sharedSite||sharedBrand)established.getOrPut(name){mutableListOf()}.add(Established(direct[rows.first()],rows))
+            }
+        }
+        for((name,seeds) in established) {
+            val seed=seeds.distinctBy {it.root}.singleOrNull() ?: continue
+            val sameName=names[name].orEmpty()
+            // An independent same-name site/brand leaves sparse rows ambiguous.
+            if(sameName.any {direct[it]!=seed.root&&(identities[it].ids.isNotEmpty()||identities[it].brands.isNotEmpty()||identities[it].domains.isNotEmpty())})continue
+            val knownCategories=seed.members.map(::categoryOf).filter {it.name.isNotBlank()}
+            for(i in sameName) {
+                val item=identities[i]
+                if(direct[i]==seed.root||item.ambiguous||item.ids.isNotEmpty()||item.brands.isNotEmpty()||item.domains.isNotEmpty()||item.unresolvedSite)continue
+                val c=categoryOf(i)
+                if(c.name.isNotBlank()&&knownCategories.isNotEmpty()&&knownCategories.none {it.name==c.name||it.concepts.intersect(c.concepts).isNotEmpty()||it.food&&c.food})continue
+                join(parent,seed.root,i)
+            }
+        }
         val used=mutableSetOf<String>()
         return identities.indices.groupBy {root(parent,it)}.values.map {indexes->
             val entries=indexes.map {identities[it]}
             val ids=entries.flatMap {it.ids}.distinct()
             val brand=entries.flatMap {it.brands.entries}.firstOrNull()
             val first=entries.first()
-            val key=ids.singleOrNull()?.let {"brand:$it"}
-                ?: first.domains.sorted().firstOrNull()?.let {"site:$it:${first.name}"} ?: brand?.let {"brand-name:${it.key}"}
+            val site=entries.flatMap {entry->entry.domains.map {"site:$it:${entry.name}"}}.sorted().firstOrNull()
+            val key=ids.singleOrNull()?.let {"brand:$it"} ?: site ?: brand?.let {"brand-name:${it.key}"}
             val ambiguous=claims[root(potential,indexes.first())].orEmpty().size>1||first.ambiguous
             val proposed=if(ambiguous&&indexes.size==1)first.business.id else key?.let {"chain:"+LocalDiscoveryIdentity.hash(it)} ?: first.business.id
             val id=proposed.takeIf(used::add) ?: (proposed+":"+LocalDiscoveryIdentity.hash(first.business.id)).also {used.add(it)}

@@ -72,4 +72,46 @@ class LocalBusinessDeckTest {
         val rows=listOf(branch("one"),branch("two")).map {it.copy(related=listOf(LocalRelatedEntity("Cobalt Burger","brand",emptyList(),"https://publisher.example/branch")))}
         assertEquals(1,LocalBusinessDeck.groups(rows).size)
     }
+    @Test fun anEstablishedMultiLocationSiteIncludesSparseSameNamePlaceRecords() {
+        val anchors=(1..2).map {n->branch("site$n",site="https://cobaltburger.example/").copy(address="${n*10} Sample St")}
+        val sparse=(3..13).map {n->branch("sparse$n").copy(address="${n*10} Sample St",category="")}
+        val directory=branch("directory",site="https://www.restaurantji.com/fixture/entry").copy(address="140 Sample St")
+        val rows=sparse+directory+anchors
+        val group=LocalBusinessDeck.groups(rows).single()
+        assertEquals(14,group.locations.size)
+        assertEquals(rows.toSet(),group.locations.toSet())
+    }
+    @Test fun oneWebsiteClaimDoesNotEstablishMultipleLocations() {
+        val rows=listOf(branch("one",site="https://cobaltburger.example/").copy(address="10 Sample St"),branch("two").copy(address="20 Sample St"))
+        assertEquals(2,LocalBusinessDeck.groups(rows).size)
+    }
+    @Test fun aSparseNameCannotChooseBetweenTwoEstablishedSitesOrContradictItsOwnIdentity() {
+        val anchors=(1..2).map {n->branch("a$n",site="https://cobaltburger.example/").copy(address="${n*10} Sample St")}
+        val other=(3..4).map {n->branch("b$n",site="https://cobaltburger.test/").copy(address="${n*10} Sample St")}
+        val bare=branch("bare").copy(address="50 Sample St")
+        assertEquals(3,LocalBusinessDeck.groups(anchors+other+bare).size)
+        assertEquals(2,LocalBusinessDeck.groups(anchors+bare.copy(evidence=listOf(claim("brand id","Q12345678902")))).size)
+        assertEquals(2,LocalBusinessDeck.groups(anchors+bare.copy(websites=listOf("https://cobaltburger.test/"))).size)
+    }
+    @Test fun aSparseBusinessWithAContradictingCategoryStaysOutsideTheChain() {
+        val anchors=(1..2).map {n->branch("site$n",site="https://cobaltburger.example/").copy(address="${n*10} Sample St")}
+        assertEquals(2,LocalBusinessDeck.groups(anchors+branch("hardware").copy(category="hardware store",address="30 Sample St")).size)
+    }
+    @Test fun explicitlyBoundAbbreviatedWebsitesCanEstablishAChain() {
+        val rows=(1..2).map {n->branch("site$n",site="https://cb.example/").copy(address="${n*10} Sample St",evidence=listOf(claim("websites","https://cb.example/")))}
+        assertEquals(1,LocalBusinessDeck.groups(rows).size)
+        assertEquals(2,LocalBusinessDeck.groups(rows.map {it.copy(evidence=emptyList())}).size)
+        assertEquals(2,LocalBusinessDeck.groups(rows.map {it.copy(evidence=listOf(claim("websites","https://other.example/")))}).size)
+    }
+    @Test fun sharedOrderingProvidersAreNotChainWebsites() {
+        val rows=(1..2).map {n->val url="https://toasttab.com/fixture$n";branch("provider$n",site=url).copy(address="${n*10} Sample St",evidence=listOf(claim("websites",url)))}
+        assertEquals(2,LocalBusinessDeck.groups(rows).size)
+    }
+    @Test fun overtureBrandNamesAndIdentifiersSurviveNormalization() {
+        val body="""{"features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[20,10]},"properties":{"id":"fixture-brand-one","names":{"primary":"Cobalt Burger Downtown"},"brand":{"names":{"primary":"Cobalt Burger"},"wikidata":"Q12345678901"}}},{"type":"Feature","geometry":{"type":"Point","coordinates":[20,10.01]},"properties":{"id":"fixture-brand-two","names":{"primary":"Cobalt Burger Riverside"},"brand":{"names":{"primary":"Cobalt Burger"},"wikidata":"Q12345678901"}}}]}"""
+        val rows=LocalStructuredData.overture(body,"https://directory.example/places",100).businesses
+        assertTrue(rows.all {b->b.evidence.any {it.field=="brand id"&&it.value=="Q12345678901"}})
+        assertTrue(rows.all {b->b.evidence.any {it.field=="brand"&&it.value=="Cobalt Burger"}})
+        assertEquals("Cobalt Burger",LocalBusinessDeck.groups(rows).single().title)
+    }
 }

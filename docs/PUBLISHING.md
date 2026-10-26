@@ -65,13 +65,21 @@ checks also require private inputs:
 
 | Check | Arguments |
 | --- | --- |
-| Business search | `antisocialBusinessCases`: query objects with optional `uniqueName`, `uniqueAddress` and `excludedAccount` expectations |
+| Business search | `antisocialBusinessCases`: query objects with optional `uniqueName`, `uniqueAddress`, `excludedAccount` and `groupedName` expectations |
 | Location menu | `antisocialMenuBusiness`, `antisocialMenuItem`, `antisocialMenuPath` |
 | Embedded-text menu PDF | `antisocialMenuPdfBusiness`, `antisocialMenuPdfSuffix` |
 | Published brand slice | `antisocialBrandBusiness` |
 | Calendar/page reconciliation | `antisocialEventCalendarUrl`, `antisocialEventEditions`: URL/title objects |
 | Business social links | `antisocialSocialBusiness`, `antisocialExpectedAccounts`: URL strings |
 | Venue resolution | `antisocialVenueName`, `antisocialVenueAddress`, `antisocialVenueLocality` |
+
+`groupedName` requires multiple retrieved locations of that chain and exactly
+one reading card. Live reports record visible cards and physical locations
+separately. The optional JVM `LocalBusinessPacketTest` accepts a recorded business
+JSON array through `ANTISOCIAL_PRIVATE_BUSINESS_PACKET` and the expected name
+through `ANTISOCIAL_PRIVATE_CHAIN_NAME`. Keep both inputs outside the checkout;
+normal unit runs skip this case. The replay preserves all location facts and
+checks that unrelated records are not absorbed. Never commit the recorded packet.
 
 Business arguments contain the initial name, address, locality, optional point,
 websites, socials, phones and source IDs needed by that check. Missing required

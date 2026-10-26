@@ -9,6 +9,53 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.41 sparse place records in chain cards
+
+The previous matcher covered explicit brand and shared-site records but missed
+many sparse name-directory results. A privately supplied production query
+returned 14 matching locations as 13 reading cards: only two locations had a
+common website, while the others lacked brand/site fields or carried a directory
+page. The same recorded packet failed the new one-card assertion before the fix.
+It now yields one card with exactly those 14 original location records; other
+business records remain separate and every field is preserved. A separate fresh
+enabled production-controller search also returned those 14 locations in one
+chain card. Inputs, packets, source URLs and detailed traces remain private.
+These are dated source-dependent checks, not a phone latency or uptime benchmark.
+
+Two physically distinct branches already connected by qualified site/brand
+facts can establish context for an exact normalized name. Sparse rows attach
+only to one unambiguous established chain, with contradictory brand IDs, sites
+and known categories excluded. A lone site claim, common directory/ordering host
+or repeated name alone does not establish a chain. Scoped website-field evidence
+can qualify an abbreviated hostname; account-ownership rules are unchanged.
+Overture's optional brand primary name and validated Wikidata ID now survive
+normalization. Preparation stays in the existing background projection.
+
+A 17-case core selection initially had three failures: sparse-row attachment,
+bound abbreviated websites and dropped Overture brand fields. Separation controls
+already passed. Further coverage checks unbound/mismatched sites, shared ordering
+providers and contradictory categories. The optional private recorded-packet
+replay and the full 18-case grouping suite passed together. The new native sparse
+streaming case failed its actual 13-cards-instead-of-one assertion on retained
+qualified 0.38.40 debug bytes, then passed on the update; no linkage failure was
+counted as product evidence. The inspected synthetic native screen shows one
+14-location card and preserves its earlier card key as evidence arrives.
+
+Final qualification: **2,369 JVM cases**, zero failures/errors, two optional skips
+(model weights and private-packet input); Android lint and debug/test assembly
+passed. Frozen APKs ran **147 native methods: 130 passes, 17 opt-in skips, zero
+failures**. Installed APK hashes match those files. Coverage includes business
+and event discovery/store, menus, announcements, branch ordering, Library/protected
+copies, card status, social search/scope, scheduling, privacy and feed windows.
+The separately enabled live production case and private-packet replay are reported
+above rather than inflated into the default regression totals.
+
+Live engineering reports now distinguish reading cards from physical location
+records. `groupedName` is an optional private execution expectation, not a bundled
+business/location default. No provider, request, installed dependency, model,
+permission, database migration or cache is added. Normal signing, exact source,
+privacy, preview-retention and permanent-download checks gate promotion.
+
 ## 0.38.40 chain cards, branch distance and concurrent progress
 
 The business deck retains scoped brand declarations from regional and published

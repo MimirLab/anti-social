@@ -7,7 +7,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 
-internal data class LocalLiveBusinessCase(val query:String,val uniqueName:String?,val uniqueAddress:String?,val excludedAccount:String?)
+internal data class LocalLiveBusinessCase(val query:String,val uniqueName:String?,val uniqueAddress:String?,val excludedAccount:String?,val groupedName:String?)
 internal data class LocalLiveEventEdition(val url:String,val title:String)
 
 /** Source-specific locations/businesses are supplied privately by the operator.
@@ -43,7 +43,7 @@ internal object LocalLiveInput {
     fun businessCases():List<LocalLiveBusinessCase> {
         val value=JsonParser.parseString(text("antisocialBusinessCases",32*1024));require(value.isJsonArray&&value.asJsonArray.size() in 1..8)
         return value.asJsonArray.map {v->val o=v.asJsonObject
-            LocalLiveBusinessCase(requireNotNull(field(o,"query")).also {require(it.length<=256)},field(o,"uniqueName"),field(o,"uniqueAddress"),field(o,"excludedAccount"))}
+            LocalLiveBusinessCase(requireNotNull(field(o,"query")).also {require(it.length<=256)},field(o,"uniqueName"),field(o,"uniqueAddress"),field(o,"excludedAccount"),field(o,"groupedName"))}
     }
     fun eventEditions():List<LocalLiveEventEdition> {
         val value=JsonParser.parseString(text("antisocialEventEditions",16*1024));require(value.isJsonArray&&value.asJsonArray.size() in 1..4)

@@ -618,6 +618,25 @@ class LocalDiscoveryTest {
         ui.onNodeWithTag("Business location ${chain[12].id}").assertExists()
     }
 
+    @Test fun sparsePlaceRowsJoinAnEstablishedChainAsWebsiteEvidenceStreamsIn() {
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
+        fun location(n:Int,site:Boolean)=place.copy(id="fixture-sparse-chain-$n",name="Cobalt Burger",category=if(site)"restaurant"else "",address="${n+100} Sample St",point=LocalPoint(area.point.latitude+n*.001,area.point.longitude),
+            websites=if(site)listOf("https://cobaltburger.fixture.invalid/")else emptyList(),phones=listOf("+1202555${(100+n).toString().padStart(4,'0')}"),socials=emptyList(),evidence=emptyList(),sourceIds=listOf("fixture-sparse-chain-$n"))
+        val sparse=(2..13).map {location(it,false)};val anchors=(0..1).map {location(it,true)}
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=sparse),area)}
+        show();ui.waitUntil {model.localSearch.state.value.businesses.size==12}
+        val original=model.localSearch.state.value.groups.first().id
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=anchors),area)}
+        ui.waitUntil {model.localSearch.state.value.businesses.size==14}
+        val groups=model.localSearch.state.value.groups
+        assertEquals("Sparse map records must join the established chain",1,groups.size)
+        assertEquals(14,groups.single().locations.size)
+        assertEquals(original,groups.single().id)
+        assertEquals(anchors.first().id,groups.single().primary.id)
+        ui.onNodeWithText("14 nearby locations").assertIsDisplayed()
+        evidence("sparse-chain-one-card")
+    }
+
     @Test fun announcementActionsAndEvidenceDeduplicateAndDeadLinksStayOutOfTheButtons() {
         val previous=repo.localLinks.probe;val calls=java.util.concurrent.ConcurrentHashMap<String,java.util.concurrent.atomic.AtomicInteger>()
         val live="https://event.fixture.invalid/workshop";val other="https://calendar.fixture.invalid/workshop";val dead="https://old.fixture.invalid/gone"
