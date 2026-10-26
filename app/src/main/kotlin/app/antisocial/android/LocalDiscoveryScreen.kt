@@ -91,8 +91,9 @@ import java.time.format.DateTimeFormatter
                     if(!state.savedOnly)TextButton(onClick={submit()}){Text(if(state.area==null)"Choose an area"else "Find ${if(state.mode==LocalSearchMode.EVENTS)"events"else "businesses"}")}
                 }}
                 if(state.mode==LocalSearchMode.BUSINESSES)items(state.groups,key={it.id}) {group->val place=group.primary
+                    val activityKeys=remember(group.locations){group.locations.flatMap(::businessWorkKeys).toSet()}
                     BusinessCard(place,state.area,state.unit,group.locations.all {it.id in state.saved},onOpen={business=place},onSave={controller.save(group)},onSocial=vm::openLink,locations=group.locations.size,label=group.title,
-                        activity={CardActivity(vm.repo.cardWork,group.locations.flatMap(::businessWorkKeys).toSet(),place.id,discoveryPending=state.loading||state.enriching)})}
+                        activity={CardActivity(vm.repo.cardWork,activityKeys,place.id,discoveryPending=state.loading||state.enriching)})}
                 if(state.mode==LocalSearchMode.EVENTS)items(state.events,key={it.id}) {session->EventCard(session,state.area,session.id in state.saved,unknowns=LocalEventIntent.parse(state.text).match(session).unknowns,onOpen={event=session},onSave={controller.save(session)},activity={CardActivity(vm.repo.cardWork,eventWorkKeys(session),session.id,discoveryPending=state.loading||state.enriching)})}
                 if(state.mode==LocalSearchMode.EVENTS&&state.announcements.isNotEmpty()) {
                     item {TextButton(onClick={showPossible=!showPossible},modifier=Modifier.testTag("Possible events toggle")){Icon(if(showPossible)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null);Text("Possible events · ${state.announcements.size}")}}
@@ -175,6 +176,7 @@ import java.time.format.DateTimeFormatter
     var visitDetails by remember(value.id) {mutableStateOf(false)}
     var menuOpen by remember(value.id) {mutableStateOf(false)}
     var chooseLocation by remember {mutableStateOf(false)}
+    var locationCount by remember {mutableIntStateOf(12)}
     if(menuOpen) {
         RestaurantMenuSheet(value,menuLoading,onRefresh=onMenuRefresh,onDismiss={menuOpen=false},onRead=onRead)
         return
@@ -193,12 +195,16 @@ import java.time.format.DateTimeFormatter
             IconButton(onClick=onSave){Icon(if(saved)Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,if(saved)"Remove saved copy"else "Save local copy")}
         }
         if(locations.size>1&&onLocation!=null) {
-            TextButton(onClick={chooseLocation=!chooseLocation},modifier=Modifier.testTag("Choose business location")){Icon(Icons.Rounded.LocationOn,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("${locations.size} nearby locations");Icon(if(chooseLocation)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null)}
-            if(chooseLocation)locations.forEach {location->OutlinedCard(onClick={onLocation(location);chooseLocation=false},modifier=Modifier.fillMaxWidth().testTag("Business location ${location.id}")) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick={chooseLocation=!chooseLocation;locationCount=12},modifier=Modifier.testTag("Choose business location")){Icon(Icons.Rounded.LocationOn,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("${locations.size} nearby locations");Icon(if(chooseLocation)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null)}
+            if(chooseLocation) {
+                locations.take(locationCount).forEach {location->OutlinedCard(onClick={onLocation(location);chooseLocation=false},modifier=Modifier.fillMaxWidth().testTag("Business location ${location.id}")) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(location.address.ifBlank {location.locality.ifBlank {location.name}},fontWeight=FontWeight.SemiBold)
                 if(location.name!=value.name)Text(location.name,fontSize=12.sp)
+                area?.let {a->location.point?.let {point->Text(unit.away(a.point.distanceKm(point)),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
                 location.phones.map {LocalBusinessContact.displayPhone(it,area?.countryCode)}.distinct().take(2).forEach {Text(it,fontSize=12.sp)}
-            }}}
+                }}}
+                if(locationCount<locations.size)TextButton(onClick={locationCount=(locationCount+12).coerceAtMost(locations.size)}){Text("Show more locations")}
+            }
             Text("Selected location",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if(value.status.isNotBlank())Text(value.status,color=MaterialTheme.colorScheme.onSurfaceVariant)

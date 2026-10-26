@@ -51,6 +51,46 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Chain cards and distance-ordered branches (0.38.40)
+
+The reading deck groups locations after relevance/locality filtering and before
+its 160-card allowance. The existing 2,000-record local read bound remains; a
+chain's branches therefore share a card allowance while independent businesses
+can still appear. Stored business identities, addresses, phones, hours, menus,
+source evidence and saved copies remain separate branch records.
+
+Overpass and AllThePlaces retain scoped brand declarations, including brand
+identifiers when supplied. The matcher also reads Schema.org brand relationships
+and compatible first-party website/name pairs. Intact legacy OSM tag/value keyword
+pairs can recover an explicitly recorded brand name from cached records; arbitrary
+keywords, a matching name or a shared operator do not establish a chain. These
+rules use the distinction between OSM's [brand](https://wiki.openstreetmap.org/wiki/Key:brand)
+and [brand identifier](https://wiki.openstreetmap.org/wiki/Key:brand:wikidata).
+They describe a reading group, not a legal ownership assertion.
+
+Prepared per-record keys and indexed candidate buckets replace repeated pairwise
+website parsing. Before applying weak associations, the matcher checks their full
+potential components for conflicting brand IDs. A no-ID or multi-website record
+cannot transitively bridge different known brands. Conflicting official websites
+also prevent name-only grouping. Ambiguous records retain distinct card keys.
+Identity preparation and grouping run in the existing background projection.
+
+The outer deck preserves card positions and keys as discoveries stream in. Each
+chain's own location list independently sorts by distance from the selected area
+point, with unknown coordinates last. A nearer branch becomes the card's initial
+location without replacing a branch already open in the details panel. The picker
+shows branch distances and expands twelve locations at a time. Activity lookup
+keys are retained across unchanged card compositions. No extra search request,
+provider, model, dependency or permission is introduced.
+
+Independent search, menu and filter transitions update their shared state
+atomically. Completing a search cannot restore an older menu-loading value;
+late search progress also rechecks its generation inside the state update.
+
+The business directory batch marker advances so fresh regional reads can retain
+brand fields; unchanged event-hub batches remain reusable. Existing directory
+backoff, Tor/session policy, locality boundaries and ordinary cache expiry remain.
+
 ### Regional directory admission (0.38.39)
 
 One repository-wide reader handles Overpass batches. It sends the existing

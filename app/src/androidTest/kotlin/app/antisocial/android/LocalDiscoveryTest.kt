@@ -575,6 +575,49 @@ class LocalDiscoveryTest {
         runBlocking(Dispatchers.IO){assertEquals(setOf(first.phones,second.phones),repo.localDiscovery.businesses(null,true).filter {it.id in setOf(first.id,second.id)}.map {it.phones}.toSet())}
     }
 
+    @Test fun aLateNearerChainBranchReordersLocationsWithoutChangingTheOpenBranch() {
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
+        val far=place.copy(id="fixture-chain-far",name="Northstar Coffee - Riverside",category="cafe",address="900 Sample St",point=LocalPoint(area.point.latitude+.02,area.point.longitude),
+            websites=listOf("https://northstarcoffee.fixture.invalid/locations/riverside"),phones=listOf("+12025550103"),socials=emptyList(),sourceIds=listOf("fixture-chain-far"))
+        val near=far.copy(id="fixture-chain-near",name="Northstar Coffee - Downtown",address="100 Sample St",point=area.point,phones=listOf("+12025550104"),sourceIds=listOf("fixture-chain-near"))
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(far)),area)}
+        show();ui.waitUntil {model.localSearch.state.value.groups.size==1}
+        val original=model.localSearch.state.value.groups.single().id
+        ui.onNodeWithTag("Business ${far.id}").performClick()
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(near)),area)}
+        ui.waitUntil {model.localSearch.state.value.businesses.size==2}
+        val group=model.localSearch.state.value.groups.single()
+        assertEquals(original,group.id)
+        assertEquals(listOf(near.id,far.id),group.locations.map {it.id})
+        ui.onNodeWithText(far.address).assertIsDisplayed()
+        ui.onNodeWithTag("Choose business location").performClick()
+        ui.onNodeWithTag("Business location ${near.id}").performClick()
+        ui.onNodeWithText(near.address).assertIsDisplayed()
+        ui.onNodeWithText(LocalBusinessContact.displayPhone(near.phones.single(),area.countryCode)).assertIsDisplayed()
+        evidence("chain-nearest-selected")
+    }
+
+    @Test fun chainBranchesDoNotConsumeTheWholeBusinessCardAllowance() {
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
+        val chain=(1..170).map {n->place.copy(id="fixture-many-branches-$n",name="Northstar Coffee - Branch $n",category="cafe",address="${n+100} Sample St",point=LocalPoint(area.point.latitude+n*.0002,area.point.longitude),
+            websites=listOf("https://northstarcoffee.fixture.invalid/locations/$n"),phones=emptyList(),socials=emptyList(),sourceIds=listOf("fixture-many-branches-$n"))}
+        val independent=place.copy(id="fixture-independent-cafe",name="Independent Espresso",category="cafe",address="9999 Sample St",point=LocalPoint(area.point.latitude+.04,area.point.longitude),websites=emptyList(),phones=emptyList(),socials=emptyList(),sourceIds=listOf("fixture-independent-cafe"))
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=chain+independent),area)}
+        show();ui.waitUntil(15_000){model.localSearch.state.value.businesses.any {it.id==chain.first().id}}
+        assertEquals("A chain must occupy one card while independent businesses remain discoverable",2,model.localSearch.state.value.groups.size)
+        assertEquals(170,model.localSearch.state.value.groups.single {it.locations.size>1}.locations.size)
+        ui.onNodeWithTag("Local discovery results").performScrollToNode(hasText(independent.name))
+        ui.onNodeWithText(independent.name).assertIsDisplayed()
+        evidence("chain-card-allowance")
+        val group=model.localSearch.state.value.groups.single {it.locations.size>1}
+        ui.onNodeWithTag("Local discovery results").performScrollToNode(hasTestTag("Business ${group.primary.id}"))
+        ui.onNodeWithTag("Business ${group.primary.id}").performClick()
+        ui.onNodeWithTag("Choose business location").performClick()
+        ui.onNodeWithTag("Business location ${chain[12].id}").assertDoesNotExist()
+        ui.onNodeWithText("Show more locations").performScrollTo().performClick()
+        ui.onNodeWithTag("Business location ${chain[12].id}").assertExists()
+    }
+
     @Test fun announcementActionsAndEvidenceDeduplicateAndDeadLinksStayOutOfTheButtons() {
         val previous=repo.localLinks.probe;val calls=java.util.concurrent.ConcurrentHashMap<String,java.util.concurrent.atomic.AtomicInteger>()
         val live="https://event.fixture.invalid/workshop";val other="https://calendar.fixture.invalid/workshop";val dead="https://old.fixture.invalid/gone"

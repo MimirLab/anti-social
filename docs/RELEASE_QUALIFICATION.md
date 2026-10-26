@@ -9,6 +9,62 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.40 chain cards, branch distance and concurrent progress
+
+The business deck retains scoped brand declarations from regional and published
+brand records, schema brand relationships and compatible official websites.
+Prepared identities and indexed weak-association components keep conflicting
+brands separate, including bridges through no-ID or multi-website records.
+Same-name and operator-only records do not establish a chain. Intact legacy OSM
+brand tag/value pairs can participate from cache. No legal ownership is inferred.
+
+Grouping runs in the background before the 160-card limit, within the existing
+2,000-record read bound. Separate branch facts and protected saved copies remain
+intact. Locations sort by distance from the selected area point, with missing
+coordinates last, independently of stable outer card keys/positions. An open
+branch stays selected as a nearer branch arrives. The location picker shows
+branch distances and expands twelve at a time.
+
+A new six-case JVM counterexample had four failures on the unchanged grouping
+implementation: lost regional brand ID, ignored declared brand, branch-suffixed
+chain title and an ambiguous shared-website association. The two separation
+controls already passed. Final coverage adds eleven core cases, including
+transitive multi-website conflicts, distinct card keys, scoped schema brands,
+legacy-cache admission and nearest-first ordering without modifying branch data.
+Two new native cases ran against retained, qualified 0.38.39 debug bytes and
+failed their actual assertions: 170 chain branches excluded an independent
+business from the deck, and a late nearer branch remained last. No linkage error
+was counted as product evidence. Both pass in this release, alongside existing
+branch-contact and protected-save coverage. Actual native chain/selected-branch
+screens were inspected.
+
+The first 145-method broad native batch also caught an unchanged menu test
+waiting ten seconds for its loading status to clear after menu data arrived.
+Three separately traced standalone executions completed normally; those passes
+did not establish a fix or the original timeout's cause. A separate controlled
+native collision then demonstrated a real defect: the controller's snapshot-copy
+search completion restored a menu status cleared between its state read/write.
+Atomic state updates retry that collision and preserve the completed status;
+search progress checks its generation inside the update. The same injected
+collision fails on the retained pre-fix app and passes after the change. All ten
+menu methods then passed, with the original deadlines and assertions unchanged.
+The first failed broad run and diagnostic traces remain in engineering evidence.
+
+Final qualification: **2,361 JVM cases**, zero failures/errors and one optional
+model-weight skip; Android lint and debug/test assembly passed. The frozen native
+selection ran **146 methods: 129 passes, 17 opt-in skips, zero failures**. It covers
+local discovery/store, announcements, menus, protected records/Library, card
+status, social search/scope, scheduling, privacy and feed windows. Installed APK
+hashes match the frozen files.
+
+No data provider, model, runtime library, permission, database migration or extra
+network request is added. Existing locality, cache, route, Tor/session and request
+bounds remain. The source text/archive privacy checks, compatible signer,
+matching clean APK revision, unchanged retained preview state before launch and
+full anonymous permanent-download hash form the release gate. These controlled
+fixtures are not a physical-phone latency/battery or general source-availability
+benchmark.
+
 ## 0.38.39 regional directory admission and private reproduction inputs
 
 Current business/event fixtures use synthetic identities, contacts, addresses

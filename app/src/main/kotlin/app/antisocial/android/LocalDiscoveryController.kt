@@ -211,26 +211,26 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
     }}
     init {scope.launch {store.revision.collect {publish()}}}
     private var localFilter:Job?=null
-    fun text(value:String){if(request?.isActive==true)stop();state.value=state.value.copy(text=value.take(256),phase=LocalSearchPhase.IDLE);localFilter?.cancel();localFilter=scope.launch {delay(180);publish()}}
-    fun mode(value:LocalSearchMode) {stop();state.value=state.value.copy(mode=value,message=null,coverage=emptyList(),phase=LocalSearchPhase.IDLE);scope.launch {publish()}}
+    fun text(value:String){if(request?.isActive==true)stop();state.update {it.copy(text=value.take(256),phase=LocalSearchPhase.IDLE)};localFilter?.cancel();localFilter=scope.launch {delay(180);publish()}}
+    fun mode(value:LocalSearchMode) {stop();state.update {it.copy(mode=value,message=null,coverage=emptyList(),phase=LocalSearchPhase.IDLE)};scope.launch {publish()}}
     fun unit(value:LocalDistanceUnit){repo.prefs.localDistanceUnit=value;state.update {it.copy(unit=value)}}
     fun area(value:LocalArea) {
         require(value.valid());stop();published=null;val areas=(listOf(value)+state.value.areas.filter {it.id!=value.id}).take(12)
         repo.prefs.localAreas=LocalAreaCodec.encode(areas);repo.prefs.localArea=value.id
-        state.value=state.value.copy(area=value,areas=areas,choices=emptyList(),message=null,businesses=emptyList(),groups=emptyList(),events=emptyList(),announcements=emptyList(),phase=LocalSearchPhase.IDLE);scope.launch {publish()}
+        state.update {it.copy(area=value,areas=areas,choices=emptyList(),message=null,businesses=emptyList(),groups=emptyList(),events=emptyList(),announcements=emptyList(),phase=LocalSearchPhase.IDLE)};scope.launch {publish()}
     }
-    fun removeArea(id:String){val areas=state.value.areas.filter {it.id!=id};repo.prefs.localAreas=LocalAreaCodec.encode(areas);if(state.value.area?.id==id){stop();repo.prefs.localArea=areas.firstOrNull()?.id.orEmpty();state.value=state.value.copy(areas=areas,area=areas.firstOrNull(),businesses=emptyList(),groups=emptyList(),events=emptyList(),announcements=emptyList(),phase=LocalSearchPhase.IDLE)}else state.value=state.value.copy(areas=areas);scope.launch {publish()}}
+    fun removeArea(id:String){val areas=state.value.areas.filter {it.id!=id};repo.prefs.localAreas=LocalAreaCodec.encode(areas);if(state.value.area?.id==id){stop();repo.prefs.localArea=areas.firstOrNull()?.id.orEmpty();state.update {it.copy(areas=areas,area=areas.firstOrNull(),businesses=emptyList(),groups=emptyList(),events=emptyList(),announcements=emptyList(),phase=LocalSearchPhase.IDLE)}}else state.update {it.copy(areas=areas)};scope.launch {publish()}}
     fun findArea(text:String) {
         if(text.trim().length<2)return
-        lookup?.cancel();state.value=state.value.copy(lookingUpArea=true,message=null,choices=emptyList())
-        lookup=scope.launch {try {val found=withContext(Dispatchers.IO){backend.areas(text.trim())};state.value=state.value.copy(choices=found,lookingUpArea=false,message=if(found.isEmpty())"No matching area. Include a country or nearby city."else null)}
-            catch(e:CancellationException){throw e}catch(e:Exception){state.value=state.value.copy(lookingUpArea=false,message=e.message ?: "Area lookup is unavailable")}}
+        lookup?.cancel();state.update {it.copy(lookingUpArea=true,message=null,choices=emptyList())}
+        lookup=scope.launch {try {val found=withContext(Dispatchers.IO){backend.areas(text.trim())};state.update {it.copy(choices=found,lookingUpArea=false,message=if(found.isEmpty())"No matching area. Include a country or nearby city."else null)}}
+            catch(e:CancellationException){throw e}catch(e:Exception){state.update {it.copy(lookingUpArea=false,message=e.message ?: "Area lookup is unavailable")}}}
     }
-    fun window(value:LocalEventWindow){state.value=state.value.copy(window=value);scope.launch {publish()}}
-    fun free(value:Boolean){state.value=state.value.copy(freeOnly=value);scope.launch {publish()}}
-    fun saved(value:Boolean){stop();state.value=state.value.copy(savedOnly=value);scope.launch {publish()}}
+    fun window(value:LocalEventWindow){state.update {it.copy(window=value)};scope.launch {publish()}}
+    fun free(value:Boolean){state.update {it.copy(freeOnly=value)};scope.launch {publish()}}
+    fun saved(value:Boolean){stop();state.update {it.copy(savedOnly=value)};scope.launch {publish()}}
     fun stopMenu(){menuGeneration++;menuRequest?.cancel();state.update {it.copy(menuLoading=null)}}
-    fun stop(){val running=request?.isActive==true;request?.cancel();stopMenu();generation++;state.value=state.value.copy(loading=false,enriching=false,phase=if(running)LocalSearchPhase.STOPPED else state.value.phase)}
+    fun stop(){val running=request?.isActive==true;request?.cancel();stopMenu();generation++;state.update {it.copy(loading=false,enriching=false,phase=if(running)LocalSearchPhase.STOPPED else it.phase)}}
     /** Opening a restaurant can fill its menu without starting another index
      * search. Reuse known location routes and their successful/failure rests. */
     fun menu(value:LocalBusiness,force:Boolean=false) {
@@ -274,6 +274,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         }
     }
     fun close(){stopAreaObserver();stop();lookup?.cancel();repo.localSearchConnection(false)}
+    private data class Projection(val businesses:List<LocalBusiness>,val groups:List<LocalBusinessGroup>,val events:List<LocalEvent>,val saved:Set<String>,val announcements:List<LocalAnnouncementCandidate>)
     suspend fun publish()=publication.withLock {
         // Page/account completions and the store observer can arrive together.
         // Serialize projections so an older read cannot replace a newer deck.
@@ -282,30 +283,36 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         if(fingerprint==published)return@withLock
         val result=withContext(Dispatchers.IO) {
             if(!saved&&area!=null){if(snapshot.mode==LocalSearchMode.BUSINESSES)store.reconcile(area)else store.reconcileEvents()}
-            val businesses=if(snapshot.mode!=LocalSearchMode.BUSINESSES)emptyList()else store.businesses(if(saved)null else area,saved).map {it to LocalBusinessRouting.relevance(snapshot.text,it)}.filter {it.second<9}
-                .sortedWith(compareBy<Pair<LocalBusiness,Int>> {it.second}.thenBy {area?.point?.let {p->it.first.point?.let(p::distanceKm)} ?: Double.MAX_VALUE}.thenBy {it.first.name}).take(160)
-                .map {(business,_)->business.copy(socials=business.socials.filter {store.cache(accountKey(it))=="usable"},related=business.related?.map {it.copy(accounts=it.accounts.filter {url->store.cache(accountKey(url))=="usable"})})}
+            val candidates=if(snapshot.mode!=LocalSearchMode.BUSINESSES)emptyList()else store.businesses(if(saved)null else area,saved).map {it to LocalBusinessRouting.relevance(snapshot.text,it)}.filter {it.second<9}
+                .sortedWith(compareBy<Pair<LocalBusiness,Int>> {it.second}.thenBy {area?.point?.let {p->it.first.point?.let(p::distanceKm)} ?: Double.MAX_VALUE}.thenBy {it.first.name}).map {it.first}
+            // Limit cards after grouping: one large chain must not crowd every
+            // independent business out. Identity preparation stays off the UI thread.
+            val groups=LocalBusinessDeck.groups(candidates,area?.point).take(160).map {group->group.copy(locations=group.locations.map {business->
+                business.copy(socials=business.socials.filter {store.cache(accountKey(it))=="usable"},related=business.related?.map {it.copy(accounts=it.accounts.filter {url->store.cache(accountKey(url))=="usable"})})
+            })}
+            val businesses=groups.flatMap {it.locations}
             val query=area?.let {LocalDiscoveryQuery(it,snapshot.text,snapshot.mode,snapshot.window,saved,snapshot.freeOnly)}
             val eventIntent=LocalEventIntent.parse(snapshot.text)
             val announcementAdmission=LocalEventIntent(emptyList(),free=snapshot.freeOnly||eventIntent.free)
             val events=if(snapshot.mode!=LocalSearchMode.EVENTS)emptyList()else store.events(saved).filter {(saved||query!=null&&LocalDiscoveryFilter.event(query,it))&&eventIntent.match(it).matches}
                 .sortedBy {it.start.instant()?.toEpochMilli() ?: it.start.date()?.atStartOfDay(java.time.ZoneId.of(area?.zoneId ?: "UTC"))?.toInstant()?.toEpochMilli() ?: Long.MAX_VALUE}.take(160)
-            Triple(businesses,events,store.savedIds()) to (if(snapshot.mode!=LocalSearchMode.EVENTS||saved||area==null)emptyList()else store.announcements(area).filter {candidate->(candidate.date?.let {runCatching {java.time.LocalDate.parse(it)}.getOrNull()}?.let {date->val range=query!!.dates();date>=range.first&&date<=range.second} ?: true)&&eventIntent.matchText(candidate.title+" "+candidate.text,linkOnly=true).matches&&announcementAdmission.matchText(candidate.title+" "+candidate.text).matches})
+            Projection(businesses,groups,events,store.savedIds(),if(snapshot.mode!=LocalSearchMode.EVENTS||saved||area==null)emptyList()else store.announcements(area).filter {candidate->(candidate.date?.let {runCatching {java.time.LocalDate.parse(it)}.getOrNull()}?.let {date->val range=query!!.dates();date>=range.first&&date<=range.second} ?: true)&&eventIntent.matchText(candidate.title+" "+candidate.text,linkOnly=true).matches&&announcementAdmission.matchText(candidate.title+" "+candidate.text).matches})
         }
         var accepted=false
         state.update {current->if(current.mode==snapshot.mode&&current.area==snapshot.area&&current.text==snapshot.text&&current.savedOnly==saved&&current.window==snapshot.window&&current.freeOnly==snapshot.freeOnly) {
             accepted=true
-            val records=result.first
             val positions=current.businesses.mapIndexed {i,b->b.id to i}.toMap()
             val aliases=current.businesses.flatMapIndexed {i,b->b.sourceIds.map {it to i}}.toMap()
-            val stable=records.first.withIndex().sortedBy {(i,b)->positions[b.id] ?: b.sourceIds.mapNotNull {aliases[it]}.minOrNull() ?: (positions.size+i)}.map {it.value}
+            val stable=result.businesses.withIndex().sortedBy {(i,b)->positions[b.id] ?: b.sourceIds.mapNotNull {aliases[it]}.minOrNull() ?: (positions.size+i)}.map {it.value}
             val oldGroups=current.groups.flatMap {group->group.locations.map {it.id to group.id}}.toMap()
+            val oldPositions=current.groups.mapIndexed {index,group->group.id to index}.toMap()
             val assigned=mutableSetOf<String>()
-            val groups=LocalBusinessDeck.groups(stable).map {group->
-                val key=group.locations.mapNotNull {oldGroups[it.id]}.firstOrNull {it !in assigned} ?: group.id.takeUnless {it in assigned} ?: group.id+":"+group.primary.id
+            val groups=result.groups.map {group->
+                val key=group.locations.mapNotNull {oldGroups[it.id]}.distinct().sortedBy {oldPositions[it]}.firstOrNull {it !in assigned}
+                    ?: group.id.takeUnless {it in assigned} ?: group.id+":"+group.primary.id
                 assigned+=key;group.copy(id=key)
-            }
-            current.copy(businesses=stable,groups=groups,events=records.second,saved=records.third,announcements=result.second)
+            }.withIndex().sortedBy {(index,group)->oldPositions[group.id] ?: (oldPositions.size+index)}.map {it.value}
+            current.copy(businesses=stable,groups=groups,events=result.events,saved=result.saved,announcements=result.announcements)
         }else {accepted=false;current}}
         if(accepted)published=fingerprint
     }
@@ -313,21 +320,21 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         val identity=repo.routes.recognize(url)?.let {ContentIdentity.key(it.platform,it.canonicalUrl)} ?: url.trimEnd('/')
         return "local-account:v2:${repo.prefs.tor}:${repo.prefs.originalFallback}:${repo.prefs.archiveRecovery}:"+LocalDiscoveryIdentity.hash(identity)
     }
-    fun save(business:LocalBusiness){scope.launch {try {withContext(Dispatchers.IO){if(business.id in store.savedIds())store.removeSaved(business.id)else store.save(business)}}catch(e:Exception){state.value=state.value.copy(message=e.message)}}}
+    fun save(business:LocalBusiness){scope.launch {try {withContext(Dispatchers.IO){if(business.id in store.savedIds())store.removeSaved(business.id)else store.save(business)}}catch(e:Exception){state.update {it.copy(message=e.message)}}}}
     fun save(group:LocalBusinessGroup){scope.launch {try {withContext(Dispatchers.IO){val ids=store.savedIds();val remove=group.locations.all {it.id in ids};group.locations.forEach {if(remove)store.removeSaved(it.id)else if(it.id !in ids)store.save(it)}}}catch(e:Exception){state.update {it.copy(message=e.message)}}}}
-    fun save(event:LocalEvent){scope.launch {try {withContext(Dispatchers.IO){if(event.id in store.savedIds())store.removeSaved(event.id)else store.save(event)}}catch(e:Exception){state.value=state.value.copy(message=e.message)}}}
-    fun importPlaces(body:String){val area=state.value.area ?: return;scope.launch {try {val count=withContext(Dispatchers.IO){val data=if(body.contains("\"@spider\""))LocalAllThePlaces.parse(body,"https://alltheplaces.xyz/",System.currentTimeMillis(),area)else LocalStructuredData.overture(body,"https://docs.overturemaps.org/guides/places/",System.currentTimeMillis());store.ingest(data,area).first};state.value=state.value.copy(message="Added $count place records in this area.");publish()}catch(e:Exception){state.value=state.value.copy(message=e.message ?: "Could not read this place pack")}}}
+    fun save(event:LocalEvent){scope.launch {try {withContext(Dispatchers.IO){if(event.id in store.savedIds())store.removeSaved(event.id)else store.save(event)}}catch(e:Exception){state.update {it.copy(message=e.message)}}}}
+    fun importPlaces(body:String){val area=state.value.area ?: return;scope.launch {try {val count=withContext(Dispatchers.IO){val data=if(body.contains("\"@spider\""))LocalAllThePlaces.parse(body,"https://alltheplaces.xyz/",System.currentTimeMillis(),area)else LocalStructuredData.overture(body,"https://docs.overturemaps.org/guides/places/",System.currentTimeMillis());store.ingest(data,area).first};state.update {it.copy(message="Added $count place records in this area.")};publish()}catch(e:Exception){state.update {it.copy(message=e.message ?: "Could not read this place pack")}}}}
     fun search(force:Boolean=false,more:Boolean=false) {
         val snapshot=state.value
         if(snapshot.mode==LocalSearchMode.POSTS)return
-        val area=snapshot.area ?: run {state.value=snapshot.copy(message="Choose an area to find businesses and events.");return}
+        val area=snapshot.area ?: run {state.update {it.copy(message="Choose an area to find businesses and events.")};return}
         if(snapshot.savedOnly){scope.launch {publish()};return}
         stop();val bound=generation
         val intent=LocalEventIntent.parse(snapshot.text)
         val topic=snapshot.text.trim()
         val chosenWindow=if(snapshot.mode==LocalSearchMode.EVENTS)intent.window ?: snapshot.window else snapshot.window
         val query=LocalDiscoveryQuery(area,topic,snapshot.mode,chosenWindow,freeOnly=snapshot.freeOnly)
-        state.value=state.value.copy(loading=true,enriching=false,message=null,coverage=emptyList(),checked=0,more=false,window=chosenWindow,phase=LocalSearchPhase.FINDING)
+        state.update {it.copy(loading=true,enriching=false,message=null,coverage=emptyList(),checked=0,more=false,window=chosenWindow,phase=LocalSearchPhase.FINDING)}
         // Begin the already-required private transport while cached records
         // are prepared, rather than waiting for that local work to finish.
         repo.localSearchConnection(true)
@@ -498,7 +505,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             }
                         }}
                         if(!more)launch {lane("Place directory") {
-                            val version=if(snapshot.mode==LocalSearchMode.EVENTS)4 else 5
+                            val version=if(snapshot.mode==LocalSearchMode.EVENTS)4 else 6
                             val key="directory:v$version:${area.cacheKey}:${snapshot.mode==LocalSearchMode.EVENTS}:${LocalDiscoveryIdentity.hash(PlaceSearchVocabulary.parse(query.text).fingerprint)}"
                             if(force||store.cache(key)==null){ingest(withTimeout(50_000){backend.directory(query)});store.cache(key,"ok",86400000)}
                             queueRelevant();readSources(3)
@@ -594,10 +601,13 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             }
                         }
                     }
-                    if(current())state.value=state.value.copy(more=store.sources(area).any {it.nextCheckAt<=System.currentTimeMillis()&&it.url !in visited&&it.url in currentSources})
+                    if(current()) {
+                        val moreAvailable=store.sources(area).any {it.nextCheckAt<=System.currentTimeMillis()&&it.url !in visited&&it.url in currentSources}
+                        state.update {if(current())it.copy(more=moreAvailable)else it}
+                    }
                 }
                 publish()
-            }finally {if(current())state.value=state.value.copy(loading=false,enriching=false,phase=LocalSearchPhase.COMPLETE)}
+            }finally {state.update {if(current())it.copy(loading=false,enriching=false,phase=LocalSearchPhase.COMPLETE)else it}}
         }}
     }
 }

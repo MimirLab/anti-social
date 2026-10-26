@@ -9,6 +9,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -91,6 +93,47 @@ class RestaurantMenuTest {
         val before=reads
         ui.runOnIdle {model.localSearch.menu(model.localSearch.state.value.businesses.first())}
         ui.waitUntil(5000){model.localSearch.state.value.menuLoading==null};assertEquals(before,reads)
+    }
+    @Test fun finishingSearchCannotRestoreAConcurrentlyCompletedMenuStatus() {
+        val controller=model.localSearch;val original=controller.state
+        val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        val collided=java.util.concurrent.atomic.AtomicBoolean(false)
+        fun completeMenuBeforeWrite(next:LocalDiscoveryState) {
+            if(next.phase==LocalSearchPhase.COMPLETE&&next.menuLoading!=null&&collided.compareAndSet(false,true)) {
+                // Force the independent menu completion between a search's
+                // state read and write. An atomic update must retry the copy.
+                original.update {it.copy(menuLoading=null)}
+            }
+        }
+        val racing=object:MutableStateFlow<LocalDiscoveryState> by original {
+            override var value:LocalDiscoveryState
+                get()=original.value
+                set(next){completeMenuBeforeWrite(next);original.value=next}
+            override fun compareAndSet(expect:LocalDiscoveryState,update:LocalDiscoveryState):Boolean {
+                completeMenuBeforeWrite(update);return original.compareAndSet(expect,update)
+            }
+        }
+        // A fixture-only flow wrapper injects the collision without a product
+        // hook, network operation, extra wait or changed completion assertion.
+        val stateField=controller.javaClass.getDeclaredField("state").apply {isAccessible=true}
+        try {
+            ui.runOnIdle {
+                stateField.set(controller,racing)
+                controller.backend=object:LocalDiscoveryBackend {
+                    override suspend fun areas(text:String)=listOf(area)
+                    override suspend fun directory(query:LocalDiscoveryQuery):LocalExtraction {started.complete(Unit);release.await();return LocalExtraction(validEmpty=true)}
+                    override suspend fun identities(point:LocalPoint)=LocalExtraction()
+                    override suspend fun discover(query:LocalDiscoveryQuery)=emptyList<LocalWebHit>()
+                    override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?)=LocalExtraction()
+                }
+                controller.search()
+            }
+            ui.waitUntil(5000){started.isCompleted}
+            original.update {it.copy(menuLoading="fixture-completing-menu")};release.complete(Unit)
+            ui.waitUntil(10000){original.value.phase==LocalSearchPhase.COMPLETE}
+            assertTrue("The fixture must inject the concurrent completion",collided.get())
+            assertNull("Search completion must preserve the menu's cleared status",original.value.menuLoading)
+        }finally {release.complete(Unit);ui.runOnIdle {controller.stop();stateField.set(controller,original)}}
     }
     @Test fun ordinaryPdfTextNeedsNoModelOnAnySupportedAndroidVersion()=runBlocking {
         val file=File(ui.activity.cacheDir,"menu-text-fixture.pdf")
