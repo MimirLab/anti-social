@@ -34,7 +34,7 @@ class PlatformReaderTest {
         runBlocking {repo.awaitReady()};val vm=model();val before=repo.gateway.currentPolicy()
         ui.runOnUiThread {repo.tor.enable(false)};repo.gateway.configure(NetworkPolicy(tor=true))
         try {for(platform in ReaderScope.platforms.filterNot {it==Platform.RSS}) {
-            ui.runOnIdle {vm.platform(platform,false);vm.following()}
+            ui.runOnIdle {vm.feedPlatform(platform)}
             ui.onNodeWithContentDescription("Search or open a link").performClick()
             ui.onNodeWithTag("Content query").performTextInput("public fixture")
             ui.onNodeWithTag("Content query").performImeAction()

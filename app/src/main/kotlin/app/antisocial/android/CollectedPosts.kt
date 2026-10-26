@@ -33,33 +33,45 @@ internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedP
 /** Reading freezes captions and editions, not local evidence that two already
  * included attachments are the same picture. Never fetches or changes a source. */
 @Composable internal fun rememberCollectedMedia(repo: Repository,posts: List<Post>): List<Media> {
-    val revision by repo.images.identities.revision.collectAsStateWithLifecycle()
-    return remember(posts,revision){collectedMedia(posts,repo.images.identities)}
+    return rememberCollectedAttachments(repo,posts).map {it.media}
 }
 
-internal fun collectedMedia(posts: List<Post>,identities: MediaIdentityStore?=null): List<Media> {
+internal data class CollectedAttachment(val media: Media,val platforms: Set<Platform>,val originalKeys: Set<String>) {
+    val sourceLabel get()=when(media.type){"image"->"Image";"video"->"Video";"audio"->"Audio";else->"Attachment"}+" from "+PlatformOrder.sort(platforms).joinToString(" · "){it.label}
+}
+
+@Composable internal fun rememberCollectedAttachments(repo: Repository,posts: List<Post>): List<CollectedAttachment> {
+    val revision by repo.images.identities.revision.collectAsStateWithLifecycle()
+    return remember(posts,revision){collectedAttachments(posts,repo.images.identities)}
+}
+
+internal fun collectedMedia(posts: List<Post>,identities: MediaIdentityStore?=null): List<Media> = collectedAttachments(posts,identities).map {it.media}
+
+internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentityStore?=null): List<CollectedAttachment> {
+    data class Edition(val media: Media,val post: Post)
     val observed=if(identities==null)posts else posts.map(identities::captured)
     val near=CrossPosts.relatedVisualUpdates(observed)
     val media=observed.flatMap {it.media}
     val assetKeys=media.filter {it.type=="image"}.mapNotNull {item->ImageAssetIdentity.key(item.url)?.let {item.url to it}}.toMap()
     val posters=media.filter {it.type=="video"}.mapNotNull {it.preview}.toSet()
-    val clusters=mutableListOf<MutableList<Media>>()
+    val clusters=mutableListOf<MutableList<Edition>>()
     fun compatible(a:Media,b:Media)=a.type!="image"||a.visualFingerprint==null||b.visualFingerprint==null||
         VisualFrames.sameImage(a.visualFingerprint,b.visualFingerprint)||near&&VisualFrames.same(a.visualFingerprint,b.visualFingerprint,nearbyFrame=true)
     fun equivalent(a:Media,b:Media)=a.type==b.type&&(a.url==b.url||a.type=="image"&&(
         assetKeys[a.url]?.let {it==assetKeys[b.url]}==true&&ImageAssetIdentity.same(a,b)||
         VisualFrames.sameImage(a.visualFingerprint,b.visualFingerprint)||near&&VisualFrames.same(a.visualFingerprint,b.visualFingerprint,nearbyFrame=true)))
-    for(item in media) {
+    for(edition in observed.flatMap {post->post.media.map {Edition(it,post)}}) {
+        val item=edition.media
         // An RSS thumbnail is already represented by the collected playable
         // video. Its source record remains available in Collected originals.
         if(item.type=="image"&&item.url in posters)continue
         // A discarded copy can establish another CDN alias for the retained
         // picture. Keep that evidence within this call. Every known observation
         // must remain compatible: an intermediate JPEG cannot bridge two edits.
-        val matches=clusters.filter {group->group.any {equivalent(it,item)}&&group.all {compatible(it,item)}}
+        val matches=clusters.filter {group->group.any {equivalent(it.media,item)}&&group.all {compatible(it.media,item)}}
         val existing=matches.singleOrNull()
-        if(existing==null)clusters+=mutableListOf(item)
-        else if(existing.none {it.url==item.url&&it.visualFingerprint==item.visualFingerprint})existing+=item
+        if(existing==null)clusters+=mutableListOf(edition)
+        else if(existing.none {it.media==item&&CrossPosts.originalKey(it.post)==CrossPosts.originalKey(edition.post)})existing+=edition
     }
-    return clusters.map {it.first()}
+    return clusters.map {group->CollectedAttachment(group.first().media,group.map {it.post.platform}.toSet(),group.map {CrossPosts.originalKey(it.post)}.toSet())}
 }

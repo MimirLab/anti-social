@@ -678,7 +678,7 @@ class CrossPostFeedTest {
         val source=follow(Platform.X);val first=post(Platform.X,index=41,time=now-90_000)
         val feed="following:${Platform.X.id}:group:${Repository.hash("")}"
         store(first,source);seed(feed,listOf(first),read=true,offset=17)
-        val vm=model();ui.runOnUiThread {vm.following();ui.activity.setContent {AntiSocialApp(vm)}}
+        val vm=model();ui.runOnUiThread {vm.feedPlatform(Platform.X);ui.activity.setContent {AntiSocialApp(vm)}}
         waitRow(first);val before=top(first)
         val second=post(Platform.X,index=42,time=now-30_000);store(second,source)
         ui.waitUntil(10_000){ui.onAllNodesWithTag("Collected originals ${repo.key(first)}").fetchSemanticsNodes().isNotEmpty()}
@@ -688,6 +688,56 @@ class CrossPostFeedTest {
         assertTrue(repo.key(second) in repo.feedMemory.get(feed).readKeys)
         ui.onNodeWithTag("Feed row status ${repo.key(first)}").assertDoesNotExist()
         evidence("same-source-repeat-keeps-reading-place-native")
+    }
+
+    @Test fun lateOpaqueAndVanityEditionsKeepOneCardAndDistinctPictureSources() {
+        repo.prefs.mentionLookups=false
+        val previous=repo.gateway.currentPolicy();repo.gateway.configure(NetworkPolicy(tor=true))
+        val files=mutableListOf<Pair<String,File>>()
+        try {
+            val xFollow=follow(Platform.X);val fbFollow=follow(Platform.FACEBOOK);val igFollow=follow(Platform.INSTAGRAM)
+            val shared="Have you prepared the workshop display? The open evening will add the finishing touch. The maintenance demonstration starts on the evening of Nov. 12. Its name comes from the volunteers who restored the original collection of public repair tools."
+            val imageA="https://pictures.example.org/$suffix/workshop.jpg"
+            val imageB="https://pictures.example.org/$suffix/different-display.jpg"
+            for((index,url) in listOf(imageA,imageB).withIndex()) {
+                val bitmap=android.graphics.Bitmap.createBitmap(320,240,android.graphics.Bitmap.Config.ARGB_8888)
+                bitmap.eraseColor(if(index==0)android.graphics.Color.rgb(20,90,160)else android.graphics.Color.rgb(180,80,30))
+                val file=File(ui.activity.cacheDir,"source-picture-$suffix-$index.png");file.outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+                val key=Repository.hash(url);files+=key to file;runBlocking {repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))}
+            }
+            val x=post(Platform.X,index=61,body=shared,title="").copy(media=listOf(Media(imageA)))
+            val numeric=x.copy(platform=Platform.FACEBOOK,id="numeric-$suffix",canonicalUrl="https://www.facebook.com/100011122233344/posts/123456789012345",media=listOf(Media(imageB)))
+            val vanity=numeric.copy(id="vanity-$suffix",canonicalUrl="https://www.facebook.com/$handle/posts/pfbidFixture$suffix",title=shared.take(80)+"…")
+            val ig=x.copy(platform=Platform.INSTAGRAM,id="instagram-$suffix",canonicalUrl="https://www.instagram.com/p/Fixture$suffix/",body="$shared #Workshop #PublicTools",title=shared.take(72)+"…")
+            // post() already registered x's original copy; retain these media-bearing editions.
+            records+=listOf(x,numeric,vanity,ig)
+            store(x,xFollow);store(numeric,fbFollow)
+            val primary=orderedCollectedOriginals(listOf(x,numeric)).first()
+            seed("all",listOf(x,numeric));val vm=model();show(vm,all=true);waitRow(primary)
+            store(vanity,fbFollow);store(ig,igFollow)
+            ui.waitUntil(15_000){ui.onAllNodesWithContentDescription("Read Instagram comments").fetchSemanticsNodes().isNotEmpty()}
+            rowCount(listOf(x,numeric,vanity,ig),1)
+            ui.onAllNodesWithText("Have you prepared the workshop display?",substring=true).assertCountEquals(1)
+            val imageSet=collectedAttachments(listOf(x,numeric,vanity,ig))
+            assertEquals(2,imageSet.size)
+            assertEquals(setOf(Platform.X,Platform.INSTAGRAM),imageSet.single {it.media.url==imageA}.platforms)
+            assertEquals(setOf(Platform.FACEBOOK),imageSet.single {it.media.url==imageB}.platforms)
+            // Leave and return so the full completed edition set is admitted.
+            ui.runOnIdle {vm.section("saved")};ui.runOnIdle {vm.combined()};waitRow(primary)
+            revealCombinedControl(hasTestTag("Media sources $imageA"))
+            ui.onNodeWithTag("Media sources $imageA").assertTextEquals("Image from Instagram · X")
+            revealCombinedControl(hasTestTag("Media sources $imageB"))
+            ui.onNodeWithTag("Media sources $imageB").assertTextEquals("Image from Facebook")
+            val imageTag="Post image ${repo.key(primary)} $imageB"
+            revealCombinedControl(hasTestTag(imageTag))
+            ui.waitUntil(10_000){ui.onAllNodesWithTag(imageTag).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.Role)==androidx.compose.ui.semantics.Role.Image}}
+            rowCount(listOf(x,numeric,vanity,ig),1)
+            evidence("late-editions-distinct-picture-platforms")
+        }finally {
+            repo.gateway.configure(previous)
+            runBlocking {files.forEach {(key,file)->repo.dao.removeMedia(listOf(key));file.delete()}}
+            repo.images.clear()
+        }
     }
 
     @Test fun savingAFrozenTwoOriginalCardAlsoKeepsItsLateExactThirdOriginal() {

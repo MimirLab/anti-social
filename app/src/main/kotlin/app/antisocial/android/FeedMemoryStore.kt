@@ -18,6 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -61,6 +63,13 @@ class FeedMemoryStore(
     val states=mutableStates.asStateFlow()
     val refresh=mutableRefresh.asStateFlow()
     val ready=mutableReady.asStateFlow()
+
+    /** The disk checkpoint retains every pixel; painting needs only changes to
+     * the reading state or anchor identity. Do not recompose the whole deck for
+     * each pixel travelled. Restore/checkpoint callers still use get(). */
+    internal fun reading(id: String)=states.map {it[id] ?: get(id)}.distinctUntilChanged {old,next->
+        old==next||old.copy(anchorOffset=next.anchorOffset,updatedAt=next.updatedAt)==next
+    }
 
     init {
         scope.launch(Dispatchers.IO) {

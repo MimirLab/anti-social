@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
@@ -50,6 +50,9 @@ class FeedPerformanceTest {
         val listener=Window.OnFrameMetricsAvailableListener {_,metric,_->frames+=metric.getMetric(FrameMetrics.TOTAL_DURATION)}
         var listening=false
         val records=mutableListOf<Post>()
+        val pictures=args.getString("antisocialFeedBenchmarkPictures")=="true"
+        val artwork=mutableListOf<File>()
+        val mediaUrls=if(pictures)(0 until 120).map {"https://feed-art.invalid/fixture-$suffix-$it.jpg"}else emptyList()
         val follows=listOf(Platform.X,Platform.FACEBOOK).map {p->
             Follow("benchmark-$suffix:${p.id}",repo.routes.target(p,if(p==Platform.X)"perf_fixture"else "perf.fixture"),"Workshop",personId="benchmark-$suffix",personName="Public workshop")
         }
@@ -74,11 +77,24 @@ class FeedPerformanceTest {
             runBlocking {repo.feedMemory.awaitReady()}
             val body="The community workshop has published the new maintenance schedule for the public equipment library. Volunteers inspected every replacement battery and documented the compatible connectors, installation steps, repair tools and safety checks. The updated guidance explains when borrowing opens, which parts are supplied, how to reserve a workbench and where to find the full illustrated repair instructions."
             val now=System.currentTimeMillis()
+            if(pictures) {
+                repo.images.clear()
+                repeat(8){index->
+                    val bitmap=android.graphics.Bitmap.createBitmap(1280,960,android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas=android.graphics.Canvas(bitmap);val paint=android.graphics.Paint()
+                    repeat(40){band->paint.color=android.graphics.Color.rgb((index*29+band*7)%256,(band*13+index*17)%256,(index*53+band*5)%256);canvas.drawRect(0f,band*24f,1280f,(band+1)*24f,paint)}
+                    paint.color=android.graphics.Color.WHITE;paint.textSize=100f;canvas.drawText("Workshop $index",80f,500f,paint)
+                    val file=File(ui.activity.cacheDir,"feed-art-$suffix-$index.jpg");artwork+=file
+                    file.outputStream().use {assertTrue(bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,85,it))};bitmap.recycle()
+                }
+                runBlocking {mediaUrls.forEachIndexed {i,url->val file=artwork[i%artwork.size];repo.dao.putMedia(MediaRow(Repository.hash(url),file.path,file.length(),now))}}
+            }
             repeat(240){i->
                 val p=if(i%2==0)Platform.X else Platform.FACEBOOK
                 val id="230000000000000${i.toString().padStart(4,'0')}"
                 val url=if(p==Platform.X)"https://x.com/perf_fixture/status/$id"else "https://www.facebook.com/perf.fixture/posts/$id"
-                records+=Post(id,p,url,"Public workshop","Workshop bulletin ${i/2}. $body",publishedAt=now-i/2*3_600_000L)
+                records+=Post(id,p,url,"Public workshop","Workshop bulletin ${i/2}. $body",publishedAt=now-i/2*3_600_000L,
+                    media=if(pictures)listOf(Media(mediaUrls[i/2]))else emptyList())
             }
             runBlocking {repo.db.withTransaction {
                 follows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
@@ -104,8 +120,10 @@ class FeedPerformanceTest {
             val first="Feed row ${repo.key(records[1])}"
             try {
                 ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
-                ui.waitUntil(90_000){ui.onAllNodesWithTag(first).fetchSemanticsNodes().isNotEmpty()}
+                val admission=args.getString("antisocialFeedFirstCardDeadlineMs")?.toLongOrNull()?.coerceIn(1_000,90_000) ?: 90_000
+                ui.waitUntil(admission){ui.onAllNodesWithTag(first).fetchSemanticsNodes().isNotEmpty()}
                 ui.onNodeWithTag(first).assertIsDisplayed();ui.waitForIdle()
+                if(pictures)ui.waitUntil(20_000){repo.images.identities.knows(mediaUrls.first())}
             }finally {if(traceOpening)android.os.Debug.stopMethodTracing()}
             val openedMs=(SystemClock.elapsedRealtimeNanos()-started)/1e6
             ui.runOnIdle {ui.activity.window.addOnFrameMetricsAvailableListener(listener,Handler(handler.looper));listening=true}
@@ -124,7 +142,7 @@ class FeedPerformanceTest {
             val notificationMs=(SystemClock.elapsedRealtimeNanos()-notificationAt)/1e6
             val samples=frames.filter {it>0}.sorted()
             fun percentile(p:Double)=samples.getOrNull(((samples.size-1)*p).toInt().coerceAtLeast(0))?.div(1e6)
-            val result=mapOf("fixturePosts" to records.size,"groups" to 120,"groupingMs" to grouping,"openMs" to openedMs,"scrollWallMs" to scrollMs,"unchangedNotificationsMs" to notificationMs,
+            val result=mapOf("fixturePosts" to records.size,"cachedPictures" to pictures,"groups" to 120,"groupingMs" to grouping,"openMs" to openedMs,"scrollWallMs" to scrollMs,"unchangedNotificationsMs" to notificationMs,
                 "frames" to samples.size,"frameMedianMs" to percentile(.5),"frameP95Ms" to percentile(.95),"framesOver50Ms" to samples.count {it>50_000_000},"initialCards" to initial,"scrolledCards" to after)
             File(dir,"$label.json").writeText(repo.gson.toJson(result))
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
@@ -135,11 +153,13 @@ class FeedPerformanceTest {
             runBlocking {repo.feedMemory.flush();scope.coroutineContext[Job]?.cancelAndJoin()}
             repo.feedMemory=originalMemory
             runBlocking {repo.db.withTransaction {
+                if(mediaUrls.isNotEmpty())repo.dao.removeMedia(mediaUrls.map(Repository::hash))
                 follows.forEach {repo.dao.removeFollow(it.id)}
                 records.map(repo::key).chunked(400).forEach {repo.dao.removePosts(it)}
                 records.forEach {post->for(table in listOf("history","seen"))repo.db.openHelper.writableDatabase.execSQL("DELETE FROM $table WHERE `key`=?",arrayOf(repo.key(post)))}
             }}
             listOf(memory,File(memory.path+".bak"),File(memory.path+".new")).forEach {it.delete()}
+            artwork.forEach {it.delete()};if(pictures)repo.images.clear()
             ui.runOnIdle {ui.activity.getSharedPreferences("antisocial",Context.MODE_PRIVATE).edit().clear().apply();repo.prefs.restore(JSONObject(preferences));repo.applyNetworkSettings();scheduleRefresh(ui.activity,repo.prefs)}
         }
     }

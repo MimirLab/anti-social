@@ -26,6 +26,22 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun deduplicatedPicturesKeepOnlyTheirActualSourcePlatforms() {
+        val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
+        val first="https://scontent-a.xx.fbcdn.net$path"
+        val copy="https://scontent-b.cdninstagram.com$path?stp=dst-jpg_e35_p1080x1080_tt6"
+        val distinct="https://images.example.org/a-different-picture.jpg"
+        val x=post(distinct,Platform.X).copy(canonicalUrl="https://x.com/fixture/status/123")
+        val fb=post(first,Platform.FACEBOOK).copy(canonicalUrl="https://www.facebook.com/fixture/posts/456")
+        val ig=post(copy,Platform.INSTAGRAM).copy(canonicalUrl="https://www.instagram.com/p/AbCdEfGhijk/")
+        val result=collectedAttachments(listOf(x,fb,ig))
+        assertEquals(2,result.size)
+        assertEquals(setOf(Platform.X),result.first().platforms)
+        assertEquals(setOf(Platform.FACEBOOK,Platform.INSTAGRAM),result.last().platforms)
+        assertEquals(setOf(fb.identityKey,ig.identityKey),result.last().originalKeys)
+        assertEquals("Image from Facebook · Instagram",result.last().sourceLabel)
+        assertEquals(setOf(Platform.X,Platform.FACEBOOK),collectedAttachments(listOf(x,fb.copy(media=x.media))).single().platforms)
+    }
     @Test fun aRemovedPixelCopyStillConnectsItsCdnAliasWithoutSwallowingContraryEvidence() {
         val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
         val pixels=ByteArray(4096){100};val changed=pixels.clone().apply {this[150]=0}

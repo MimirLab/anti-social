@@ -8,7 +8,7 @@ import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.getOrNull
 import androidx.lifecycle.ViewModelProvider
@@ -94,6 +94,48 @@ class FeedMemoryTest {
         runBlocking {repo.feedMemory.awaitReady()}
     }
     private fun model()=AntiSocialViewModel(repo).also {it.following();models+=it}
+
+    @Test fun followingRestoresAllOrTheChosenSourceAfterSearchNavigation() {
+        repo.prefs.selected=listOf(Platform.X,Platform.INSTAGRAM,Platform.FACEBOOK)
+        repo.prefs.readingView=""
+        val vm=AntiSocialViewModel(repo,createSearch={target->SearchFeed(target,discover={Page(emptyList())},read={Page(emptyList())})}).also {models+=it}
+        val search=repo.routes.search(Platform.INSTAGRAM,"public workshop fixture")
+        ui.runOnIdle {
+            assertTrue("A new reader starts with All",vm.screen.value.combined)
+            vm.combined();vm.section("discover");vm.following()
+            assertTrue("All must survive the Search tab",vm.screen.value.combined)
+            vm.feedPlatform(Platform.FACEBOOK);vm.section("discover")
+            vm.open(search)
+        }
+        ui.waitUntil(5_000){vm.screen.value.target==search&&!vm.screen.value.loading}
+        ui.runOnIdle {
+            vm.following()
+            assertFalse(vm.screen.value.combined)
+            assertEquals("The reading source is independent of the search source",Platform.FACEBOOK,vm.screen.value.platform)
+            assertEquals("following",repo.prefs.readingView)
+            vm.platform(Platform.INSTAGRAM);vm.following()
+            assertEquals("An explicit source-tab choice becomes the reader selection",Platform.INSTAGRAM,vm.screen.value.platform)
+        }
+    }
+
+    @Test fun pixelCheckpointsStayExactWithoutRepublishingTheReadingDeck()=runBlocking {
+        val rows=posts(3);val keys=rows.map(repo::key);val store=repo.feedMemory
+        store.reconcile(personFeed,keys);store.anchor(personFeed,keys.first(),0)
+        val emissions=java.util.concurrent.CopyOnWriteArrayList<FeedMemory>()
+        val collecting=launch(Dispatchers.Unconfined){store.reading(personFeed).collect {emissions+=it}}
+        try {
+            repeat(80){store.anchor(personFeed,keys.first(),it+1)}
+            assertEquals(80,store.get(personFeed).anchorOffset)
+            assertEquals("Scrolling within a card must not repaint the deck",1,emissions.size)
+            store.anchor(personFeed,keys[1],19)
+            assertEquals(2,emissions.size)
+            store.markRead(personFeed,listOf(keys[1]))
+            assertEquals(3,emissions.size);assertTrue(keys[1] in emissions.last().readKeys)
+            store.flush();reopenMemory()
+            assertEquals(keys[1],repo.feedMemory.get(personFeed).anchorKey)
+            assertEquals(19,repo.feedMemory.get(personFeed).anchorOffset)
+        }finally {collecting.cancelAndJoin()}
+    }
     private fun posts(count: Int,platform: Platform=Platform.X,start: Int=0): List<Post> = (start until start+count).map {index->
         val id="96$suffix${1000+index}"
         val handle="asmemory${suffix.takeLast(4)}"
@@ -553,7 +595,51 @@ class FeedMemoryTest {
         }finally {release.complete(Unit);runBlocking {withTimeout(10_000){repo.feedRefresh.first {!it.running}}}}
     }
 
-    @Test fun aSuccessfulNativePullAtTheNewestEdgeShowsTheExactCatchUpMessage() {
+    @Test fun userRefreshShowsFixedProgressAndFinishedBatchKeepsAStableNudge() {
+        repo.prefs.mentionLookups=false;repo.prefs.communityComments=false
+        val account=follow();val rows=posts(2);val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        val source=Source(Platform.X,"native-fixture","https://feed-memory-fixture.invalid")
+        runBlocking {repo.dao.putFollow(FollowRow(account.id,account.target.platform.id,repo.gson.toJson(account)));repo.store(Page(rows),account.id,true)}
+        repo.followLoader={started.complete(Unit);release.await();val stamp=Provenance(source,System.currentTimeMillis(),source.root);Page(rows.map {it.copy(provenance=stamp)},provenance=stamp)}
+        seed(personFeed,rows);repo.feedMemory.markRead(personFeed,rows.map(repo::key))
+        val vm=model()
+        ui.runOnUiThread {vm.subscription(person);ui.activity.setContent {AntiSocialApp(vm)}}
+        waitForRow(rows.first())
+        try {
+            ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed pending subscriptions"))
+            ui.onNodeWithText("Fetched batch finished").assertIsDisplayed()
+            ui.onNodeWithText("Source status · 1 pending").assertIsDisplayed()
+            ui.onNodeWithTag("Combined feed").performScrollToIndex(0)
+            ui.onNodeWithTag("Feed pull to refresh").performTouchInput {swipeDown(startY=height*.12f,endY=height*.85f,durationMillis=650)}
+            ui.waitUntil(5_000){started.isCompleted}
+            val bar=ui.onNodeWithTag("Feed toolbar").fetchSemanticsNode().boundsInRoot
+            val progress=ui.onNodeWithTag("Feed manual refresh indicator").fetchSemanticsNode().boundsInRoot
+            assertTrue("Progress stays inside the fixed toolbar",bar.contains(progress.topLeft)&&bar.contains(progress.bottomRight))
+            evidence("manual-refresh-fixed-progress")
+            release.complete(Unit)
+            ui.waitUntil(10_000){!repo.feedRefresh.value.running}
+            ui.waitUntil(5_000){ui.onAllNodesWithTag("Feed manual refresh indicator").fetchSemanticsNodes().isEmpty()}
+            ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed caught up"))
+            ui.onNodeWithText("Caught up").assertIsDisplayed()
+            val line=ui.onNodeWithTag("Feed batch nudge").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text]
+            val layout=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            ui.onNodeWithTag("Feed batch nudge").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult){it(layout)}
+            evidence("finished-batch-stable-nudge")
+            val result=layout.single()
+            assertFalse("The exit line must fit vertically",result.didOverflowHeight)
+            for(index in 0 until result.lineCount) {
+                assertFalse("The exit line must not be ellipsized",result.isLineEllipsized(index))
+                assertTrue("Drawn glyphs must fit, allowing fractional-pixel rounding",result.getLineRight(index)<=result.size.width+1f)
+            }
+            assertEquals(result.layoutInput.text.text.trimEnd().length,result.getLineEnd(result.lineCount-1,visibleEnd=true))
+            ui.mainClock.advanceTimeBy(2_000);ui.waitForIdle()
+            assertEquals(line,ui.onNodeWithTag("Feed batch nudge").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text])
+            ui.onAllNodesWithText(line.single().text).assertCountEquals(1)
+            evidence("finished-batch-stable-nudge")
+        }finally {release.complete(Unit);runBlocking {withTimeout(10_000){repo.feedRefresh.first {!it.running}}}}
+    }
+
+    @Test fun aSuccessfulNativePullAtTheNewestEdgeKeepsUnreadPostsHonest() {
         val account=follow();val rows=posts(18);val calls=java.util.concurrent.atomic.AtomicInteger()
         val source=Source(Platform.X,"native-fixture","https://feed-memory-fixture.invalid")
         fun page()=Provenance(source,System.currentTimeMillis(),source.root).let {stamp->Page(rows.map {it.copy(provenance=stamp)},provenance=stamp)}
@@ -576,9 +662,9 @@ class FeedMemoryTest {
         assertEquals(setOf(account.id),repo.feedRefresh.value.requested)
         assertTrue(repo.feedRefresh.value.failed.isEmpty())
         assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[account.id]?.status)
-        ui.waitUntil(5_000){ui.onAllNodesWithText("Slop consumed, go be productive.").fetchSemanticsNodes().isNotEmpty()}
-        ui.onNodeWithText("Slop consumed, go be productive.").assertIsDisplayed()
-        evidence("native-edge-pull-no-new-catch-up-snackbar")
+        ui.waitUntil(5_000){ui.onAllNodesWithText("No new posts.",substring=true).fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithText("No new posts.",substring=true).assertIsDisplayed()
+        evidence("native-edge-pull-no-new-keeps-unread-count")
     }
 
     @Test fun aPendingSourceCannotAnnounceThatTheReadersSlopWasConsumed() {
@@ -854,7 +940,7 @@ class FeedMemoryTest {
             waitForRow(personAnchor);ui.waitUntil(5_000){abs(top(personAnchor)-personTop)<=2f}
             assertEquals(0,targetOpens.get());assertEquals(person,personReader.screen.value.subscriptionId)
             evidence("native-person-view-restored-after-new-model")
-            ui.runOnIdle {personReader.following()}
+            ui.runOnIdle {personReader.feedPlatform(Platform.X)}
             // Open the menu after the requested reader has been composed.
             ui.waitUntil(5_000){ui.onAllNodesWithTag("Following feed").fetchSemanticsNodes().isNotEmpty()}
             ui.onNodeWithTag("Feed options").performClick()

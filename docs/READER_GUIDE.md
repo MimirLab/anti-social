@@ -15,10 +15,24 @@ published name takes priority. See [account discovery](ACCOUNT_LINKAGE.md) for
 sources, limits and caching.
 
 Use Continue reading to resume, or Jump to newest to skip missed material.
-Incoming posts wait for deliberate adoption. A caught-up boundary means the
-relevant refresh succeeded; unavailable sources remain visibly pending.
+The visible card keeps its reading position while completed updates join the
+deck. Returning from Search restores All or the last source used in Following.
+Facebook is included in the default source selection; your custom selection stays
+under your control in Settings.
 
-Collected cross-posts expose their original editions. In comments, All combines
+Pull down at the newest edge to check subscriptions. The arrow and manual-refresh
+progress stay in the fixed toolbar, leaving cards readable. Feed options includes
+Stop refresh and the per-account check details.
+
+A finished batch gets one stable exit line encouraging you to leave the feed.
+Caught up means the relevant refresh succeeded. Fetched batch finished describes
+the loaded material, with unavailable sources still visibly pending. Skipped
+unread posts and incoming updates retain their own status.
+
+Collected cross-posts expose their original editions. Pictures and videos in a
+multi-platform collection show their source platforms; a deduplicated picture
+retains the platforms of its observed copies. Tap that label to inspect the
+originals. Different pictures remain separate. In comments, All combines
 available streams, while platform tabs let you inspect each stream. Community
 participation belongs to All or its community tab; the app does not post into an
 unconnected social account.

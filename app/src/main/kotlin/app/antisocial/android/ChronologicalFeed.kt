@@ -10,8 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
@@ -74,12 +77,11 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val repo=vm.repo;val store=repo.feedMemory
     val selectedChannel by repo.channels.selected.collectAsState()
     val filtering=rememberReaderFilters(repo,ContentFilterContext(FilterSurface.FEED,channel=selectedChannel.takeIf {feedId.startsWith("channel:")}))
-    val memories by store.states.collectAsState()
+    val memory by remember(store,feedId){store.reading(feedId)}.collectAsState(initial=store.get(feedId))
     val checks by store.refresh.collectAsState()
     val refresh by repo.feedRefresh.collectAsState()
     val ready by store.ready.collectAsState()
     val state by vm.screen.collectAsState()
-    val memory=memories[feedId] ?: store.get(feedId)
     val readKeys=remember(memory.readKeys){memory.readKeys.toHashSet()}
     val freshKeys=remember(memory.freshKeys){memory.freshKeys.toHashSet()}
     val scope=rememberCoroutineScope()
@@ -115,6 +117,9 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val visibleKeys by remember(list) {derivedStateOf {list.layoutInfo.feedViewportItems().map {it.key.toString()}.toSet()}}
     val snackbar=remember {SnackbarHostState()}
     var manualRefresh by remember {mutableStateOf<ManualFeedRefresh?>(null)}
+    val pullState=rememberPullToRefreshState()
+    val exitSeed=remember {System.nanoTime().toInt()}
+    val exitLine=remember(exitSeed){FeedExitCopy.line(exitSeed)}
     var earlier by remember {mutableStateOf(false)}
     var nearbyNotice by remember {mutableStateOf<String?>(null)}
     var showSources by remember {mutableStateOf(false)}
@@ -201,6 +206,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val fresh=frozen.count {row->readable(row)&&row.aliases.any {it !in readKeys}&&row.aliases.any {it in freshKeys}}
     val unreadBefore=frozen.take(boundary).count {row->readable(row)&&row.aliases.any {it !in readKeys}}
     val caught=(frozen.isNotEmpty()||explanations!=null)&&counterpartsReady&&changes!=null&&RefreshLedger.caughtUp(accountIds,checks)&&unreadBefore==0&&!incoming&&!filtersPending
+    val batchFinished=frozen.isNotEmpty()&&counterpartsReady&&changes!=null&&unreadBefore==0&&!incoming&&!filtersPending&&!updating&&!state.loading
     val canContinue=FeedReading.restoreReturn(memory,aliases)!=null
 
     fun extend(row: FrozenFeedRow,owners: Map<String,String> = emptyMap(),adopting: Boolean=false): FrozenFeedRow {
@@ -269,7 +275,11 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         FeedContent(row.aliases.toSet(),collectedCaptionTexts(row.posts),row.posts.flatMap {it.media}.map {it.url}.toSet())
     }
     fun requestRefresh() {
-        if(refresh.running||state.loading||manualRefresh!=null)return
+        if(accounts.isEmpty()) {scope.launch {snackbar.showSnackbar("Add a subscription to check for posts.")};return}
+        if(refresh.running||state.loading||manualRefresh!=null) {
+            scope.launch {snackbar.showSnackbar("Still checking sources. Your loaded posts are ready to read.")}
+            return
+        }
         manualRefresh=ManualFeedRefresh(refresh.generation,content(frozen))
         (onRefresh ?: {vm.refresh()})()
     }
@@ -417,7 +427,14 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             old.aliases.any {it in item.aliases}&&old.text==item.text&&old.media==item.media
         }}
         manualRefresh=null
-        if(!newContent)scope.launch {snackbar.showSnackbar("Slop consumed, go be productive.")}
+        val boundaryVisible=list.layoutInfo.feedViewportItems().any {it.key=="boundary:$feedId"}
+        if(!newContent&&!(unreadBefore==0&&!filtersPending&&boundaryVisible))scope.launch {snackbar.showSnackbar(if(unreadBefore==0&&filtersPending.not())exitLine else "No new posts. $unread still unread in this batch.")}
+    }
+    // Caption/filter projection can settle just after the refresh callback, or
+    // the reader can scroll to the boundary while a snackbar is still visible.
+    // Keep one copy of the exit line in either case.
+    LaunchedEffect(batchFinished,visibleKeys,exitLine) {
+        if(batchFinished&&"boundary:$feedId" in visibleKeys)snackbar.currentSnackbarData?.takeIf {it.visuals.message==exitLine}?.dismiss()
     }
     val saveCheckpoint by rememberUpdatedState({if(restored&&!navigating)checkpoint();repo.scope.launch {store.flush()};Unit})
     val lifecycle=LocalLifecycleOwner.current.lifecycle
@@ -439,6 +456,9 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                         if(updating||pending>0||state.loading||nearbyNotice!=null||state.error!=null)Text(if(updating)" · updating"else if(pending>0)" · $pending pending"else " · status",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,modifier=Modifier.testTag("Feed check summary").clickable {showSources=true})
                     }
                 }
+                // Keep the gesture arrow and a user-requested check in one
+                // reserved toolbar slot, never floating over the reading card.
+                FeedRefreshIndicator(pullState,manualRefresh!=null)
                 if(canContinue)IconButton(onClick={continueReading()},enabled=!navigating&&!preparing,modifier=Modifier.testTag("Continue reading")){Icon(Icons.Rounded.History,"Continue reading",Modifier.size(20.dp))}
                 TextButton(onClick={accept(true)},enabled=restored&&(frozen.isNotEmpty()||availableKeys.isNotEmpty())&&!navigating&&!preparing&&counterpartsReady,contentPadding=PaddingValues(horizontal=6.dp),modifier=Modifier.testTag("Jump to newest").semantics {contentDescription="Jump to newest"}){Text("Newest",fontSize=12.sp,maxLines=1)}
                 FilterControls(repo,filtering,filterGroups,assessments,compact=true)
@@ -462,7 +482,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         // The pull arrow belongs to the gesture and retracts after release.
         // Long source checks use the fixed toolbar status, not a floating loop
         // over an already readable card. requestRefresh still prevents overlap.
-        PullToRefreshBox(isRefreshing=false,onRefresh={requestRefresh()},modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
+        PullToRefreshBox(isRefreshing=manualRefresh!=null,state=pullState,indicator={},onRefresh={requestRefresh()},modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
         ArchiveListViewport(list) {
             LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag(if(grouped)"Combined feed"else "Following feed"),contentPadding=PaddingValues(start=16.dp,end=16.dp,top=12.dp,bottom=24.dp+with(density){endFillPx.toDp()}),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(frozen.isEmpty()&&availableKeys.isEmpty())item(key="empty:$feedId") {Column(Modifier.padding(vertical=20.dp)) {
@@ -487,7 +507,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                 }}
                 feedRows(frozen.take(boundary))
                 item(key="boundary:$feedId") {
-                    FeedBoundary(caught,pending,unreadBefore,incoming,checks,accounts,tail=frozen.size-boundary,onSources={showSources=true},onEarlier={earlier=true},earlier=earlier,emptyChannel=explanations!=null&&frozen.isEmpty(),filtered=filteredCount)
+                    FeedBoundary(caught,pending,unreadBefore,incoming,checks,accounts,tail=frozen.size-boundary,onSources={showSources=true},onEarlier={earlier=true},earlier=earlier,emptyChannel=explanations!=null&&frozen.isEmpty(),filtered=filteredCount,
+                        batchFinished=batchFinished,nudge=if(caught)exitLine else FeedExitCopy.line(exitSeed,false))
                 }
                 if(earlier)feedRows(frozen.drop(boundary))
             }
@@ -513,15 +534,30 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     }},confirmButton={TextButton(onClick={why=null}){Text("Done")}})}
 }
 
-@Composable private fun FeedBoundary(caught: Boolean,pending: Int,unread: Int,incoming: Boolean,checks: Map<String,FollowRefresh>,follows: List<Follow>,tail: Int,onSources: ()->Unit,onEarlier: ()->Unit,earlier: Boolean,emptyChannel: Boolean=false,filtered: Int=0) {
+@Composable private fun FeedRefreshIndicator(state: PullToRefreshState,refreshing: Boolean) {
+    val pulled by remember(state){derivedStateOf {state.distanceFraction>0f}}
+    Box(Modifier.size(32.dp),contentAlignment=Alignment.Center) {
+        if(refreshing)CircularProgressIndicator(Modifier.size(18.dp).testTag("Feed manual refresh indicator"),strokeWidth=2.dp)
+        else Icon(Icons.Rounded.Refresh,if(pulled)"Pull to refresh"else null,Modifier.size(20.dp).graphicsLayer {
+            alpha=state.distanceFraction.coerceIn(0f,1f)
+            rotationZ=state.distanceFraction.coerceIn(0f,2f)*180f
+        })
+    }
+}
+
+@Composable private fun FeedBoundary(caught: Boolean,pending: Int,unread: Int,incoming: Boolean,checks: Map<String,FollowRefresh>,follows: List<Follow>,tail: Int,onSources: ()->Unit,onEarlier: ()->Unit,earlier: Boolean,emptyChannel: Boolean=false,filtered: Int=0,batchFinished: Boolean=false,nudge: String="") {
     val checked=follows.mapNotNull {checks[it.id]?.lastSuccessAt}.minOrNull()
     val stamp=checked?.let {DateTimeFormatter.ofPattern("MMM d · HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(it))}
-    Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.4f),modifier=Modifier.fillMaxWidth().height(128.dp).testTag(if(pending>0)"Feed pending subscriptions"else if(caught)"Feed caught up"else "Feed unread boundary")) {
+    Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.4f),modifier=Modifier.fillMaxWidth().height(160.dp).testTag(if(pending>0)"Feed pending subscriptions"else if(caught)"Feed caught up"else "Feed unread boundary")) {
         Column(Modifier.padding(16.dp)) {
-            Text(when {pending>0->"Updates pending";incoming->"Updates are waiting";unread>0->"$unread still unread";caught&&filtered>0->"Caught up · $filtered filtered";caught->"Caught up";follows.isNotEmpty()->"Public posts not loaded";else->"End of fetched posts"},fontSize=16.sp,fontWeight=FontWeight.SemiBold,maxLines=1)
-            Text(when {pending>0->"$pending subscribed ${if(pending==1)"account still needs"else "accounts still need"} a successful check.";incoming->"Newer posts are being collected above your reading position.";unread>0->"Posts skipped above stay unread.";caught&&emptyChannel->"The selected subscriptions were checked; no fetched posts matched this channel.";caught&&filtered>0->"Visible posts are read; $filtered filtered cards remain available in Review without being marked read.";caught->"You've read this batch of fetched public posts.";follows.isNotEmpty()->"Refresh subscriptions to fetch readable public posts.";else->"Add a subscription to build your reading feed."}+(if(pending==0&&stamp!=null)" Last checked $stamp."else ""),Modifier.weight(1f).padding(top=7.dp),fontSize=12.sp,lineHeight=17.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=3,overflow=TextOverflow.Ellipsis)
+            Text(when {batchFinished&&pending>0->"Fetched batch finished";pending>0->"Updates pending";incoming->"Updates are waiting";unread>0->"$unread still unread";caught&&filtered>0->"Caught up · $filtered filtered";caught->"Caught up";follows.isNotEmpty()->"Public posts not loaded";else->"End of fetched posts"},fontSize=16.sp,fontWeight=FontWeight.SemiBold,maxLines=1)
+            if(batchFinished&&filtered==0) {
+                Text(nudge,Modifier.weight(1f).padding(top=7.dp).testTag("Feed batch nudge"),fontSize=12.sp,lineHeight=17.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=3,overflow=TextOverflow.Ellipsis)
+            }else {
+                Text(when {pending>0->"$pending subscribed ${if(pending==1)"account still needs"else "accounts still need"} a successful check.";incoming->"Newer posts are being collected above your reading position.";unread>0->"Posts skipped above stay unread.";caught&&emptyChannel->"The selected subscriptions were checked; no fetched posts matched this channel.";caught&&filtered>0->"Visible posts are read; $filtered filtered cards remain available in Review without being marked read.";caught->"You've read this batch of fetched public posts.";follows.isNotEmpty()->"Refresh subscriptions to fetch readable public posts.";else->"Add a subscription to build your reading feed."}+(if(pending==0&&stamp!=null)" Last checked $stamp."else ""),Modifier.weight(1f).padding(top=7.dp),fontSize=12.sp,lineHeight=17.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=3,overflow=TextOverflow.Ellipsis)
+            }
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                TextButton(onClick=onSources){Text("Source status",fontSize=12.sp)}
+                TextButton(onClick=onSources){Text(if(batchFinished&&pending>0)"Source status · $pending pending"else "Source status",fontSize=12.sp)}
                 if(tail>0&&!earlier)TextButton(onClick=onEarlier,modifier=Modifier.testTag("Earlier posts")){Text("Earlier posts",fontSize=12.sp)}
                 else if(tail>0)Text("Earlier posts below",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }

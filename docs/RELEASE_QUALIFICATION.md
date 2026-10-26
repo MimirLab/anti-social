@@ -9,6 +9,74 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.42 reader progress and picture origins
+
+The reader separates durable pixel checkpoints from the state needed to paint
+the deck. Eighty pixel-offset changes in one card preserve the exact persisted
+position without republishing the reading projection; anchor identities and read
+marks still publish. An initial 240-post, text-only emulator comparison measured
+median eight-swipe wall time of 4.716 s before and 3.683 s after this separation.
+This small debug fixture does not establish physical-phone frame rate.
+
+A cached-picture fixture exposed another startup cost: every restored image
+fingerprint restarted the grouping projection and its readiness gate. A retained
+release failed the new ten-second first-card deadline. Sequential, conflated
+revision processing finishes the first grouping and then incorporates later
+image evidence; changed source content and memberships still cancel obsolete
+work. The candidate cleared that deadline. Three alternating runs per build with
+240 posts, 120 groups and cached 1,280 × 960 pictures measured median first-card
+time of 16.351 s before and 5.974 s after; eight-swipe wall time changed from
+5.565 s to 5.084 s. Each run collected only 30–40 frame samples, so these timings
+show a reproducible emulator improvement rather than phone frame-rate proof.
+Captured fingerprints remain attached
+to the matched editions because caption fusion and saved-copy validation use
+that proof; an intermediate optimization that dropped them failed an existing
+native caption-retention check and was removed.
+
+Following remembers its own All/source selection across Search, including a
+search on another platform. Explicit source tabs update that selection. New
+readers start on All, and Facebook joins the default source set without replacing
+custom choices. Pull gestures and user-requested check progress use a fixed
+toolbar slot. The finished-batch exit-copy bank stays stable within a reading
+session, distinguishes loaded material from successful source checks, preserves
+unread/incoming/filtered status, and avoids repeating an already-visible exit
+line in a snackbar.
+
+Collected attachments retain their actual source-platform sets through image
+deduplication, including same-URL and qualified CDN copies. Different pictures
+remain distinct. Feed labels open the original editions; protected local copies
+also show the labels. A synthetic native late-arrival case covers a numeric and
+an opaque Facebook edition alongside two other platforms, one card, a shared
+caption read once, and distinct picture-source labels. Private recorded-input
+replay also checks the selected case within a larger retained corpus. No
+personal reproduction text or reader state is bundled with these tests.
+
+The reported Instagram-first-search startup error remains unconfirmed on the
+test devices. Three opt-in native Search-tab queries returned readable cards.
+Separate first-operation runs began with filters unready and Tor at zero percent;
+both retained and temporarily cleared source-health state returned posts through
+the selected protected index. The latter completed its first batch in about
+24 seconds. A retained API 29 preview search submitted 2.65 seconds after launch
+also progressed from placeholders to readable posts, with a partial-index notice.
+These dated results do not establish that the phone-specific error is resolved.
+Transport protections and provider/source selection remain unchanged.
+
+Qualification covered **2,370 JVM cases**, zero failures/errors and three opt-in
+skips, plus **181 native methods: 178 passes, three opt-in skips, zero failures**.
+Android lint and debug/test assembly passed. Native coverage includes all reader
+memory journeys, cross-post/fusion/caption retention, image matching, source tabs,
+search/scope/privacy, channels, refresh/revalidation, and protected local copies.
+The deprecated immediate Compose test clock produced thread/layout exceptions
+under asynchronous fixture updates; the reading-memory and performance fixtures
+now use the pinned queued v2 rule. The native privacy check examines the exact
+paused-Tor failure and absence of connections to the selected providers, rather
+than treating unrelated direct work as an increase caused by the blocked search.
+
+No provider, model, permission, database migration or native runtime is added.
+Private replay packets, device state, captured social material and timing traces
+remain in the external evidence area. Source/signing, protected preview-state,
+versioned artifact and permanent-download checks still gate promotion.
+
 ## 0.38.41 sparse place records in chain cards
 
 The previous matcher covered explicit brand and shared-site records but missed

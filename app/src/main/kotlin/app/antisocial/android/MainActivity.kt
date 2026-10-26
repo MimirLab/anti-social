@@ -115,7 +115,7 @@ private val Mint=Color(0xFF8DE5BA)
 private val Ink=Color(0xFF111315)
 private val Panel=Color(0xFF1A1D20)
 private val Muted=Color(0xFF929D99)
-private data class KnownPostGroups(val posts: List<Post>,val follows: List<Follow>,val memberships: Map<String,Set<String>>,val images: Long,val groups: Map<String,List<Post>>)
+private data class KnownPostGroups(val posts: List<Post>,val follows: List<Follow>,val memberships: Map<String,Set<String>>,val groups: Map<String,List<Post>>)
 internal val LocalPostCounterparts=compositionLocalOf<Map<String,List<Post>>> {emptyMap()}
 internal val LocalSavedPostKeys=compositionLocalOf<Set<String>> {emptySet()}
 internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
@@ -162,18 +162,29 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val matchingMemberships=remember(globalSnapshot,storedSnapshot){buildMap<String,Set<String>> {
         (if(useGlobal)listOfNotNull(globalSnapshot?.memberships)else listOfNotNull(globalSnapshot?.memberships,storedSnapshot?.memberships)).forEach {map->map.forEach {(key,ids)->put(key,get(key).orEmpty()+ids)}}
     }}
-    val imageRevision by repo.images.identities.revision.collectAsStateWithLifecycle()
     LaunchedEffect(repo,matchingCandidates) {
         matchingCandidates?.let {posts->delay(300);repo.images.restoreCachedIdentities(posts)}
     }
-    val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships,imageRevision) {
+    val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships) {
         val candidates=matchingCandidates;val accounts=loadedFollows
         if(candidates==null||accounts==null){value=null;return@produceState}
-        value=withContext(Dispatchers.Default){KnownPostGroups(candidates,accounts,matchingMemberships,imageRevision,repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions"){CrossPosts.groupCancellable(candidates.map(repo.images.identities::captured),accounts,matchingMemberships,repo.images.identities::same)}.flatMap {g->g.posts.map {repo.key(it) to g.posts}}.toMap())}
+        // A cached-picture scan can publish a revision every few milliseconds.
+        // Finish the current coherent grouping rather than repeatedly cancelling
+        // the first readable deck. StateFlow conflates later revisions while we
+        // work; source/membership changes still cancel this whole projection.
+        repo.images.identities.revision.collect {
+            value=withContext(Dispatchers.Default) {
+                val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
+                    CrossPosts.groupCancellable(candidates.map(repo.images.identities::captured),accounts,matchingMemberships,repo.images.identities::same)
+                }.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap()
+                KnownPostGroups(candidates,accounts,matchingMemberships,groups)
+            }
+            delay(150)
+        }
     }
     val discussionGroups=knownGroups?.groups.orEmpty()
     val counterpartsReady=!feedRefresh.publishing&&globalSnapshot?.generation==feedRefresh.readableGeneration&&
-        ((state.section!="subscription"&&(state.section!="feed"||state.target!=null))||storedSnapshot!=null&&storedSnapshot.generation==globalSnapshot?.generation)&&matchingCandidates!=null&&loadedFollows!=null&&knownGroups?.posts==matchingCandidates&&knownGroups?.follows==loadedFollows&&knownGroups?.memberships==matchingMemberships&&knownGroups?.images==imageRevision
+        ((state.section!="subscription"&&(state.section!="feed"||state.target!=null))||storedSnapshot!=null&&storedSnapshot.generation==globalSnapshot?.generation)&&matchingCandidates!=null&&loadedFollows!=null&&knownGroups?.posts==matchingCandidates&&knownGroups?.follows==loadedFollows&&knownGroups?.memberships==matchingMemberships
     val readerStates=rememberSaveableStateHolder()
     var readerKeys by rememberSaveable {mutableStateOf(listOf<String>())}
     val channelScope=channelId?.takeIf {state.target==null}?.let {":channel:$it:${activeChannel?.let(PersonalChannels::fingerprint).orEmpty()}"}.orEmpty()
@@ -409,7 +420,8 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             runCatching {repo.library.normalizedFusionRoots(post,threads)}.getOrDefault(emptyList())else emptyList()
         extended.ifEmpty {body}
     }}
-    val shownMedia=rememberCollectedMedia(repo,if(fusion!=null)contentRoots else listOf(displayed))
+    val attachments=rememberCollectedAttachments(repo,if(fusion!=null)contentRoots else listOf(displayed))
+    val shownMedia=remember(attachments){attachments.map {it.media}}
     val mediaSources=remember(displayed,fusion,contentRoots){if(fusion==null)emptyMap()else contentRoots.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
     val images=shownMedia.filter {it.type=="image"}
     val infoPosts=if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads
@@ -454,8 +466,10 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             if(post.preview)Text("Public preview · full content unavailable",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(horizontal=16.dp,vertical=6.dp))
             if(linkedVideo&&caption.title.isNotBlank())MentionText(caption.title,repo,caption.platform,caption.canonicalUrl,fontSize=18.sp,fontWeight=FontWeight.SemiBold,maxLines=3,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(horizontal=16.dp,vertical=10.dp),explicitProfileLinks=caption.links.orEmpty())
             if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
-            shownMedia.forEach {m->
+            attachments.forEach {attachment->val m=attachment.media
                 val owner=if(fusion==null)displayed else contentRoots.firstOrNull {root->root.media.any {it.url==m.url}} ?: displayed
+                if(contentRoots.map {it.platform}.distinct().size>1)Text(attachment.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier=Modifier.padding(start=16.dp,end=16.dp,top=8.dp).testTag("Media sources ${m.url}").clickable {showOriginals=true})
                 if(m.type=="image")RemoteImage(m.url,owner.contentSourceUrl,repo,Modifier.fillMaxWidth().testTag("Post image ${repo.key(post)} ${m.url}").aspectRatio(when(post.platform){Platform.TIKTOK,Platform.SNAPCHAT->.75f;Platform.INSTAGRAM,Platform.PIXELFED->1f;Platform.PINTEREST->.8f;else->1.25f}).padding(top=12.dp).clickable {fullImage=images.toList() to images.indexOf(m)},m.description) else VideoCard(m,owner,repo)
             }
             if(post.platform==Platform.TIKTOK&&displayed.media.any {it.description.startsWith("Video preview;")})Text("Video preview · playback unavailable from this source",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(16.dp))

@@ -174,7 +174,8 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
     val displayed=if(showingArchive&&version!=null)version.displayPost(sourceEdition)else sourceEdition
     val fusion=remember(fusionRoots,selectedEdition,showingArchive){if(selectedEdition=="all"&&!showingArchive)collectedPostFusion(fusionRoots)else null}
     // Offline editions use their captured observations, never a newer live URL's bytes.
-    val shownMedia=remember(displayed,fusion,fusionRoots){collectedMedia(if(fusion!=null)fusionRoots else listOf(displayed))}
+    val attachments=remember(displayed,fusion,fusionRoots){collectedAttachments(if(fusion!=null)fusionRoots else listOf(displayed))}
+    val shownMedia=remember(attachments){attachments.map {it.media}}
     val caption=if(selectedEdition=="all"&&!showingArchive&&fusion==null)collectedCaptionPost(fusionRoots) ?: displayed else displayed
     val body=remember(caption){PostPresentation.text(caption)}
     val selectedUrls=entry.details?.selectedAssets.orEmpty().map {it.url}.toSet()
@@ -202,6 +203,7 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
             if(displayed.preview)item {Text("Partial public content · this is the text that was available when saved.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
             items(shownMedia,key={"local-media:${it.url}"}) {media->
                 val owner=if(fusion==null)displayed else fusionRoots.firstOrNull {root->root.media.any {it.url==media.url}} ?: displayed
+                if(fusionRoots.map {it.platform}.distinct().size>1)Text(attachments.first {it.media.url==media.url}.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(media.url in selectedUrls)LocalCopyMedia(repo,media,owner,onImage={image=it})else Text(if(media.type=="image")"Photo not included in this copy"else "Video not included in this copy",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {

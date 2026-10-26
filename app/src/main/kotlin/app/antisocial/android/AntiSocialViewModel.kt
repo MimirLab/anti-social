@@ -15,8 +15,11 @@ data class ScreenState(val platform: Platform=Platform.X,val section: String="fe
 class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScope)->DiscussionReader)?=null,imageSearchFactory: ((CoroutineScope)->ImageSearchController)?=null,private val createSearch: (Target)->SearchFeed=repo::searchFeed): ViewModel() {
     private val initialReadingView=repo.prefs.readingView
     private val initialReadingPerson=repo.prefs.readingPerson
+    // Search owns its source picker. Returning to Following restores the
+    // reader's selection rather than inheriting whichever search site was used.
+    private var followingSelection=ScreenState(repo.prefs.activePlatform,combined=initialReadingView !in setOf("following","person"))
     val screen=MutableStateFlow(when(initialReadingView) {
-        "all"->ScreenState(repo.prefs.activePlatform,combined=true)
+        "","all"->ScreenState(repo.prefs.activePlatform,combined=true)
         "person"->ScreenState(repo.prefs.activePlatform,section="subscription",combined=true,subscriptionId=initialReadingPerson)
         else->ScreenState(repo.prefs.activePlatform)
     })
@@ -79,7 +82,7 @@ class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScop
         when {
             state.target!=null->{repo.prefs.readingView="target";repo.prefs.readingPerson=""}
             state.section=="subscription"->{repo.prefs.readingPerson=state.subscriptionId.orEmpty();repo.prefs.readingView="person"}
-            state.section=="feed"->{repo.prefs.readingView=if(state.combined)"all"else "following";repo.prefs.readingPerson=""}
+            state.section=="feed"->{followingSelection=ScreenState(state.platform,combined=state.combined);repo.prefs.readingView=if(state.combined)"all"else "following";repo.prefs.readingPerson=""}
         }
     }
     private fun retainCurrent(){val state=screen.value;state.target?.let {target->state.page?.let {if(!state.loading||pages.get(target)==null)pages.put(target,it,complete=!state.loading)}}}
@@ -120,12 +123,13 @@ class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScop
     fun dismissNotice(){screen.value=screen.value.copy(notice=null)}
     fun platform(p: Platform,restore: Boolean=true) {
         if(!ReaderScope.isFeedSource(p)){videoOnlyNotice();return}
+        if(restore)followingSelection=ScreenState(p)
         if(restore)linkedVideoReturn=null
         if(restore){leaveImageSearch();combinedReturn=null;combinedEntry=null}
         retainCurrent();cancelRequests();generation++;repo.prefs.activePlatform=p
         val target=stacks.getValue(p).lastOrNull()
         screen.value=ScreenState(p,target=target,page=target?.let {pages.get(it)},searchFeed=target?.takeIf {it.kind==TargetKind.SEARCH}?.let {searches[searchKey(it)]?.state})
-        rememberReading()
+        if(restore)rememberReading()
         if(restore&&target!=null) {
             if(pages.get(target)==null||!fresh(target))open(target)
             else if(target.kind==TargetKind.SEARCH)searches[searchKey(target)]?.takeIf {!it.state.paused}?.let {startSearchDirectory(target,it,generation)}
@@ -160,9 +164,14 @@ class AntiSocialViewModel(val repo: Repository,discussionReader: ((CoroutineScop
         screen.value=screen.value.copy(settingsPage=page)
     }
     fun following() {
-        if(screen.value.platform==Platform.YOUTUBE){stacks.getValue(Platform.YOUTUBE).clear();repo.prefs.lastUrl(Platform.YOUTUBE,"");screen.value=ScreenState(repo.prefs.activePlatform)}
+        val selection=followingSelection.let {if(it.platform in repo.prefs.selected)it else ScreenState(repo.prefs.activePlatform,combined=it.combined)}
         linkedVideoReturn=null
-        stacks.getValue(screen.value.platform).clear();repo.prefs.lastUrl(screen.value.platform,"");section("feed");screen.value=screen.value.copy(combined=false,subscriptionId=null);rememberReading()}
+        leaveImageSearch();combinedReturn=null;combinedEntry=null
+        retainCurrent();cancelRequests();generation++
+        stacks.getValue(selection.platform).clear();repo.prefs.lastUrl(selection.platform,"")
+        repo.prefs.activePlatform=selection.platform
+        screen.value=selection;rememberReading()
+    }
     private fun leaveImageSearch() {if(imageSearchReturn!=null){imageSearch.close();imageSearchReturn=null}}
     fun combined() {leaveImageSearch();combinedReturn=null;combinedEntry=null;retainCurrent();cancelRequests();generation++;screen.value=ScreenState(screen.value.platform,combined=true);rememberReading()}
     fun subscription(id: String) {section("subscription");screen.value=screen.value.copy(subscriptionId=id,combined=true);rememberReading()}

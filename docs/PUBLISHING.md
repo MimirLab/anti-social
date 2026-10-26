@@ -81,6 +81,16 @@ through `ANTISOCIAL_PRIVATE_CHAIN_NAME`. Keep both inputs outside the checkout;
 normal unit runs skip this case. The replay preserves all location facts and
 checks that unrelated records are not absorbed. Never commit the recorded packet.
 
+The optional JVM `CrossPostPacketTest` accepts a captured input through
+`ANTISOCIAL_PRIVATE_CROSSPOST_PACKET`: `posts`, `follows`, `memberships` and
+`expectedGroups`, optionally `selectedOriginals` and `oncePassages`. It can replay
+a selected case within a larger captured corpus and check that shared passages
+are rendered once. The packet remains outside the checkout; normal runs skip it.
+Opt-in `ReaderRoutingLiveTest` and `ReaderSearchLiveNativeTest` likewise require an
+explicit private `files/reader-routing-live.json` on an isolated test device, plus
+their named live/isolation flags. They record dated production-route and actual
+Search-tab behavior without embedding an owner's queries or reader state in source.
+
 Business arguments contain the initial name, address, locality, optional point,
 websites, socials, phones and source IDs needed by that check. Missing required
 inputs fail before the corresponding lookup; there is no personal-location or

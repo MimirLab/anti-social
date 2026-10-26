@@ -57,17 +57,26 @@ class SearchPrivacyTest {
     @Test fun searchTorFailsClosedWithoutBlockingDirectContent() {
         runBlocking {repo.awaitReady()}
         val full=repo.prefs.tor;val provider=repo.prefs.searchProvider;val fallback=repo.prefs.originalFallback
+        val previousEvents=repo.gateway.onNetworkEvent
+        val selectedEvents=java.util.concurrent.CopyOnWriteArrayList<NetworkEvent>()
+        val hosts=setOf("html.duckduckgo.com","www.bing.com")
         try {
             ui.runOnUiThread {repo.tor.enable(false);repo.gateway.configureTor(NetworkPolicy(tor=true))}
             assertFalse(repo.gateway.currentPolicy().tor)
             assertEquals(java.net.Proxy.Type.DIRECT,repo.gateway.client().proxy!!.type())
-            val before=repo.gateway.protectionStats()
-            for(url in listOf("https://html.duckduckgo.com/html/?q=fixture","https://www.bing.com/search?q=fixture"))assertThrows(java.io.IOException::class.java){runBlocking {repo.gateway.text(url)}}
-            assertEquals(before,repo.gateway.protectionStats())
+            // Unrelated direct image/label reads can advance the shared global
+            // protection counter. Check these exact protected providers and
+            // their admission failure instead of attributing all app traffic.
+            repo.gateway.onNetworkEvent={event->if(event.host in hosts&&event.stage=="connect")selectedEvents+=event;previousEvents?.invoke(event)}
+            for(url in listOf("https://html.duckduckgo.com/html/?q=fixture","https://www.bing.com/search?q=fixture")) {
+                val failure=assertThrows(java.io.IOException::class.java){runBlocking {repo.gateway.text(url)}}
+                assertEquals("Tor is connecting. Requests are paused.",failure.message)
+            }
+            assertTrue("A paused protected search must not open a provider connection",selectedEvents.isEmpty())
             repo.prefs.tor=false;repo.prefs.searchProvider=SearchProvider.DUCKDUCKGO;repo.prefs.originalFallback=true
             ui.runOnUiThread {repo.applyNetworkSettings()}
             assertTrue(repo.tor.state.value.enabled);assertFalse(repo.tor.state.value.allTraffic);assertFalse(repo.gateway.currentPolicy().tor)
-        }finally {repo.prefs.tor=full;repo.prefs.searchProvider=provider;repo.prefs.originalFallback=fallback;ui.runOnUiThread {repo.applyNetworkSettings()}}
+        }finally {repo.gateway.onNetworkEvent=previousEvents;repo.prefs.tor=full;repo.prefs.searchProvider=provider;repo.prefs.originalFallback=fallback;ui.runOnUiThread {repo.applyNetworkSettings()}}
     }
     @Test fun nativeProviderChoiceSurvivesRecreationAndKeepsScopeVisible() {
         runBlocking {repo.awaitReady()}

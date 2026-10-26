@@ -14,6 +14,6 @@ object PlatformOrder {
         Platform.GAB,Platform.GETTR,Platform.MISSKEY,Platform.LEMMY,Platform.PIXELFED,Platform.RSS
     )
     private val rank=popular.withIndex().associate {it.value to it.index}
-    val defaultSelected: List<Platform> = sort(listOf(Platform.X,Platform.REDDIT,Platform.INSTAGRAM,Platform.TIKTOK))
+    val defaultSelected: List<Platform> = sort(listOf(Platform.FACEBOOK,Platform.X,Platform.REDDIT,Platform.INSTAGRAM,Platform.TIKTOK))
     fun sort(platforms: Iterable<Platform>): List<Platform> = platforms.distinct().sortedBy {rank[it] ?: Int.MAX_VALUE}
 }

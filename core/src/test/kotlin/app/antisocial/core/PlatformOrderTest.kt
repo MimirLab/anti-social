@@ -12,7 +12,7 @@ class PlatformOrderTest {
         assertEquals(Platform.FACEBOOK,PlatformOrder.popular.first())
     }
     @Test fun defaultsKeepLinkedVideoOutOfSocialTabs() {
-        assertEquals(listOf(Platform.INSTAGRAM,Platform.TIKTOK,Platform.X,Platform.REDDIT),PlatformOrder.defaultSelected)
+        assertEquals(listOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK,Platform.X,Platform.REDDIT),PlatformOrder.defaultSelected)
     }
     @Test fun explicitSortingRetainsOnlySelectedChoicesAndRemovesDuplicates() {
         val selected=listOf(Platform.PIXELFED,Platform.REDDIT,Platform.FACEBOOK,Platform.REDDIT)

@@ -25,8 +25,8 @@ class PlatformOrderPreferencesTest {
         assertEquals(JsonParser.parseString(saved),JsonParser.parseString(preferences.export().toString()))
     }
     @Test fun aNewInstallUsesPopularDefaultTabsWithoutWritingAnExplicitOrder() {
-        assertEquals(listOf(Platform.INSTAGRAM,Platform.TIKTOK,Platform.X,Platform.REDDIT),preferences.selected)
-        assertEquals(Platform.INSTAGRAM,preferences.activePlatform)
+        assertEquals(listOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.TIKTOK,Platform.X,Platform.REDDIT),preferences.selected)
+        assertEquals(Platform.FACEBOOK,preferences.activePlatform)
         assertFalse(raw.contains("platforms"));assertFalse(raw.contains("active"))
     }
     @Test fun existingCustomOrderAndActiveTabSurviveBackupRestoration() {
