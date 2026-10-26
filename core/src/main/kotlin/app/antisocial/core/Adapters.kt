@@ -570,7 +570,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                     return@withTimeout true
                 }
                 var contentTarget=target
-                var page=if(capability==Capability.FEED)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target)else if(capability==Capability.SEARCH)a.probe(target)else a.fetch(target)
+                var page=withContext(SearchContinuationPolicy(::checkRead)){if(capability==Capability.FEED)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target)else if(capability==Capability.SEARCH)a.probe(target)else a.fetch(target)}
                 if(redirectedOriginal(source,page))throw SourceFailure(HealthStatus.UNSUPPORTED,ORIGINAL_REDIRECT)
                 if(capability in setOf(Capability.POST,Capability.COMMENTS)&&target.kind !in setOf(TargetKind.POST,TargetKind.THREAD)) {
                     val post=page.posts.firstOrNull()?.canonicalUrl?.let {routes.recognize(it)}
@@ -656,7 +656,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             if(indexPause(source,Capability.SEARCH,target)!=null)return@withTimeout Page(emptyList())
                             feedback=indexFeedback(source)
                             admitted=true
-                            withIndexFeedback(feedback){adapter(source).directory(target)}
+                            withIndexFeedback(feedback){withContext(SearchContinuationPolicy {checkAccess(source);checkPolicy()}){adapter(source).directory(target)}}
                         }
                         checkAccess(source)
                         checkPolicy()
@@ -786,7 +786,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             feedback=indexFeedback(source)
                             started=System.nanoTime();admitted=true
                             attempted.set(true)
-                            page=withIndexFeedback(feedback){withTimeout(if(tor)55_000 else 20_000){if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else a.fetch(target,cursor)}}
+                            page=withIndexFeedback(feedback){withTimeout(if(tor)55_000 else 20_000){withContext(SearchContinuationPolicy {checkAccess(source)}){if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else a.fetch(target,cursor)}}}
                             if(feed&&page.posts.none {it.publishedAt!=null})throw SourceFailure(HealthStatus.EMPTY,"Source has no dated feed entries")
                             val content=content(page,capability,target)&&!previewOnly(page)
                             checkAccess(source)
@@ -879,11 +879,11 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                     originalTor->55_000L
                     else->20_000L
                 }
-                val page=withIndexFeedback(feedback){withTimeout(deadline){
+                val page=withIndexFeedback(feedback){withTimeout(deadline){withContext(SearchContinuationPolicy {checkAccess(source)}){
                 if(feed)a.feed(target)else if(capability==Capability.PROFILE)a.profile(target)else if(capability==Capability.COMMENTS)a.comments(target,cursor)else try {a.fetch(target,cursor)}catch(e: CancellationException){throw e}catch(e: Exception){
                     e.respectRetryDelay()
                     if(history==null&&source.frontend !in PublicSearchAdapter.frontends&&cursor==null&&(target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)||target.kind==TargetKind.SEARCH&&target.platform==Platform.REDDIT)&&target.platform in setOf(Platform.REDDIT,Platform.BLUESKY,Platform.TUMBLR,Platform.PINTEREST))a.feed(target)else throw e
-                }}
+                }}}
                 }
                 if(feed&&page.posts.none {it.publishedAt!=null})throw SourceFailure(HealthStatus.EMPTY,"Original has no dated feed entries")
                 checkAccess(source)

@@ -51,6 +51,67 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Default-provider recovery (0.38.38)
+
+DuckDuckGo search now shares one native representation reader between social
+search, entity discovery and local publisher discovery. The chosen provider and
+entered concrete query stay fixed: HTML GET, the existing HTML form recovery and
+the official Lite page are representations of that provider. This never switches
+a DuckDuckGo query to Bing, Darwin or another search operator.
+
+A productive first read within the grace period uses one request. After 3.5 seconds of waiting,
+a second representation can run alongside the first; the grace period does not
+shorten the first read's deadline. A known HTML server-error page promotes the
+existing form recovery immediately. Each concrete first-page index query spends
+at most three representation reads, including forms. Two ordinary readers and one reserved
+Lite reader are shared across the Gateway, preventing queued ordinary searches
+from occupying every recovery slot. Each local read also takes the existing
+repository-wide local index permit. The productive format is remembered for six
+hours across at most sixteen source roots, bound to the current opaque network
+session. This memory contains no queries and adds no idle worker or probe.
+
+Foreground search preempts deferred network work before waiting for a reader
+slot. Initial discovery retains its scheduling marker and can coexist with its
+own supplemental detail reads. Cancellation releases the slots. Unready required
+Tor, a changed session/connection selection, changed original-access permission or
+reader-policy revocation prevents the old operation from continuing. Requests and
+forms retain exact origin pins and their byte allowances: 1 MiB for local index
+material, with the existing public-search and health-read bounds elsewhere.
+
+The common parser handles ordinary HTML results and Lite table results, excluding
+advertisements and decoding destination wrappers locally. It scans a bounded
+organic window before platform filtering, preserving later platform matches after
+earlier off-site results. Article titles or snippets discussing server errors or
+challenges do not themselves establish a provider refusal. Actual challenge forms
+still do. Publisher search retains links/titles; snippets do not become business
+or event facts. Linked material still goes through the existing acquisition,
+washing, extraction and geographic/date admission pipeline.
+
+Lite continuations use a distinct `search-lite-form` envelope; legacy
+`search-form` envelopes remain HTML-only. Each retains its actual issuer URL,
+path, query and bounded allowed form fields. Foreign origins, credentials,
+changed queries, navigation paths and ambiguous controls are rejected. An HTML
+`base` element cannot redirect the continuation. A continuation does not retry
+through another representation. Existing outer query-plan and directory bindings
+remain in force. The selected logical source stays DuckDuckGo; provenance records
+the actual acquired HTML or Lite URL.
+
+Refusals stop new representation attempts. Shared feedback retains the strongest
+observed refusal across parallel replies; a later shorter wait cannot overwrite
+it. Already completed useful material can coexist with a pause. Local routing
+records that combined outcome as one partial observation. A pause learned while
+work was queued is denied admission, rather than counted as a new server failure
+or used to renew its deadline. Known query-specific empties also remain local
+eligibility decisions.
+
+The [official non-JavaScript documentation](https://duckduckgo.com/duckduckgo-help-pages/features/non-javascript)
+identifies both HTML and Lite. Separate protected Android observations returned
+organic material in 31,376 decoded bytes for HTML and 22,339 bytes for Lite.
+Those are dated responses, not a controlled speed or phone benchmark. This native
+implementation adds no search package, model, permission or setting. See
+[release qualification](RELEASE_QUALIFICATION.md) for the controlled counterexamples
+and current native validation.
+
 ### Independent publisher links (0.38.37)
 
 The local publisher bank now includes one qualified 4get endpoint alongside the

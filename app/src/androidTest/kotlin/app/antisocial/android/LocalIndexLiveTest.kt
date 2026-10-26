@@ -16,6 +16,34 @@ import java.io.File
 /** Opt-in route qualification. Parameters/evidence stay outside public source. */
 @RunWith(AndroidJUnit4::class)
 class LocalIndexLiveTest {
+    @Test fun publicLiteContinuationKeepsTheActualIssuer()=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialDuckContinuationLive")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
+        val before=repo.prefs.export().toString()
+        try {
+            repo.prefs.searchProvider=SearchProvider.DUCKDUCKGO;repo.prefs.originalFallback=true;repo.applyNetworkSettings();repo.localSearchConnection(true)
+            withTimeout(90_000){repo.tor.state.first {it.enabled&&it.ready}}
+            // This method qualifies a raw provider continuation. Expanded
+            // query-plan composition is covered separately by the core fixture.
+            val literal=args.getString("antisocialIndexQuery") ?: "\"astronomy\""
+            require(literal.startsWith('"')&&literal.endsWith('"'))
+            val target=repo.routes.search(Platform.X,literal)
+            val query=PublicSearchAdapter.query(target);val root="https://lite.duckduckgo.com"
+            val source=Source(Platform.X,"duckduckgo",SearchProvider.DUCKDUCKGO.root!!,true,SourceRole.ORIGINAL)
+            val began=android.os.SystemClock.elapsedRealtime()
+            val payload=repo.gateway.text(root+"/lite/?q="+DarwinRoutes.encode(query),maxBytes=1024*1024,route=NetworkRoute.TOR,allowedOrigins=setOf(root))
+            val first=Extraction.parse(payload,target,source,repo.routes)
+            val cursor=requireNotNull(first.next);org.junit.Assert.assertTrue(cursor.startsWith("search-lite-form:"))
+            val next=withTimeout(30_000){PublicSearchAdapter(source,repo.gateway,repo.routes).fetch(target,cursor)}
+            org.junit.Assert.assertTrue(next.provenance!!.finalUrl.startsWith(root+"/lite/"))
+            org.junit.Assert.assertEquals(source,next.provenance!!.source)
+            org.junit.Assert.assertTrue((first.collections+next.collections).isNotEmpty())
+            val dir=File(context.getExternalFilesDir("validation"),"local-index-live/duck-lite-continuation").apply {mkdirs()}
+            File(dir,"results.json").writeText(Gson().toJson(mapOf("firstLinks" to first.collections.size,"nextLinks" to next.collections.size,"firstUrl" to payload.finalUrl,"nextUrl" to next.provenance!!.finalUrl,"elapsedMs" to android.os.SystemClock.elapsedRealtime()-began,"torReady" to repo.tor.state.value.ready)))
+        }finally {repo.prefs.restore(JSONObject(before));repo.applyNetworkSettings();repo.localSearchConnection(false)}
+    }
     @Test fun qualifiedPublisherProtocolFindsLinks()=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialPublisherIndexLive")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
@@ -71,11 +99,13 @@ class LocalIndexLiveTest {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
         val before=repo.prefs.export().toString()
+        val provider=args.getString("antisocialIndexProvider")?.let {id->SearchProvider.entries.first {it.id==id}} ?: SearchProvider.DARWIN
+        val query=args.getString("antisocialIndexQuery") ?: "public library"
         try {
-            repo.prefs.searchProvider=SearchProvider.DARWIN;repo.applyNetworkSettings();repo.localSearchConnection(true)
+            repo.prefs.searchProvider=provider;repo.applyNetworkSettings();repo.localSearchConnection(true)
             withTimeout(90_000){repo.tor.state.first {it.enabled&&it.ready}}
             val start=android.os.SystemClock.elapsedRealtime()
-            val hits=withTimeout(30_000){repo.localWeb.search("public library",repo.prefs.searchProvider,repo.prefs.originalFallback){repo.prefs.searchProvider==SearchProvider.DARWIN}}
+            val hits=withTimeout(30_000){repo.localWeb.search(query,repo.prefs.searchProvider,repo.prefs.originalFallback){repo.prefs.searchProvider==provider}}
             org.junit.Assert.assertTrue(hits.isNotEmpty())
             val dir=File(context.getExternalFilesDir("validation"),"local-index-live/selected-router").apply {mkdirs()}
             File(dir,"results.json").writeText(Gson().toJson(mapOf("links" to hits,"elapsedMs" to android.os.SystemClock.elapsedRealtime()-start,"torReady" to repo.tor.state.value.ready)))

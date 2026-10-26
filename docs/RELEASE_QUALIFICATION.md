@@ -9,6 +9,61 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.38 default-provider representation recovery
+
+Social search, entity discovery and local publisher search share the official
+DuckDuckGo HTML/form/Lite reader. A productive head returns without extra work;
+a stalled first read can coexist with a later Lite attempt. Three representation
+reads per concrete query and a shared two-ordinary/one-Lite reader limit bound
+the operation. Local index reads also retain their existing three permits.
+Foreground priority begins before slot admission, while initial discovery retains
+coexistence with its own deferred detail reads. Query, source, Tor/session,
+origin, byte and continuation constraints remain enforced. There is no provider
+switch, new package, model, native library, permission, database migration or setting.
+
+Two new native checks ran against the retained byte-verified 0.38.37 debug APK
+with the same new test APK. The baseline did not recognize the provider's
+recoverable HTML error; its first business-card case also timed out after eight
+seconds while the original response was held for twelve. Both checks pass on the
+candidate. The candidate's fixture produces business and event cards through the
+Lite path while HTML remains held. This is a default-index/UI delivery contract
+with an owned publisher stub; existing platform tests separately cover hydration.
+Actual native screens were inspected.
+
+A separate two-case JVM counterexample found a stronger 120,000 ms refusal
+overwritten by a later 15,024 ms reply. Shared feedback is now synchronized,
+visible across workers and monotonic with respect to refusal strength. Worker
+completion records real refusals before answer acknowledgment can hide them.
+Completed useful material and a pause can coexist. Admission denial is distinct
+from a new server failure, preserving observation counts and existing deadlines.
+Known query-specific empties are also checked before new representations start.
+
+The full JVM run covered **2,323 cases**, zero failures/errors and one optional
+model-weight skip, with Android lint and debug/test assembly passing. A subsequent
+**50-case focused run** passed after correcting the live test's pagination layer,
+including one added composition fixture. Production APK bytes were unchanged
+between these runs. The final frozen native selection ran **124 methods: 122
+passes, two opt-in skips, zero failures**. It covers discovery/store, announcements,
+menus, Library/saved records, social search/scope, scheduling/privacy and feed windows.
+The final installed debug/test APK hashes match the frozen evidence.
+
+The default-provider live router returned ten publisher links in **3,631 ms**
+after Tor readiness. A separate Lite check obtained eight supported social
+destinations and fifteen more through its actual continuation, in **2,865 ms**
+for the two-page operation. The second page stayed on Lite and retained the
+selected logical source. The first pagination harness had supplied a raw provider
+token to the expanded query-plan interface, which correctly rejected it locally;
+the corrected literal-query check and a separate nested-plan fixture exercise
+both contracts. No continuation admission was relaxed to make the check pass.
+
+These are dated index/page observations and controlled emulator contracts, not
+physical-phone search, battery or general uptime measurements. Captured responses
+and private execution inputs remain outside public source. The
+[routing record](LOCAL_DISCOVERY_ROUTING.md#default-provider-recovery-03838) describes
+representation bounds, protocol references and limitations. Signing, exact
+corresponding source, retained preview state and the stable public download
+receive the normal release checks.
+
 ## 0.38.37 independent publisher-link fallback
 
 The local index router adds a native 4get reader in a separate publisher-link

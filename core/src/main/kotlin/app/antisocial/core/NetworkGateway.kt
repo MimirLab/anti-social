@@ -84,6 +84,7 @@ data class NetworkEvent(val host: String,val stage: String,val elapsedMs: Long)
  * by both modes. See docs/ARCHITECTURE.md and docs/REVIEWING.md for consumers,
  * the native settings control, narrow service exceptions and dated evidence. */
 class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilter, private val allowHttpForTests: Boolean = false) {
+    internal val duckSearch by lazy {DuckDuckGoSearch(this)}
     private val filter=AtomicReference(initialFilter)
     private val checkedRequests=java.util.concurrent.atomic.AtomicLong()
     private val blockedRequests=java.util.concurrent.atomic.AtomicLong()
@@ -115,6 +116,18 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     /** Scheduling metadata only: all destination, Tor, credential and byte
      * protections remain identical. Scope this to an explicitly started search. */
     suspend fun <T> discoveryRead(read:suspend ()->T):T=withContext(DiscoveryTraffic()){read()}
+    /** A foreground index operation can wait for a parser/reader slot before
+     * creating its first HTTP call. Preempt deferred calls at that boundary too;
+     * an initial discovery lane still coexists with its own enrichment. */
+    internal suspend fun <T> indexRead(read:suspend ()->T):T {
+        val context=kotlinx.coroutines.currentCoroutineContext()
+        if(context[DeferredTraffic]!=null||context[DiscoveryTraffic]!=null)return read()
+        foregroundRequests.incrementAndGet()
+        try {
+            deferredCalls.values.toSet().forEach {it.cancel(kotlinx.coroutines.CancellationException("Content requests take priority"))}
+            return read()
+        }finally {foregroundRequests.decrementAndGet()}
+    }
     private val cleanup=java.util.concurrent.Executors.newSingleThreadExecutor {r->Thread(r,"anti social network cleanup").apply {isDaemon=true}}
     var onBlocked: (String,String)->Unit = { _,_ -> }
     @Volatile var onNetworkEvent: ((NetworkEvent)->Unit)?=null
@@ -567,11 +580,15 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     /** Public search forms use the same filtering, Tor and cancellation path. */
     suspend fun form(url: String,fields: Map<String,String>,sourceUrl: String=url,headers: Map<String,String> = emptyMap()): Payload=
         formInSession(url,fields,sourceUrl,headers,null)
-    internal suspend fun formInSession(url:String,fields:Map<String,String>,sourceUrl:String,headers:Map<String,String> = emptyMap(),expectedSession:NetworkSession?):Payload=withContext(Dispatchers.IO) {
+    internal suspend fun formInSession(url:String,fields:Map<String,String>,sourceUrl:String,headers:Map<String,String> = emptyMap(),expectedSession:NetworkSession?,maxBytes:Long=4L*1024*1024,route:NetworkRoute=NetworkRoute.DEFAULT,allowedOrigins:Set<String>?=null):Payload=withContext(Dispatchers.IO) {
         require(fields.size<=16&&fields.entries.sumOf {it.key.length+it.value.length}<=16*1024){"Pagination form is too large"}
         val body=FormBody.Builder().apply {fields.forEach {(key,value)->add(key,value)}}.build()
         require(headers.size<=12&&headers.entries.sumOf {it.key.length+it.value.length}<=4096){"Source headers are too large"}
-        readText(Request.Builder().url(url).tag(NetworkSession::class.java,expectedSession).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).apply {headers.forEach {(k,v)->header(k,v)}}.post(body).build(),4L*1024*1024)
+        require(maxBytes in 1..4L*1024*1024){"Invalid form response allowance"}
+        val pinned=allowedOrigins?.let {values->require(values.isNotEmpty()&&values.size<=4){"Invalid search origin scope"}
+            AllowedOrigins(values.map {value->val parsed=value.toHttpUrlOrNull() ?: error("Invalid search origin");require(parsed.isHttps||allowHttpForTests);origin(parsed)}.toSet(),"search source")
+        } ?: requestOrigins(sourceUrl)
+        readText(Request.Builder().url(url).tag(NetworkSession::class.java,expectedSession).tag(NetworkRoute::class.java,route).tag(AllowedOrigins::class.java,pinned).tag(RequestContext::class.java,RequestContext(sourceUrl,"xmlhttprequest")).apply {headers.forEach {(k,v)->header(k,v)}}.post(body).build(),maxBytes)
     }
     /** An explicit image search submits a bounded, metadata-stripped copy to a
      * public search form. Images never leave Tor or the selected upload origin;

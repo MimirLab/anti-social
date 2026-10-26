@@ -633,28 +633,45 @@ class LocalDiscoveryTest {
     @Test fun nativeBusinessAndEventDecksCanUseAnIndependentPublisherProtocol() {
         nativeIndexDecks(true)
     }
-    private fun nativeIndexDecks(fourget:Boolean) {
+    @Test fun nativeBusinessAndEventDecksCanUseTheDefaultProvidersLiteRepresentation() {
+        nativeIndexDecks(false,true)
+    }
+    @Test fun defaultPublisherErrorsUseTheSameRecoverableClassificationAsSocialSearch() {
+        val error=assertThrows(SourceFailure::class.java){LocalWebDiscovery.parse("<h1>The server encountered an error</h1>","https://html.duckduckgo.com/html/","duckduckgo")}
+        assertEquals(HealthStatus.UNAVAILABLE,error.status)
+        assertTrue(error.message.orEmpty().startsWith("DuckDuckGo returned a server error"))
+    }
+    private fun nativeIndexDecks(fourget:Boolean,duck:Boolean=false) {
         val document="""<script type="application/ld+json">[{"@type":"LocalBusiness","@id":"https://publisher.fixture.invalid/","name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}},{"@type":"Event","name":"Radio workshop","startDate":"${firstDeckArea.today().plusDays(1)}","location":{"name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}}}]</script>"""
-        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document,fourget).use {f->
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document,fourget,duck).use {f->
             runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}
             ui.runOnIdle {
                 model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
-                    override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit){onHits(f.engine.search(query.text,SearchProvider.DARWIN,false))}
+                    override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit){
+                        if(duck) {
+                            val page=PublicSearchAdapter(f.duckSource,f.gateway,repo.routes).fetch(repo.routes.search(Platform.X,query.text))
+                            onHits(page.collections.map {LocalWebHit(it.target.canonicalUrl,it.name)})
+                        }else onHits(f.engine.search(query.text,SearchProvider.DARWIN,false))
+                    }
                     override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                        if(duck&&source.url!="https://x.com/FixtureWorkshop/status/123")return LocalExtraction(validEmpty=true)
                         // Stage the HTTPS identity on an owned HTTP/SOCKS fixture;
                         // shipping URL, TLS and Gateway admission stay unchanged.
-                        val payload=f.gateway.text(source.url.replace("https://","http://"),route=NetworkRoute.TOR)
+                        // The default-index fixture provides a social discovery
+                        // reference; this owned publisher stands in for hydration,
+                        // which has its own platform regression coverage.
+                        val payload=f.gateway.text(if(duck)"http://publisher.fixture.invalid/calendar"else source.url.replace("https://","http://"),route=if(duck)NetworkRoute.DEFAULT else NetworkRoute.TOR)
                         return LocalStructuredData.html(payload.text,source.url,System.currentTimeMillis(),firstDeckArea)
                     }
                 }
                 model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop");model.localSearch.search(force=true)
             }
             try {
-                ui.waitUntil(6000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.name=="Community workshop"}else model.localSearch.state.value.events.any {it.title=="Radio workshop"}}
+                ui.waitUntil(if(duck)8000 else 6000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.name=="Community workshop"}else model.localSearch.state.value.events.any {it.title=="Radio workshop"}}
                 val title=if(mode==LocalSearchMode.BUSINESSES)"Community workshop"else "Radio workshop"
                 ui.onNodeWithText(title).assertIsDisplayed();assertEquals(1L,f.release.count)
-                assertTrue(f.requests.any {it.startsWith("quick-index.fixture.invalid/"+if(fourget)"api/v1/web?"else "api.php?")});assertTrue(f.requests.any {it.startsWith("publisher.fixture.invalid/")})
-                evidence("${if(fourget)"independent"else "structured"}-index-${mode.name.lowercase()}")
+                assertTrue(f.requests.any {it.startsWith(if(duck)"first-index.fixture.invalid/lite/?"else "quick-index.fixture.invalid/"+if(fourget)"api/v1/web?"else "api.php?")});assertTrue(f.requests.any {it.startsWith("publisher.fixture.invalid/")})
+                evidence("${if(duck)"default"else if(fourget)"independent"else "structured"}-index-${mode.name.lowercase()}")
             }finally {ui.runOnIdle {model.localSearch.stop()};runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}}
         }
     }

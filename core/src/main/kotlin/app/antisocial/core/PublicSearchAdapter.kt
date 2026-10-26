@@ -49,11 +49,7 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         val path=when(source.frontend){"bing-rss"->"/search?format=rss&q=";"duckduckgo"->"/html/?q=";else->"/search.php?q="}
         return if(cursor==null)SearchRequest(source.root.trimEnd('/')+path+DarwinRoutes.encode(query))
         else if(source.frontend=="duckduckgo") {
-            require(cursor.length<=24*1024&&cursor.startsWith("search-form:")){"Invalid search continuation"}
-            val form=Gson().fromJson(cursor.removePrefix("search-form:"),SearchForm::class.java)
-            val url=form.url.toHttpUrlOrNull() ?: error("Invalid search continuation URL")
-            require(DarwinRoutes.matches(URI(form.url),source.root)&&url.encodedPath=="/html/"&&url.query==null&&url.username.isEmpty()&&url.password.isEmpty()){ "Search continuation left the selected provider" }
-            require(form.fields.keys.all {it in formFields}&&form.fields["q"]==query&&form.fields["s"]?.toIntOrNull() in 1..1000){"Search continuation changed the query"}
+            val form=DuckDuckGoProtocol.continuation(source,query,cursor)
             SearchRequest(form.url,form.fields)
         }else {
             val url=cursor.toHttpUrlOrNull()
@@ -63,17 +59,14 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         }
     }
     private suspend fun fetchQuery(target: Target,query: String,cursor: String?,entitiesOnly: Boolean=false,session:NetworkSession?=null): Page {
-        currentCoroutineContext()[SearchContinuationPolicy]?.validate?.invoke()
+        val validate=currentCoroutineContext()[SearchContinuationPolicy]?.validate
+        validate?.invoke()
+        if(source.frontend=="duckduckgo"&&cursor==null)return gateway.duckSearch.read(source,query,target.canonicalUrl,session ?: gateway.sessionFor(source.root),
+            check={validate?.invoke()},productive={it.collections.isNotEmpty()}) {payload->Extraction.parse(payload,target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)}
         val request=request(query,cursor)
-        val payload=if(request.fields==null)gateway.text(request.url,target.canonicalUrl,expectedSession=session)else gateway.formInSession(request.url,request.fields,target.canonicalUrl,expectedSession=session)
-        return try {Extraction.parse(payload,target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)}catch(e: SourceFailure) {
-            // The HTML endpoint sometimes returns its own HTTP-200 server-error
-            // page. Retry once using its ordinary form, with the same provider,
-            // query and protected route. Challenges and refusals are not retried.
-            if(cursor!=null||source.frontend!="duckduckgo"||e.status!=HealthStatus.UNAVAILABLE||!e.message.orEmpty().startsWith("DuckDuckGo returned a server error"))throw e
-            currentCoroutineContext()[SearchContinuationPolicy]?.validate?.invoke()
-            Extraction.parse(gateway.formInSession(source.root.trimEnd('/')+"/html/",mapOf("q" to query),target.canonicalUrl,expectedSession=session),target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)
-        }
+        val origins=if(source.frontend=="duckduckgo")setOf(request.url.toHttpUrlOrNull()!!.newBuilder().encodedPath("/").query(null).fragment(null).build().toString())else null
+        val payload=if(request.fields==null)gateway.text(request.url,target.canonicalUrl,expectedSession=session,allowedOrigins=origins)else gateway.formInSession(request.url,request.fields,target.canonicalUrl,expectedSession=session,allowedOrigins=origins)
+        return Extraction.parse(payload,target,source,routes,publicSearchQuery=query,publicSearchEntitiesOnly=entitiesOnly)
     }
     private data class IndexLane(val index: Int,val cursor: String?=null,val attempts: Int=0,val deferred: Boolean=false)
     private data class LaneResult(val lane: IndexLane,val result: Result<Page>)
@@ -287,8 +280,6 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
         }
         private val xUsername=Regex("[A-Za-z0-9_]{1,15}")
         private val xReserved=setOf("home","search","explore","settings","messages","login","signup","i")
-        private data class SearchForm(val url: String,val fields: Map<String,String>)
-        private val formFields=setOf("q","s","nextParams","v","o","dc","api","vqd","kl","df")
         /** Jsoup absUrl deliberately removes URL user information. Check the
          * supplied navigation address before resolving it, so a credentialed
          * form cannot acquire a valid-looking continuation after sanitizing. */
@@ -368,29 +359,11 @@ class PublicSearchAdapter(override val source: Source,private val gateway: Netwo
             return Page(emptyList(),next=next,collections=results)
         }
         fun duckDuckGo(document: Document,target: Target,routes: DarwinRoutes,searchQuery: String=query(target),entitiesOnly: Boolean=false): Page {
-            if(document.selectFirst("form#challenge-form,form#img-form,.anomaly-modal")!=null)throw SourceFailure(HealthStatus.CHALLENGE,"DuckDuckGo requires a human challenge on this connection. Try another provider in Settings.")
-            val results=document.getElementsByClass("result").asSequence().filterNot {it.hasClass("result--ad")}.mapNotNull {node->
-                val link=node.getElementsByClass("result__a").firstOrNull {it.normalName()=="a"&&it.hasAttr("href")} ?: return@mapNotNull null
-                val raw=link.absUrl("href")
-                val parsed=raw.toHttpUrlOrNull()
-                val destination=if(parsed?.host=="duckduckgo.com"||parsed?.host?.endsWith(".duckduckgo.com")==true)parsed.queryParameter("uddg") ?: return@mapNotNull null else raw
-                result(destination,link.text(),node.getElementsByClass("result__snippet").firstOrNull()?.text().orEmpty(),target,routes,entitiesOnly)
+            val parsed=DuckDuckGoProtocol.page(document,searchQuery)
+            val results=parsed.links.asSequence().mapNotNull {row->
+                result(row.url,row.title,row.snippet,target,routes,entitiesOnly)
             }.distinctBy {if(it.target.kind==TargetKind.POST)ContentIdentity.key(it.target.platform,it.target.canonicalUrl)else entityKey(it.target)}.take(30).toList()
-            if(results.isEmpty()) {
-                val text=document.text()
-                if(text.contains("bots use DuckDuckGo",true))throw SourceFailure(HealthStatus.CHALLENGE,"DuckDuckGo requires a human challenge on this connection. Try another provider in Settings.")
-                if(text.contains("The server encountered an error",true))throw SourceFailure(HealthStatus.UNAVAILABLE,"DuckDuckGo returned a server error. Your search was not sent to another provider.")
-            }
-            val form=document.select("form").firstOrNull {node->node.select("input[type=submit]").any {it.attr("value").equals("Next",true)}||node.select("button").any {it.text().trim().equals("Next",true)}}
-            val next=form?.let {node->
-                val url=navigationUrl(node,"action")?.toHttpUrlOrNull()
-                val base=document.location().toHttpUrlOrNull()
-                val fields=node.select("input[type=hidden][name]").filter {it.attr("name") in formFields}.associate {it.attr("name") to it.attr("value")}
-                val query=searchQuery
-                if(url?.isHttps==true&&url.host==base?.host&&url.port==base.port&&url.username.isEmpty()&&url.password.isEmpty()&&url.encodedPath=="/html/"&&url.query==null&&fields["q"]==query&&fields["s"]?.toIntOrNull() in 1..1000&&fields.entries.sumOf {it.key.length+it.value.length}<16*1024)
-                    "search-form:"+Gson().toJson(SearchForm(url.toString(),fields)) else null
-            }
-            return Page(emptyList(),next=next,collections=results)
+            return Page(emptyList(),next=parsed.next,collections=results)
         }
     }
 }

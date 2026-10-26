@@ -258,4 +258,27 @@ class LocalWebDiscoveryRoutingTest {
             assertTrue(f.requests.all {it.host==hosts[0]})
         }
     }
+    @Test fun theDefaultProvidersKnownEmptyQueryDoesNotStartNewRepresentations():Unit=runBlocking {
+        Fixture().use {f->
+            val source=Source(Platform.X,"duckduckgo","https://html.duckduckgo.com",true,SourceRole.ORIGINAL)
+            val query="community workshop";val target=Target(Platform.X,TargetKind.SEARCH,query,source.root+"/html/?q="+DarwinRoutes.encode(query))
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.EMPTY,0,f.now,true,"No matching publisher links"),target)
+            assertEquals(HealthStatus.EMPTY,failure {withTimeout(1000){f.engine.search(query,SearchProvider.DUCKDUCKGO,true)}}.status)
+            assertTrue(f.requests.isEmpty());assertTrue(f.learning.eligible(source,Capability.SEARCH,true))
+        }
+    }
+    @Test fun aPeerPauseAtDefaultReadAdmissionDoesNotTrainOrRenewIt():Unit=runBlocking {
+        Fixture().use {f->
+            val source=Source(Platform.X,"duckduckgo","https://html.duckduckgo.com",true,SourceRole.ORIGINAL)
+            var checks=0
+            val error=failure {withTimeout(1000){f.engine.search("community workshop",SearchProvider.DUCKDUCKGO,true) {
+                // The second policy checkpoint is inside the shared reader,
+                // after initial local eligibility and before transmission.
+                if(++checks==2)f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.RATE_LIMITED,0,f.now,true,"Peer wait",120_000))
+                true
+            }}}
+            assertEquals(120_000L,error.retryAfterMs);assertEquals(1,f.learning.get(source,Capability.SEARCH,true)!!.samples)
+            assertEquals(f.now+120_000,f.learning.eligibleAt(source,Capability.SEARCH,true));assertTrue(f.requests.isEmpty())
+        }
+    }
 }

@@ -56,6 +56,28 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
         }
         current()
         pause(provider,originalFallback)?.let {throw it}
+        if(provider==SearchProvider.DUCKDUCKGO) {
+            val source=sources.single();val target=Target(source.platform,TargetKind.SEARCH,query,DuckDuckGoProtocol.address(source,query,DuckSearchFormat.HTML))
+            if(!learning.eligible(source,Capability.SEARCH,true,target))throw learning.failure(source,Capability.SEARCH,true,target) ?: SourceFailure(HealthStatus.EMPTY,"No publisher links were available")
+            val began=System.nanoTime()
+            val feedback=PublicIndexFeedback(source,session)
+            fun observe(status:HealthStatus,detail:String,retry:Long?=null,partial:Boolean=false) {
+                current();val result=ProbeResult(source,Capability.SEARCH,status,(System.nanoTime()-began)/1_000_000,clock(),true,detail,retry)
+                if(partial)learning.observePartial(result,result.latencyMs,target)else learning.observe(result,target)
+                onLearning(learning.snapshot())
+            }
+            if(!session.policy.ready||session.policy.socksPort !in 1..65535)throw SourceFailure(HealthStatus.UNAVAILABLE,"Waiting for a private search connection. No direct fallback was used.")
+            try {
+                val hits=withContext(feedback){gateway.duckSearch.read(source,query,target.canonicalUrl,session,maxBytes=1024*1024,localPermits=permits,check=::current,
+                    admit={if(!learning.eligible(source,Capability.SEARCH,true))throw IndexAdmissionPause(learning.failure(source,Capability.SEARCH,true,target) ?: SourceFailure(HealthStatus.UNAVAILABLE,"The selected search source is paused"))},productive={it.isNotEmpty()}) {payload->
+                    parse(payload.text,payload.finalUrl,"duckduckgo").also {if(it.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"The selected index supplied no publisher links for this query")}
+                }}
+                current();val refusal=feedback.refusal
+                if(refusal==null)observe(HealthStatus.HEALTHY,"Public publisher links extracted")else observe(refusal.status,refusal.message.orEmpty(),refusal.retryAfterMs,partial=true)
+                return hits
+            }catch(e:CancellationException){throw e}
+            catch(e:Exception){current();if(e is IndexAdmissionPause)throw e.failure;val error=feedback.refusal ?: e;observe((error as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,error.message.orEmpty().take(180),(error as? SourceFailure)?.retryAfterMs);throw error}
+        }
         fun address(candidate:Candidate):String {
             val source=candidate.source
             return source.root.trimEnd('/')+when(source.frontend){"bing-rss"->"/search?format=rss&q=";"duckduckgo"->"/html/?q=";"4get"->"/api/v1/web?s=";else->if(candidate.api)"/api.php?q="else "/search.php?q="}+DarwinRoutes.encode(query)+
@@ -149,6 +171,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
             if(json(body))return normalize(api(body,frontend),url)
             HtmlAdmission.check(body)
             val page=Jsoup.parse(body,url,if(body.trimStart().startsWith("<?xml")||body.contains("<rss"))Parser.xmlParser()else Parser.htmlParser())
+            if(frontend=="duckduckgo")return normalize(DuckDuckGoProtocol.page(page,DarwinRoutes.queryValue(URI(url),"q").orEmpty()).links.map {LocalWebHit(it.url,it.title)},url)
             if(page.select("form[action*=challenge],#challenge-form,.anomaly-modal,input[name=captcha]").isNotEmpty()||
                 Regex("verify (?:that )?you are human|unusual traffic|automated queries|bots use duckduckgo|challenge-form",RegexOption.IGNORE_CASE).containsMatchIn(page.text().take(12000)))
                 throw SourceFailure(HealthStatus.CHALLENGE,"The selected search source requested verification. Cached results remain available.")
