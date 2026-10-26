@@ -597,6 +597,8 @@ internal fun captureLoadedThreads(vm: AntiSocialViewModel,roots: List<Post>,read
     var bitmap by remember(url,maxEdge){mutableStateOf<android.graphics.Bitmap?>(null)}
     var failed by remember(url,maxEdge){mutableStateOf(false)}
     var attempt by remember(url,maxEdge){mutableIntStateOf(0)}
+    val retryRequest by repo.images.retries.collectAsStateWithLifecycle()
+    LaunchedEffect(url,maxEdge,retryRequest){if(failed)attempt++}
     DisposableEffect(url){repo.lease(Repository.hash(url),true);onDispose {repo.lease(Repository.hash(url),false)}}
     LaunchedEffect(url,maxEdge,attempt) {failed=false;try {bitmap=repo.images.load(url,source,maxEdge)}catch(e: CancellationException){throw e}catch(_: Exception){failed=true}}
     if(bitmap!=null)Image(bitmap!!.asImageBitmap(),repo.publicText(description),modifier,contentScale=contentScale)else Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant),contentAlignment=Alignment.Center){if(failed)IconButton(onClick={attempt++}){Icon(Icons.Rounded.Refresh,"Retry image",tint=MaterialTheme.colorScheme.onSurfaceVariant)}else CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)}

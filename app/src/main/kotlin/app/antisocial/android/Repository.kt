@@ -414,7 +414,9 @@ class Repository(val context: Context) {
             val key=key(post);val seen=dao.seen(key)
             if(seen?.purged==true&&!allowPurged)continue
             val old=dao.post(key);val json=gson.toJson(post)
-            dao.putPost(PostRow(key,post.platform.id,json,post.publishedAt,old?.createdAt ?: seen?.firstSeen ?: now,old?.lastViewedAt,json.toByteArray().size.toLong(),followId ?: old?.followId))
+            // A newly fetched copy has a new cache lifetime. firstSeen belongs
+            // to retained reading history, including after a manual cache purge.
+            dao.putPost(PostRow(key,post.platform.id,json,post.publishedAt,old?.createdAt ?: now,old?.lastViewedAt,json.toByteArray().size.toLong(),followId ?: old?.followId))
             dao.putSeen(SeenRow(key,post.platform.id,seen?.firstSeen ?: now,false))
         }
     }
@@ -826,6 +828,7 @@ class Repository(val context: Context) {
         }
         // Cache maintenance must not hold the completed reader generation back.
         cleanup()
+        images.retryFailed()
     }}
     suspend fun viewed(post: Post) {val now=System.currentTimeMillis();dao.touchPost(key(post),now);dao.putHistory(HistoryRow(key(post),post.platform.id,post.canonicalUrl,post.title.ifBlank {post.body.take(90)},now));library.recordHistory(post,now)}
     suspend fun bookmark(post: Post,save: Boolean) {
@@ -891,6 +894,18 @@ class Repository(val context: Context) {
     suspend fun savedMedia(url: String): File?=dao.media(hash(url))?.takeIf {it.saved}?.let {File(it.path).takeIf {f->f.isFile}}
     /** Already available bytes only; provenance inspection never causes a fetch. */
     internal suspend fun availableMedia(url: String): File?=dao.media(hash(url))?.let {File(it.path).takeIf {f->f.isFile}}
+    /** Decoder failures must not pin a challenge page or truncated response in
+     * ordinary cache across retries/restarts. Never discard a protected copy,
+     * or a newer atomic replacement made while this input was being decoded. */
+    internal suspend fun discardFailedImage(url:String,file:File,stamp:android.system.StructStat)=mediaKeys.withKey(hash(url)) {
+        mediaMutex.withLock {
+            val row=dao.media(hash(url)) ?: return@withLock
+            if(row.saved||row.path!=file.path)return@withLock
+            val current=runCatching {android.system.Os.stat(file.path)}.getOrNull() ?: return@withLock
+            if(current.st_dev!=stamp.st_dev||current.st_ino!=stamp.st_ino)return@withLock
+            dao.removeMedia(listOf(row.key));file.delete()
+        }
+    }
     suspend fun saveOffline(post: Post)=withContext(Dispatchers.IO) {
         bookmark(post,true)
         // An intent token prevents a late download reviving an unsaved pair.
@@ -977,7 +992,14 @@ class Repository(val context: Context) {
         val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()-(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)-adjacentStore.bytes()-participantBank.bytes()).coerceAtLeast(0)
         val evict=CachePolicy.eviction(entries,now,budget,prefs.unseenDays,prefs.viewedDays)
         val postKeys=posts.filter {it.key in evict}.map {it.key};val mediaRows=media.filter {it.key in evict}
-        if(postKeys.isNotEmpty()){db.withTransaction {dao.markPurged(postKeys);dao.removePosts(postKeys)}}
+        if(clearAll||postKeys.isNotEmpty())db.withTransaction {
+            // Automatic expiry suppresses old feed replay. An explicit Clear
+            // cache is different: the next successful read must rebuild it.
+            // Also repair suppression left by a previous manual purge, even
+            // when that purge has already removed every post body.
+            if(clearAll)dao.allowCacheRefill()else dao.markPurged(postKeys)
+            if(postKeys.isNotEmpty())dao.removePosts(postKeys)
+        }
         contextReader.cleanup(clearAll)
         if(mediaRows.isNotEmpty()){dao.removeMedia(mediaRows.map {it.key});mediaRows.forEach {File(it.path).delete()}}
         dao.pruneSeen(now-prefs.historyDays*CachePolicy.DAY);dao.pruneHistory(now-prefs.historyDays*CachePolicy.DAY);dao.pruneHealth(now-30*CachePolicy.DAY);library.pruneHistory()

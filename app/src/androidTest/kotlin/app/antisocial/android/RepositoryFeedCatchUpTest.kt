@@ -66,6 +66,53 @@ class RepositoryFeedCatchUpTest {
         File(dir,"failure-$suffix-${stage.hashCode()}.json").writeText(repo.gson.toJson(record))
         throw AssertionError("Timed out after 5000 ms at '$stage': refresh=${repo.feedRefresh.value}, databaseKeys=${rows.map {it.key}}, observedGenerations=${observed.map {it.generation}}")
     }
+    @Test fun manualCachePurgeCanRefillTheSameFeedWithoutLosingPersonalState()=runBlocking {
+        org.junit.Assume.assumeTrue(androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val current=post(0);val saved=post(1)
+        repo.store(page(listOf(current)),follow.id,true)
+        // First seen is history, not the lifetime of a newly fetched cache copy.
+        val firstSeen=now-20*CachePolicy.DAY
+        repo.dao.putSeen(SeenRow(repo.key(current),current.platform.id,firstSeen))
+        val savedKey=repo.library.save(saved,emptyList())
+        val additionalFollows=(0 until 240).map {index->
+            val platform=listOf(Platform.X,Platform.FACEBOOK,Platform.INSTAGRAM)[index%3]
+            val target=repo.routes.target(platform,"cache${suffix}_$index")
+            Follow("$person:bulk:$index",target,"Public source $index",personId="$person:other",personName="Other saved sources")
+        }
+        additionalFollows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
+        repo.feedMemory.markRead(person,listOf(repo.key(current)))
+        repo.prefs.theme="dark";repo.prefs.cacheMb=200
+        val config=repo.prefs.export().toString();val follows=repo.dao.allFollows();val reading=repo.feedMemory.portableSnapshot()
+        repo.followLoader={page(listOf(current))};repo.followPageLoader={_,_->error("A complete single window needs no continuation")}
+        try {
+            repeat(2) {
+                if(it==1)repo.dao.markPurged(listOf(repo.key(current))) // An older broken purge is repairable too.
+                repo.cleanup(clearAll=true)
+                assertNull(repo.dao.post(repo.key(current)))
+                assertEquals(config,repo.prefs.export().toString());assertEquals(follows,repo.dao.allFollows())
+                assertEquals(reading,repo.feedMemory.portableSnapshot())
+                assertEquals(saved.body,repo.library.copy(savedKey)!!.post.body)
+                repo.refresh(personId=person)
+                val rows=repo.dao.followedPosts(listOf(follow.id)).first()
+                assertEquals("A successful refresh after Clear cache must refill the same post",listOf(repo.key(current)),rows.map {it.key})
+                assertTrue("A rebuilt copy needs a fresh cache lifetime",rows.single().createdAt>=now)
+                assertEquals(firstSeen,repo.dao.seen(repo.key(current))!!.firstSeen)
+                assertEquals(saved.body,repo.library.copy(savedKey)!!.post.body)
+            }
+        }finally {repo.library.remove(savedKey);additionalFollows.forEach {repo.dao.removeFollow(it.id)}}
+    }
+    @Test fun automaticExpiryStillSuppressesOldFeedReplay()=runBlocking {
+        val current=post(0);val key=repo.key(current)
+        repo.store(page(listOf(current)),follow.id,true)
+        repo.dao.putPost(repo.dao.post(key)!!.copy(createdAt=now-(repo.prefs.unseenDays+1L)*CachePolicy.DAY))
+        repo.cleanup()
+        assertNull(repo.dao.post(key));assertTrue(repo.dao.seen(key)!!.purged)
+        repo.store(page(listOf(current)),follow.id)
+        assertNull("Ordinary expiry still suppresses automatic replay",repo.dao.post(key))
+        // Manual clearing also repairs an already empty cache from an older release.
+        repo.cleanup(true);repo.store(page(listOf(current)),follow.id)
+        assertNotNull("No reinstall or configuration reset is needed",repo.dao.post(key))
+    }
     @Test fun catchUpReachesTheKnownHeadBeforePublishingItsCompletedGeneration()=runBlocking {
         val known=post(0);val newer=(1..3).map(::post)
         repo.store(page(listOf(known)),follow.id,true)

@@ -37,6 +37,12 @@ available streams, while platform tabs let you inspect each stream. Community
 participation belongs to All or its community tab; the app does not post into an
 unconnected social account.
 
+When corroborated copies have small wording edits, common text can appear once
+with bracketed alternatives. The small colored platform marks identify each
+fragment and open its original. Shared text stays neutral; full source editions
+and discussions remain available. This is literal text alignment, without an AI
+rewrite or a judgment about why a publisher changed its wording.
+
 Use the Share icon at the bottom of any post to prepare its clean link and open
 Android's sharing menu. The icon shows progress while the existing link checker
 works. Tap a platform icon for that platform's original: share, copy its clean
@@ -96,6 +102,14 @@ Save a local copy to preserve available text, attribution and selected media or
 thread material. Collections organize saved material. Library search covers saved
 copies and your chosen retained history. Ordinary cache expires independently;
 saved material and explicit offline downloads are protected.
+
+Settings → Storage → Clear cache removes disposable copies, while keeping
+subscriptions, configuration, read progress and saved material. Refresh can
+retrieve those same posts again. Clearing cache also repairs the empty-feed
+suppression left by a manual purge in earlier releases; a reinstall is unnecessary.
+An undecodable ordinary image copy is discarded rather than reused indefinitely.
+Retry, or refresh after the connection recovers, to fetch it again. Successful
+visible images are not fetched again just because a refresh finishes.
 
 Export reader state from Settings for your own backup or another device. Share a
 source/channel pack when you only want to share subscriptions. Recipients preview

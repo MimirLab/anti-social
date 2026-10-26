@@ -191,7 +191,7 @@ class AntiSocialTest {
     @Test fun nativeTabsSettingsLibraryAndExpiry() {
         runBlocking {repo.awaitReady()}
         ui.runOnIdle {model().platform(Platform.REDDIT,false);model().following();model().platform(Platform.X,false);model().following()}
-        ui.onNodeWithTag("Platform tab reddit").performClick()
+        ui.onNodeWithTag("Platform tab reddit").performScrollTo().performClick()
         // A remembered feed can keep its introductory header collapsed. The
         // selected platform icon and active reader are the navigation contract.
         ui.onNodeWithTag("Platform tab reddit").assertIsSelected()
@@ -259,6 +259,8 @@ class AntiSocialTest {
         assertThrows(Exception::class.java){Extraction.parse(Payload(unsafe,"https://example.org/feed","application/xml",200),target,source,repo.routes)}
     }
     @Test fun bundledTorConnectsAndUsesTorExit()=runBlocking {
+        org.junit.Assume.assumeTrue("Explicit opt-in for the source-dependent live Tor checker",
+            androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("antisocialLiveTor")=="true")
         repo.awaitReady()
         val manager=ui.activity.getSystemService(android.app.ActivityManager::class.java)
         fun torProcess()=manager.runningAppProcesses?.firstOrNull {it.processName=="app.antisocial.android:tor"}

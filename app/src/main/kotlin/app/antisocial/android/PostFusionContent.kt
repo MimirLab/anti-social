@@ -4,9 +4,13 @@ package app.antisocial.android
 import app.antisocial.core.IdentityDisplay
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -15,10 +19,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,7 +49,8 @@ import app.antisocial.core.PostPresentation
         if(attributions.isNotEmpty())Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
             attributions.forEach {(value,root)->PostAttribution(value,repo=repo,platform=root.platform,sourceUrl=root.canonicalUrl,networkAllowed=networkAllowed)}
         }
-        fusion.segments.forEachIndexed {index,segment->
+        if(!fusion.weave.isNullOrEmpty())WovenPostText(fusion,roots,repo,onOpen,networkAllowed)
+        else fusion.segments.forEachIndexed {index,segment->
             if(!showDetails&&PostBodyDetails.split(segment.text,allowStandalone=!segment.shared&&substantiveShared).body.isBlank())return@forEachIndexed
             Column {
                 if(!segment.shared) {
@@ -55,6 +68,58 @@ import app.antisocial.core.PostPresentation
             }
         }
     }
+}
+
+/** One flowing caption. Brackets visibly delimit alternatives; small native
+ * platform marks identify each exact fragment and open that original edition. */
+@Composable private fun WovenPostText(fusion:PostFusion,roots:List<Post>,repo:Repository?,onOpen:(()->Unit)?,networkAllowed:Boolean) {
+    val runs=fusion.weave.orEmpty()
+    // Keep scoped mention/link handling on its existing reader path. Its plain
+    // representation carries the same alternatives with explicit source names.
+    if(runs.any {run->run.variants.any {'@' in it.text||it.text.contains("https://")}}) {
+        val text=fusion.segments.single().text;val context=fusionMentionContext(roots,text,repo)
+        PostBodyText(text,repo,context?.platform,onOpen=onOpen,tag="Fusion woven text",sourceUrl=context?.sourceUrl,
+            networkAllowed=networkAllowed,explicitProfileLinks=context?.explicitProfileLinks.orEmpty())
+        return
+    }
+    val openSource=LocalMentionOpenAccount.current
+    val marks=linkedMapOf<String,InlineTextContent>()
+    val color=MaterialTheme.colorScheme.onSurfaceVariant
+    val text=buildAnnotatedString {
+        runs.forEachIndexed {index,run->
+            if(index>0)append(" ")
+            if(run.shared)append(run.variants.single().text)
+            else {
+                withStyle(SpanStyle(color=color)){append("[")}
+                run.variants.filter {it.text.isNotBlank()}.forEachIndexed {variantIndex,variant->
+                    if(variantIndex>0)withStyle(SpanStyle(color=color)){append(" / ")}
+                    append(variant.text)
+                    app.antisocial.core.PlatformOrder.sort(variant.platforms).forEach {platform->
+                        append(" ")
+                        val id="source-$index-$variantIndex-${platform.id}"
+                        val original=roots.firstOrNull {it.platform==platform&&CrossPosts.originalKey(it) in variant.originalKeys}
+                        marks[id]=InlineTextContent(Placeholder(18.sp,18.sp,PlaceholderVerticalAlign.TextCenter)) {
+                            val background=when(platform) {
+                                Platform.FACEBOOK->Color(0xFF0866FF)
+                                Platform.INSTAGRAM->Color(0xFFA31B72)
+                                Platform.BLUESKY->Color(0xFF0065CC)
+                                Platform.MASTODON->Color(0xFF5751C5)
+                                Platform.YOUTUBE->Color(0xFFB80000)
+                                Platform.REDDIT->Color(0xFFB83800)
+                                else->Color(0xFF303030)
+                            }
+                            Box(Modifier.size(18.dp).background(background,RoundedCornerShape(3.dp)).then(if(original!=null&&openSource!=null)Modifier.clickable(onClickLabel="Open ${platform.label} wording source"){openSource(original.canonicalUrl)}else Modifier),contentAlignment=Alignment.Center) {
+                                Icon(painterResource(platformIcon(platform)),"${platform.label} wording source",Modifier.size(13.dp),tint=Color.White)
+                            }
+                        }
+                        appendInlineContent(id,"[${platform.label}]")
+                    }
+                }
+                withStyle(SpanStyle(color=color)){append("]")}
+            }
+        }
+    }
+    Text(text,inlineContent=marks,fontSize=15.sp,lineHeight=23.sp,modifier=Modifier.testTag("Fusion woven text").then(if(onOpen!=null)Modifier.clickable {onOpen()}else Modifier))
 }
 
 /** Presentation only: source captions, copying and local saved records retain the full text. */

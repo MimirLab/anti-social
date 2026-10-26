@@ -9,6 +9,54 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.45 cache recovery and source-attributed wording variants
+
+Qualified on 2026-10-26. A new native regression first reproduced a manual-cache
+purge followed by a successful source refresh that left the feed empty. Manual
+clearing had marked every removed post as suppressed, and subsequent refreshes
+would not store those posts. Manual clearing now re-admits refill without deleting
+first-seen/read history; automatic expiry keeps its suppression policy. A newly
+retrieved copy also receives a fresh cache lifetime rather than inheriting an old
+first-seen date and expiring immediately.
+
+Owned response fixtures exercise an HTTP-success challenge body, a corrupt copy
+from an earlier run, a missing ordinary file and an atomic replacement racing an
+older decode. Failed ordinary image bytes are discarded; saved offline files and
+newer replacements survive. Retry and completed refreshes can recover visible
+errors. Successful visible pictures do not refetch on a refresh. These are native
+Gateway/Room/decoder/UI checks, not a reproduction of a particular phone VPN.
+
+A private three-platform capture supplied the same two pictures and nearly
+identical captions with one local wording insertion. All six media reads decoded;
+the attachment inventory retained two distinct pictures. The earlier grouping
+failed its private replay. The new bounded literal-variant route passes that replay
+in both input orders, retains every original, and presents common passages once.
+Synthetic fixtures exercise two/three variants, source reconstruction, complete
+sentence additions and the existing claim/name/destination exclusions. Initial
+candidates exposed status/name guard bypasses; those were corrected before the
+passing full suite. See [caption variants](ATTACHMENT_COLLECTIONS.md).
+
+Validation: **2,394 JVM tests, zero failures/errors, two optional skips**; debug
+assembly and lint passed. The final API 35 native selection ran **161 methods:
+160 passed, zero failed, one live-Tor opt-in skipped**. It includes actual Settings
+→ Storage → Clear cache and feed refill; repeated purge/refill with 240 additional
+subscriptions and unchanged configuration/read progress/saved text; image retry
+and refresh recovery; dark/light native source marks and opening the correct
+original; saving all three source captions; Library/media retention, sharing,
+portable state, chronological feed memory, expiry, coverage and revalidation.
+Native screens were inspected. Earlier fixture failures required fresh source
+provenance, waiting for theme recreation, and scrolling to an off-screen tab;
+they were corrected and rerun. An initial live Tor Project checker call closed
+its TLS connection after bootstrap. That external result is retained separately;
+the live two-process/checker test now requires explicit opt-in, as documented in
+[building](BUILDING.md). Local transport and fail-closed regression checks pass.
+
+No app permission, database schema, native runtime, decoder, network transport or
+model changes are needed. Release promotion retains the existing signer, checks
+the corresponding source and native payload, backs up the live preview and
+verifies retained state before first launch. Private captures and reader backups
+remain outside the public checkout and source archive.
+
 ## 0.38.44 compound references in corroborated image copies
 
 One long caption can use a compound account handle while another spells out a

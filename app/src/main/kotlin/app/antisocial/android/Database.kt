@@ -157,6 +157,8 @@ data class PostCacheRow(val key: String,val bytes: Long,val createdAt: Long,val 
     @Query("SELECT * FROM seen WHERE `key`=:key") suspend fun seen(key: String): SeenRow?
     @Upsert suspend fun putSeen(row: SeenRow)
     @Query("UPDATE seen SET purged=1 WHERE `key` IN (:keys)") suspend fun markPurged(keys: List<String>)
+    /** Manual cache clearing starts a refillable cache, without erasing read history. */
+    @Query("UPDATE seen SET purged=0 WHERE purged=1") suspend fun allowCacheRefill()
     @Query("DELETE FROM seen WHERE firstSeen<:before") suspend fun pruneSeen(before: Long)
     @Query("DELETE FROM history WHERE viewedAt<:before") suspend fun pruneHistory(before: Long)
     @Query("DELETE FROM history") suspend fun clearHistory()

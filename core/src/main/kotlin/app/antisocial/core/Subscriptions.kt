@@ -528,6 +528,12 @@ object CrossPosts {
         // picture observation plus long, identical surrounding prose supports
         // bounded credit-name/handle formatting, not an account linkage claim.
         if(images&&distance!=null&&distance<=MAX_COPY_WINDOW.toULong()&&CaptionAliases.equivalent(a.post,b.post,mediaConfirmed=true))return true
+        // A local wording edit can be one announcement if the same actual
+        // picture corroborates it. Unlike equivalence, weaving preserves every
+        // differing fragment with its exact source. Numerical/negative/symbol
+        // and destination changes still use the existing conservative paths.
+        if(images&&distance!=null&&distance<=600_000uL&&a.numbers==b.numbers&&a.negatives==b.negatives&&a.symbols==b.symbols&&
+            CaptionWeave.matches(a.post,b.post))return true
         if(a.text==b.text&&!completeCopyText(a,b))return false
         if(completeCopyText(a,b)) {
             val length=a.text.length;val count=a.tokens.size;val distinct=a.tokens.toSet().size

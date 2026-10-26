@@ -1,5 +1,33 @@
 # Attachment collections, 0.38.30
 
+## Literal caption variants, 0.38.45
+
+An additional composition path handles small local wording edits around a large
+shared caption. It requires an independently matched picture, original dated
+editions within ten minutes, and agreeing number, negation, symbol and destination
+guards. Account/name substitutions, changed questions and meaningful status
+changes retain the existing conservative treatment. Earlier exact-copy, gallery,
+decorative, credit-name and passage-composition routes remain available.
+
+`CaptionWeave` aligns at most eight distinct caption versions, each bounded to
+256 whitespace tokens and 4,096 source characters. A cheap overlap upper bound
+precedes ordered alignment. At least 24 tokens, 140 shared characters and 88% of
+the longest edition must survive; at most three variant regions are presented.
+Before accepting a composition, selecting each original's branches must reproduce
+its complete normalized token sequence. Opaque campaign URLs remain in the source
+link inventory rather than becoming sentence variants. All original Post records,
+media and discussion identities stay unchanged.
+
+The native reader shows common wording once and brackets the alternatives with
+small colored platform marks. Multiple marks identify wording carried by several
+platforms. Shared text retains the reader's theme; the marks use fixed contrasting
+foreground/background colors and accessible platform labels. Tapping a mark opens
+its actual original through the existing app link-opening path. Scoped mentions
+and links retain their existing renderer with explicit textual attribution.
+Plain-text consumers retain a source-named representation, and saved collections
+retain all original editions for later reconstruction. No model, dependency,
+network lookup or decoder is added by caption alignment.
+
 Repeated publications remain separate source records and comment roots. The reader
 collects their shared content into one chronological card and retains each original.
 These changes extend that existing mechanism; they add no model, dependency,

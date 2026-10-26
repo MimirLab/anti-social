@@ -5,7 +5,9 @@ import java.util.Locale
 import java.text.Normalizer
 
 data class FusionSegment(val text: String,val platforms: Set<Platform>,val shared: Boolean,val originalKeys: Set<String> = emptySet())
-data class PostFusion(val segments: List<FusionSegment>)
+data class FusionVariant(val text:String,val platforms:Set<Platform>,val originalKeys:Set<String>)
+data class FusionRun(val shared:Boolean,val variants:List<FusionVariant>)
+data class PostFusion(val segments: List<FusionSegment>,val weave:List<FusionRun>?=null)
 
 /** Presentation of already-verified source editions. Alignment alone never proves
  * account ownership or image identity; CrossPosts verifies content independently.
@@ -384,6 +386,7 @@ object CrossPostFusion {
         }
         if(!CrossPosts.sameContentCopies(posts))return null
         CaptionAliases.compose(posts,mediaConfirmed=true)?.let {return it}
+        CaptionWeave.compose(posts)?.let {return it}
         val prepared=refineSharedPhrases(posts.map {prepare(it) ?: return null})
         for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j],mediaConfirmed=true)==null)return null
         return composePrepared(posts,prepared)

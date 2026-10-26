@@ -286,6 +286,67 @@ class FusionFeedTest {
         evidence("compound-reference-one-caption-one-picture")
     }
 
+    @Test fun smallCaptionEditsWeaveInlineWithThreePlatformMarksAndSaveAllOriginals() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val intro="Delivering the equipment for the community workshop. The published schedule covers the Saturday morning session and the afternoon demonstration."
+        val end="These are the results of the training program in action for everyone attending the public workshop."
+        val x=oldX.copy(title="",body="$intro $end")
+        val instagram=oldInstagram.copy(title="",body="$intro ${end.replace("the results","the direct results")}")
+        val fb=instagram.copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",media=listOf(Media("https://fusion-fb-$suffix.invalid/original.png")))
+        records+=listOf(x,fb,instagram)
+        listOf(x,fb,instagram).forEach {store(it,follow(it.platform));cachePicture(it,jpeg=it.platform==Platform.INSTAGRAM)}
+        seed("all",listOf(x,fb,instagram));val vm=model();show(vm,all=true);waitRow(x)
+        row(fb).assertDoesNotExist();row(instagram).assertDoesNotExist()
+        ui.onNodeWithTag("Fusion woven text").assertTextContains(intro,substring=true)
+        listOf(Platform.X,Platform.FACEBOOK,Platform.INSTAGRAM).forEach {platform->
+            ui.onNodeWithContentDescription("${platform.label} wording source",useUnmergedTree=true).assertExists()
+        }
+        val captured=listOf(x,fb,instagram).map(repo.images.identities::captured)
+        val fusion=collectedPostFusion(captured)!!
+        assertEquals(1,fusion.weave!!.count {!it.shared});assertTrue(fusion.segments.single().text.contains("direct results"))
+        assertEquals(1,collectedAttachments(captured).size)
+        evidence("three-platform-inline-wording")
+        ui.onNodeWithContentDescription("Facebook wording source",useUnmergedTree=true).performClick()
+        ui.waitUntil(5_000){vm.screen.value.target?.canonicalUrl?.trimEnd('/')==fb.canonicalUrl.trimEnd('/')&&!vm.screen.value.loading}
+        show(vm,all=true);waitRow(x)
+        ui.runOnIdle {repo.prefs.theme="light";ui.activity.setContent {AntiSocialApp(vm)}}
+        waitRow(x);ui.onNodeWithTag("Fusion woven text").assertExists();evidence("three-platform-inline-wording-light")
+        ui.runOnIdle {repo.prefs.theme="dark";ui.activity.setContent {AntiSocialApp(vm)}}
+        waitRow(x)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        assertCapturedSources(listOf(x,fb,instagram),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+    }
+
+    @Test fun settingsCachePurgeRefillsTheNativeFeedAndRetainsConfigurationAndSavedText() {
+        Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
+        val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cachePicture(x);cachePicture(instagram,jpeg=true)
+        val saved=runBlocking {repo.library.save(x,emptyList())}
+        val loader=repo.followLoader;val next=repo.followPageLoader
+        repo.prefs.wifiOnly=false
+        repo.followLoader={account->
+            val proof=Provenance(Source(account.target.platform,"native-fixture","https://fusion-feed-fixture.invalid"),System.currentTimeMillis(),account.target.canonicalUrl)
+            Page(records.filter {it.platform==account.target.platform}.map {it.copy(provenance=proof)},provenance=proof)
+        };repo.followPageLoader={_,_->Page(emptyList())}
+        val vm=model();show(vm,all=true);waitRow(x)
+        try {
+            ui.runOnIdle {vm.settings(SettingsPage.STORAGE)}
+            ui.onNodeWithTag("Settings list").performScrollToNode(hasText("Clear cache"))
+            val config=repo.prefs.export().toString();val subscriptions=runBlocking {repo.dao.allFollows()}
+            ui.onNodeWithText("Clear cache").performClick()
+            ui.waitUntil(15_000){runBlocking {repo.dao.post(repo.key(x))==null&&repo.dao.post(repo.key(instagram))==null}}
+            ui.waitUntil(15_000){ui.onAllNodesWithText("Clearing cache…").fetchSemanticsNodes().isEmpty()}
+            assertEquals(config,repo.prefs.export().toString());assertEquals(subscriptions,runBlocking {repo.dao.allFollows()})
+            assertEquals(x.body,runBlocking {repo.library.copy(saved)}!!.post.body)
+            runBlocking {repo.refresh(personId=person)}
+            assertEquals(2,runBlocking {repo.dao.followedPosts(accounts.map {it.id}).first()}.size)
+            cachePicture(x);cachePicture(instagram,jpeg=true);show(vm,all=true);waitRow(x);assertFusion()
+            evidence("cache-cleared-and-refilled")
+        }finally {repo.followLoader=loader;repo.followPageLoader=next;runBlocking {repo.library.remove(saved)}}
+    }
+
     @Test fun allFeedFusesSharedPictureAndCaptionPreservesContextAndEveryCommentStream() {
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
         cachePicture(x);cachePicture(instagram,jpeg=true)

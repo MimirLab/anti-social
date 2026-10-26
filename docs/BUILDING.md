@@ -71,6 +71,11 @@ serialized. Fixture tests that clear graph/cache state require the explicit
 against a personal reader installation. Live-source and model-download tests have
 separate opt-ins; ordinary unit tests do not establish provider availability.
 
+`AntiSocialTest#bundledTorConnectsAndUsesTorExit` additionally requires
+`-e antisocialLiveTor true`. It starts two real Tor processes and queries the
+public Tor Project checker. A checker TLS refusal is a dated external result,
+separate from local Gateway/Tor-policy and fail-closed regression fixtures.
+
 For instrumentation against the non-debuggable shipping variant, compile its
 matching test APK:
 

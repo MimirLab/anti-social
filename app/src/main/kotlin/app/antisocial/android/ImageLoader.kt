@@ -9,6 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.yield
 import kotlin.coroutines.coroutineContext
 import app.antisocial.core.Post
@@ -19,6 +22,10 @@ import java.io.File
 /** Bounded decoded-image reuse; original bytes still use the ordinary cache. */
 class ImageLoader(private val repo: Repository) {
     val identities=MediaIdentityStore()
+    private val retryRequests=MutableStateFlow(0L)
+    internal val retries=retryRequests.asStateFlow()
+    /** A refresh retries visible errors once; successful pictures do no work. */
+    internal fun retryFailed(){retryRequests.update {it+1}}
     private val memory=object: LruCache<String,Bitmap>(24*1024*1024) {
         override fun sizeOf(key: String,value: Bitmap)=value.allocationByteCount
     }
@@ -60,11 +67,15 @@ class ImageLoader(private val repo: Repository) {
             val warming=async {try {repo.contentSandbox.warm()}catch(e:CancellationException){throw e}catch(_:Exception){/* The actual read owns recovery. */}}
             try {
                 val file=repo.media(url,source)
+                val stamp=android.system.Os.stat(file.path)
                 repo.aiMetadata.observe(url,file)
                 // The chosen decoder owns its bind. Ordinary images join the
                 // warm worker through its mutex; AVIF/HEIF need not wait for an
                 // unrelated isolated-worker startup before their platform lane.
-                decode(file,edge).also {memory.put(key,it);identities.observe(url,it)}
+                val bitmap=try {decode(file,edge)}
+                catch(e:CancellationException){throw e}
+                catch(e:Exception){repo.discardFailedImage(url,file,stamp);throw e}
+                bitmap.also {memory.put(key,it);identities.observe(url,it)}
             }finally {warming.cancel()}
         }
         }finally {work.close()}
@@ -88,5 +99,5 @@ class ImageLoader(private val repo: Repository) {
     private suspend fun decode(file: File,edge: Int): Bitmap=decoders.withPermit {
         repo.contentSandbox.image(file,edge)
     }
-    fun clear(){memory.evictAll();identities.clear()}
+    fun clear(){memory.evictAll();identities.clear();retryFailed()}
 }
