@@ -196,7 +196,7 @@ class ChannelFeedTest {
         }}}
         waitRow(safe);row(forbidden).assertDoesNotExist();row(badEdition).assertDoesNotExist()
         ui.onNodeWithText(badEdition.body).assertDoesNotExist()
-        ui.onNodeWithContentDescription("Read Bluesky comments").assertDoesNotExist()
+        ui.onNodeWithContentDescription("Bluesky original actions").assertDoesNotExist()
         evidence("excluded-edition-stays-out-of-native-card")
     }
 

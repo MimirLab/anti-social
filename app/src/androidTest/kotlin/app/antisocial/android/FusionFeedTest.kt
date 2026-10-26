@@ -249,8 +249,8 @@ class FusionFeedTest {
         ui.onNode(decoded).assertIsDisplayed();evidence("attachment-copies-viewer-two-pictures")
         ui.onNodeWithContentDescription("Close image").performClick()
         val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
-        val comments=hasContentDescription("Read Instagram comments") and fixtureCard
-        revealCombinedControl(comments);ui.onNode(comments).performClick()
+        val comments=hasContentDescription("Instagram original actions") and fixtureCard
+        revealCombinedControl(comments);ui.onNode(comments).performClick();ui.onNodeWithTag("Platform comments instagram").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.INSTAGRAM.id)?.page!=null}
         ui.onNodeWithTag("Discussion tab twitter").performScrollTo().performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.X.id)?.page!=null}
@@ -278,10 +278,10 @@ class FusionFeedTest {
         revealCombinedControl(save);ui.onNode(save).performClick()
         ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==2}
         assertCapturedSources(listOf(x,instagram),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
-        val xComments=hasContentDescription("Read X comments") and fixtureCard
-        val instagramComments=hasContentDescription("Read Instagram comments") and fixtureCard
+        val xComments=hasContentDescription("X original actions") and fixtureCard
+        val instagramComments=hasContentDescription("Instagram original actions") and fixtureCard
         revealCombinedControl(xComments);ui.onNode(xComments).assertIsDisplayed()
-        revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed().performClick()
+        revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed().performClick();ui.onNodeWithTag("Platform comments instagram").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.INSTAGRAM.id)?.page!=null}
         ui.onNodeWithTag("Discussion tab instagram").assertIsSelected()
         ui.onNodeWithTag("Discussion order CHRONOLOGICAL").assertIsSelected().assert(hasText("Newest"))
@@ -341,8 +341,8 @@ class FusionFeedTest {
         row(instagram).assertDoesNotExist()
         ui.onNodeWithText("2 platforms · matching post").assertExists()
         val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
-        val xComments=hasContentDescription("Read X comments") and fixtureCard
-        val instagramComments=hasContentDescription("Read Instagram comments") and fixtureCard
+        val xComments=hasContentDescription("X original actions") and fixtureCard
+        val instagramComments=hasContentDescription("Instagram original actions") and fixtureCard
         revealCombinedControl(xComments);ui.onNode(xComments).assertIsDisplayed()
         revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed()
         val save=hasContentDescription("Save post") and fixtureCard
@@ -395,10 +395,10 @@ class FusionFeedTest {
         revealCombinedControl(save);ui.onNode(save).performClick()
         ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==2}
         assertCapturedSources(listOf(x,instagram),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
-        val xComments=hasContentDescription("Read X comments") and fixtureCard
-        val instagramComments=hasContentDescription("Read Instagram comments") and fixtureCard
+        val xComments=hasContentDescription("X original actions") and fixtureCard
+        val instagramComments=hasContentDescription("Instagram original actions") and fixtureCard
         revealCombinedControl(xComments);ui.onNode(xComments).assertIsDisplayed()
-        revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed().performClick()
+        revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed().performClick();ui.onNodeWithTag("Platform comments instagram").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.INSTAGRAM.id)?.page!=null}
         ui.onNodeWithTag("Discussion tab twitter").performScrollTo().performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.X.id)?.page!=null}
@@ -446,10 +446,10 @@ class FusionFeedTest {
         ui.waitForIdle()
         ui.onNodeWithTag("Fused post text").assertDoesNotExist()
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
-        ui.onNodeWithContentDescription("Read Instagram comments").assertDoesNotExist()
+        ui.onNodeWithContentDescription("Instagram original actions").assertDoesNotExist()
         val before=top(x);val offset=repo.feedMemory.get(feed).anchorOffset
         cachePicture(instagram,jpeg=true)
-        val lateInstagram=hasContentDescription("Read Instagram comments") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        val lateInstagram=hasContentDescription("Instagram original actions") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
         ui.waitUntil(10_000){ui.onAllNodes(lateInstagram).fetchSemanticsNodes().isNotEmpty()}
         assertTrue(repo.images.identities.same(x,instagram))
         assertTrue("Late image evidence must not move the current card",abs(top(x)-before)<=2f)
@@ -464,8 +464,8 @@ class FusionFeedTest {
         assertEquals(repo.key(x),repo.feedMemory.get(feed).anchorKey)
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
         val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
-        val xComments=hasContentDescription("Read X comments") and fixtureCard
-        val instagramComments=hasContentDescription("Read Instagram comments") and fixtureCard
+        val xComments=hasContentDescription("X original actions") and fixtureCard
+        val instagramComments=hasContentDescription("Instagram original actions") and fixtureCard
         revealCombinedControl(xComments);ui.onNode(xComments).assertIsDisplayed()
         revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed()
         evidence("late-fusion-adopted-native")
@@ -491,7 +491,7 @@ class FusionFeedTest {
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
         val before=top(x)
         ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram))}
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Instagram comments").fetchSemanticsNodes().isNotEmpty()}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
         assertTrue("Known editions must not replace the visible source text before adoption",abs(top(x)-before)<=2f)
         ui.onNodeWithTag("Fused post text").assertDoesNotExist()
         ui.onNodeWithTag("Jump to newest").performClick()
@@ -502,10 +502,10 @@ class FusionFeedTest {
         assertEquals(listOf(x),sourceWindow)
         row(instagram).assertDoesNotExist()
         val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
-        val xComments=hasContentDescription("Read X comments") and fixtureCard
-        val instagramComments=hasContentDescription("Read Instagram comments") and fixtureCard
+        val xComments=hasContentDescription("X original actions") and fixtureCard
+        val instagramComments=hasContentDescription("Instagram original actions") and fixtureCard
         revealCombinedControl(xComments);ui.onNode(xComments).assertIsDisplayed()
-        revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed().performClick()
+        revealCombinedControl(instagramComments);ui.onNode(instagramComments).assertIsDisplayed().performClick();ui.onNodeWithTag("Platform comments instagram").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.INSTAGRAM.id)?.page!=null}
         ui.onNodeWithTag("Discussion tab all").performScrollTo().performClick()
         ui.waitUntil(5_000){vm.discussions.state.value!!.threads.values.all {it.page!=null}}
@@ -530,7 +530,7 @@ class FusionFeedTest {
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
         val before=top(x);val offset=repo.feedMemory.get(feed).anchorOffset
         store(instagram,instagramFollow)
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Instagram comments").fetchSemanticsNodes().isNotEmpty()}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
         assertTrue("A late source's additional wording must wait without moving the Following card",abs(top(x)-before)<=2f)
         assertEquals(offset,repo.feedMemory.get(feed).anchorOffset)
         ui.onNodeWithTag("Fused post text").assertDoesNotExist()
@@ -586,7 +586,7 @@ class FusionFeedTest {
         }}}
         waitRow(x);val before=top(x);val offset=repo.feedMemory.get(feed).anchorOffset
         ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram))}
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Instagram comments").fetchSemanticsNodes().isNotEmpty()}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
         ui.onNodeWithTag("Fused post text").assertDoesNotExist()
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
         ui.onAllNodesWithText(shared).assertCountEquals(1)

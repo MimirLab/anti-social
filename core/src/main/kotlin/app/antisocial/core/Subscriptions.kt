@@ -74,7 +74,7 @@ object CrossPosts {
     internal fun onlyOpaqueOrOriginalLinks(post:Post)=PostLinks.urls(post).all {value->linksToOriginal(value,post)||normalizedUrl(value)?.let(::opaqueLink)==true}
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
-        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>) {
+        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>,val decoration:DecoratedPostCopies.Prepared?) {
     }
     private fun uri(value: String)=runCatching {URI(value)}.getOrNull()?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
     private fun origin(value: URI)=value.host.lowercase()+":"+(if(value.port==-1)443 else value.port)
@@ -386,6 +386,7 @@ object CrossPosts {
         val same=if(post.platform in ExpandedRoutes.federated)origin(source)==origin(actual)else SocialLinkHosts.platform(value)==post.platform||acquiredAlias
         return same&&ContentIdentity.key(post.platform,value)==ContentIdentity.key(post.platform,post.canonicalUrl)
     }
+    internal fun originalLink(value:String,post:Post)=linksToOriginal(value,post)
     private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
         val eligible=accounts[post.platform].orEmpty()
         val pathOwner=eligible.firstOrNull {own(post,it.second)}?.first
@@ -420,7 +421,7 @@ object CrossPosts {
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
             urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain),
-            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post),eligible.filter {it.second.id in sources}.mapTo(linkedSetOf()){it.second.id})
+            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post),eligible.filter {it.second.id in sources}.mapTo(linkedSetOf()){it.second.id},null)
     }
     private fun explicit(a: Features,b: Features): Boolean {
         return a.urls.any {linksToOriginal(it,b.post)}||b.urls.any {linksToOriginal(it,a.post)}
@@ -488,7 +489,7 @@ object CrossPosts {
         val left=a.media.filter {it.type=="image"}.take(12);val right=b.media.filter {it.type=="image"}.take(12)
         if(left.isEmpty()||right.isEmpty())return false
         val urls=left.mapNotNull {normalizedUrl(it.url)}.toSet()
-        return right.mapNotNull {normalizedUrl(it.url)}.any {it in urls}||left.any {x->right.any {y->ImageAssetIdentity.same(x,y)||VisualFrames.same(x.visualFingerprint,y.visualFingerprint)}}||sameMedia(a.copy(media=left),b.copy(media=right))
+        return right.mapNotNull {normalizedUrl(it.url)}.any {it in urls}||left.any {x->right.any {y->ImageAssetIdentity.same(x,y)||VisualFrames.same(x.visualFingerprint,y.visualFingerprint)||VisualFrames.sameImage(x.visualFingerprint,y.visualFingerprint)}}||sameMedia(a.copy(media=left),b.copy(media=right))
     }
     private fun realOriginal(post: Post): Boolean {
         val url=uri(post.canonicalUrl) ?: return false
@@ -523,6 +524,10 @@ object CrossPosts {
         val sharedMedia=images||clips&&!(stills(a.post)&&stills(b.post))
         val timeA=a.post.publishedAt?.takeIf {it>0};val timeB=b.post.publishedAt?.takeIf {it>0}
         val distance=if(timeA==null||timeB==null)null else if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
+        // A separately reencoded copy can be published days later. A strong
+        // picture observation plus long, identical surrounding prose supports
+        // bounded credit-name/handle formatting, not an account linkage claim.
+        if(images&&distance!=null&&distance<=MAX_COPY_WINDOW.toULong()&&CaptionAliases.equivalent(a.post,b.post,mediaConfirmed=true))return true
         if(a.text==b.text&&!completeCopyText(a,b))return false
         if(completeCopyText(a,b)) {
             val length=a.text.length;val count=a.tokens.size;val distinct=a.tokens.toSet().size
@@ -561,6 +566,18 @@ object CrossPosts {
         if(distance>MAX_REPEAT_WINDOW.toULong())return false
         return matches(a,b,sameMedia,repeated=true)||fusionMatch(a,b,sameMedia,repeated=true)||videoExcerpt(a.post,b.post)||relatedVisualPair(a.post,b.post)
     }
+    private fun decoratedMatch(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean {
+        if(a.owner==null||a.owner!=b.owner||!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null)return false
+        val first=a.decoration ?: return false;val second=b.decoration ?: return false
+        if(!first.changed&&!second.changed)return false
+        val left=a.post.publishedAt?.takeIf {it>0} ?: return false;val right=b.post.publishedAt?.takeIf {it>0} ?: return false
+        val distance=if(left>=right)left-right else right-left
+        if(distance>30*60*1000L)return false
+        val match=DecoratedPostCopies.compare(first,second) ?: return false
+        val corroborated=match.sharedResource||a.clips.intersect(b.clips).isNotEmpty()||sameImages(a.post,b.post,sameMedia)
+        if(minOf(first.tokens.size,second.tokens.size)<12)return match.exact&&distance<=30*60*1000L&&corroborated
+        return corroborated||match.exact&&minOf(first.tokens.size,second.tokens.size)>=24&&minOf(first.text.length,second.text.length)>=160
+    }
     private fun candidateKeys(row: Features): Set<String> = buildSet {
         if(row.text.isNotBlank()){add("text:"+row.text);add("base:"+row.base)}
         normalizedUrl(row.post.canonicalUrl)?.let {add("url:"+it)}
@@ -593,13 +610,17 @@ object CrossPosts {
         fun better(a: Post,b: Post): Boolean {val aa=quality(a);val bb=quality(b);for(i in aa.indices)if(aa[i]!=bb[i])return aa[i]>bb[i];return false}
         posts.forEach {post->checkpoint();val key=originalKey(post);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
         val postOrder=compareByDescending<Post> {it.publishedAt ?: Long.MIN_VALUE}.thenBy(::originalKey)
-        val ordered=unique.values.sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
-        val keys=ordered.map {checkpoint();candidateKeys(it)}
+        val prepared=unique.values.sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
+        val decorativeOwners=prepared.filter {checkpoint();it.owner!=null&&DecoratedPostCopies.mayChange(it.post)}.mapTo(hashSetOf()){it.owner}
+        val ordered=if(decorativeOwners.isEmpty())prepared else prepared.map {row->
+            checkpoint();if(row.owner in decorativeOwners)row.copy(decoration=DecoratedPostCopies.prepare(row.post))else row
+        }
+        fun nominate(keys:List<Set<String>>,exactKeys:List<String>):List<Set<Int>?> {
         val index=mutableMapOf<String,MutableList<Int>>()
         keys.forEachIndexed {i,names->names.forEach {index.getOrPut(it){mutableListOf()}.add(i)}}
-        val candidates=keys.mapIndexed {i,names->
+        return keys.mapIndexed {i,names->
             checkpoint()
-            val textKey="text:"+ordered[i].text
+            val textKey=exactKeys[i]
             val exactBucket=index[textKey].orEmpty()
             if(exactBucket.size>MAX_CANDIDATES+1)null else {
                 val exact=exactBucket.filter {it!=i}.toCollection(LinkedHashSet())
@@ -621,6 +642,18 @@ object CrossPosts {
                 if(overflow)exact else LinkedHashSet(exact).apply {addAll(extra)}
             }
         }
+        }
+        val candidates=nominate(ordered.map {checkpoint();candidateKeys(it)},ordered.map {"text:"+it.text})
+        // This route has its own nomination budget. Adding cosmetic-copy hints
+        // must never displace candidates from any established detector.
+        val decorationExact=if(decorativeOwners.isEmpty())emptyList()else ordered.map {row->row.decoration?.let {"decoration:${row.owner}:${it.text.length}:${it.text.hashCode()}"}.orEmpty()}
+        val decorationKeys=if(decorativeOwners.isEmpty())emptyList()else ordered.mapIndexed {i,row->buildSet {
+            if(row.owner!=null&&row.decoration!=null) {
+                add(decorationExact[i])
+                DecoratedPostCopies.anchors(row.decoration).forEach {add("decoration-chunk:${row.owner}:$it")}
+            }
+        }}
+        val decorationCandidates=nominate(decorationKeys,decorationExact)
         val edges=Array(ordered.size){mutableSetOf<Int>()}
         val repeatEdges=Array(ordered.size){mutableSetOf<Int>()}
         val fusionEdges=Array(ordered.size){mutableSetOf<Int>()}
@@ -632,6 +665,10 @@ object CrossPosts {
                 edges[i]+=j;edges[j]+=i
                 if(!exact){fusionEdges[i]+=j;fusionEdges[j]+=i}
             }
+        }}
+        decorationCandidates.indices.forEach {i->decorationCandidates[i]?.filter {it>i&&i in decorationCandidates[it].orEmpty()}?.forEach {j->
+            checkpoint()
+            if(decoratedMatch(ordered[i],ordered[j],sameMedia)){repeatEdges[i]+=j;repeatEdges[j]+=i}
         }}
         // First collapse verified repetitions/copies into complete-link cohorts.
         // The earliest original anchors a cohort; a chain of near dates or

@@ -258,7 +258,7 @@ class CrossPostFeedTest {
             waitRow(primary)
             assertEquals(3,repo.library.normalizedFusionRoots(primary,originals).size)
             val card=hasAnyAncestor(hasTestTag("Feed row ${repo.key(primary)}"))
-            for(platform in listOf("X","Instagram","Facebook"))revealCombinedControl(hasContentDescription("Read $platform comments") and card)
+            for(platform in listOf("X","Instagram","Facebook"))revealCombinedControl(hasContentDescription("$platform original actions") and card)
             evidence("nasa-not-slowing-one-card-three-originals")
             for(original in originals)assertEquals(original,runBlocking {repo.dao.post(repo.key(original))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)})
         }finally {repo.gateway.configure(oldPolicy)}
@@ -291,7 +291,7 @@ class CrossPostFeedTest {
         val vm=model();show(vm,all=true);waitRow(x)
         rowCount(listOf(x,blue),1);ui.onAllNodesWithText(caption).assertCountEquals(1)
         ui.onNodeWithText("2 platforms · matching post").assertExists()
-        ui.onNodeWithContentDescription("Read Bluesky comments").performScrollTo().assertIsDisplayed()
+        ui.onNodeWithContentDescription("Bluesky original actions").performScrollTo().assertIsDisplayed()
         evidence("all-one-card-two-platforms-native")
     }
     @Test fun shortConcurrentEditionsShowOneCaptionWithEveryAttachmentAndDiscussion() {
@@ -331,7 +331,7 @@ class CrossPostFeedTest {
         ui.onAllNodesWithText(text).assertCountEquals(1)
         assertEquals(3,repo.library.normalizedFusionRoots(x,originals).size)
         val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
-        revealCombinedControl(hasContentDescription("Read Instagram comments") and fixtureCard)
+        revealCombinedControl(hasContentDescription("Instagram original actions") and fixtureCard)
         evidence("self-permalink-three-platform-one-card-native")
         revealCombinedControl(hasTestTag("Read discussions ${repo.key(x)}"))
         ui.onNodeWithTag("Read discussions ${repo.key(x)}").performClick()
@@ -361,8 +361,8 @@ class CrossPostFeedTest {
         ui.onNodeWithText(x.title).assertDoesNotExist();ui.onNodeWithText(instagram.title).assertDoesNotExist()
         ui.onNodeWithText("2 platforms · matching post").assertExists()
         val fixtureCard=hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
-        val xComments=hasContentDescription("Read X comments") and fixtureCard
-        val instagramComments=hasContentDescription("Read Instagram comments") and fixtureCard
+        val xComments=hasContentDescription("X original actions") and fixtureCard
+        val instagramComments=hasContentDescription("Instagram original actions") and fixtureCard
         // Each icon must be reachable; a narrow horizontal viewport need not
         // display both at once. The helper also scrolls the actual feed footer.
         revealCombinedControl(xComments);ui.onNode(xComments).assertIsDisplayed()
@@ -374,7 +374,7 @@ class CrossPostFeedTest {
         }
         evidence("border-caption-one-card-native")
         revealCombinedControl(instagramComments)
-        ui.onNode(instagramComments).assertIsDisplayed().performClick()
+        ui.onNode(instagramComments).assertIsDisplayed().performClick();ui.onNodeWithTag("Platform comments instagram").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.INSTAGRAM.id)?.page!=null}
         assertEquals(listOf("instagram:CHRONOLOGICAL"),calls.toList())
         ui.onNodeWithTag("Discussion tab twitter").performScrollTo().performClick()
@@ -401,7 +401,7 @@ class CrossPostFeedTest {
         val vm=model();show(vm);waitRow(x);val before=top(x)
         val blue=post(Platform.BLUESKY,body=caption.replace("great state","great\u00a0state"),time=x.publishedAt!!+1_000)
         store(blue,blueFollow)
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Bluesky comments").fetchSemanticsNodes().isNotEmpty()}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Bluesky original actions").fetchSemanticsNodes().isNotEmpty()}
         ui.waitUntil(10_000){repo.key(blue) in repo.feedMemory.get("person:$person").readKeys}
         assertTrue(abs(top(x)-before)<=2f);assertEquals(31,repo.feedMemory.get("person:$person").anchorOffset)
         rowCount(listOf(x,blue),1);row(blue).assertDoesNotExist()
@@ -410,7 +410,7 @@ class CrossPostFeedTest {
         repo.feedMemory.reconcile("elsewhere",listOf(repo.key(blue)))
         assertTrue(repo.key(blue) in repo.feedMemory.get("elsewhere").readKeys)
         evidence("late-copy-keeps-read-anchor-native")
-        ui.onNodeWithContentDescription("Read Bluesky comments").performScrollTo().performClick()
+        ui.onNodeWithContentDescription("Bluesky original actions").performScrollTo().performClick();ui.onNodeWithTag("Platform comments bluesky").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.threads?.get(Platform.BLUESKY.id)?.page!=null}
         assertEquals(listOf("bluesky:CHRONOLOGICAL"),calls.toList())
         assertEquals("bluesky",vm.discussions.state.value!!.selected)
@@ -430,14 +430,14 @@ class CrossPostFeedTest {
         val feed="following:${Platform.X.id}:group:${Repository.hash("")}"
         seed(feed,listOf(x));runBlocking {repo.bookmark(blue,true)}
         val vm=model();ui.runOnUiThread {ui.activity.setContent {AntiSocialApp(vm)}};waitRow(x)
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Bluesky comments").fetchSemanticsNodes().isNotEmpty()}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Bluesky original actions").fetchSemanticsNodes().isNotEmpty()}
         row(blue).assertDoesNotExist();ui.onNodeWithContentDescription("Remove saved post").assertExists()
         ui.onNodeWithContentDescription("Remove saved post").performClick()
         ui.waitUntil(5_000){runBlocking {repo.dao.bookmarksByKeys(listOf(repo.key(blue)))}.isEmpty()}
         ui.onNodeWithText(caption).performScrollTo().performClick()
         ui.waitUntil(10_000){vm.screen.value.target!=null&&!vm.screen.value.loading}
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Bluesky comments").fetchSemanticsNodes().isNotEmpty()}
-        ui.onNodeWithContentDescription("Read Bluesky comments").performScrollTo().performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Bluesky original actions").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithContentDescription("Bluesky original actions").performScrollTo().performClick();ui.onNodeWithTag("Platform comments bluesky").performClick()
         ui.waitUntil(5_000){vm.discussions.state.value?.selected=="bluesky"}
         assertEquals(listOf("bluesky:CHRONOLOGICAL"),calls.toList())
         evidence("detail-keeps-cross-platform-comments-native")
@@ -472,7 +472,7 @@ class CrossPostFeedTest {
         val list=ui.onNodeWithTag("Combined feed")
         list.performScrollToNode(hasTestTag("Feed row ${repo.key(next)}"));row(next).assertIsDisplayed()
         list.performScrollToNode(hasTestTag("Feed row ${repo.key(x)}"));row(x).assertIsDisplayed();row(blue).assertDoesNotExist()
-        ui.onNodeWithContentDescription("Read X comments").assertExists()
+        ui.onNodeWithContentDescription("X original actions").assertExists()
         evidence("only-genuine-arrival-admitted-above-anchor-native")
     }
     @Test fun aReadMergedCardStaysReadWhenTheAcceptedIdentityBudgetIsFull() {
@@ -481,7 +481,7 @@ class CrossPostFeedTest {
         val feed="person:$person";val keys=(1 until FeedReading.MAX_ACCEPTED).map {"ghost:$suffix:$it"}+repo.key(x)
         repo.feedMemory.reconcile(feed,keys);repo.feedMemory.anchor(feed,repo.key(x),11);repo.feedMemory.markRead(feed,listOf(repo.key(x)))
         val vm=model();show(vm);waitRow(x)
-        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Read Bluesky comments").fetchSemanticsNodes().isNotEmpty()}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Bluesky original actions").fetchSemanticsNodes().isNotEmpty()}
         rowCount(listOf(x,blue),1)
         ui.onNodeWithTag("Feed row status ${repo.key(x)}").assertDoesNotExist()
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
@@ -501,7 +501,7 @@ class CrossPostFeedTest {
         val vm=model();show(vm,all=true);waitRow(first)
         rowCount(listOf(first,second,third),1);ui.onAllNodesWithText(caption).assertCountEquals(1)
         ui.onNodeWithText("3 originals · X").assertExists()
-        ui.onAllNodesWithContentDescription("Read X comments").assertCountEquals(1)
+        ui.onAllNodesWithContentDescription("X original actions").assertCountEquals(1)
         revealCombinedControl(hasTestTag("Collected originals ${repo.key(first)}"))
         ui.onNodeWithTag("Collected originals ${repo.key(first)}").performClick()
         ui.onNodeWithTag("Collected originals").assertExists()
@@ -715,7 +715,7 @@ class CrossPostFeedTest {
             val primary=orderedCollectedOriginals(listOf(x,numeric)).first()
             seed("all",listOf(x,numeric));val vm=model();show(vm,all=true);waitRow(primary)
             store(vanity,fbFollow);store(ig,igFollow)
-            ui.waitUntil(15_000){ui.onAllNodesWithContentDescription("Read Instagram comments").fetchSemanticsNodes().isNotEmpty()}
+            ui.waitUntil(15_000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
             rowCount(listOf(x,numeric,vanity,ig),1)
             ui.onAllNodesWithText("Have you prepared the workshop display?",substring=true).assertCountEquals(1)
             val imageSet=collectedAttachments(listOf(x,numeric,vanity,ig))

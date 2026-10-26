@@ -19,6 +19,17 @@ class CrossPostPacketTest {
         val memberships=packet.getAsJsonObject("memberships").entrySet().associate {(key,value)->key to value.asJsonArray.map {it.asString}.toSet()}
         val before=posts.map(gson::toJson)
         val selected=packet.getAsJsonArray("selectedOriginals")?.map {it.asString}?.toSet() ?: posts.map(CrossPosts::originalKey).toSet()
+        System.getenv("ANTISOCIAL_PRIVATE_CROSSPOST_REPORT")?.takeIf(String::isNotBlank)?.let {path->
+            val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
+            val method=CrossPosts.javaClass.declaredMethods.single {it.name=="features"}.apply {isAccessible=true}
+            val chosen=posts.filter {CrossPosts.originalKey(it) in selected}
+            val report=mapOf("features" to chosen.map {method.invoke(CrossPosts,it,accounts,memberships)},
+                "groups" to CrossPosts.group(posts,follows,memberships),
+                "pairs" to chosen.flatMapIndexed {i,a->chosen.drop(i+1).map {b->mapOf("a" to a.identityKey,"b" to b.identityKey,
+                    "copies" to CrossPosts.sameContentCopies(listOf(a,b)),"fusion" to (CrossPostFusion.compose(listOf(a,b))!=null),
+                    "mediaFusion" to (CrossPostFusion.composeMedia(listOf(a,b))!=null))}})
+            File(path).writeText(gson.toJson(report))
+        }
         for(input in listOf(posts,posts.reversed())) {
             val groups=CrossPosts.group(input,follows,memberships)
             assertEquals(packet["expectedGroups"].asInt,groups.count {g->g.posts.any {CrossPosts.originalKey(it) in selected}})

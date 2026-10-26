@@ -93,7 +93,10 @@ class SavedLibraryUiTest {
         val related=post("A successful spaceflight with a new crew capsule.",41)
         runBlocking {repo.library.save(literal,emptyList());kotlinx.coroutines.delay(5);repo.library.save(related,emptyList())}
         library();ui.onNodeWithTag("Library search").performTextInput("rocket launch")
-        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library entry ${repo.key(literal)}").fetchSemanticsNodes().isNotEmpty()&&ui.onAllNodesWithTag("Library entry ${repo.key(related)}").fetchSemanticsNodes().isNotEmpty()}
+        // Both rows already exist in the initial chronological shelf. Wait for
+        // the query's related-match result before inspecting its relevance order.
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library entry ${repo.key(literal)}").fetchSemanticsNodes().isNotEmpty()&&ui.onAllNodesWithTag("Library entry ${repo.key(related)}").fetchSemanticsNodes().isNotEmpty()&&ui.onAllNodesWithText("Related wording",substring=true).fetchSemanticsNodes().isNotEmpty()}
+        ui.waitForIdle()
         val a=ui.onNodeWithTag("Library entry ${repo.key(literal)}").fetchSemanticsNode().boundsInRoot.top
         val b=ui.onNodeWithTag("Library entry ${repo.key(related)}").fetchSemanticsNode().boundsInRoot.top
         assertTrue("Direct wording stays above related wording even when the related save is newer",a<b)

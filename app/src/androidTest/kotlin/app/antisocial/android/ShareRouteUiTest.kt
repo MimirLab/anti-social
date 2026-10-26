@@ -7,10 +7,21 @@ import android.content.Context
 import androidx.activity.compose.setContent
 import androidx.compose.material3.*
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.Modifier
+import android.app.Activity
+import android.app.Instrumentation
+import android.content.Intent
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
+import kotlinx.coroutines.CompletableDeferred
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
@@ -49,7 +60,7 @@ class ShareRouteUiTest {
             ui.activity.setContent {Text("Preparing outbound link fixture")}
             val clipboard=ui.activity.getSystemService(ClipboardManager::class.java);oldClipboard=clipboard.primaryClip;clipboard.setPrimaryClip(ClipData.newPlainText("Fixture","unchanged"))
         }
-        repo.prefs.archiveChecks=false;repo.prefs.communityComments=false;repo.prefs.intervalMinutes=0;repo.prefs.tor=true;repo.prefs.originalFallback=true
+        repo.prefs.archiveChecks=false;repo.prefs.communityComments=false;repo.prefs.mentionLookups=false;repo.prefs.intervalMinutes=0;repo.prefs.tor=true;repo.prefs.originalFallback=true
         repo.gateway.configure(NetworkPolicy(tor=true,ready=false))
     }
     @After fun restore() {
@@ -71,6 +82,69 @@ class ShareRouteUiTest {
     }
     private fun clickCopy(value: Post=post) {ui.onNodeWithTag("Collected original list").performScrollToNode(hasTestTag("Copy original ${repo.key(value)}"));ui.onNodeWithTag("Copy original ${repo.key(value)}").performClick()}
     private fun awaitCopied(expected: String) {ui.waitUntil(5000){copied()==expected};assertEquals(expected,copied())}
+    private fun evidence(name:String) {
+        ui.waitForIdle()
+        val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        val dir=File(ui.activity.getExternalFilesDir("validation"),"share-route").apply {mkdirs()}
+        File(dir,"$name.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+    }
+
+    private fun showPost(roots:List<Post> = listOf(post)):AntiSocialViewModel {
+        val model=AntiSocialViewModel(repo).also {models+=it}
+        ui.runOnIdle {ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())) {PostCard(post,model,false,discussions=roots,onOpen={})}
+        }}}
+        return model
+    }
+    private fun assertShare(expected:String,action:()->Unit) {
+        Intents.init()
+        try {
+            Intents.intending(hasAction(Intent.ACTION_CHOOSER)).respondWith(Instrumentation.ActivityResult(Activity.RESULT_CANCELED,null))
+            action()
+            ui.waitUntil(5000){Intents.getIntents().any {it.action==Intent.ACTION_CHOOSER}}
+            val chooser=Intents.getIntents().last {it.action==Intent.ACTION_CHOOSER}
+            @Suppress("DEPRECATION") val send=chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)!!
+            assertEquals(Intent.ACTION_SEND,send.action);assertEquals("text/plain",send.type)
+            assertEquals(expected,send.getStringExtra(Intent.EXTRA_TEXT))
+        }finally {Intents.release()}
+    }
+    @Test fun aSinglePostHasVisibleSharingAndItsPlatformLinkActions() {
+        fixture {ShareRouteCheck(ShareRouteStatus.READABLE,it.url)}
+        showPost()
+        ui.onNodeWithContentDescription("X original actions").performScrollTo().assertIsDisplayed()
+        evidence("single-post-share")
+        assertShare(post.canonicalUrl){ui.onNodeWithTag("Share post ${repo.key(post)}").performScrollTo().performClick()}
+        assertEquals(1,checked.size)
+        ui.onNodeWithContentDescription("X original actions").performScrollTo().performClick()
+        evidence("single-post-platform-actions")
+        ui.onNodeWithTag("Copy platform original twitter").performClick();awaitCopied(post.canonicalUrl)
+    }
+    @Test fun aFusedPlatformActionSharesThatPlatformsOriginalWithoutChangingTheDefaultLink() {
+        fixture {ShareRouteCheck(ShareRouteStatus.READABLE,it.url)}
+        val ig=post.copy(id="AbCdEf$suffix",platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/AbCdEf$suffix/",provenance=null)
+        showPost(listOf(post,ig))
+        assertShare(ig.canonicalUrl){
+            ui.onNodeWithContentDescription("Instagram original actions").performScrollTo().performClick()
+            evidence("collected-instagram-actions")
+            ui.onNodeWithTag("Share platform original instagram").performClick()
+        }
+        assertTrue(checked.all {it.post.platform==Platform.INSTAGRAM})
+        assertEquals("https://x.com/antisocialshare/status/98${suffix}7",post.canonicalUrl)
+    }
+    @Test fun sharingShowsProgressWhileTheExistingResolverChecksTheLink() {
+        val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
+        repo.outgoing.validate={checked+=it;started.complete(Unit);release.await();ShareRouteCheck(ShareRouteStatus.READABLE,it.url)}
+        showPost()
+        try {assertShare(post.canonicalUrl){
+            ui.onNodeWithTag("Share post ${repo.key(post)}").performScrollTo().performClick()
+            ui.waitUntil(5000){started.isCompleted}
+            ui.onNodeWithTag("Preparing post link ${repo.key(post)}").assertIsDisplayed()
+            ui.onNodeWithTag("Share post ${repo.key(post)}").assertIsNotEnabled()
+            evidence("preparing-clean-link")
+            release.complete(Unit)
+        }}finally {release.complete(Unit)}
+        ui.waitUntil(5000){ui.onAllNodesWithTag("Preparing post link ${repo.key(post)}").fetchSemanticsNodes().isEmpty()}
+    }
 
     @Test fun missingOriginalCopiesRawLiveFrontendAndKeepsOriginalAttribution() {
         fixture {ShareRouteCheck(if(it.kind==ShareRouteKind.ORIGINAL)ShareRouteStatus.NOT_FOUND else ShareRouteStatus.READABLE,it.url)}

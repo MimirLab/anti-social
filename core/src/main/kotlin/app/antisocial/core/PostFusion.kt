@@ -383,6 +383,7 @@ object CrossPostFusion {
                 sources.size==posts.size,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))))
         }
         if(!CrossPosts.sameContentCopies(posts))return null
+        CaptionAliases.compose(posts,mediaConfirmed=true)?.let {return it}
         val prepared=refineSharedPhrases(posts.map {prepare(it) ?: return null})
         for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j],mediaConfirmed=true)==null)return null
         return composePrepared(posts,prepared)
@@ -477,6 +478,7 @@ object CrossPostFusion {
      */
     fun compose(posts: List<Post>): PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        DecoratedPostCopies.compose(posts)?.let {return it}
         AttachmentCaptions.compose(posts)?.let {return it}
         CaptionAliases.compose(posts)?.let {return it}
         // Grouping proves timing/content/corroboration independently; a copy

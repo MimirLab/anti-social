@@ -80,6 +80,8 @@ JSON array through `ANTISOCIAL_PRIVATE_BUSINESS_PACKET` and the expected name
 through `ANTISOCIAL_PRIVATE_CHAIN_NAME`. Keep both inputs outside the checkout;
 normal unit runs skip this case. The replay preserves all location facts and
 checks that unrelated records are not absorbed. Never commit the recorded packet.
+`ANTISOCIAL_PRIVATE_BUSINESS_AREA` optionally supplies the complete `LocalArea`
+JSON for country and branch-geography checks in the same replay.
 
 The optional JVM `CrossPostPacketTest` accepts a captured input through
 `ANTISOCIAL_PRIVATE_CROSSPOST_PACKET`: `posts`, `follows`, `memberships` and
@@ -90,6 +92,15 @@ Opt-in `ReaderRoutingLiveTest` and `ReaderSearchLiveNativeTest` likewise require
 explicit private `files/reader-routing-live.json` on an isolated test device, plus
 their named live/isolation flags. They record dated production-route and actual
 Search-tab behavior without embedding an owner's queries or reader state in source.
+
+`CollectedMediaPacketTest` additionally accepts an explicit private
+`files/collected-media-packet/input.json` with up to eight cases, each containing
+`posts`, optional `expectedAttachments` and an optional URL-to-local-filename
+`files` map. Both `antisocialCollectedMediaPacket=true` and
+`antisocialIsolatedFixtureDevice=true` are required. It decodes supplied files or
+reads through the production Gateway, then records the observed attachment
+groups in private external device evidence. These are opt-in engineering checks;
+normal regression runs skip the packet and no captured reader data ships.
 
 Business arguments contain the initial name, address, locality, optional point,
 websites, socials, phones and source IDs needed by that check. Missing required

@@ -16,7 +16,8 @@ class LocalBusinessPacketTest {
         val rows=Gson().fromJson(file.readText(),Array<LocalBusiness>::class.java).toList();require(rows.size in 2..2000)
         fun matches(b:LocalBusiness)=LocalBusinessOwnership.sameBrand(requireNotNull(name),LocalBusinessDeck.label(b))
         val target=rows.filter(::matches);assertTrue("The packet must contain multiple matching locations",target.size>=2)
-        val groups=LocalBusinessDeck.groups(rows)
+        val area=System.getenv("ANTISOCIAL_PRIVATE_BUSINESS_AREA")?.takeIf(String::isNotBlank)?.let {Gson().fromJson(File(it).readText(),LocalArea::class.java)}
+        val groups=if(area==null)LocalBusinessDeck.groups(rows)else LocalBusinessDeck.groupsForArea(rows,area.point,area.countryCode)
         val cards=groups.filter {it.locations.any(::matches)}
         assertEquals("The recorded chain must occupy one reading card",1,cards.size)
         assertTrue("The chain retains exactly its original location facts",cards.single().locations.toSet()==target.toSet())

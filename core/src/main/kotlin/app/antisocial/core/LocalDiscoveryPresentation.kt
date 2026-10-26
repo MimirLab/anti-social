@@ -42,17 +42,20 @@ object LocalBusinessDeck {
     private data class Identity(val business:LocalBusiness,val name:String,val ids:Set<String>,val brands:Map<String,String>,val domains:Set<String>,val unresolvedSite:Boolean,val street:String?) {
         val ambiguous:Boolean get()=ids.size>1||ids.isEmpty()&&brands.size>1
     }
-    private fun identity(b:LocalBusiness):Identity {
+    private fun identity(b:LocalBusiness,country:String?):Identity {
         val declared=b.evidence.filter {it.kind in setOf(LocalEvidenceKind.DIRECTORY,LocalEvidenceKind.PUBLISHER)}
-        val ids=declared.filter {it.field=="brand id"&&brandId.matches(it.value)}.map {it.value}.toSet()
+        val declaredIds=declared.filter {it.field=="brand id"&&brandId.matches(it.value)}.map {it.value}.toSet()
         // The prior OSM reader stored strict tag/value pairs as keywords. Reuse
         // an intact scoped brand pair in cached rows; never guess from free text.
         val legacy=if(b.sourceIds.any {it.startsWith("osm:")}&&b.keywords.size in 2..32&&b.keywords.size%2==0&&
             b.keywords.chunked(2).all {it[0] in legacyTags})b.keywords.chunked(2).firstOrNull {it[0]=="brand"}?.get(1)else null
-        val brands=(declared.filter {it.field=="brand"}.sortedByDescending {it.checkedAt}.map {it.value}+
+        val declaredBrands=(declared.filter {it.field=="brand"}.sortedByDescending {it.checkedAt}.map {it.value}+
             b.related.orEmpty().filter {it.role=="brand"}.map {it.name}+listOfNotNull(legacy)).map {it.trim().take(300)}.filter {it.isNotBlank()}
             .distinctBy {LocalDiscoveryMerge.businessName(it)}.associateBy {LocalDiscoveryMerge.businessName(it)}.filterKeys(String::isNotBlank)
         val label=label(b)
+        val catalog=if(declaredIds.isEmpty()&&declaredBrands.isEmpty())KnownPlaceBrands.match(label,b.category,country,b.point)else null
+        val ids=declaredIds+listOfNotNull(catalog?.id)
+        val brands=declaredBrands+listOfNotNull(catalog?.let {LocalDiscoveryMerge.businessName(it.name) to it.name}).toMap()
         val boundHosts=declared.filter {it.field in setOf("website","websites")}.flatMap {LocalDiscoveryIdentity.urls(it.value)}
             .mapNotNull {it.toHttpUrlOrNull()?.host?.removePrefix("www.")}.toSet()
         val sites=b.websites.mapNotNull {raw->raw.toHttpUrlOrNull()?.host?.removePrefix("www.")?.takeIf {
@@ -65,17 +68,21 @@ object LocalBusinessDeck {
         return Identity(b,LocalDiscoveryMerge.businessName(label),ids,brands,domains,sites.any {it.first !in domains},LocalDiscoveryMerge.street(b.address))
     }
     private data class Category(val name:String,val concepts:Set<String>,val food:Boolean)
-    private val foodAmenities=setOf("restaurant","fast_food","cafe","bar","pub","ice_cream","food_court")
     private fun category(value:String):Category {
         val name=SearchText.normalized(LocalBusinessContact.category(value))
         val concepts=PlaceSearchVocabulary.parse(name).concepts
-        return Category(name,concepts.map {it.id}.toSet(),concepts.any {it.cuisine||it.tags.any {tag->tag["amenity"] in foodAmenities}})
+        return Category(name,concepts.map {it.id}.toSet(),PlaceCategoryFamilies.food(name,concepts))
     }
 
     /** Prepare URL/name keys once, then join bounded index buckets. Weak links
      * with conflicting brand IDs never attach an ambiguous record to either one. */
     fun groups(values:List<LocalBusiness>,origin:LocalPoint?=null):List<LocalBusinessGroup> {
-        val identities=values.map(::identity)
+        return groupsForArea(values,origin,null)
+    }
+    fun groupsForArea(values:List<LocalBusiness>,origin:LocalPoint?,countryCode:String?):List<LocalBusinessGroup> {
+        val identities=values.map {identity(it,countryCode)}
+        val categories=mutableMapOf<String,Category>()
+        fun categoryOf(i:Int)=categories.getOrPut(identities[i].business.category){category(identities[i].business.category)}
         val parent=IntArray(values.size){it}
         fun root(parents:IntArray,value:Int):Int {var n=value;while(parents[n]!=n){parents[n]=parents[parents[n]];n=parents[n]};return n}
         fun join(parents:IntArray,a:Int,b:Int){val x=root(parents,a);val y=root(parents,b);if(x!=y)parents[maxOf(x,y)]=minOf(x,y)}
@@ -86,7 +93,7 @@ object LocalBusinessDeck {
             if(!item.ambiguous) {
                 if(item.name.isNotBlank()) {
                     item.domains.forEach {domain->buckets.getOrPut("site:$domain:${item.name}"){linkedSetOf()}.add(i)}
-                    buckets.getOrPut("brand:${item.name}"){linkedSetOf()}.add(i)
+                    if(item.brands.isEmpty()||item.name in item.brands)buckets.getOrPut("brand:${item.name}"){linkedSetOf()}.add(i)
                 }
                 item.brands.keys.forEach {brand->buckets.getOrPut("brand:$brand"){linkedSetOf()}.add(i)}
             }
@@ -100,6 +107,8 @@ object LocalBusinessDeck {
                 // Different official sites can be unrelated businesses sharing a
                 // name. A missing-site record must not bridge those sites either.
                 if(rows.flatMap {identities[it].domains}.distinct().size>1)continue
+                val known=rows.map(::categoryOf).filter {it.name.isNotBlank()}
+                if(known.any {a->known.any {b->a.name!=b.name&&a.concepts.intersect(b.concepts).isEmpty()&&!(a.food&&b.food)}})continue
             }
             candidates+=rows
         }
@@ -114,8 +123,6 @@ object LocalBusinessDeck {
         // a lone name/site guess cannot. Freeze the direct groups before joining.
         val direct=IntArray(values.size){root(parent,it)}
         val names=identities.indices.filter {identities[it].name.isNotBlank()}.groupBy {identities[it].name}
-        val categories=mutableMapOf<String,Category>()
-        fun categoryOf(i:Int)=categories.getOrPut(identities[i].business.category){category(identities[i].business.category)}
         data class Established(val root:Int,val members:List<Int>)
         val established=mutableMapOf<String,MutableList<Established>>()
         identities.indices.groupBy {direct[it]}.forEach {(_,members)->

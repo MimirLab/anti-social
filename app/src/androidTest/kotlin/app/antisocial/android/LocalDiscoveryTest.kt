@@ -618,6 +618,21 @@ class LocalDiscoveryTest {
         ui.onNodeWithTag("Business location ${chain[12].id}").assertExists()
     }
 
+    @Test fun bareKnownChainBranchesShareTheFirstCategoryDeckBeforeAnyWebsiteEnrichment() {
+        val region=firstDeckArea.copy(point=LocalPoint(40.0,-100.0),countryCode="US")
+        val branches=(1..24).map {n->place.copy(id="fixture-bare-chain-$n",name="McDonald’s",category="burger restaurant",address="$n Example St",locality=region.name,
+            point=LocalPoint(40+n*.001,-100.0),websites=emptyList(),socials=emptyList(),evidence=emptyList(),keywords=emptyList(),related=null,
+            phones=listOf("+1202555${n.toString().padStart(4,'0')}"),sourceIds=listOf("fixture-bare-chain-$n"))}
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true));model.localSearch.area(region);model.localSearch.text("burgers")}
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=branches),region)}
+        show();ui.waitUntil(15_000){model.localSearch.state.value.businesses.size==24}
+        val groups=model.localSearch.state.value.groups
+        assertEquals("Bare chain records must occupy one card in the first category deck",1,groups.size)
+        assertEquals(branches.map {it.id}.toSet(),groups.single().locations.map {it.id}.toSet())
+        assertEquals(branches.map {it.phones}.toSet(),groups.single().locations.map {it.phones}.toSet())
+        ui.onNodeWithText("24 nearby locations").assertIsDisplayed();evidence("bare-known-chain-first-deck")
+    }
+
     @Test fun sparsePlaceRowsJoinAnEstablishedChainAsWebsiteEvidenceStreamsIn() {
         ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
         fun location(n:Int,site:Boolean)=place.copy(id="fixture-sparse-chain-$n",name="Cobalt Burger",category=if(site)"restaurant"else "",address="${n+100} Sample St",point=LocalPoint(area.point.latitude+n*.001,area.point.longitude),

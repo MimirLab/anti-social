@@ -396,6 +396,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     val copyTarget=remember(threads,post.platform){CrossPosts.representative(threads,post.platform) ?: post}
     var showOriginals by remember(repo.key(post)){mutableStateOf(false)}
     var showOptions by remember(repo.key(post)){mutableStateOf(false)}
+    var sourceActions by remember(repo.key(post)){mutableStateOf<Platform?>(null)}
     var showSourceDetails by remember(repo.key(post)){mutableStateOf(false)}
     val savedKeys=LocalSavedPostKeys.current
     val isSaved=saved||threads.any {repo.key(it) in savedKeys}
@@ -452,6 +453,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){PostActivity(repo,threads,postLinks)}
                 }
                 ArchiveVersionButton(archive.version,archive.showingArchive,archive.toggle)
+                MediaInfoAction(repo,infoPosts)
                 IconButton(onClick={vm.launch {repo.cardWork.track(threads.map(::postWorkKey),"Saving copy") {
                     if(isSaved)threads.forEach {repo.bookmark(it,false)}else {
                         val replies=captureLoadedThreads(vm,threads)
@@ -490,15 +492,33 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             CommunityNoteDisclosure((if(archive.showingArchive)listOf(displayed)else threads).flatMap {it.contextNotes.orEmpty()}.distinct(),onOpen={vm.openLink(it)})
             Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
               Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
-                TextButton(onClick={vm.discussions.open(threads)},modifier=Modifier.testTag("Read discussions ${repo.key(post)}")){Icon(Icons.Rounded.ChatBubbleOutline,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text(if(threads.size>1)"Discussions"else "Comments")}
+                TextButton(onClick={vm.discussions.open(threads)},contentPadding=PaddingValues(horizontal=6.dp),modifier=Modifier.testTag("Read discussions ${repo.key(post)}")){Icon(Icons.Rounded.ChatBubbleOutline,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text(if(threads.size>1)"Discussions"else "Comments",fontSize=12.sp)}
                 ContextPostAction(repo,displayed,threads,contentRoots,archive.showingArchive)
-                if(threads.size>1)threads.distinctBy {it.platform}.forEach {entry->IconButton(onClick={vm.discussions.open(threads,entry.platform.id)},modifier=Modifier.semantics {contentDescription="Read ${entry.platform.label} comments"}){PlatformMark(entry.platform,20.dp)}}
+                threads.distinctBy {it.platform}.forEach {entry->Box {
+                    IconButton(onClick={sourceActions=entry.platform},modifier=Modifier.semantics {contentDescription="${entry.platform.label} original actions"}){PlatformMark(entry.platform,20.dp)}
+                    DropdownMenu(expanded=sourceActions==entry.platform,onDismissRequest={sourceActions=null}) {
+                        val editions=threads.filter {it.platform==entry.platform}
+                        val selected=CrossPosts.representative(editions,entry.platform) ?: entry
+                        DropdownMenuItem(text={Text("Share ${entry.platform.label} link")},leadingIcon={Icon(Icons.Rounded.Share,null)},enabled=!outgoing.busy,
+                            modifier=Modifier.testTag("Share platform original ${entry.platform.id}"),onClick={sourceActions=null;outgoing.share(selected,editions)})
+                        DropdownMenuItem(text={Text("Copy clean ${entry.platform.label} link")},leadingIcon={Icon(Icons.Rounded.Link,null)},enabled=!outgoing.busy,
+                            modifier=Modifier.testTag("Copy platform original ${entry.platform.id}"),onClick={sourceActions=null;outgoing.copy(selected,editions)})
+                        DropdownMenuItem(text={Text("Open ${entry.platform.label} original")},leadingIcon={Icon(Icons.Rounded.OpenInNew,null)},
+                            onClick={sourceActions=null;vm.openLink(selected.canonicalUrl)})
+                        DropdownMenuItem(text={Text("${entry.platform.label} comments")},leadingIcon={Icon(Icons.Rounded.Forum,null)},
+                            modifier=Modifier.testTag("Platform comments ${entry.platform.id}"),onClick={sourceActions=null;vm.discussions.open(threads,entry.platform.id)})
+                    }
+                }}
                 if(repeats)TextButton(onClick={showOriginals=true},modifier=Modifier.testTag("Collected originals ${repo.key(post)}")){Text("${threads.size} originals",fontSize=12.sp)}
               }
-                MediaInfoAction(repo,infoPosts)
+                IconButton(onClick={outgoing.share(copyTarget,threads)},enabled=!outgoing.busy,modifier=Modifier.testTag("Share post ${repo.key(post)}")) {
+                    if(outgoing.busy)CircularProgressIndicator(Modifier.size(20.dp).testTag("Preparing post link ${repo.key(post)}"),strokeWidth=2.dp)
+                    else Icon(Icons.Rounded.Share,"Share clean link",Modifier.size(22.dp))
+                }
                 Box {
                     IconButton(onClick={showOptions=true},modifier=Modifier.testTag("Post options ${repo.key(post)}")){Icon(Icons.Rounded.MoreHoriz,"Post options",Modifier.size(22.dp))}
                     DropdownMenu(expanded=showOptions,onDismissRequest={showOptions=false},containerColor=MaterialTheme.colorScheme.surface,tonalElevation=0.dp) {
+                        DropdownMenuItem(text={Text("Share clean link")},leadingIcon={Icon(Icons.Rounded.Share,null)},enabled=!outgoing.busy,onClick={showOptions=false;outgoing.share(copyTarget,threads)})
                         DropdownMenuItem(text={Text("Copy clean link")},leadingIcon={Icon(Icons.Rounded.Link,null)},modifier=Modifier.testTag("Copy post link ${repo.key(post)}"),onClick={showOptions=false;outgoing.copy(copyTarget,threads)})
                         DropdownMenuItem(text={Text("Save a copy")},leadingIcon={Icon(Icons.Rounded.Download,null)},modifier=Modifier.testTag("Save copy ${repo.key(post)}"),onClick={
                             showOptions=false

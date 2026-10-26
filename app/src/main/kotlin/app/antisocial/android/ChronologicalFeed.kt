@@ -10,11 +10,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
@@ -181,7 +180,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val bodyChanges by produceState<FeedBodyChanges?>(null,frozen,available,counterparts) {
         value=withContext(Dispatchers.Default) {
             val owners=frozen.flatMap {row->row.aliases.map {it to row.key}}.toMap()
-            fun sourceContent(post:Post)=post.copy(provenance=null,archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null)})
+            fun sourceContent(post:Post)=post.copy(provenance=null,archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null)})
             fun contexts(posts: List<Post>): List<Triple<String,Set<Platform>?,Set<String>?>> = collectedPostFusion(posts)?.segments
                 ?.map {Triple(it.text,if(it.shared)null else it.platforms,if(it.shared)null else it.originalKeys)}
                 ?: listOf(Triple(collectedCaptionPost(posts)?.let(PostPresentation::content).orEmpty(),null,null))
@@ -456,9 +455,6 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                         if(updating||pending>0||state.loading||nearbyNotice!=null||state.error!=null)Text(if(updating)" · updating"else if(pending>0)" · $pending pending"else " · status",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,modifier=Modifier.testTag("Feed check summary").clickable {showSources=true})
                     }
                 }
-                // Keep the gesture arrow and a user-requested check in one
-                // reserved toolbar slot, never floating over the reading card.
-                FeedRefreshIndicator(pullState,manualRefresh!=null)
                 if(canContinue)IconButton(onClick={continueReading()},enabled=!navigating&&!preparing,modifier=Modifier.testTag("Continue reading")){Icon(Icons.Rounded.History,"Continue reading",Modifier.size(20.dp))}
                 TextButton(onClick={accept(true)},enabled=restored&&(frozen.isNotEmpty()||availableKeys.isNotEmpty())&&!navigating&&!preparing&&counterpartsReady,contentPadding=PaddingValues(horizontal=6.dp),modifier=Modifier.testTag("Jump to newest").semantics {contentDescription="Jump to newest"}){Text("Newest",fontSize=12.sp,maxLines=1)}
                 FilterControls(repo,filtering,filterGroups,assessments,compact=true)
@@ -479,10 +475,12 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             }
         if(!ready||rows==null&&!counterpartsReady)LinearProgressIndicator(Modifier.fillMaxWidth())
         CompositionLocalProvider(LocalArchiveChecksPaused provides (LocalArchiveChecksPaused.current||why!=null)) {
-        // The pull arrow belongs to the gesture and retracts after release.
-        // Long source checks use the fixed toolbar status, not a floating loop
-        // over an already readable card. requestRefresh still prevents overlap.
-        PullToRefreshBox(isRefreshing=manualRefresh!=null,state=pullState,indicator={},onRefresh={requestRefresh()},modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
+        // Restore the full native pull arrow/spinner. Matching and pixel
+        // checkpoint work are independent of this visible request feedback.
+        PullToRefreshBox(isRefreshing=updating||manualRefresh!=null,state=pullState,onRefresh={requestRefresh()},
+            indicator={PullToRefreshDefaults.Indicator(state=pullState,isRefreshing=updating||manualRefresh!=null,
+                modifier=Modifier.align(Alignment.TopCenter).testTag("Feed refresh indicator"))},
+            modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
         ArchiveListViewport(list) {
             LazyColumn(state=list,modifier=Modifier.fillMaxSize().testTag(if(grouped)"Combined feed"else "Following feed"),contentPadding=PaddingValues(start=16.dp,end=16.dp,top=12.dp,bottom=24.dp+with(density){endFillPx.toDp()}),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 if(frozen.isEmpty()&&availableKeys.isEmpty())item(key="empty:$feedId") {Column(Modifier.padding(vertical=20.dp)) {
@@ -532,17 +530,6 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         explanation.reasons.forEach {Text(it,fontSize=14.sp)}
         Text("Matched locally when this batch was added. None of your exclusions matched the known versions of this post.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }},confirmButton={TextButton(onClick={why=null}){Text("Done")}})}
-}
-
-@Composable private fun FeedRefreshIndicator(state: PullToRefreshState,refreshing: Boolean) {
-    val pulled by remember(state){derivedStateOf {state.distanceFraction>0f}}
-    Box(Modifier.size(32.dp),contentAlignment=Alignment.Center) {
-        if(refreshing)CircularProgressIndicator(Modifier.size(18.dp).testTag("Feed manual refresh indicator"),strokeWidth=2.dp)
-        else Icon(Icons.Rounded.Refresh,if(pulled)"Pull to refresh"else null,Modifier.size(20.dp).graphicsLayer {
-            alpha=state.distanceFraction.coerceIn(0f,1f)
-            rotationZ=state.distanceFraction.coerceIn(0f,2f)*180f
-        })
-    }
 }
 
 @Composable private fun FeedBoundary(caught: Boolean,pending: Int,unread: Int,incoming: Boolean,checks: Map<String,FollowRefresh>,follows: List<Follow>,tail: Int,onSources: ()->Unit,onEarlier: ()->Unit,earlier: Boolean,emptyChannel: Boolean=false,filtered: Int=0,batchFinished: Boolean=false,nudge: String="") {

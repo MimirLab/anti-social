@@ -20,9 +20,9 @@ deck. Returning from Search restores All or the last source used in Following.
 Facebook is included in the default source selection; your custom selection stays
 under your control in Settings.
 
-Pull down at the newest edge to check subscriptions. The arrow and manual-refresh
-progress stay in the fixed toolbar, leaving cards readable. Feed options includes
-Stop refresh and the per-account check details.
+Pull down at the newest edge to check subscriptions. A pull arrow becomes a
+prominent progress bubble while the check runs. Feed options includes Stop
+refresh and the per-account check details.
 
 A finished batch gets one stable exit line encouraging you to leave the feed.
 Caught up means the relevant refresh succeeded. Fetched batch finished describes
@@ -36,6 +36,12 @@ originals. Different pictures remain separate. In comments, All combines
 available streams, while platform tabs let you inspect each stream. Community
 participation belongs to All or its community tab; the app does not post into an
 unconnected social account.
+
+Use the Share icon at the bottom of any post to prepare its clean link and open
+Android's sharing menu. The icon shows progress while the existing link checker
+works. Tap a platform icon for that platform's original: share, copy its clean
+link, open it, or read its comments. Discussions still opens the combined All
+comment stack. Collected originals also have their own Share action.
 
 ## Choose the connection
 
@@ -72,6 +78,11 @@ Search a name, service or activity. Initial cards arrive before supplemental
 details finish. Tap a business for its published contacts, website, social
 accounts and available branch menu. Phone/email actions use the relevant device
 app. Menus retain dine-in/pickup/delivery distinctions when published.
+
+Known chains share one card even when their initial directory records lack a
+website. Open the location picker for each branch's address, phone and other
+distinct details, ordered by distance from your selected area. Country, local
+brand exceptions and compatible categories constrain the offline name lookup.
 
 For events, choose a date window or use a recognized phrase such as “this weekend.”
 “Something outdoors for toddlers” can match a children's nature walk; an unstated

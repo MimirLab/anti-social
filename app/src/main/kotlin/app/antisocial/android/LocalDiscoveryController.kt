@@ -287,7 +287,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                 .sortedWith(compareBy<Pair<LocalBusiness,Int>> {it.second}.thenBy {area?.point?.let {p->it.first.point?.let(p::distanceKm)} ?: Double.MAX_VALUE}.thenBy {it.first.name}).map {it.first}
             // Limit cards after grouping: one large chain must not crowd every
             // independent business out. Identity preparation stays off the UI thread.
-            val groups=LocalBusinessDeck.groups(candidates,area?.point).take(160).map {group->group.copy(locations=group.locations.map {business->
+            val groups=LocalBusinessDeck.groupsForArea(candidates,area?.point,area?.countryCode).take(160).map {group->group.copy(locations=group.locations.map {business->
                 business.copy(socials=business.socials.filter {store.cache(accountKey(it))=="usable"},related=business.related?.map {it.copy(accounts=it.accounts.filter {url->store.cache(accountKey(url))=="usable"})})
             })}
             val businesses=groups.flatMap {it.locations}

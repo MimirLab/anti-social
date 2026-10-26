@@ -569,7 +569,7 @@ class FeedMemoryTest {
         ui.onNodeWithTag("Feed caught up").assertDoesNotExist()
     }
 
-    @Test fun backgroundRefreshKeepsCachedCardsUncoveredAndTheirAnchorFixed() {
+    @Test fun backgroundRefreshShowsProgressWithoutMovingTheCachedCardAnchor() {
         val account=follow();val rows=posts(8);val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
         repo.prefs.mentionLookups=false
         runBlocking {repo.dao.putFollow(FollowRow(account.id,account.target.platform.id,repo.gson.toJson(account)));repo.store(Page(rows),account.id,true)}
@@ -585,7 +585,7 @@ class FeedMemoryTest {
             assertEquals(before,top(rows.first()),2f)
             assertEquals(toolbar,ui.onNodeWithTag("Feed toolbar").fetchSemanticsNode().boundsInRoot)
             val card=SemanticsMatcher("feed card") {it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("Feed row ")==true}
-            ui.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate) and !hasAnyAncestor(card)).assertCountEquals(0)
+            ui.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate) and !hasAnyAncestor(card)).assertCountEquals(1)
             ui.onNodeWithTag("Feed check summary").assertTextContains("updating",substring=true)
             evidence("background-refresh-keeps-cached-card-uncovered")
             ui.onNodeWithTag("Feed options").performClick();ui.onNodeWithText("Stop refresh").performClick()
@@ -595,7 +595,7 @@ class FeedMemoryTest {
         }finally {release.complete(Unit);runBlocking {withTimeout(10_000){repo.feedRefresh.first {!it.running}}}}
     }
 
-    @Test fun userRefreshShowsFixedProgressAndFinishedBatchKeepsAStableNudge() {
+    @Test fun userRefreshShowsTheNativePullSpinnerAndFinishedBatchKeepsAStableNudge() {
         repo.prefs.mentionLookups=false;repo.prefs.communityComments=false
         val account=follow();val rows=posts(2);val started=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
         val source=Source(Platform.X,"native-fixture","https://feed-memory-fixture.invalid")
@@ -612,13 +612,13 @@ class FeedMemoryTest {
             ui.onNodeWithTag("Combined feed").performScrollToIndex(0)
             ui.onNodeWithTag("Feed pull to refresh").performTouchInput {swipeDown(startY=height*.12f,endY=height*.85f,durationMillis=650)}
             ui.waitUntil(5_000){started.isCompleted}
-            val bar=ui.onNodeWithTag("Feed toolbar").fetchSemanticsNode().boundsInRoot
-            val progress=ui.onNodeWithTag("Feed manual refresh indicator").fetchSemanticsNode().boundsInRoot
-            assertTrue("Progress stays inside the fixed toolbar",bar.contains(progress.topLeft)&&bar.contains(progress.bottomRight))
-            evidence("manual-refresh-fixed-progress")
+            val viewport=ui.onNodeWithTag("Feed pull to refresh").fetchSemanticsNode().boundsInRoot
+            val progress=ui.onNodeWithTag("Feed refresh indicator").fetchSemanticsNode().boundsInRoot
+            assertTrue("The native refresh indicator is clearly visible over the feed",progress.height>=36*ui.activity.resources.displayMetrics.density&&progress.top>=viewport.top)
+            evidence("manual-refresh-native-progress")
             release.complete(Unit)
             ui.waitUntil(10_000){!repo.feedRefresh.value.running}
-            ui.waitUntil(5_000){ui.onAllNodesWithTag("Feed manual refresh indicator").fetchSemanticsNodes().isEmpty()}
+            ui.waitUntil(5_000){ui.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate) and hasAnyAncestor(hasTestTag("Feed refresh indicator"))).fetchSemanticsNodes().isEmpty()}
             ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed caught up"))
             ui.onNodeWithText("Caught up").assertIsDisplayed()
             val line=ui.onNodeWithTag("Feed batch nudge").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text]

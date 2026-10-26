@@ -26,6 +26,49 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun darkPicturesDeduplicateInsideACollectionWithoutEstablishingPostIdentity() {
+        fun moon(shift:Float)=Bitmap.createBitmap(600,400,Bitmap.Config.ARGB_8888).also {bitmap->
+            val canvas=Canvas(bitmap);canvas.drawColor(Color.rgb(3,24,40))
+            val paint=Paint().apply {isAntiAlias=true;color=Color.rgb(109,84,53)}
+            canvas.drawCircle(300f+shift,140f,31f,paint)
+            paint.color=Color.rgb(1,8,11);canvas.drawRect(0f,340f,600f,400f,paint)
+            for(i in 0..12)canvas.drawRect(i*47f,300f+i%3*8,8f+i*47,350f,paint)
+        }
+        val source=moon(0f);val other=moon(150f)
+        val small=Bitmap.createScaledBitmap(source,360,240,true)
+        val copy=ByteArrayOutputStream().use {out->small.compress(Bitmap.CompressFormat.JPEG,82,out);BitmapFactory.decodeByteArray(out.toByteArray(),0,out.size())}
+        val bank=MediaIdentityStore()
+        try {
+            bank.observe(a,source);bank.observe(b,copy);bank.observe("https://third.invalid/different.jpg",other)
+            val first=post(a);val second=post(b,Platform.FACEBOOK)
+            assertFalse("A dim picture alone cannot prove that posts match",bank.same(first,second))
+            assertNull(bank.captured(first).media.single().visualFingerprint)
+            assertNotNull(bank.captured(first).media.single().attachmentFingerprint)
+            val attachments=collectedAttachments(listOf(first,second),bank)
+            assertEquals(1,attachments.size);assertEquals(setOf(Platform.X,Platform.FACEBOOK),attachments.single().platforms)
+            assertEquals(2,collectedAttachments(listOf(first,post("https://third.invalid/different.jpg")),bank).size)
+            val captured=listOf(first,second).map(bank::captured);bank.clear()
+            assertEquals("The same bounded observation works in protected copies",1,collectedAttachments(captured).size)
+        }finally {source.recycle();other.recycle();small.recycle();copy.recycle()}
+    }
+
+    @Test fun collectedVideoRenditionsAndObservedPosterCopiesHaveOnePlayerAndAllOrigins() {
+        val picture=landscape();val bank=MediaIdentityStore()
+        val posterA="https://images.example.org/a.jpg";val posterB="https://images.example.net/b.jpg"
+        try {
+            bank.observe(posterA,picture);bank.observe(posterB,picture)
+            val a=post("https://video.twimg.com/ext_tw_video/123456789/vid/720x400/a.mp4").copy(media=listOf(Media("https://video.twimg.com/ext_tw_video/123456789/vid/720x400/a.mp4","video",posterA)))
+            val b=post("https://video.twimg.com/ext_tw_video/123456789/vid/360x200/b.mp4",Platform.FACEBOOK).copy(media=listOf(Media("https://video.twimg.com/ext_tw_video/123456789/vid/360x200/b.mp4","video",posterB)))
+            val c=post("https://scontent-a.xx.fbcdn.net/v/t42.0-2/987654321.mp4?oe=abc",Platform.INSTAGRAM).copy(media=listOf(Media("https://scontent-a.xx.fbcdn.net/v/t42.0-2/987654321.mp4?oe=abc","video",posterB)))
+            val copies=collectedAttachments(listOf(a,b,c),bank)
+            assertEquals(1,copies.size);assertEquals(setOf(Platform.X,Platform.FACEBOOK,Platform.INSTAGRAM),copies.single().platforms)
+            assertTrue(copies.single().sourceLabel.startsWith("Video from "))
+            val long=c.copy(media=c.media.map {it.copy(durationMs=90_000)})
+            val short=a.copy(media=a.media.map {it.copy(durationMs=10_000)})
+            assertEquals("Different known running times retain separate players",2,collectedAttachments(listOf(short,long),bank).size)
+        }finally {picture.recycle()}
+    }
+
     @Test fun deduplicatedPicturesKeepOnlyTheirActualSourcePlatforms() {
         val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
         val first="https://scontent-a.xx.fbcdn.net$path"

@@ -53,18 +53,33 @@ internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentitySto
     val near=CrossPosts.relatedVisualUpdates(observed)
     val media=observed.flatMap {it.media}
     val assetKeys=media.filter {it.type=="image"}.mapNotNull {item->ImageAssetIdentity.key(item.url)?.let {item.url to it}}.toMap()
-    val posters=media.filter {it.type=="video"}.mapNotNull {it.preview}.toSet()
+    val videos=media.filter {it.type=="video"}
     val clusters=mutableListOf<MutableList<Edition>>()
-    fun compatible(a:Media,b:Media)=a.type!="image"||a.visualFingerprint==null||b.visualFingerprint==null||
-        VisualFrames.sameImage(a.visualFingerprint,b.visualFingerprint)||near&&VisualFrames.same(a.visualFingerprint,b.visualFingerprint,nearbyFrame=true)
-    fun equivalent(a:Media,b:Media)=a.type==b.type&&(a.url==b.url||a.type=="image"&&(
-        assetKeys[a.url]?.let {it==assetKeys[b.url]}==true&&ImageAssetIdentity.same(a,b)||
-        VisualFrames.sameImage(a.visualFingerprint,b.visualFingerprint)||near&&VisualFrames.same(a.visualFingerprint,b.visualFingerprint,nearbyFrame=true)))
+    fun frame(m:Media)=m.attachmentFingerprint ?: m.visualFingerprint
+    fun sameFrame(a:Media,b:Media)=VisualFrames.sameImage(frame(a),frame(b))
+    fun sameClip(a:Media,b:Media)=VideoAssetIdentity.key(a.url)?.let {it==VideoAssetIdentity.key(b.url)}==true
+    fun samePoster(a:Media,b:Media):Boolean {
+        val first=a.preview ?: return false;val second=b.preview ?: return false
+        return first==second||sameFrame(a,b)||ImageAssetIdentity.same(Media(first),Media(second))
+    }
+    fun compatible(a:Media,b:Media):Boolean {
+        val first=a.durationMs?.takeIf {it>0};val second=b.durationMs?.takeIf {it>0}
+        if(a.type=="video"&&first!=null&&second!=null&&
+            kotlin.math.abs(first-second)>maxOf(1000L,maxOf(first,second)/100))return false
+        return a.type !in setOf("image","video")||a.type=="video"&&sameClip(a,b)||frame(a)==null||frame(b)==null||
+            sameFrame(a,b)||a.type=="image"&&near&&VisualFrames.same(frame(a),frame(b),nearbyFrame=true)
+    }
+    fun equivalent(a:Media,b:Media)=a.type==b.type&&(a.url==b.url||when(a.type) {
+        "image"->assetKeys[a.url]?.let {it==assetKeys[b.url]}==true&&ImageAssetIdentity.same(a,b)||
+            sameFrame(a,b)||near&&VisualFrames.same(frame(a),frame(b),nearbyFrame=true)
+        "video"->sameClip(a,b)||samePoster(a,b)
+        else->false
+    })
     for(edition in observed.flatMap {post->post.media.map {Edition(it,post)}}) {
         val item=edition.media
         // An RSS thumbnail is already represented by the collected playable
         // video. Its source record remains available in Collected originals.
-        if(item.type=="image"&&item.url in posters)continue
+        if(item.type=="image"&&videos.any {video->video.preview==item.url||video.preview!=null&&sameFrame(item,video)})continue
         // A discarded copy can establish another CDN alias for the retained
         // picture. Keep that evidence within this call. Every known observation
         // must remain compatible: an intermediate JPEG cannot bridge two edits.

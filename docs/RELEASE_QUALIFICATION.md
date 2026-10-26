@@ -9,6 +9,96 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.43 reader regression recovery and visible sharing
+
+The full Material pull arrow/progress bubble replaces the overly subtle toolbar
+feedback introduced in 0.38.42. Pixel-checkpoint separation, stable card anchors,
+Following's All/source restoration and the finished-batch exit-copy bank remain.
+
+Sparse chain records can now use an offline, pinned Name Suggestion Index slice:
+14,259 public brand entries, compiled aliases, country/circular coverage and
+exclusions, and compatible category checks. Unsupported polygon scopes are
+omitted. Ambiguous identities and contradictory explicit declarations stay
+separate. These are reading-group hints, never new business facts or proof of
+account control. Branch records and nearest-first location order stay intact.
+The compiler verifies the pinned archive and bundled BSD notices; no per-search
+request, production library or model is added. See
+[the upstream catalog](https://github.com/osmlab/name-suggestion-index) and
+`scripts/compile_place_brands.py`. A new native category-search counterexample
+shows 24 bare branches as 24 cards on qualified 0.38.42 bytes and one card on the
+candidate, before website enrichment. Private sparse and live checks are recorded
+separately from the synthetic fixture.
+
+Image observations now distinguish strong post-matching evidence from attachment
+comparison. Low-contrast photographs and simple graphics can suppress repeated
+attachments inside an already qualified collection without linking unrelated
+posts. Fine raster proof supplements coarse hashes where encoding changes cross
+the hash threshold. Known clip-rendition identities and observed matching posters
+collapse duplicate video players while incompatible known durations remain
+separate. Source-platform sets accumulate on the retained attachment. Protected
+copies preserve bounded comparison fields; export validation accepts the new
+optional field without changing the source record.
+
+A private replay of retained material reproduced repeated dark graphics and
+low-contrast photographs. Actual native decoding reduced the selected galleries
+from five/two attachments to two/one: the first keeps a genuinely different
+portrait photograph. A separate video cohort retains one player with both source
+platforms. A full 668-post replay also covers a delayed, re-encoded picture with
+credit-name/handle variants; substantial surrounding prose and strong image proof
+are required, and the shared caption is read once. Originals remain inspectable.
+
+An additional detector removes decorative emoji/tail tags only in its comparison
+projection. Bounded chunk overlap nominates candidates; literal ordering, claims,
+destinations, publisher identity and close timing still govern admission. Its
+candidate budget is independent of the established routes. Word substitutions,
+changed numeric/negation/approval symbols and concrete destinations stay distinct.
+Publishers without an actual decorative variant skip the extra preparation and
+nomination bank; a cheap admission scan enables work only for relevant linked
+publishers and their plain counterparts. An initial timing run exposed the cost
+of preparing every ordinary post, so that unconditional work was removed.
+A dated production-reader packet containing three ornamental variants now forms
+one card and one actual source caption. Early regression failures caught an own
+enclosure-link mismatch and an overbroad timing rule; both were tightened rather
+than weakening the established separation tests.
+
+Every post has a visible Share control and platform-original actions. They reuse
+the existing clean-link resolver and show progress while it checks the route.
+Platform actions restrict selection to that platform's editions; Discussions
+still opens All. Collected originals expose Share beside Copy. Native chooser
+tests intercept intents, so qualification does not actually send a message.
+
+The Instagram-first-search phone report remains unconfirmed; this release does
+not claim to resolve that intermittent case. No permission, database migration,
+native runtime or change to Gateway/Tor policy is introduced. Source-dependent
+observations are dated checks, not uptime or physical-phone latency guarantees.
+The JVM suite passed **2,385 cases**, zero failures/errors and three opt-in skips;
+the final destination-comparison refinement also passed the targeted cross-post,
+announcement and decorative-copy selection. Debug/test assembly and Android lint
+passed, with existing warnings retained. The 301-method API 35 native selection
+has **281 passes and 20 optional skips** after updating the one old platform-icon
+fixture to choose Comments from the new menu. Its original assertions remain;
+the complete 38-method fusion/sharing/media selection then passed. A repeated
+broad run also exposed a Library fixture reading initial shelf positions before
+its query result arrived. It now waits for the related-match result before the
+unchanged ranking assertion. The final performance admission checks passed the
+full JVM suite and a 45-method native fusion/sharing/media/Library selection.
+Both failed reports and successful reruns are retained.
+
+After admission gating, three quiet runs of the existing 240-post/120-group
+cached-picture fixture measured median grouping at 3.528 s, first-card time at
+6.214 s and eight-swipe wall time at 5.216 s. The retained 0.38.42 runs measured
+3.535 s, 5.974 s and 5.084 s respectively. The earlier unconditional candidate's
+first-card median was 7.283 s. These small emulator samples support removing that
+avoidable work, not a physical-phone frame-rate or zero-cost claim.
+
+Two separately enabled production checks passed: actual media acquisition/decoding
+retained attachment counts of two/one/one images and one video, and a fresh broad
+business query returned 14 chain locations in one card. That search produced its
+first card in 8.358 s and finished enrichment in 50.808 s on the emulator. Those
+dated network timings are not phone benchmarks. Native sharing/menu/progress,
+refresh, branch-picker and collected-post screens were inspected. Private replay
+inputs, screenshots, state backups and publication receipts stay external.
+
 ## 0.38.42 reader progress and picture origins
 
 The reader separates durable pixel checkpoints from the state needed to paint

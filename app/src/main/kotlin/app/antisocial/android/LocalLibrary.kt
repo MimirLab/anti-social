@@ -22,12 +22,12 @@ class LocalLibrary(private val repo: Repository) {
     val revision=MutableStateFlow(0)
     val collections=dao.collections()
     fun notifyChanged(){revision.update {it+1}}
-    private fun sourceRecord(post: Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null)})
+    private fun sourceRecord(post: Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null)})
     /** Retain the first captured edition verbatim; supplement only its missing
      * local image observation from an otherwise identical source snapshot. */
     private fun capturedEditions(editions: List<Post>): List<Post> = editions.groupBy(repo::key).values.map {copies->
         val first=copies.first();val compatible=copies.filter {sourceRecord(it)==sourceRecord(first)}
-        first.copy(media=first.media.mapIndexed {index,media->media.copy(visualFingerprint=media.visualFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].visualFingerprint})})
+        first.copy(media=first.media.mapIndexed {index,media->media.copy(visualFingerprint=media.visualFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].visualFingerprint},attachmentFingerprint=media.attachmentFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].attachmentFingerprint})})
     }
     private fun parse(payload: String): Post?=runCatching {gson.fromJson(payload,Post::class.java)}.getOrNull()?.takeIf {validMedia(it)&&(it.recoveredArchive==null||RecoveredArchives.valid(it))}?.let {it.copy(archivedVersion=repo.archiveVersion(it))}
     suspend fun details(key: String): SavedCopyDetails?=withContext(Dispatchers.IO) {dao.savedDetail(key)?.let {runCatching {gson.fromJson(it.payload,SavedCopyDetails::class.java)}.getOrNull()}}
@@ -82,7 +82,7 @@ class LocalLibrary(private val repo: Repository) {
         (listOf(root)+incoming).forEach {p->
             require(validMedia(p)&&(p.recoveredArchive==null||RecoveredArchives.valid(p))&&(p.archivedVersion==null||repo.archiveVersion(p)==p.archivedVersion)){"Invalid paired source archive"}
         }
-        val observedRoot=root.copy(media=root.media.mapIndexed {i,m->m.copy(visualFingerprint=primary.media[i].visualFingerprint ?: m.visualFingerprint)})
+        val observedRoot=root.copy(media=root.media.mapIndexed {i,m->m.copy(visualFingerprint=primary.media[i].visualFingerprint ?: m.visualFingerprint,attachmentFingerprint=primary.media[i].attachmentFingerprint ?: m.attachmentFingerprint)})
         val pairedRoot=if(root.archivedVersion==null&&primary.archivedVersion!=null)observedRoot.copy(archivedVersion=primary.archivedVersion)else observedRoot
         val roots=(listOf(pairedRoot)+incoming).distinctBy(repo::key)
         require(roots.size<=CrossPosts.MAX_EDITIONS){"This fused copy contains too many source editions"}
@@ -352,7 +352,7 @@ class LocalLibrary(private val repo: Repository) {
     companion object {
         private fun safeUrl(url: String)=url.length<=16*1024&&url.none {it<=' '||it=='\\'}&&runCatching {java.net.URI(url).let {it.scheme in setOf("http","https")&&!it.host.isNullOrBlank()&&it.userInfo==null}}.getOrDefault(false)
         private fun validMedia(post: Post): Boolean=PublicRelations.valid(post)&&PublicContextNotes.valid(post)&&PostAuthorAccounts.valid(post)&&post.media.size<=256&&post.media.all {m->safeUrl(m.url)&&(m.preview?.let(::safeUrl) ?: true)&&
-            VisualFrames.valid(m.visualFingerprint)&&
+            VisualFrames.valid(m.visualFingerprint)&&VisualFrames.valid(m.attachmentFingerprint)&&
             (m.audioUrl?.let(::safeUrl) ?: true)&&(m.audioUrl==null||m.type=="video")&&
             (m.audioMimeType?.let {mime->m.audioUrl!=null&&mime.length<=256&&mime.startsWith("audio/")} ?: true)}
     }

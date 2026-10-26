@@ -97,7 +97,7 @@ android {
     namespace = "app.antisocial.android"
     compileSdk = 37
     buildToolsVersion = "36.0.0"
-    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 151; versionName = "0.38.42"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 152; versionName = "0.38.43"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     defaultConfig { if(targetAbi!=null)ndk {abiFilters+=targetAbi} }
     defaultConfig {buildConfigField("boolean","EXPERIMENTAL_PUBLIC_READ",publicReadCandidate.toString())}
     if(publicReadCandidate) {
@@ -162,6 +162,7 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-intents:3.5.0")
     androidTestImplementation("org.jsoup:jsoup:1.21.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.antisocial.core.Post
 import kotlinx.coroutines.*
 
@@ -34,7 +35,7 @@ import kotlinx.coroutines.*
             permission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         scope.launch {val snapshot=withContext(Dispatchers.Default){contextSnapshot(repo,displayed,roots,bodyRoots,archived)};repo.contextReader.request(snapshot)}
-    },contentPadding=PaddingValues(horizontal=12.dp,vertical=6.dp),modifier=Modifier.padding(horizontal=4.dp).height(36.dp).testTag("Context ${repo.key(displayed)}")) {
-        Icon(Icons.Rounded.AutoAwesome,null,Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Context")
+    },contentPadding=PaddingValues(horizontal=8.dp,vertical=6.dp),modifier=Modifier.padding(horizontal=4.dp).height(36.dp).testTag("Context ${repo.key(displayed)}")) {
+        Icon(Icons.Rounded.AutoAwesome,null,Modifier.size(16.dp));Spacer(Modifier.width(4.dp));Text("Context",fontSize=12.sp)
     }
 }

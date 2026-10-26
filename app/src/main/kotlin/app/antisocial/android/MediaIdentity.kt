@@ -28,7 +28,7 @@ class MediaIdentityStore(
     init {require(maxEntries>0);require(ttlMs>0)}
     private data class Fingerprint(
         val aspect: Double,val horizontal: Long,val vertical: Long,
-        val cells: List<Int>,val contrast: Double,val encoded: String
+        val cells: List<Int>,val contrast: Double,val encoded: String,val postMatch:Boolean
     )
     private data class Observation(val fingerprint: Fingerprint,val observedAt: Long)
     private val observations=LinkedHashMap<String,Observation>()
@@ -48,7 +48,8 @@ class MediaIdentityStore(
         val media=post.media.map {item->
             val url=when(item.type){"image"->item.url;"video"->item.preview;else->null}
             val f=observations[url]?.fingerprint
-            if(f==null)item else item.copy(visualFingerprint=f.encoded)
+            if(f==null)item else if(f.postMatch)item.copy(visualFingerprint=f.encoded,attachmentFingerprint=null)
+            else item.copy(visualFingerprint=null,attachmentFingerprint=f.encoded)
         }
         if(media==post.media)post else post.copy(media=media)
     }
@@ -104,10 +105,11 @@ class MediaIdentityStore(
     }
 
     private fun matches(a: Fingerprint,b: Fingerprint): Boolean {
+        if(!a.postMatch||!b.postMatch)return false
         if(abs(a.aspect-b.aspect)/maxOf(a.aspect,b.aspect)>.025)return false
         val horizontal=java.lang.Long.bitCount(a.horizontal xor b.horizontal)
         val vertical=java.lang.Long.bitCount(a.vertical xor b.vertical)
-        if(horizontal>6||vertical>6||horizontal+vertical>9)return false
+        if(horizontal>6||vertical>6||horizontal+vertical>9)return VisualFrames.sameImage(a.encoded,b.encoded)
         if(abs(a.contrast-b.contrast)>12)return false
         // Preserve color and its location: a repeated outline or gradient alone is insufficient.
         var total=0L;var worst=0
@@ -136,7 +138,6 @@ class MediaIdentityStore(
         if(opaque<pixels.size*.98)return null
         val mean=sum/pixels.size
         val contrast=sqrt((squares/pixels.size-mean*mean).coerceAtLeast(0.0))
-        if(contrast<20)return null
         var entropy=0.0
         histogram.filter {it>0}.forEach {count->val p=count.toDouble()/pixels.size;entropy-=p*ln(p)/ln(2.0)}
         // RGB's coarse histogram has only eight possible bins for a grayscale
@@ -151,14 +152,14 @@ class MediaIdentityStore(
             if(x>0&&abs(luminance[index]-luminance[index-1])>=8)edges++
             if(y>0&&abs(luminance[index]-luminance[index-32])>=8)edges++
         }
-        if(edges<160)return null
         // Detailed astronomy photographs can be mostly black. Admit that
         // narrow case through spatial detail and color diversity, while simple
         // dark logos, placeholders and flat backgrounds remain ineligible.
         val detailedDark=mean<65&&contrast>=25&&histogram.maxOrNull()!!<=pixels.size*.8&&
             histogram.count {it>=3}>=16&&edges>=400
-        if(histogram.maxOrNull()!!>pixels.size*.62&&!detailedDark)return null
-        if((entropy<2.5||histogram.count {it>=3}<12)&&!detailedGray&&!detailedDark)return null
+        val postMatch=contrast>=20&&edges>=160&&
+            (histogram.maxOrNull()!!<=pixels.size*.62||detailedDark)&&
+            (entropy>=2.5&&histogram.count {it>=3}>=12||detailedGray||detailedDark)
         val cells=ArrayList<Int>(48)
         for(cellY in 0 until 4)for(cellX in 0 until 4) {
             var red=0;var green=0;var blue=0
@@ -182,8 +183,12 @@ class MediaIdentityStore(
         }
         val aspect=bitmap.width.toDouble()/bitmap.height
         val detail=areaLuma(bitmap)
-        val encoded=VisualFrames.encode(aspect,contrast,hashX,hashY,cells,detail) ?: return null
-        return Fingerprint(aspect,hashX,hashY,cells,contrast,encoded)
+        // Low-contrast photographs and graphic cards are useful attachment
+        // comparisons even when they cannot corroborate a post relationship.
+        // Keep this observation in a separate field; core post matching never
+        // receives it as a strong visual fingerprint.
+        val encoded=VisualFrames.encode(aspect,contrast.coerceAtLeast(20.0),hashX,hashY,cells,detail) ?: return null
+        return Fingerprint(aspect,hashX,hashY,cells,contrast,encoded,postMatch)
     }
 
     private fun sample(bitmap: Bitmap,width: Int,height: Int): IntArray {

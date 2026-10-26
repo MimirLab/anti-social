@@ -7,6 +7,9 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import app.antisocial.core.*
 import kotlinx.coroutines.CancellationException
@@ -20,8 +23,11 @@ import kotlinx.coroutines.withContext
  * selected result URL must never be sent through publicUrl a second time. */
 internal class OutgoingLinkActions(private val repo: Repository,private val context: Context,private val scope: CoroutineScope) {
     private var request: Job?=null
+    private var generation=0L
+    var busy by mutableStateOf(false)
+        private set
     private fun run(resolve: suspend ()->ShareRouteResult,apply: (ShareRouteResult.Available)->Unit) {
-        request?.cancel()
+        val bound=++generation;request?.cancel();busy=true
         request=scope.launch {
             try {
                 val result=resolve()
@@ -30,6 +36,7 @@ internal class OutgoingLinkActions(private val repo: Repository,private val cont
                     is ShareRouteResult.Unavailable->Toast.makeText(context,result.message,Toast.LENGTH_LONG).show()
                 }}
             }catch(e: CancellationException){throw e}catch(_: Exception){withContext(Dispatchers.Main.immediate){Toast.makeText(context,"This link could not be checked. Try again shortly.",Toast.LENGTH_LONG).show()}}
+            finally {if(bound==generation)busy=false}
         }
     }
     private fun copy(result: ShareRouteResult.Available) {
