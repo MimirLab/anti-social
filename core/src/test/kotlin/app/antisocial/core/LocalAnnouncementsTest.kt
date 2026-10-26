@@ -6,8 +6,8 @@ import kotlin.test.*
 
 class LocalAnnouncementsTest {
     private val at=Instant.parse("2026-10-22T12:00:00Z").toEpochMilli()
-    private val area=LocalArea("fl","Melbourne","Melbourne, Florida, US",LocalPoint(28.08,-80.60),25,"America/New_York",countryCode="US")
-    private val owner=LocalBusiness("library","Town Library",address="123 Main St, Melbourne, FL",locality="Melbourne",point=area.point)
+    private val area=LocalArea("fl","Sampleton","Sampleton, Florida, US",LocalPoint(28.608588,-80.799445),25,"America/New_York",countryCode="US")
+    private val owner=LocalBusiness("library","Town Library",address="123 Main St, Sampleton, FL",locality="Sampleton",point=area.point)
     private fun post(text:String,published:Long?=at)=Post("p",Platform.FACEBOOK,"https://www.facebook.com/library/posts/123","Town Library",text,publishedAt=published)
     private fun extract(post:Post,business:LocalBusiness,area:LocalArea,at:Long,ocr:OcrResult?=null,image:String?=null)=LocalAnnouncements.extract(post,business,area,at,ocr,image,publisherLocationVerified=true)
     @Test fun ExplicitAnnouncementIsLocalDatedAndAttributable() {

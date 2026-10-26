@@ -45,7 +45,7 @@ class SourcePoolRoutingTest {
                 override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false,rewrittenUrl=if(url.startsWith("https://www.facebook.com/api/graphql/"))server.url("/graphql").toString()else null)
             },true)
             val pool=SourcePool(gateway,local).apply {searchProvider=SearchProvider.DARWIN}
-            val target=local.search(Platform.FACEBOOK,"melbourne organic food")
+            val target=local.search(Platform.FACEBOOK,"sampleton organic food")
             val empty=pool.load(target)
             assertTrue(empty.posts.isEmpty());assertTrue(requireNotNull(empty.next).startsWith("facebook:"))
             assertEquals(HealthStatus.EMPTY,pool.results(Platform.FACEBOOK).single().status)

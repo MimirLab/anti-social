@@ -23,17 +23,17 @@ class LocalDiscoveryPresentationTest {
         assertEquals(1,links.size);assertTrue(links.single().registration)
     }
     @Test fun aChainSharesOneDeckEntryWhileEveryLocationKeepsItsOwnFacts() {
-        val first=LocalBusiness("one","Northstar Coffee - Downtown",address="1 Main St",websites=listOf("https://northstarcoffee.com/locations/downtown"),phones=listOf("+13215550101"))
-        val second=first.copy(id="two",name="Northstar Coffee - Riverside",address="20 River Rd",phones=listOf("+13215550102"),websites=listOf("https://northstarcoffee.com/locations/riverside"),hours="Tuesday 8am - 4pm")
+        val first=LocalBusiness("one","Northstar Coffee - Downtown",address="1 Main St",websites=listOf("https://northstarcoffee.com/locations/downtown"),phones=listOf("+12025550103"))
+        val second=first.copy(id="two",name="Northstar Coffee - Riverside",address="20 River Rd",phones=listOf("+12025550104"),websites=listOf("https://northstarcoffee.com/locations/riverside"),hours="Tuesday 8am - 4pm")
         val one=LocalBusinessDeck.groups(listOf(first)).single()
         val together=LocalBusinessDeck.groups(listOf(first,second)).single()
         assertEquals(one.id,together.id);assertEquals(listOf(first,second),together.locations)
-        assertEquals(listOf("+13215550101","+13215550102"),together.locations.flatMap {it.phones})
+        assertEquals(listOf("+12025550103","+12025550104"),together.locations.flatMap {it.phones})
         assertEquals("Tuesday 8am - 4pm",together.locations[1].hours)
     }
     @Test fun matchingNamesOnDirectoriesOrDifferentOfficialSitesStaySeparate() {
-        val first=LocalBusiness("one","Burger Inn",address="1 Main St",websites=listOf("https://directory.example/burger-inn"),evidence=listOf(LocalFieldEvidence("name","Burger Inn","https://directory.example/burger-inn",1,LocalEvidenceKind.DIRECTORY)))
+        val first=LocalBusiness("one","Acorn Diner",address="1 Main St",websites=listOf("https://directory.example/burger-inn"),evidence=listOf(LocalFieldEvidence("name","Acorn Diner","https://directory.example/burger-inn",1,LocalEvidenceKind.DIRECTORY)))
         assertEquals(2,LocalBusinessDeck.groups(listOf(first,first.copy(id="two",address="99 River Rd"))).size)
-        assertEquals(2,LocalBusinessDeck.groups(listOf(first.copy(websites=listOf("https://burgerinn.com")),first.copy(id="two",websites=listOf("https://burgerinnfl.com")))).size)
+        assertEquals(2,LocalBusinessDeck.groups(listOf(first.copy(websites=listOf("https://acorndiner.com")),first.copy(id="two",websites=listOf("https://acorndiner.example")))).size)
     }
 }

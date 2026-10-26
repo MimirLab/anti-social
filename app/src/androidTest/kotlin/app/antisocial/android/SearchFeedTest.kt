@@ -322,9 +322,9 @@ class SearchFeedTest {
     }
     @Test fun unreadableCandidatesDoNotHideALaterReadableFacebookPost() {
         repo.prefs.selected=repo.prefs.selected+Platform.FACEBOOK
-        val facebook=repo.routes.search(Platform.FACEBOOK,"melbourne organic food fixture $suffix")
+        val facebook=repo.routes.search(Platform.FACEBOOK,"sampleton organic food fixture $suffix")
         val destinations=(1..3).map {id->Target(Platform.FACEBOOK,TargetKind.POST,"100000000000001/posts/96$suffix$id","https://www.facebook.com/100000000000001/posts/96$suffix$id")}
-        val readable=Post("facebook-native-$suffix",Platform.FACEBOOK,destinations.last().canonicalUrl,"Local food fixture","Melbourne organic food\nA public post recovered after two unavailable indexed links.",publishedAt=1_760_000_000_000L).also {extraPosts+=it}
+        val readable=Post("facebook-native-$suffix",Platform.FACEBOOK,destinations.last().canonicalUrl,"Local food fixture","Sampleton organic food\nA public post recovered after two unavailable indexed links.",publishedAt=1_760_000_000_000L).also {extraPosts+=it}
         val reachedReadable=CompletableDeferred<Unit>();val release=CompletableDeferred<Page>()
         val reads=CopyOnWriteArrayList<String>()
         val vm=model {query->SearchFeed(query,discover={Page(emptyList(),collections=destinations.map {Collection(it,"Indexed organic food",detail="An index snippet isn't the post")})},read={destination->

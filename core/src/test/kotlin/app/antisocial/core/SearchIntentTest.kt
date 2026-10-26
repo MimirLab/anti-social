@@ -78,7 +78,7 @@ class SearchIntentTest {
         assertTrue(event.discoveryText.contains("\"spaceflight\""))
     }
     @Test fun ftsAlternativesUseCompleteSafePathsAndKeepQuotedIdentity() {
-        assertEquals("\"burger inn\"",LocalSearch.query("\"Burger Inn\""))
+        assertEquals("\"acorn diner\"",LocalSearch.query("\"Acorn Diner\""))
         val variants=LocalSearch.expandedQueries("rocket launch").joinToString(" ")
         assertTrue(variants.contains("spaceflight"));assertTrue(variants.length<8192)
         assertTrue(LocalSearch.expandedQueries("\"rocket launch\"").isEmpty())

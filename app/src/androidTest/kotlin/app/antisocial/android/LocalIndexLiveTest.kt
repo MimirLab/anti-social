@@ -16,6 +16,63 @@ import java.io.File
 /** Opt-in route qualification. Parameters/evidence stay outside public source. */
 @RunWith(AndroidJUnit4::class)
 class LocalIndexLiveTest {
+    @Test fun inspectRegionalDirectoryRequests()=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialDirectoryDiagnostic")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
+        val area=Gson().fromJson(requireNotNull(args.getString("antisocialDirectoryArea")),LocalArea::class.java)
+        require(area.valid()&&area.radiusKm<=5)
+        val topic=requireNotNull(args.getString("antisocialDirectoryTopic"));require(topic.length in 2..80)
+        val method=requireNotNull(args.getString("antisocialDirectoryMethod"));require(method in setOf("GET","POST"))
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
+        val dir=File(context.getExternalFilesDir("validation"),"local-index-live/regional-diagnostic-${method.lowercase()}").apply {mkdirs()}
+        val reports=mutableListOf<Map<String,Any?>>()
+        try {
+            repo.localSearchConnection(true);withTimeout(90_000){repo.tor.state.first {it.enabled&&it.ready}}
+            for((index,endpoint)in LocalPlaceDirectory.ENDPOINTS.withIndex()) {
+                val url=LocalPlaceSources.overpassUrl(area,endpoint,topic=topic)
+                val code=java.net.URI(url).rawQuery
+                val begin=android.os.SystemClock.elapsedRealtime()
+                val result=try {
+                    val response=withTimeout(24_000){repo.gateway.extractorDocument(if(method=="GET")url else endpoint,method=method,data=if(method=="POST")code.toByteArray()else null,
+                        headers=mapOf("Accept" to "application/json","Content-Type" to "application/x-www-form-urlencoded","User-Agent" to "anti-social (+https://github.com/MimirLab/anti-social; bounded regional discovery)"),sameOrigin=true,maxBytes=2L*1024*1024,route=NetworkRoute.TOR)}
+                    File(dir,"response-$index.txt").writeText(response.text)
+                    mapOf("endpoint" to endpoint,"method" to method,"status" to response.status,"message" to response.message,"headers" to response.headers,"bytes" to response.text.toByteArray().size,"elapsedMs" to android.os.SystemClock.elapsedRealtime()-begin)
+                }catch(e:CancellationException){currentCoroutineContext().ensureActive();if(e !is TimeoutCancellationException)throw e;mapOf("endpoint" to endpoint,"error" to "Timed out")}
+                catch(e:Exception){mapOf("endpoint" to endpoint,"error" to e.javaClass.simpleName,"detail" to e.message)}
+                reports+=result;File(dir,"results.json").writeText(Gson().toJson(reports))
+                if((result["status"] as? Int)in setOf(401,403,429)||((result["headers"] as? Map<*,*>)?.keys?.any {it.toString().equals("Retry-After",true)}==true))break
+            }
+        }finally {repo.localSearchConnection(false)}
+    }
+    @Test fun protectedRegionalDirectoryReturnsPublishedPlaces()=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialDirectoryLive")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
+        val area=Gson().fromJson(requireNotNull(args.getString("antisocialDirectoryArea")),LocalArea::class.java)
+        require(area.valid()&&area.radiusKm<=5)
+        val topic=requireNotNull(args.getString("antisocialDirectoryTopic"));require(topic.length in 2..80)
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
+        val before=repo.prefs.export().toString();val observer=repo.gateway.onNetworkEvent
+        val events=java.util.concurrent.CopyOnWriteArrayList<NetworkEvent>()
+        try {
+            repo.prefs.tor=false;repo.prefs.originalFallback=false;repo.prefs.searchProvider=SearchProvider.DARWIN
+            repo.localSearchConnection(true);repo.applyNetworkSettings();withTimeout(90_000){repo.tor.state.first {it.enabled&&it.ready}}
+            repo.gateway.onNetworkEvent={event->if(event.host in setOf("overpass.private.coffee","overpass-api.de"))events+=event}
+            val began=android.os.SystemClock.elapsedRealtime()
+            val data=try {withTimeout(50_000){PublicLocalDiscoveryBackend(repo).directory(LocalDiscoveryQuery(area,topic))}}
+            catch(e:Exception) {
+                val dir=File(context.getExternalFilesDir("validation"),"local-index-live/regional-directory").apply {mkdirs()}
+                File(dir,"failure.json").writeText(Gson().toJson(mapOf("type" to e.javaClass.simpleName,"status" to (e as? SourceFailure)?.status,"httpStatus" to (e as? SourceFailure)?.httpStatus,"retryAfterMs" to (e as? SourceFailure)?.retryAfterMs,"networkEvents" to events)))
+                throw e
+            }
+            org.junit.Assert.assertTrue(data.businesses.isNotEmpty())
+            org.junit.Assert.assertTrue(data.businesses.all {it.sourceIds.any {id->id.startsWith("osm:")}})
+            org.junit.Assert.assertTrue(repo.gateway.currentPolicy(NetworkRoute.TOR).ready)
+            val dir=File(context.getExternalFilesDir("validation"),"local-index-live/regional-directory").apply {mkdirs()}
+            File(dir,"results.json").writeText(Gson().toJson(mapOf("data" to data,"networkEvents" to events,"elapsedMs" to android.os.SystemClock.elapsedRealtime()-began,"torReady" to repo.tor.state.value.ready)))
+        }finally {repo.gateway.onNetworkEvent=observer;repo.prefs.restore(JSONObject(before));repo.localSearchConnection(false);repo.applyNetworkSettings()}
+    }
     @Test fun publicLiteContinuationKeepsTheActualIssuer()=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialDuckContinuationLive")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")

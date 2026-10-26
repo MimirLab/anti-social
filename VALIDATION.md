@@ -103,8 +103,8 @@ Real Gateway observations on the API35 x86_64 test emulator:
   20.3 seconds and produced three records with explicit date/location/cost fields.
   Those sampled neighboring-town venues lacked coordinates and were not falsely
   admitted as local cards merely because the publisher covers Brevard.
-- Exact public-library address at 751 Jamaica Boulevard, Satellite Beach:
-  about 2.0 seconds over Tor, inside Melbourne FL's 25 km circle. A repeated call
+- Exact public-library address supplied privately:
+  about 2.0 seconds over Tor, inside the selected search circle. A repeated call
   returned cached coordinates without another Gateway request. This is a venue
   fixture, not a claim that the library announced the synthetic test event.
 
@@ -126,7 +126,7 @@ projection. No physical phone/GPU qualification or signing-key change is claimed
 
 ## Restaurant route scope and crowded pools — 0.35.44 / code 92
 
-The real cold Melbourne search exposed a case absent from the direct-publisher
+The real cold regional search exposed a case absent from the direct-publisher
 tests: directory recommendation, regional-category and upload links occupied the
 bounded pool before the verified full-menu route. The app displayed the three
 featured dishes despite already discovering the 86-item menu. This was a route
@@ -158,14 +158,14 @@ separate editions. Updated editions replace removed dishes; duplicate highlights
 do not compete with a fuller menu. No AI, model download, account, website script
 or paid service key is required.
 
-Production NetworkGateway checks read Burger Inn's Melbourne locator and public
-FromTheRestaurant menu: **86 priced dishes**, in about **1.2 seconds** for the two
+Production NetworkGateway checks read a privately supplied business locator and
+its public FromTheRestaurant menu: **86 priced dishes**, in about **1.2 seconds** for the two
 known publisher reads on the emulator's direct content route. This is not a cold
 regional-search, Tor or physical-phone benchmark. Hidden optional login dialogs
 must not discard actually published catalogue data. Conversely, a cached old
 menu cannot make an empty contact page count as fresh working menu content.
 
-Indian River Coffee's page offers newer scanned App_1/App_2 PDFs alongside its
+A privately supplied coffee business page offers scanned PDFs alongside its
 separate embedded-text menu. Initial failures came from selecting a scanned
 document for the text test; comparing it with another PDF was not valid evidence
 of an Android text API defect. The declared text menu now yields **3,653 cleaned
@@ -2026,13 +2026,13 @@ direct connection and 25 seconds with full Tor; Phice category deadlines are
 directory success does not update post/timeline source health.
 
 On **2026-10-18**, two separate anonymous developer-host requests used the current
-NetworkGateway, URL cleaner and bundled native filter. The exact query
-`melbourne organic food` returned **7 explicit page results in 6,794 ms** and
+NetworkGateway, URL cleaner and bundled native filter. A privately supplied regional query
+returned **7 explicit page results in 6,794 ms** and
 **8 explicit person results in 1,787 ms**. No social account, account token,
 copied browser cookie or paid API key was supplied. These are separate public
 source availability observations, not an installed-app timing, a combined result
 count, a latency distribution or a phone benchmark. Facebook's directory ranking
-does not prove that every returned entity is in Melbourne. Raw public responses,
+does not prove that every returned entity is in the selected area. Raw public responses,
 request variables and probe reports are retained under
 `LiberBuild/evidence/search-discovery-shelf-2026-10-18`.
 
@@ -2074,7 +2074,7 @@ posts. Results are retained in `core-summary.json`, `android-search-summary.json
 under `LiberBuild/evidence/search-discovery-shelf-2026-10-18`.
 
 The ordinary native Facebook search UI on the main API 29 preview was used for
-the exact query `melbourne organic food`. It returned **16 genuine page/person
+a privately supplied regional query. It returned **16 genuine page/person
 records alongside 11 public posts**, with **0 index-snippet cards**. The pre-upgrade
 snapshot contained **0 entities**. All 16 entity URLs were authentic Facebook
 profile targets, and all 16 carried supplied avatar references; this does not
@@ -2153,7 +2153,7 @@ policy. **Stop** preserves results and displays a neutral paused state with
 unavailable rather than proof that no matching post exists.
 
 The installed main API 29 preview was searched through its ordinary native UI for
-the exact query `melbourne organic food`. It retrieved **12 newly fetched,
+a privately supplied regional query. It retrieved **12 newly fetched,
 non-preview Facebook posts across two native blocks**, with **0 profiles and
 0 index-snippet cards**. All 12 records carried publication dates and media
 references; this does not establish that every attached media file was downloaded
@@ -5191,11 +5191,11 @@ The exact qualified APK hash and all check counts are in `final-checks.json`;
   Focused checks cover distance-unit persistence, contact dial/email intents,
   explicit owner roles versus directory-publisher accounts, ordinary duplicate
   reconciliation with protected saved copies, native details and export validation.
-- Live public example: Melbourne, Florida, 25 km. The selected Tor-protected
-  public index, Photon/OSM, bounded Overture enrichment and passive source readers
-  returned Sky Zone, taco businesses, Burger Inn and Indian River Coffee. Burger
-  Inn occupied one physical card; Sarno Road coffee records occupied one card,
-  and the unrelated realtor was absent from its business accounts. Distinct
+- Live private-area check: the selected Tor-protected public index, Photon/OSM,
+  bounded Overture enrichment and passive source readers returned a chain branch,
+  cuisine matches and two independent businesses. Repeated directory copies
+  occupied one card per physical business, and the unrelated realtor was absent
+  from the business accounts. Distinct
   physical branches remain separate. First-card timing and full background
   completion timing are separate measurements in `live-final.json`; emulator
   results are not a promised phone or service latency.
@@ -5255,15 +5255,15 @@ and actual screen inspection. Versioned APK/source archives retain checksums.
   actual Discover section, cancelling the reader as real navigation does. All 17 pass;
   deferred traffic priority was retained. The earlier failure log is preserved.
 - Two live source methods use the production backend/Gateway. The published
-  AllThePlaces Sky Zone file supplied one branch within the public example area
-  (Melbourne, Florida, 25 km), including branch contacts and CC0/upstream evidence.
+  AllThePlaces brand file supplied one branch within the privately supplied area,
+  including branch contacts and CC0/upstream evidence.
   A repeated request reused its cached slice marker. The collector did not download
   the global archive or run a spider. Florida State University's advertised Localist
   calendar was recognized from real application/CDN metadata, then supplied 17 local
   dated occurrences through public event JSON. Reports retain exact records and URLs.
-- The production four-query native method returned Sky Zone (one card), tacos
-  (12 cards), Burger Inn (one card), and Indian River Coffee (one Sarno Road card).
-  Sky Zone received a further branch contact from the published brand slice. The
+- The production four-query native method returned 1, 12, 1 and 1 cards for the
+  privately supplied business queries. The chain branch received a further contact
+  from the published brand slice. The
   unrelated realtor remained absent from coffee business accounts. First-card times
   were approximately 8.1, 3.9, 12.0 and 8.3 seconds; full background completion took
   approximately 46, 93, 65 and 68 seconds. These are one emulator/Tor/source run,
@@ -5308,9 +5308,8 @@ Evidence root: `/run/media/red/RedtopStorage/DarwinBuild/LiberBuild/business-rec
   run passes, including late-card order, concurrent social validation and live
   event-sheet updates. The earlier log and interrupted build are retained. The
   timeout alone is not proof of its underlying scheduling sequence.
-- Production reads retrieved the public Visit Space Coast calendar and both the
-  Downtown Melbourne Trick or Treat and Halloween Family Fun Night at Intracoastal
-  announcement pages. Thirty-two observations became 30 occurrences; both reported
+- Production reads retrieved the public regional calendar and announcement
+  pages for the two privately supplied event examples. Thirty-two observations became 30 occurrences; both reported
   pairs retained their source identities in one card. The calendar explicitly
   declares America/Halifax, while corresponding web records use New York time.
   Matching wall clock plus specific event link/venue evidence reconciles these;
@@ -5328,10 +5327,9 @@ Evidence root: `/run/media/red/RedtopStorage/DarwinBuild/LiberBuild/business-rec
   while supplemental pages remain pending. Newly extracted contacts/accounts
   survive washed-description fallback. Version 5 requeues successful sources for
   the corrected projection on the next explicit search; failures keep cooldowns.
-- The final public four-query run around Melbourne, Florida, 25 km returned Sky
-  Zone (one card), tacos (seven), Burger Inn (one), and Indian River Coffee (one
-  Sarno Road card). Sky Zone exposed three usable brand accounts (Facebook, X,
-  TikTok); Burger Inn exposed one unique usable Facebook account. Slash variants
+- The final four-query run in the privately supplied area returned 1, 7, 1 and 1
+  cards. The chain branch exposed three usable brand accounts (Facebook, X,
+  TikTok); one independent business exposed one unique usable Facebook account. Slash variants
   remain in evidence but display one icon. Coffee accounts were identified but no
   accountless route was usable in this run. No unrelated realtor was a business
   account. First cards took about 7.5, 1.7, 5.8 and 7.8 seconds; full enrichment took

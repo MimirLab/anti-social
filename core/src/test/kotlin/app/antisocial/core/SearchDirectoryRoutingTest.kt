@@ -46,14 +46,14 @@ class SearchDirectoryRoutingTest {
             val fixture=JsonParser.parseReader(javaClass.getResourceAsStream("/facebook-directory-results.json")!!.reader()).toString()
             repeat(2){server.enqueue(MockResponse().setBody(fixture))}
             val routes=routes();val gateway=gateway {url->if(url.startsWith("https://www.facebook.com/api/graphql/"))server.url("/api/graphql/").toString()else null}
-            val pool=SourcePool(gateway,routes);val target=routes.search(Platform.FACEBOOK,"melbourne organic food")
+            val pool=SourcePool(gateway,routes);val target=routes.search(Platform.FACEBOOK,"sampleton organic food")
             val page=pool.searchDirectory(target)
             assertEquals(3,page.accounts.size);assertTrue(page.posts.isEmpty());assertNull(page.next)
             assertEquals(setOf("Local Growers","Organic Market","Example Person"),page.accounts.map {it.name}.toSet())
             assertTrue(page.accounts.all {it.target.kind==TargetKind.PROFILE&&it.target.platform==Platform.FACEBOOK})
             assertTrue("Directory success is not proof of a working post-search route",pool.results(Platform.FACEBOOK).isEmpty())
             assertFalse(pool.hasActiveReads);assertEquals(2,server.requestCount)
-            repeat(2){val request=server.takeRequest();assertNull(request.getHeader("Cookie"));assertNull(request.getHeader("Authorization"));assertTrue(request.body.readUtf8().contains("melbourne"))}
+            repeat(2){val request=server.takeRequest();assertNull(request.getHeader("Cookie"));assertNull(request.getHeader("Authorization"));assertTrue(request.body.readUtf8().contains("sampleton"))}
             gateway.client().dispatcher.executorService.shutdown();gateway.client().connectionPool.evictAll()
         }
     }

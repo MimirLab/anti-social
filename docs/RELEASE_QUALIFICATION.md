@@ -9,6 +9,77 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.39 regional directory admission and private reproduction inputs
+
+Current business/event fixtures use synthetic identities, contacts, addresses
+and coordinate frames. The original branch, duplicate, field-provenance and
+geographic relationship assertions remain. Source-specific live checks obtain
+reproduction values privately at execution; unrelated public provider examples
+remain identifiable. Historical measurements omit reproduction details rather
+than substituting invented query values. This does not rewrite older releases.
+
+The directory reader shares one serial admission slot across the repository,
+uses the existing two operators and request/response bounds, and learns useful
+nonempty delivery separately from query-specific failures. Known pauses are
+checked before transport preparation. Generated category-only queries omit
+unnecessary name/brand/alternate-name regex branches, while quoted and unresolved
+names retain their literal routes. See the
+[routing contract](LOCAL_DISCOVERY_ROUTING.md#regional-directory-admission-03839).
+
+The same new native pause test ran on the retained 0.38.38 main APK and candidate
+main APK: the baseline enabled transport despite two known directory pauses;
+the candidate kept transport disabled. The baseline failure was the actual
+assertion, with no class/method linkage failure. Subsequent final native coverage
+also includes this contract.
+
+Two additional JVM counterexamples found repeated retry headers discarding the
+longer wait and an ordinary empty query teaching a productive content route.
+Both now pass. A five-case query-plan counterexample failed only the unwanted
+category-regex condition before the compiler change; literal, quoted, mixed-name
+and exclusion cases already passed and remain covered.
+
+The current full run covered **2,350 JVM cases**, zero failures/errors and one
+optional model-weight skip. Lint and debug/test assembly passed. Frozen APKs ran
+**143 native methods: 126 passes, 17 opt-in skips, zero failures** across local
+discovery/store, announcements, menus, Library/card status, social search/scope,
+scheduling, privacy and feed windows. Installed APK hashes match the frozen
+qualification files. Actual native business/event, detail-status and Library
+screens were inspected. The additional live classes skip without explicit opt-in.
+Three deliberately incomplete private-input executions separately rejected the
+missing argument before the corresponding lookup; these expected rejections are
+not counted as passing regression tests.
+
+The first native batch caught an untouched search-dialog test reading its
+submission reference immediately after a pointer action. The test now waits for
+callback delivery before making the unchanged payload assertion. Its seven-case
+class and the final full batch pass; the first failure is retained in engineering
+evidence. No production UI or dispatcher change was made. Six Python checks cover
+the private-fixture audit, including encoded matches, private-input path guards,
+source-ZIP scanning and exact-hash upstream-notice exemptions. Twenty-two changed
+ordinary Kotlin fixture classes retain their original assertion counts. The
+privacy-only changes leave all 507 DEX/native/asset members identical to the
+routing candidate.
+
+Live Overpass availability was **not** established. Bounded reads through required
+Tor with all-traffic Tor off failed at both existing operators using GET and
+form POST. In captured traces, TLS completed in roughly 0.8–2.8 seconds, followed
+by no response headers before the unchanged 24-second client deadline. Removing
+the category's extra regex branches did not resolve those live failures. A
+separate intentionally empty-region probe timed out at the first operator and
+received HTTP 502 at the second; its response explicitly reported full query
+workers and a full queue. Endpoint probing stopped after that capacity response.
+These observations do not prove that query cost, Tor readiness or the phone was
+the cause. The controlled request/parser tests and a completed diagnostic capture
+must not be presented as successful live place retrieval.
+
+Private execution parameters and responses remain outside public source. No new
+source host, probe worker, dependency, model, native library, permission or database
+migration was added. This is not a phone latency/battery benchmark. Release
+promotion requires the matching clean source revision, compatible signing,
+unchanged retained preview state before first launch, and a fully hash-verified
+anonymous download from the permanent release URL. Older published tags and
+assets remain intact; the current fixture cleanup does not erase release history.
+
 ## 0.38.38 default-provider representation recovery
 
 Social search, entity discovery and local publisher search share the official

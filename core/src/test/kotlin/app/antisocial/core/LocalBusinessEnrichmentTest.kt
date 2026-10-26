@@ -7,8 +7,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 
 class LocalBusinessEnrichmentTest {
     private val at=1792600000000L
-    private val area=LocalArea("fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
-    private val owner=LocalBusiness("coffee","Example Coffee",address="2112A Sarno Rd, Melbourne",locality="Melbourne",point=area.point,websites=listOf("https://examplecoffee.test/"))
+    private val area=LocalArea("fl","Sampleton","Sampleton, Florida, United States",LocalPoint(28.612218,-80.807555),25,"America/New_York",countryCode="US")
+    private val owner=LocalBusiness("coffee","Example Coffee",address="2112A Example Rd, Sampleton",locality="Sampleton",point=area.point,websites=listOf("https://examplecoffee.test/"))
     @Test fun routesPreferTheMissingFieldAndLearnWhatAPathActuallySupplies() {
         val contact=LocalPublisherSource("https://examplecoffee.test/contact",businessId=owner.id)
         val menu=contact.copy(url="https://examplecoffee.test/menu")
@@ -20,13 +20,13 @@ class LocalBusinessEnrichmentTest {
         assertTrue(LocalBusinessEnrichment.query(owner,area)!!.contains("contact phone"))
     }
     @Test fun stableObservationsLengthenRestAndChangedFactsRestoreResponsiveness() {
-        val data=LocalExtraction(businesses=listOf(owner.copy(phones=listOf("3212598005"))))
+        val data=LocalExtraction(businesses=listOf(owner.copy(phones=listOf("2025550101"))))
         val first=LocalBusinessEnrichment.observe(null,data,150,at)
         val immediate=LocalBusinessEnrichment.observe(first,data,100,at+10)
         assertEquals(0,immediate.stable)
         val second=LocalBusinessEnrichment.observe(first,data.copy(businesses=data.businesses.map {it.copy(checkedAt=at+86400000)}),100,at+86400000)
         assertTrue(second.nextAt-second.checkedAt>first.nextAt-first.checkedAt)
-        val changed=LocalBusinessEnrichment.observe(second,LocalExtraction(businesses=listOf(owner.copy(phones=listOf("3212542211")))),100,at+2*86400000)
+        val changed=LocalBusinessEnrichment.observe(second,LocalExtraction(businesses=listOf(owner.copy(phones=listOf("2025550100")))),100,at+2*86400000)
         assertEquals(0,changed.stable)
         var failed=first
         repeat(30){failed=LocalBusinessEnrichment.failed(failed,at)}
@@ -47,12 +47,12 @@ class LocalBusinessEnrichmentTest {
         assertTrue(LocalBusinessFacts.schema(JsonParser.parseString("""{"acceptsReservations":"yes"}""").asJsonObject,"https://examplecoffee.test/",at,LocalEvidenceKind.PUBLISHER).isEmpty())
     }
     @Test fun contactExtractionCannotAttachSiblingBranchDataOrDirectoryFooterData() {
-        val html="""<meta property='og:site_name' content='Example Coffee'><a href='tel:3212598005'>Call</a><a href='mailto:hello@examplecoffee.test'>Email</a><a href='/menu'>Menu</a>"""
+        val html="""<meta property='og:site_name' content='Example Coffee'><a href='tel:2025550101'>Call</a><a href='mailto:hello@examplecoffee.test'>Email</a><a href='/menu'>Menu</a>"""
         val updated=LocalBusinessFacts.html(html,"https://examplecoffee.test/contact",at,owner,emptyList())!!
-        assertEquals(listOf("3212598005"),updated.phones);assertEquals(listOf("hello@examplecoffee.test"),updated.emails)
+        assertEquals(listOf("2025550101"),updated.phones);assertEquals(listOf("hello@examplecoffee.test"),updated.emails)
         assertTrue(LocalBusinessDetails.facts(updated).any {it.field=="menu"})
         assertNull(LocalBusinessFacts.html(html.replace("Example Coffee","Regional Directory"),"https://directory.test/coffee",at,owner,emptyList()))
-        assertNull(LocalBusinessFacts.html(html,"https://examplecoffee.test/contact",at,owner,listOf(owner.copy(id="branch",address="4980 N Wickham Rd"))))
+        assertNull(LocalBusinessFacts.html(html,"https://examplecoffee.test/contact",at,owner,listOf(owner.copy(id="branch",address="4980 N Meadow Rd"))))
     }
     @Test fun preferredEvidenceRetainsUsefulFieldsWhenManyNewCopiesArrive() {
         val menu=LocalDiscoveryIdentity.evidence("menu","https://examplecoffee.test/menu","https://examplecoffee.test/",at,LocalEvidenceKind.PUBLISHER)
@@ -65,14 +65,14 @@ class LocalBusinessEnrichmentTest {
         assertEquals("https://alltheplaces-data.openaddresses.io/runs/2026-10-10-13-32-41/",root)
         assertNull(LocalAllThePlaces.root("<a href='https://other.test/output.zip'>Download</a>"))
         val cat=LocalAllThePlaces.catalog("""{"results":[{"spider":"sky_zone","features":301},{"spider":"chipotle","features":4298},{"spider":"taco_bell_ca","features":204},{"spider":"taco_bell_us","features":8280},{"spider":"../../../bad","features":1}]}""")
-        val selected=LocalAllThePlaces.select(cat,listOf(owner.copy(name="Sky Zone Trampoline Park · Palm Bay - Melbourne"),owner.copy(name="Chipotle Mexican Grill"),owner.copy(name="Taco Bell")),area)
+        val selected=LocalAllThePlaces.select(cat,listOf(owner.copy(name="Sky Zone Trampoline Park · Mapleford - Sampleton"),owner.copy(name="Chipotle Mexican Grill"),owner.copy(name="Taco Bell")),area)
         assertEquals(listOf("sky_zone","chipotle"),selected.map {it.spider})
         assertTrue(LocalAllThePlaces.select(cat,listOf(owner.copy(name="Coffee")),area).isEmpty())
     }
     @Test fun allThePlacesRetainsBranchContactsOperatorAndUpstreamLineage() {
-        val feature="""{"type":"FeatureCollection","features":[{"id":"abc","properties":{"@spider":"sky_zone","@source_uri":"https://skyzone.test/stores","ref":"33173","name":"Sky Zone","operator":"Example Operator","addr:street_address":"750 Bass Pro Dr NE","addr:city":"Palm Bay","addr:country":"US","phone":"+1 321-953-0284","email":"palm_bay@skyzone.test","website":"https://skyzone.test/palm-bay/"},"geometry":{"type":"Point","coordinates":[-80.6527693,28.0334911]}},{"properties":{"@spider":"sky_zone","ref":"other","name":"Sky Zone","addr:city":"Melbourne","addr:country":"AU"},"geometry":{"type":"Point","coordinates":[144.96,-37.81]}}]}"""
+        val feature="""{"type":"FeatureCollection","features":[{"id":"abc","properties":{"@spider":"sky_zone","@source_uri":"https://skyzone.test/stores","ref":"33173","name":"Sky Zone","operator":"Example Operator","addr:street_address":"750 Sample Park Dr NE","addr:city":"Mapleford","addr:country":"US","phone":"+1 202-555-0109","email":"palm_bay@skyzone.test","website":"https://skyzone.test/mapleford/"},"geometry":{"type":"Point","coordinates":[-80.8522143,28.5620791]}},{"properties":{"@spider":"sky_zone","ref":"other","name":"Sky Zone","addr:city":"Sampleton","addr:country":"AU"},"geometry":{"type":"Point","coordinates":[144.96,-37.81]}}]}"""
         val result=LocalAllThePlaces.parse(feature,"https://alltheplaces-data.openaddresses.io/runs/example/output/sky_zone.geojson",at,area)
-        val b=result.businesses.single();assertEquals("Palm Bay",b.locality);assertEquals("palm_bay@skyzone.test",b.emails!!.single())
+        val b=result.businesses.single();assertEquals("Mapleford",b.locality);assertEquals("palm_bay@skyzone.test",b.emails!!.single())
         assertEquals("operator",b.related!!.single().role);assertTrue(b.evidence.all {it.license!!.contains("CC0")&&it.license!!.contains("skyzone.test/stores")})
         assertTrue(b.sourceIds.single().startsWith("atp:"))
     }
@@ -93,9 +93,9 @@ class LocalBusinessEnrichmentTest {
         assertFails {LocalCalendarPlatforms.localist("""{"error":"Login required"}""",source.url,at,area)}
     }
     @Test fun localistKeepsOccurrencesSeparateAndDoesNotUsePublicationTimeAsAnEvent() {
-        val body="""{"events":[{"event":{"id":12,"title":"Puppet workshop","address":"10 Main St, Melbourne, FL","geo":{"latitude":"28.08","longitude":"-80.61","city":"Melbourne"},"created_at":"2026-10-01","event_instances":[{"event_instance":{"id":1,"start":"2026-10-24T10:00:00-04:00","all_day":false}},{"event_instance":{"id":2,"start":"2026-10-25T10:00:00-04:00","all_day":false}}],"localist_url":"https://calendar.test/event/puppets"}},{"event":{"id":13,"title":"Undated notice","created_at":"2026-10-21"}},{"event":{"id":14,"title":"Private meeting","private":true,"event_instances":[{"event_instance":{"start":"2026-10-24T10:00:00-04:00"}}]}}]}"""
+        val body="""{"events":[{"event":{"id":12,"title":"Puppet workshop","address":"10 Main St, Sampleton, FL","geo":{"latitude":"28.608588","longitude":"-80.809445","city":"Sampleton"},"created_at":"2026-10-01","event_instances":[{"event_instance":{"id":1,"start":"2026-10-24T10:00:00-04:00","all_day":false}},{"event_instance":{"id":2,"start":"2026-10-25T10:00:00-04:00","all_day":false}}],"localist_url":"https://calendar.test/event/puppets"}},{"event":{"id":13,"title":"Undated notice","created_at":"2026-10-21"}},{"event":{"id":14,"title":"Private meeting","private":true,"event_instances":[{"event_instance":{"start":"2026-10-24T10:00:00-04:00"}}]}}]}"""
         val events=LocalCalendarPlatforms.localist(body,"https://calendar.test/api/2/events",at,area).events
-        assertEquals(2,events.size);assertNotEquals(events[0].id,events[1].id);assertTrue(events.all {it.price.isEmpty()&&it.locality=="Melbourne"})
+        assertEquals(2,events.size);assertNotEquals(events[0].id,events[1].id);assertTrue(events.all {it.price.isEmpty()&&it.locality=="Sampleton"})
         assertEquals("2026-10-24T14:00:00Z",events.first().start.instant().toString())
     }
 }

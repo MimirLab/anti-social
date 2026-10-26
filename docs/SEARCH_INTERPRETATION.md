@@ -15,7 +15,7 @@ even when its name omits “Indian”; `rocket launch` can find saved text sayin
 language understanding or generated business facts.
 
 Put a phrase in double quotes to keep its wording and suppress concept, spelling
-and morphology expansion for that phrase: `"rocket launch"`, `"Burger Inn"`.
+and morphology expansion for that phrase: `"rocket launch"`, `"Acorn Diner"`.
 Names, handles, numerical identifiers and field-like literal text are protected
 from generic rewriting. A leading minus excludes a word or phrase in the shared
 local/scoped matcher. Business and event adapters also retain their existing

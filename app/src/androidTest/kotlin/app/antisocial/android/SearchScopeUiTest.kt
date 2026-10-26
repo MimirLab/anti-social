@@ -66,6 +66,11 @@ class SearchScopeUiTest {
         }}}
         return submitted
     }
+    private fun submission(submitted: AtomicReference<Submission?>): Submission {
+        // Pointer and IME actions enqueue UI work; observe delivery before asserting its payload.
+        ui.waitUntil(5_000){submitted.get()!=null}
+        return requireNotNull(submitted.get())
+    }
     private fun choose(kind: SearchScopeKind,value: String) {
         ui.onNodeWithTag("Search scope").performScrollTo().assertIsDisplayed().performClick()
         ui.waitUntil(5_000){ui.onAllNodesWithTag("Search scope sheet").fetchSemanticsNodes().isNotEmpty()}
@@ -104,7 +109,7 @@ class SearchScopeUiTest {
         ui.onNodeWithTag("Content query").assertTextContains("battery life")
         evidence("reddit-scoped-search")
         ui.onNodeWithTag("Submit content query").performClick()
-        assertEquals(Submission(Platform.REDDIT,"battery life",true,SearchScope(SearchScopeKind.COMMUNITY,"android")),submitted.get())
+        assertEquals(Submission(Platform.REDDIT,"battery life",true,SearchScope(SearchScopeKind.COMMUNITY,"android")),submission(submitted))
     }
 
     @Test fun communityContextIsVisibleAndCanReturnToEverywhere() {
@@ -118,7 +123,7 @@ class SearchScopeUiTest {
         ui.onNodeWithTag("Search scope").assertTextContains("Everywhere")
         ui.onNodeWithTag("Content query").performTextInput("battery life")
         ui.onNodeWithTag("Content query").performImeAction()
-        assertNull(submitted.get()!!.scope)
+        assertNull(submission(submitted).scope)
     }
 
     @Test fun changingPlatformsClearsThePreviousScope() {
@@ -130,7 +135,7 @@ class SearchScopeUiTest {
         ui.onNodeWithTag("Search scope").assertTextContains("@nasa")
         ui.onNodeWithTag("Content query").performTextInput("moon")
         ui.onNodeWithTag("Submit content query").performClick()
-        assertEquals(Submission(Platform.X,"moon",true,SearchScope(SearchScopeKind.ACCOUNT,"nasa")),submitted.get())
+        assertEquals(Submission(Platform.X,"moon",true,SearchScope(SearchScopeKind.ACCOUNT,"nasa")),submission(submitted))
     }
 
     @Test fun invalidScopeStaysInlineAndDismissingKeepsTheOriginal() {
@@ -154,7 +159,7 @@ class SearchScopeUiTest {
         ui.onNodeWithTag("Search scope").assertDoesNotExist()
         ui.onNodeWithTag("Content query").performTextInput("esa")
         ui.onNodeWithTag("Submit content query").performClick()
-        assertEquals(Submission(Platform.X,"esa",false,null),submitted.get())
+        assertEquals(Submission(Platform.X,"esa",false,null),submission(submitted))
     }
 
     @Test fun editingFeedScopeReusesTheQueryAndRefreshesItsOwnResults() {

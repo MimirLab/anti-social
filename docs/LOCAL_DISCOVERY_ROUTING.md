@@ -51,6 +51,56 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Regional directory admission (0.38.39)
+
+One repository-wide reader handles Overpass batches. It sends the existing
+generated geographic/category query as a form POST through `NetworkGateway`,
+using required Tor, an exact session and origin pin, and the existing 2 MiB
+response cap. It retains the two existing independent operators, at most two
+serial attempts, the 24-second per-read deadline and the controller's 50-second
+outer allowance. It adds no probes, hosts, concurrent directory attempts, model
+or package. Other discovery lanes still deliver their own results progressively.
+
+Recognized business categories compile to their typed tag predicates without
+also adding name, brand and alternate-name regex branches for category words.
+Unknown names, names mixed with unresolved words and quoted literal searches
+retain their identity branches. The original query still reaches the existing
+name-directory and publisher-search banks. Business batch-cache identity advances
+for this plan; unchanged event-hub batch identity remains reusable.
+
+Successful nonempty network delivery times rank the next eligible endpoint. Queue time,
+JSON extraction and SQLite ingestion do not become network-latency samples.
+Small endpoint records use the existing bounded ordinary cache for seven days;
+they contain no entered queries or coordinates. Query-specific pauses retain
+only a hash of the endpoint and generated expression, for five minutes.
+
+A reported query timeout/memory allowance or HTTP 400/414/422 does not disable
+unrelated queries. Endpoint capacity/transport failures instead start a short
+15-second adaptive pause. HTTP 429, authentication and challenge responses stop
+the current directory operation, with a default 60-second adaptive pause.
+Bounded `Retry-After` seconds or HTTP dates can extend an endpoint wait up to one
+day, including an explicit wait accompanying a query-status failure. These
+waits retain the longest valid value if a response repeats the header. Empty
+query results do not train an outage or a productive delivery sample. Retry
+deadlines survive skipped calls and forced searches. Existing legacy pauses
+remain honored until their original cache expiry.
+
+Admission checks known pauses before starting/waiting for transport and again
+after acquiring the shared directory slot. Cancellation or a changed connection
+selection/session neither trains an outage nor advances to another operator.
+Origin-changing redirects remain blocked. Overpass remarks still prevent an
+incomplete response from becoming a complete directory result; an ordinary
+successful empty `elements` array remains a query-specific empty result.
+
+The [Overpass resource documentation](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html)
+distinguishes HTTP 429 rate refusal, HTTP 504 resource admission and per-query
+runtime/memory limits. Server queuing can consume part of the unchanged client
+deadline; a client timeout alone does not establish a long endpoint outage.
+[Private.coffee's published guidance](https://overpass.private.coffee/) recommends
+form POST, a meaningful project User-Agent and limited concurrency. The reader
+follows those mechanisms while retaining OSM identities, field evidence and
+ODbL attribution. Qualification and external observations are recorded separately.
+
 ### Default-provider recovery (0.38.38)
 
 DuckDuckGo search now shares one native representation reader between social

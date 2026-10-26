@@ -22,7 +22,7 @@ class PublicSearchDiscoveryTest {
     private fun gateway()=NetworkGateway(cleaner,object: RequestFilter {
         override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false)
     },true)
-    private val target get()=routes.search(Platform.FACEBOOK,"melbourne organic food")
+    private val target get()=routes.search(Platform.FACEBOOK,"sampleton organic food")
     private fun result(url: String,title: String="Organic food")="""<div class="text-result-wrapper"><a href="$url"><h2>$title</h2></a><span>Index description, never a fabricated post.</span></div>"""
     private fun close(gateway: NetworkGateway) {gateway.client().dispatcher.executorService.shutdown();gateway.client().connectionPool.evictAll()}
 
@@ -56,8 +56,8 @@ class PublicSearchDiscoveryTest {
                     if(!both.await(3,TimeUnit.SECONDS))return MockResponse().setResponseCode(503)
                     val query=request.requestUrl!!.queryParameter("q").orEmpty()
                     return MockResponse().setBody(if("inurl:posts" in query)
-                        result("https://en-gb.facebook.com/OrganicMelbourne/posts/123")+result("https://www.facebook.com/OrganicMelbourne/posts/124")
-                    else result("https://www.facebook.com/OrganicMelbourne")+result("https://www.facebook.com/OrganicMelbourne/posts/123"))
+                        result("https://en-gb.facebook.com/OrganicSampleton/posts/123")+result("https://www.facebook.com/OrganicSampleton/posts/124")
+                    else result("https://www.facebook.com/OrganicSampleton")+result("https://www.facebook.com/OrganicSampleton/posts/123"))
                 }
             }
             server.start();val gateway=gateway()
@@ -66,7 +66,7 @@ class PublicSearchDiscoveryTest {
                 val page=withTimeout(5000){PublicSearchAdapter(source,gateway,routes).fetch(target)}
                 assertTrue(page.posts.isEmpty());assertEquals(3,page.collections.size)
                 assertEquals(listOf(TargetKind.POST,TargetKind.POST,TargetKind.PROFILE),page.collections.map {it.target.kind})
-                assertEquals(setOf("https://www.facebook.com/OrganicMelbourne/posts/123","https://www.facebook.com/OrganicMelbourne/posts/124","https://www.facebook.com/OrganicMelbourne"),page.collections.map {it.target.canonicalUrl}.toSet())
+                assertEquals(setOf("https://www.facebook.com/OrganicSampleton/posts/123","https://www.facebook.com/OrganicSampleton/posts/124","https://www.facebook.com/OrganicSampleton"),page.collections.map {it.target.canonicalUrl}.toSet())
                 assertNull(page.next);assertEquals(source,page.provenance!!.source)
                 assertEquals(2,server.requestCount)
                 val queries=List(2){server.takeRequest().requestUrl!!.queryParameter("q")}.toSet()
@@ -86,10 +86,10 @@ class PublicSearchDiscoveryTest {
                     bothStarted.countDown()
                     return if("inurl:posts" in query) {
                         if(!bothStarted.await(3,TimeUnit.SECONDS))return MockResponse().setResponseCode(503)
-                        MockResponse().setBody(result("https://www.facebook.com/OrganicMelbourne/posts/123"))
+                        MockResponse().setBody(result("https://www.facebook.com/OrganicSampleton/posts/123"))
                     }
                     else if(broadCalls.incrementAndGet()==1)MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
-                    else MockResponse().setBody(result("https://www.facebook.com/OrganicMelbourne/posts/124"))
+                    else MockResponse().setBody(result("https://www.facebook.com/OrganicSampleton/posts/124"))
                 }
             }
             server.start();val gateway=gateway()
@@ -97,7 +97,7 @@ class PublicSearchDiscoveryTest {
                 val source=Source(Platform.FACEBOOK,"librey",server.url("/").toString().trimEnd('/'),true)
                 val adapter=PublicSearchAdapter(source,gateway,routes)
                 val first=withTimeout(4000){adapter.fetch(target)}
-                assertEquals("https://www.facebook.com/OrganicMelbourne/posts/123",first.collections.single().target.canonicalUrl)
+                assertEquals("https://www.facebook.com/OrganicSampleton/posts/123",first.collections.single().target.canonicalUrl)
                 val next=requireNotNull(first.next)
                 assertTrue(next.startsWith("public-index:"));assertTrue(next.length<24*1024)
                 val before=gateway.protectionStats().checked
@@ -112,7 +112,7 @@ class PublicSearchDiscoveryTest {
                 assertThrows(IllegalArgumentException::class.java){runBlocking {adapter.fetch(target,"public-index:$tampered")}}
                 assertEquals(before,gateway.protectionStats().checked)
                 val second=withTimeout(2500){adapter.fetch(target,next)}
-                assertEquals("https://www.facebook.com/OrganicMelbourne/posts/124",second.collections.single().target.canonicalUrl)
+                assertEquals("https://www.facebook.com/OrganicSampleton/posts/124",second.collections.single().target.canonicalUrl)
                 assertNull(second.next);assertEquals(3,server.requestCount)
             }finally {close(gateway)}
         }
@@ -125,8 +125,8 @@ class PublicSearchDiscoveryTest {
                     val query=request.requestUrl!!.queryParameter("q").orEmpty()
                     return if("inurl:posts" in query)MockResponse()
                         .setHeadersDelay(800,TimeUnit.MILLISECONDS)
-                        .setBody(result("https://www.facebook.com/OrganicMelbourne/posts/123"))
-                    else MockResponse().setBody(result("https://www.facebook.com/OrganicMelbourne"))
+                        .setBody(result("https://www.facebook.com/OrganicSampleton/posts/123"))
+                    else MockResponse().setBody(result("https://www.facebook.com/OrganicSampleton"))
                 }
             }
             server.start();val gateway=gateway()
@@ -134,7 +134,7 @@ class PublicSearchDiscoveryTest {
                 val source=Source(Platform.FACEBOOK,"librey",server.url("/").toString().trimEnd('/'),true)
                 val page=withTimeout(4000){PublicSearchAdapter(source,gateway,routes).fetch(target)}
                 assertEquals(listOf(TargetKind.POST,TargetKind.PROFILE),page.collections.map {it.target.kind})
-                assertEquals("https://www.facebook.com/OrganicMelbourne/posts/123",page.collections.first().target.canonicalUrl)
+                assertEquals("https://www.facebook.com/OrganicSampleton/posts/123",page.collections.first().target.canonicalUrl)
                 assertNull("Both actual query responses were consumed without retrying the post lane",page.next)
                 assertEquals(2,server.requestCount)
             }finally {close(gateway)}
@@ -165,7 +165,7 @@ class PublicSearchDiscoveryTest {
             try {
                 val source=Source(Platform.FACEBOOK,"librey",server.url("/").toString().trimEnd('/'),true)
                 val adapter=PublicSearchAdapter(source,gateway,routes)
-                val scoped=routes.search(Platform.FACEBOOK,target.identity,SearchScope(SearchScopeKind.ACCOUNT,"OrganicMelbourne"))
+                val scoped=routes.search(Platform.FACEBOOK,target.identity,SearchScope(SearchScopeKind.ACCOUNT,"OrganicSampleton"))
                 assertThrows(IllegalArgumentException::class.java){runBlocking {adapter.fetch(scoped)}}
                 assertEquals(0,server.requestCount)
                 val search=launch {adapter.fetch(target)}
@@ -201,14 +201,14 @@ class PublicSearchDiscoveryTest {
 
     @Test fun officialFacebookLocaleLinksNormalizeWithoutTrustingUnrelatedSubdomains() {
         for(host in listOf("en-gb.facebook.com","de-de.facebook.com","fr.facebook.com","m.facebook.com")) {
-            val post=requireNotNull(routes.recognize("https://$host/OrganicMelbourne/posts/123?comment_id=456"))
+            val post=requireNotNull(routes.recognize("https://$host/OrganicSampleton/posts/123?comment_id=456"))
             assertEquals(Platform.FACEBOOK,post.platform);assertEquals(TargetKind.POST,post.kind)
-            assertEquals("https://www.facebook.com/OrganicMelbourne/posts/123?comment_id=456",post.canonicalUrl)
+            assertEquals("https://www.facebook.com/OrganicSampleton/posts/123?comment_id=456",post.canonicalUrl)
             assertEquals("comment:123:456",ContentIdentity.key(post.platform,post.canonicalUrl))
-            assertTrue(PublicSearchAdapter.profileAllowed(requireNotNull(routes.recognize("https://$host/OrganicMelbourne"))))
+            assertTrue(PublicSearchAdapter.profileAllowed(requireNotNull(routes.recognize("https://$host/OrganicSampleton"))))
         }
         for(host in listOf("en-gb.facebook.com.evil.example","facebook.com.evil.example","developers.facebook.com","l.facebook.com","facebookcdn.example"))
-            assertNull(host,routes.recognize("https://$host/OrganicMelbourne/posts/123"))
+            assertNull(host,routes.recognize("https://$host/OrganicSampleton/posts/123"))
     }
 
     @Test fun publicIndexCommunitiesSurviveAsDestinationsWhileEntityOnlyModeExcludesPosts() {
@@ -234,7 +234,7 @@ class PublicSearchDiscoveryTest {
 
     @Test fun explicitEntityDirectoryUsesOnlyOneSelectedProviderQueryAndRejectsForgedOrScopedRequests(): Unit=runBlocking {
         MockWebServer().use {server->
-            server.start();server.enqueue(MockResponse().setBody(result("https://www.facebook.com/OrganicMelbourne")+result("https://www.facebook.com/OrganicMelbourne/posts/123")))
+            server.start();server.enqueue(MockResponse().setBody(result("https://www.facebook.com/OrganicSampleton")+result("https://www.facebook.com/OrganicSampleton/posts/123")))
             val gateway=gateway()
             try {
                 val source=Source(Platform.FACEBOOK,"librey",server.url("/").toString().trimEnd('/'),true)
@@ -245,7 +245,7 @@ class PublicSearchDiscoveryTest {
                 assertEquals(PublicSearchAdapter.directoryQuery(target),server.takeRequest().requestUrl!!.queryParameter("q"))
                 assertEquals(1,server.requestCount)
                 val checked=gateway.protectionStats().checked
-                val scoped=routes.search(Platform.FACEBOOK,target.identity,SearchScope(SearchScopeKind.ACCOUNT,"OrganicMelbourne"))
+                val scoped=routes.search(Platform.FACEBOOK,target.identity,SearchScope(SearchScopeKind.ACCOUNT,"OrganicSampleton"))
                 assertThrows(IllegalArgumentException::class.java){runBlocking {adapter.directory(scoped)}}
                 assertThrows(IllegalArgumentException::class.java){runBlocking {adapter.directory(target,"public-directory:{\"version\":1,\"binding\":\"forged\",\"cursor\":\"https://attacker.example/search.php?q=stolen\"}")}}
                 assertEquals(checked,gateway.protectionStats().checked)

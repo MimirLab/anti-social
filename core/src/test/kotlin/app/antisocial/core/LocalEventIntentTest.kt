@@ -27,14 +27,14 @@ class LocalEventIntentTest {
         assertTrue(LocalEventIntent.parse("outdoors for kids").match(event("Family craft afternoon")).unknowns.contains("Outdoor setting not confirmed"))
     }
     @Test fun ProperNamesAndUnrelatedTopicsStayPrecise() {
-        assertFalse(LocalDiscoveryFilter.matches("Burger Inn","Burger King"))
+        assertFalse(LocalDiscoveryFilter.matches("Acorn Diner","Burger King"))
         assertFalse(LocalEventIntent.parse("nature walk").match(event("Children’s software workshop")).matches)
         assertTrue(LocalEventIntent.parse("nature walk").match(event("Wildlife hike")).matches)
     }
     @Test fun ClockRangesAreNotAgesAndRoutingRecognizesToddlerQueries() {
         assertNull(LocalEventIntent.ageRange("Join us 5-8 PM"))
         assertEquals(5..8,LocalEventIntent.ageRange("Ages 5-8"))
-        val area=LocalArea("fl","Melbourne","Melbourne, Florida, US",LocalPoint(28.08,-80.60),25,"America/New_York",countryCode="US")
+        val area=LocalArea("fl","Sampleton","Sampleton, Florida, US",LocalPoint(28.608588,-80.799445),25,"America/New_York",countryCode="US")
         val query=LocalDiscoveryQuery(area,"something outdoors for toddlers",LocalSearchMode.EVENTS)
         assertTrue(LocalOpportunityRouting.seeds(query).any {it.url.contains("fun4spacecoastkids")})
     }

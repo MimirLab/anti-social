@@ -40,7 +40,7 @@ class ProductPolishRegressionTest {
             assertEquals(2,result.urls.size);assertEquals("Free",result.price)
         }
         assertTrue(LocalEventIdentity.same(a,b.copy(start=LocalEventTime("2026-10-24T16:30:00-04:00","America/New_York"))))
-        for(other in listOf(b.copy(locality="Orlando"),b.copy(address="1423 Different Ave, Melbourne"),b.copy(start=LocalEventTime("2026-10-25T16:00:00-04:00")),b.copy(end=LocalEventTime("2026-10-24T21:00:00-04:00")),b.copy(description="Different entertainment"),b.copy(title=b.title+" - Spooky Hayride/Cemetery Tours")))
+        for(other in listOf(b.copy(locality="Orlando"),b.copy(address="1423 Different Ave, Sampleton"),b.copy(start=LocalEventTime("2026-10-25T16:00:00-04:00")),b.copy(end=LocalEventTime("2026-10-24T21:00:00-04:00")),b.copy(description="Different entertainment"),b.copy(title=b.title+" - Spooky Hayride/Cemetery Tours")))
             assertFalse("Distinct occurrence: $other",LocalEventIdentity.same(a,other))
         assertFalse(LocalEventIdentity.same(a.copy(title="Storytime",venue="District library"),b.copy(title="Storytime")))
     }

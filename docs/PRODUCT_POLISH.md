@@ -64,9 +64,9 @@ and different video frames. No image-identity threshold was relaxed.
 
 ## Event occurrences
 
-The public “Halloween in the District” listings named both Eau Gallie Arts District
-and the participating Rossetter House Museum, at different addresses on Highland
-Avenue. Exact distinctive title, locality, street corridor, occurrence date, end
+The synthetic district-festival fixtures name both an arts district and a
+participating museum at different addresses along one street corridor.
+Exact distinctive title, locality, street corridor, occurrence date, end
 time and corroborating activity details now permit that district-wide celebration
 to reconcile. A start-time difference is limited to thirty minutes; distant places,
 different end times and separately named tours remain separate. Existing freshness
@@ -85,15 +85,14 @@ selection and field-level evidence survive reconciliation.
   Unchanged database notifications settled in 21.6 ms. Emulator frame p95 was
   133.6 ms, so this is a recorded workload, not a claim of physical-phone smoothness.
 
-The regression fixtures are curated public records, not a reader-state export:
-`core/src/test/resources/product-polish-posts.json` and `product-polish-events.json`.
-They retain the public source URLs. The NASA test photograph
+The post regression fixtures in `core/src/test/resources/product-polish-posts.json`
+are curated public records with synthetic relationships, not a reader-state export.
+They retain their public source URLs. The NASA test photograph
 `app/src/androidTest/assets/nasa-thats-our-jam.jpg` was obtained from the public
 [NASA post](https://x.com/NASA/status/2113358139999265160), also published on NASA's
-Facebook account. Event fixtures come from
-[Visit Space Coast](https://www.visitspacecoast.com/event/halloween-in-the-district/)
-and the linked
-[Eventbrite listing](https://www.eventbrite.com/e/halloween-in-the-district-2026-tickets-2002184609063).
-Original publisher attribution remains in the records. Test images do not ship
+Facebook account. `product-polish-events.json` uses invented event identities,
+venue names, addresses and links while retaining the two-edition reconciliation
+shape. Original live reproduction details stay in private execution evidence.
+Public-post attribution remains intact. Test images do not ship
 inside the reader APK. Private databases, signed-media acquisition URLs, credentials
 and preview backups remain outside the source tree and release artifacts.

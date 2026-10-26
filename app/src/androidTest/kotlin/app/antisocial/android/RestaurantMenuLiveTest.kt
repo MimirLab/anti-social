@@ -17,32 +17,34 @@ class RestaurantMenuLiveTest {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         return (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as AntiSocialApplication).repo
     }
-    private val area=LocalArea("public-melbourne","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+    private val area get()=LocalLiveInput.area()
     private fun evidence(repo:Repository,name:String,value:Any){File(repo.context.filesDir,"restaurant-menu-$name.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(value))}
-    @Test fun burgerInnPublishesLocationScopedDishesWithoutLoadingItsOrderingWidget()=runBlocking {
+    @Test fun publishedMenuSuppliesLocationScopedDishesWithoutLoadingItsOrderingWidget()=runBlocking {
         val repo=repo();repo.awaitReady()
-        val b=LocalBusiness("public-burger-menu","Burger Inn","Restaurant",address="1819 N Harbor City Blvd, Melbourne, FL 32935",locality="Melbourne",websites=listOf("https://burgerinnfl.com/burger-inn/locations/"))
+        val b=LocalLiveInput.business("antisocialMenuBusiness")
+        val expectedItem=LocalLiveInput.text("antisocialMenuItem",200)
+        val menuPath=LocalLiveInput.text("antisocialMenuPath",200)
         val started=System.currentTimeMillis()
         val backend=PublicLocalDiscoveryBackend(repo);val query=LocalDiscoveryQuery(area)
         val first=withTimeout(40_000){backend.read(LocalPublisherSource(b.websites.single(),businessId=b.id),query,b)}
         val owner=first.businesses.first {it.id==b.id}
-        val route=first.sources.first {it.kind==LocalSourceKind.MENU&&it.url.contains("/menu/")}
+        val route=first.sources.first {it.kind==LocalSourceKind.MENU&&it.url.contains(menuPath)}
         val data=withTimeout(30_000){backend.read(route,query,owner)}
         val menus=data.businesses.flatMap {it.menus.orEmpty()}
         evidence(repo,"burger",mapOf("elapsedMs" to System.currentTimeMillis()-started,"data" to data))
-        assertTrue("Published Burger Inn dishes must reach native menu records",menus.flatMap {it.items}.any {it.name.contains("Cheeseburger",true)&&it.prices.isNotEmpty()})
+        assertTrue("Published dishes must reach native menu records",menus.flatMap {it.items}.any {it.name.contains(expectedItem,true)&&it.prices.isNotEmpty()})
         assertTrue(menus.all {LocalMenus.valid(it)})
         assertTrue("The locator's public menu should provide more than its three popular items",menus.any {it.items.size>=20})
     }
     @Test fun coffeeMenuPdfIsReadWithoutAIAndItsDisposableBinaryIsRemoved()=runBlocking {
         val repo=repo();repo.awaitReady()
-        val b=LocalBusiness("public-coffee-menu","Indian River Coffee","CafeOrCoffeeShop",address="2112A Sarno Rd, Melbourne, FL 32935",locality="Melbourne",websites=listOf("https://www.indianrivercoffee.com/pages/in-store-menu"))
+        val b=LocalLiveInput.business("antisocialMenuPdfBusiness")
         val backend=PublicLocalDiscoveryBackend(repo);val query=LocalDiscoveryQuery(area)
         val first=withTimeout(40_000){backend.read(LocalPublisherSource(b.websites.single(),businessId=b.id),query,b)}
         val owner=first.businesses.first {it.id==b.id}
-        // The page also offers App_1/App_2 scanned sheets. This check exercises
-        // its separately published embedded-text menu, not a guessed OCR result.
-        val pdf=LocalMenuRouting.known(owner).first {it.url.substringBefore('?').endsWith("/menu.pdf")}
+        // Select the supplied embedded-text PDF separately from scanned sheets.
+        val suffix=LocalLiveInput.text("antisocialMenuPdfSuffix",200)
+        val pdf=LocalMenuRouting.known(owner).first {it.url.substringBefore('?').endsWith(suffix)}
         evidence(repo,"coffee-route",mapOf("route" to pdf,"business" to owner))
         val enabled=repo.ai.preferences.enabled
         try {

@@ -20,9 +20,9 @@ class RestaurantMenuTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
     private val model get()=ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java]
-    private val area=LocalArea("fixture-menu-area","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+    private val area=LocalArea("fixture-menu-area","Sampleton","Sampleton, Florida, United States",LocalPoint(28.612218,-80.807555),25,"America/New_York",countryCode="US")
     private val at=System.currentTimeMillis()
-    private val place=LocalBusiness("fixture-menu-cafe","Example Coffee","CafeOrCoffeeShop",address="12 Main St, Melbourne, FL 32901",locality="Melbourne",point=area.point,websites=listOf("https://examplecoffee.fixture.invalid/"),checkedAt=at)
+    private val place=LocalBusiness("fixture-menu-cafe","Example Coffee","CafeOrCoffeeShop",address="12 Main St, Sampleton, FL 00001",locality="Sampleton",point=area.point,websites=listOf("https://examplecoffee.fixture.invalid/"),checkedAt=at)
     private fun menu(channel:String="Pickup")=LocalMenus.document("Coffee and food", "https://examplecoffee.fixture.invalid/menu",at,place,"Menu","a".repeat(64),false)!!.copy(channel=channel,text="",items=listOf(
         LocalMenuItem("Mushroom sandwich","Lunch","Roasted mushrooms",listOf(LocalMenuPrice("12.50","USD")),listOf("Vegetarian"),listOf("wheat")),
         LocalMenuItem("Espresso","Drinks",prices=listOf(LocalMenuPrice("3.00","USD")))))

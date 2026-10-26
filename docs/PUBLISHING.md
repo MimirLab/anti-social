@@ -48,6 +48,38 @@ assemble with `scripts/gradle.sh`, and restore the saved branch even if the
 build fails. Verify the embedded revision again. Do not patch the APK metadata
 or move the branch to obtain a stamp.
 
+For checks involving private reader reproduction details, run
+`scripts/audit_public_fixtures.py` against the working tree and the final source
+ZIP, with `--denylist-file` and `--report` paths outside the checkout. The private
+JSON denylist is never a source fixture. Output contains counts; the detailed
+report contains file/line/rule indexes, without matching values or source lines.
+For a ZIP, pass its exact top-level directory through `--zip-prefix`. A reviewed
+public upstream notice can use `--reviewed-hashes` with its explicit SHA-256;
+changed bytes automatically lose that exemption. Preserve upstream notices and
+verify unchanged compressed corresponding sources separately. The guard checks
+known reproduction strings and supplements the manual source review.
+
+Opt-in regional live checks use the complete `LocalArea` JSON argument
+`antisocialLiveArea`, alongside their existing opt-in/isolation flags. Specific
+checks also require private inputs:
+
+| Check | Arguments |
+| --- | --- |
+| Business search | `antisocialBusinessCases`: query objects with optional `uniqueName`, `uniqueAddress` and `excludedAccount` expectations |
+| Location menu | `antisocialMenuBusiness`, `antisocialMenuItem`, `antisocialMenuPath` |
+| Embedded-text menu PDF | `antisocialMenuPdfBusiness`, `antisocialMenuPdfSuffix` |
+| Published brand slice | `antisocialBrandBusiness` |
+| Calendar/page reconciliation | `antisocialEventCalendarUrl`, `antisocialEventEditions`: URL/title objects |
+| Business social links | `antisocialSocialBusiness`, `antisocialExpectedAccounts`: URL strings |
+| Venue resolution | `antisocialVenueName`, `antisocialVenueAddress`, `antisocialVenueLocality` |
+
+Business arguments contain the initial name, address, locality, optional point,
+websites, socials, phones and source IDs needed by that check. Missing required
+inputs fail before the corresponding lookup; there is no personal-location or
+business fallback. Retain the original per-case expectations when migrating a
+previous private benchmark. These are engineering test arguments, not user-facing
+installation or runtime requirements.
+
 
 The helper defaults to `MimirLab/anti-social` and the existing external artifact
 directory. `--apk` can select another locally packaged APK. `GH_CONFIG_DIR` is

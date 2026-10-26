@@ -25,7 +25,7 @@ data class PlaceSearch(val original:String,val terms:List<PlaceTerm>) {
             return term.concepts.any {c->
                 val aliases=c.normalizedAliases
                 if(c.cuisine) {
-                    // Names such as Indian River Coffee do not establish cuisine.
+                    // Names such as Indian Example Coffee do not establish cuisine.
                     val cuisine=c.id.substringAfter(':').replace('_',' ')
                     contains(category,SearchText.words(cuisine))||(term.words!=SearchText.words(cuisine)&&contains(full,term.words))||aliases.any {it.contains(" ")&&(" $full ").contains(" $it ")}||
                         (contains(category,listOf("restaurant"))&&contains(details,SearchText.words(cuisine)))

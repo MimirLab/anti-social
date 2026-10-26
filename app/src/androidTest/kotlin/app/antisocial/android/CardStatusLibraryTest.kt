@@ -29,8 +29,8 @@ class CardStatusLibraryTest {
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
     private lateinit var model:AntiSocialViewModel
     private lateinit var preferences:String
-    private val area=LocalArea("status-fixture-area","Melbourne","Melbourne, Florida",LocalPoint(28.0836,-80.6081),10,"America/New_York")
-    private val place=LocalBusiness("status-fixture-place","Signal Café","restaurant","Coffee, lunch and community workshops","10 Main Street, Melbourne FL","Melbourne",area.point,websites=listOf("https://status-fixture.invalid/menu"),phones=listOf("+1 321 555 0123"),emails=listOf("hello@status-fixture.invalid"),checkedAt=System.currentTimeMillis())
+    private val area=LocalArea("status-fixture-area","Sampleton","Sampleton, Florida",LocalPoint(28.612188,-80.807545),10,"America/New_York")
+    private val place=LocalBusiness("status-fixture-place","Signal Café","restaurant","Coffee, lunch and community workshops","10 Main Street, Sampleton FL","Sampleton",area.point,websites=listOf("https://status-fixture.invalid/menu"),phones=listOf("+1 202 555 0105"),emails=listOf("hello@status-fixture.invalid"),checkedAt=System.currentTimeMillis())
     @Before fun isolate() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         runBlocking {repo.awaitReady()};preferences=repo.prefs.export().toString()
@@ -65,9 +65,9 @@ class CardStatusLibraryTest {
     }
     @Test fun onlyTheBusinessWithOutstandingDetailsIsBusyAndCancellationClearsIt() {
         val entered=CompletableDeferred<Unit>();val started=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-        val blocked=place.copy(id="status-fixture-blocked",name="Second Workshop",address="20 Other Street, Melbourne FL",point=LocalPoint(28.085,-80.606),websites=listOf("https://blocked-status-fixture.invalid/"))
-        val queued=place.copy(id="status-fixture-queued",name="Third Workshop",address="30 Other Street, Melbourne FL",point=LocalPoint(28.087,-80.604),websites=listOf("https://queued-status-fixture.invalid/"))
-        val other=place.copy(id="status-fixture-other",name="Community Bakery",address="90 Other Street, Melbourne FL",point=LocalPoint(28.09,-80.60),websites=emptyList())
+        val blocked=place.copy(id="status-fixture-blocked",name="Second Workshop",address="20 Other Street, Sampleton FL",point=LocalPoint(28.613588,-80.805445),websites=listOf("https://blocked-status-fixture.invalid/"))
+        val queued=place.copy(id="status-fixture-queued",name="Third Workshop",address="30 Other Street, Sampleton FL",point=LocalPoint(28.615588,-80.803445),websites=listOf("https://queued-status-fixture.invalid/"))
+        val other=place.copy(id="status-fixture-other",name="Community Bakery",address="90 Other Street, Sampleton FL",point=LocalPoint(28.618588,-80.799445),websites=emptyList())
         ui.runOnIdle {
             model.localSearch.backend=object:LocalDiscoveryBackend {
                 override suspend fun areas(text:String)=emptyList<LocalArea>()
@@ -105,7 +105,7 @@ class CardStatusLibraryTest {
         runBlocking(Dispatchers.IO) {
             repo.localDiscovery.save(place);repo.localDiscovery.save(event)
             repo.localLinks.rememberReadable(event.urls.single(),"Library",event)
-            repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(place.copy(phones=listOf("+1 321 555 9999"),checkedAt=System.currentTimeMillis()+1000))),area)
+            repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(place.copy(phones=listOf("+1 202 555 0107"),checkedAt=System.currentTimeMillis()+1000))),area)
         }
         ui.runOnIdle {
             model.localSearch.backend=object:LocalDiscoveryBackend {
@@ -123,7 +123,7 @@ class CardStatusLibraryTest {
         ui.onNodeWithTag("Business ${place.id}").performClick()
         ui.waitUntil(5_000){ui.onAllNodesWithTag("Business details").fetchSemanticsNodes().isNotEmpty()}
         screen("library-business-details")
-        ui.onNodeWithText("+1 (321) 555-0123").performScrollTo().assertIsDisplayed();ui.onAllNodesWithText("+1 (321) 555-9999").assertCountEquals(0)
+        ui.onNodeWithText("+1 (202) 555-0105").performScrollTo().assertIsDisplayed();ui.onAllNodesWithText("+1 (202) 555-0107").assertCountEquals(0)
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         ui.waitUntil {ui.onAllNodesWithText("Website").fetchSemanticsNodes().isEmpty()}
         ui.onNodeWithTag("Library scope events").performClick()

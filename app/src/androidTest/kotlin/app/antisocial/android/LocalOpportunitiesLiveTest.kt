@@ -67,7 +67,7 @@ class LocalOpportunitiesLiveTest {
     }
     @Test fun familyCalendarBecomesExplicitNativeEventFieldsWithoutScriptsOrAI():Unit=runBlocking {
         check("family") {_,backend->
-            val area=LocalArea("public-melbourne-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+            val area=LocalLiveInput.area()
             val query=LocalDiscoveryQuery(area,mode=LocalSearchMode.EVENTS,window=LocalEventWindow.MONTH)
             val listing=withTimeout(40_000){backend.read(LocalPublisherSource("https://fun4spacecoastkids.com/calendar/"),query,null)}
             val offered=listing.sources.filter {it.url.contains("/calendar/eventdetail/")}.take(3)
@@ -81,15 +81,16 @@ class LocalOpportunitiesLiveTest {
     }
     @Test fun exactNeighboringTownAddressResolvesThroughTorAndReusesItsCoordinateCache():Unit=runBlocking {
         check("venue") {repo,backend->
-            val area=LocalArea("public-melbourne-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+            val area=LocalLiveInput.area()
             val query=LocalDiscoveryQuery(area,mode=LocalSearchMode.EVENTS)
             // An explicit public-library address tests geocoding mechanics;
             // this fixture is not represented as a real event announcement.
-            val fixture=LocalEvent("fixture-library-venue","Library venue fixture",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),venue="Satellite Beach Library",address="751 Jamaica Boulevard, Satellite Beach, FL 32937")
+            val fixture=LocalEvent("fixture-library-venue","Library venue fixture",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),venue=LocalLiveInput.text("antisocialVenueName",300),address=LocalLiveInput.text("antisocialVenueAddress"))
+            val expectedLocality=LocalLiveInput.text("antisocialVenueLocality",200)
             val resolved=withTimeout(90_000){backend.venue(query,fixture)}
             Assert.assertNotNull("The exact public library street address should resolve",resolved)
             Assert.assertTrue(LocalDiscoveryFilter.geographic(area,resolved!!))
-            Assert.assertEquals("Satellite Beach",resolved.locality)
+            Assert.assertEquals(expectedLocality,resolved.locality)
             val requests=repo.gateway.protectionStats().checked
             val cached=backend.venue(query,fixture)
             Assert.assertEquals(resolved.point,cached?.point)

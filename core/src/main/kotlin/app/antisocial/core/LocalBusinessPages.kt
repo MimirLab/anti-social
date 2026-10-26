@@ -19,7 +19,7 @@ object LocalBusinessPages {
         val article=page.selectFirst("meta[property=og:type]")?.attr("content")=="article"
         if(label.isBlank()||article||Regex("^(?:best|top)\\b.+\\b(?:in|near)\\b|top \\d+|reviews|my honest take|after visiting|tripadvisor|yelp",RegexOption.IGNORE_CASE).containsMatchIn(label))return LocalExtraction(sources=leads)
         // An explicit contact block or published US postal address is required.
-        // Search snippets and prose such as "serving Melbourne" are not locations.
+        // Search snippets and prose such as "serving Example City" are not locations.
         val cards=page.select(".h-card,.vcard").take(8).mapNotNull {node->
             val street=node.selectFirst(".p-street-address,.street-address")?.text().orEmpty()
             val locality=node.selectFirst(".p-locality,.locality")?.text().orEmpty()

@@ -705,25 +705,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     /** A server-requested pause is carried to routing without retaining headers.
      * Both delta-seconds and HTTP dates are accepted; cap hostile or mistaken
      * values at one day so an endpoint cannot disable a route indefinitely. */
-    private fun retryAfter(response: Response): Long? {
-        val value=response.header("Retry-After")?.trim()?.takeIf {it.isNotEmpty()&&it.length<=128} ?: return null
-        val day=86_400_000L
-        if(value.all {it in '0'..'9'}) {
-            val significant=value.trimStart('0').ifEmpty {"0"}
-            return (significant.toLongOrNull() ?: return day).coerceAtMost(86_400L)*1000L
-        }
-        val now=System.currentTimeMillis()
-        // RFC 9110 recipients also recognize the two obsolete HTTP-date forms.
-        val patterns=listOf("EEE, dd MMM yyyy HH:mm:ss zzz","EEEE, dd-MMM-yy HH:mm:ss zzz","EEE MMM d HH:mm:ss yyyy")
-        for(pattern in patterns) {
-            val parser=java.text.SimpleDateFormat(pattern,java.util.Locale.US).apply {isLenient=false;timeZone=java.util.TimeZone.getTimeZone("GMT")}
-            val position=java.text.ParsePosition(0)
-            val date=parser.parse(value,position) ?: continue
-            if(position.index!=value.length)continue
-            return (date.time-now).coerceIn(0L,day)
-        }
-        return null
-    }
+    private fun retryAfter(response: Response): Long? = HttpRetryAfter.parse(response.header("Retry-After"))
     suspend fun bytes(url: String, sourceUrl: String=url, maxBytes: Long=16L*1024*1024): ByteArray = mediaPayload(url,sourceUrl,maxBytes).bytes
     /** Retains only credential references, never cookies or arbitrary response headers. */
     suspend fun mediaPayload(url:String,sourceUrl:String=url,maxBytes:Long=16L*1024*1024,type:String="image"):GatewayMediaPayload=withContext(Dispatchers.IO) {

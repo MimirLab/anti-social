@@ -47,12 +47,15 @@ object LocalPlaceSources {
         val shops=if(interest!=null)"nwr$interest[name]$around;"else if(hubs)""else "nwr[shop][name]$around;"
         val amenities=if(hubs)"library|community_centre|arts_centre|theatre|cinema|place_of_worship|marketplace|college|school|social_centre|townhall"else "cafe|restaurant|bar|pub|library|community_centre|arts_centre|theatre|cinema|place_of_worship|marketplace|college|school|social_centre"
         val meaningful=interpretation.terms.filterNot {it.excluded}.flatMap {term->term.words.filterNot {!term.quoted&&it in setOf("near","me","in","at","the","and","for")}}.take(8)
+        val category=if(hubs)emptyList()else interpretation.predicates()
         // Words contain only Unicode letters/numbers. No user punctuation or
         // Overpass syntax can enter this generated expression.
-        val named=if(hubs||meaningful.isEmpty())""else listOf("name","brand","alt_name").joinToString("") {key->"nwr[$key~\"${meaningful.joinToString(".*")}\",i]$around;"}
+        // A recognized category already has typed predicates. Do not also
+        // scan name dictionaries for category words. Quoted/unknown names
+        // have no predicates and retain all three identity routes.
+        val named=if(hubs||meaningful.isEmpty()||category.isNotEmpty())""else listOf("name","brand","alt_name").joinToString("") {key->"nwr[$key~\"${meaningful.joinToString(".*")}\",i]$around;"}
         val others=if(!hubs&&interest!=null)""else if(!hubs&&meaningful.isNotEmpty())""else "nwr[amenity~\"^($amenities)$\"][name]$around;nwr[tourism~\"^(museum|gallery|information|attraction)$\"][name]$around;nwr[leisure~\"^(trampoline_park|sports_centre|fitness_centre|bowling_alley)$\"][name]$around;"
         val selectedShops=if(meaningful.isNotEmpty()&&interest==null)""else shops
-        val category=if(hubs)emptyList()else interpretation.predicates()
         val classified=category.joinToString(""){predicate->"nwr$predicate[name]$around;"}
         // Overpass maxsize is server working RAM, not response size. Keep
         // transfer/storage capped separately at 2 MiB in NetworkGateway.
@@ -94,7 +97,10 @@ object LocalPlaceSources {
     fun overpass(body:String,sourceUrl:String,at:Long):LocalExtraction {
         require(body.length<=2*1024*1024)
         val root=JsonParser.parseString(body).asJsonObject
-        if(root.has("remark"))throw SourceFailure(HealthStatus.UNAVAILABLE,"The place directory reached its query allowance; cached places remain available")
+        if(root.has("remark"))throw SourceFailure(HealthStatus.UNAVAILABLE,"The place directory could not complete this query; cached places remain available").apply {
+            val remark=s(root,"remark").lowercase(Locale.ROOT)
+            if(remark.contains("query timed out")||remark.contains("query run out of memory")||remark.contains("query ran out of memory"))initCause(LocalPlaceQueryAllowance())
+        }
         val entries=root["elements"]?.takeIf(JsonElement::isJsonArray)?.asJsonArray ?: throw SourceFailure(HealthStatus.EMPTY,"The place directory supplied no records")
         val places=entries.take(500).mapNotNull {item->
             val row=item.takeIf(JsonElement::isJsonObject)?.asJsonObject ?: return@mapNotNull null

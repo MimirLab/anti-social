@@ -4,9 +4,9 @@ import org.junit.Test
 import kotlin.test.*
 
 class LocalRestaurantMenusTest {
-    private val b=LocalBusiness("coffee","Example Coffee","CafeOrCoffeeShop",address="12 Main St, Melbourne, FL 32901",locality="Melbourne",websites=listOf("https://examplecoffee.test/"))
+    private val b=LocalBusiness("coffee","Example Coffee","CafeOrCoffeeShop",address="12 Main St, Sampleton, FL 00001",locality="Sampleton",websites=listOf("https://examplecoffee.test/"))
     private val at=1792600000000L
-    private val json="""{"@graph":[{"@type":"Restaurant","name":"Example Coffee","address":{"streetAddress":"12 Main Street","addressLocality":"Melbourne","postalCode":"32901"},"hasMenu":{"@id":"#lunch"}},{"@id":"#lunch","@type":"Menu","name":"Pickup lunch","hasMenuSection":[{"name":"Sandwiches","hasMenuItem":[{"@type":"MenuItem","name":"Mushroom sandwich","description":"Roasted mushrooms","suitableForDiet":"https://schema.org/VegetarianDiet","allergens":["wheat"],"offers":[{"name":"Small","price":"0","priceCurrency":"USD"},{"name":"Large","price":"12.50","priceCurrency":"USD","availability":"https://schema.org/OutOfStock"}]}]}]}]}"""
+    private val json="""{"@graph":[{"@type":"Restaurant","name":"Example Coffee","address":{"streetAddress":"12 Main Street","addressLocality":"Sampleton","postalCode":"00001"},"hasMenu":{"@id":"#lunch"}},{"@id":"#lunch","@type":"Menu","name":"Pickup lunch","hasMenuSection":[{"name":"Sandwiches","hasMenuItem":[{"@type":"MenuItem","name":"Mushroom sandwich","description":"Roasted mushrooms","suitableForDiet":"https://schema.org/VegetarianDiet","allergens":["wheat"],"offers":[{"name":"Small","price":"0","priceCurrency":"USD"},{"name":"Large","price":"12.50","priceCurrency":"USD","availability":"https://schema.org/OutOfStock"}]}]}]}]}"""
     @Test fun schemaReferencesSectionsVariantsAndExplicitAllergensSurviveWithoutGuessing() {
         val menu=LocalMenus.structured(json,"https://examplecoffee.test/menu",at,b).single()
         assertTrue(LocalMenus.valid(menu));assertEquals("Pickup",menu.channel)
@@ -15,11 +15,11 @@ class LocalRestaurantMenusTest {
         assertEquals(listOf("Vegetarian"),dish.dietary);assertEquals(listOf("wheat"),dish.allergens)
     }
     @Test fun identicalChainNameAtAnotherStreetCityOrPostalCodeIsRejected() {
-        for(body in listOf(json.replace("12 Main Street","88 Other Road"),json.replace("Melbourne","Orlando"),json.replace("32901","32801")))
+        for(body in listOf(json.replace("12 Main Street","88 Other Road"),json.replace("Sampleton","Orlando"),json.replace("00001","32801")))
             assertTrue(LocalMenus.structured(body,"https://ordering.test/menu",at,b,true).isEmpty())
         assertTrue(LocalMenus.structured(json.replace("Example Coffee","Different Restaurant"),"https://ordering.test/menu",at,b,true).isEmpty())
-        val area=LocalArea("fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08,-80.60),25,countryCode="US")
-        assertTrue(LocalMenus.structured(json.replace("\"postalCode\":\"32901\"","\"postalCode\":\"32901\",\"addressCountry\":\"AU\""),"https://ordering.test/menu",at,b,true,area=area).isEmpty())
+        val area=LocalArea("fl","Sampleton","Sampleton, Florida, United States",LocalPoint(28.608588,-80.799445),25,countryCode="US")
+        assertTrue(LocalMenus.structured(json.replace("\"postalCode\":\"00001\"","\"postalCode\":\"00001\",\"addressCountry\":\"AU\""),"https://ordering.test/menu",at,b,true,area=area).isEmpty())
     }
     @Test fun standaloneMenuNeedsAnEndorsedLocationRouteAndDoesNotFetchRemoteContexts() {
         val body="""{"@context":"https://malicious.invalid/run","@type":"Menu","hasMenuItem":[{"name":"Tea","offers":{"price":"3.50"}},{"name":"Water"}]}"""
@@ -36,7 +36,7 @@ class LocalRestaurantMenusTest {
         assertEquals("Beef and cheese",menu.items.first().description);assertTrue(menu.partial)
     }
     @Test fun officialPageFindsOnlyOfferedMenuPdfAndOrderingRoutes() {
-        val body="""<title>Example Coffee</title><meta property='og:site_name' content='Example Coffee'><a href='/menu'>Menu</a><a href='https://order.toasttab.com/online/example-melbourne'>Order pickup</a><a href='/checkout'>Order now</a><a href='https://malicious.invalid/'>News</a><iframe src='https://menu.imenupro.com/abc'></iframe><script src='https://analytics.invalid/a.js'></script>"""
+        val body="""<title>Example Coffee</title><meta property='og:site_name' content='Example Coffee'><a href='/menu'>Menu</a><a href='https://order.toasttab.com/online/example-sampleton'>Order pickup</a><a href='/checkout'>Order now</a><a href='https://malicious.invalid/'>News</a><iframe src='https://menu.imenupro.com/abc'></iframe><script src='https://analytics.invalid/a.js'></script>"""
         val data=LocalMenuRouting.discover(body,b.websites.single(),b,emptyList(),at)
         assertEquals(3,data.sources.size);assertTrue(data.sources.all {it.kind==LocalSourceKind.MENU&&it.businessId==b.id&&it.discoveredFrom==b.websites.single()})
         assertFalse(data.sources.any {it.url.contains("malicious")||it.url.contains("checkout")||it.url.contains("analytics")})
@@ -46,7 +46,7 @@ class LocalRestaurantMenusTest {
     @Test fun directoryFooterCannotProvideAMenuWithoutMatchingLocation() {
         val html="<footer><a href='https://directory.test/menu'>Menu</a></footer>"
         assertTrue(LocalMenuRouting.discover(html,"https://directory.test/cafes",b,emptyList(),at).sources.isEmpty())
-        val sibling=b.copy(id="other",address="88 Other Rd, Melbourne",evidence=listOf(LocalDiscoveryIdentity.evidence("address","88 Other Rd, Melbourne",b.websites.single(),at,LocalEvidenceKind.PUBLISHER)))
+        val sibling=b.copy(id="other",address="88 Other Rd, Sampleton",evidence=listOf(LocalDiscoveryIdentity.evidence("address","88 Other Rd, Sampleton",b.websites.single(),at,LocalEvidenceKind.PUBLISHER)))
         assertTrue(LocalMenuRouting.discover(html,b.websites.single(),b,listOf(sibling),at,true).businesses.isEmpty())
     }
     @Test fun supportedPublicHostAdaptersKeepTheExactOfferedTenantAndNoCredentials() {
@@ -111,7 +111,7 @@ class LocalRestaurantMenusTest {
     @Test fun directoryRecommendationsAndUploadToolsCannotBecomeThisRestaurantsMenu() {
         val url="https://www.tripadvisor.com/Restaurant_Review-g34433-d4370432-Reviews-Example_Coffee.html"
         val owner=b.copy(evidence=listOf(LocalDiscoveryIdentity.evidence("address",b.address,url,at,LocalEvidenceKind.DIRECTORY)))
-        val body="""<h1>Example Coffee</h1><p>12 Main St, Melbourne, FL 32901</p><a href='$url/menu'>Restaurant menu</a><a href='/delivery-Melbourne'>Food delivery</a><aside><h2>Other Restaurant</h2><a href='/Restaurant_Review-g34433-d1234567-Reviews-Other.html'>Order online</a></aside><a href='/upload_menu.php?id=4370432'>Update menu</a>"""
+        val body="""<h1>Example Coffee</h1><p>12 Main St, Sampleton, FL 00001</p><a href='$url/menu'>Restaurant menu</a><a href='/delivery-Sampleton'>Food delivery</a><aside><h2>Other Restaurant</h2><a href='/Restaurant_Review-g34433-d1234567-Reviews-Other.html'>Order online</a></aside><a href='/upload_menu.php?id=4370432'>Update menu</a>"""
         val data=LocalMenuRouting.discover(body,url,b,listOf(owner),at)
         assertEquals(listOf("$url/menu"),data.sources.map {it.url})
         val polluted=owner.copy(evidence=owner.evidence+listOf("$url/menu","https://www.tripadvisor.com/Restaurant_Review-g34433-d1234567-Reviews-Other.html","https://www.tripadvisor.com/upload_menu.php?id=4370432").map {LocalDiscoveryIdentity.evidence("branch menu",it,url,at,LocalEvidenceKind.DIRECTORY)})

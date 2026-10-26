@@ -33,27 +33,10 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
     private suspend fun protected() {
         repo.awaitReady();repo.localSearchConnection(true)
         try {withTimeout(60_000){repo.tor.state.first {it.enabled&&it.ready}}}
-        catch(e:TimeoutCancellationException){throw SourceFailure(HealthStatus.UNAVAILABLE,"Waiting for a private search connection. No direct fallback was used.")}
+        catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();throw SourceFailure(HealthStatus.UNAVAILABLE,"Waiting for a private search connection. No direct fallback was used.")}
     }
     override suspend fun areas(text:String):List<LocalArea> {protected();val p=repo.gateway.text(LocalPlaceSources.geocodeUrl(text),maxBytes=256*1024,route=NetworkRoute.TOR);return LocalPlaceSources.areas(p.text)}
-    override suspend fun directory(query:LocalDiscoveryQuery):LocalExtraction {
-        protected()
-        var last:Exception?=null
-        for(endpoint in listOf("https://overpass.private.coffee/api/interpreter","https://overpass-api.de/api/interpreter")) {
-            val key="directory-rest:"+endpoint
-            if(repo.localDiscovery.cache(key)!=null)continue
-            try {
-                val u=LocalPlaceSources.overpassUrl(query.area,endpoint,hubs=query.mode==LocalSearchMode.EVENTS,topic=query.text)
-                val p=withTimeout(24_000){repo.gateway.extractorDocument(u,maxBytes=2L*1024*1024,route=NetworkRoute.TOR,headers=mapOf("Accept" to "application/json","User-Agent" to "AntiSocial/0.35.39 (accountless reader; cached regional discovery)"))}
-                if(p.status==429) {repo.localDiscovery.cache(key,"rate limited",30*60000);throw SourceFailure(HealthStatus.RATE_LIMITED,"The place directory requested a pause")}
-                if(p.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"The place directory is unavailable",httpStatus=p.status)
-                return LocalPlaceSources.overpass(p.text,"https://www.openstreetmap.org",System.currentTimeMillis())
-            }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();last=e;repo.localDiscovery.cache(key,"timed out",15*60000)}
-            catch(e:CancellationException){throw e}
-            catch(e:Exception){if((e as? SourceFailure)?.status==HealthStatus.RATE_LIMITED)throw e;last=e;repo.localDiscovery.cache(key,"unavailable",15*60000)}
-        }
-        throw SourceFailure(HealthStatus.UNAVAILABLE,last?.message ?: "Place directories are resting after an unavailable response; cached discoveries remain available",httpStatus=(last as? SourceFailure)?.httpStatus).also {if(last!=null)it.initCause(last)}
-    }
+    override suspend fun directory(query:LocalDiscoveryQuery):LocalExtraction = repo.localPlaces.directory(query,::protected)
     override suspend fun identities(point:LocalPoint):LocalExtraction {protected();val p=repo.gateway.text(LocalPlaceSources.overtureUrl(point),maxBytes=2L*1024*1024,route=NetworkRoute.TOR);return LocalStructuredData.overture(p.text,p.finalUrl,System.currentTimeMillis())}
     override suspend fun places(query:LocalDiscoveryQuery):LocalExtraction {
         protected()
@@ -515,7 +498,8 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             }
                         }}
                         if(!more)launch {lane("Place directory") {
-                            val key="directory:v4:${area.cacheKey}:${snapshot.mode==LocalSearchMode.EVENTS}:${LocalDiscoveryIdentity.hash(PlaceSearchVocabulary.parse(query.text).fingerprint)}"
+                            val version=if(snapshot.mode==LocalSearchMode.EVENTS)4 else 5
+                            val key="directory:v$version:${area.cacheKey}:${snapshot.mode==LocalSearchMode.EVENTS}:${LocalDiscoveryIdentity.hash(PlaceSearchVocabulary.parse(query.text).fingerprint)}"
                             if(force||store.cache(key)==null){ingest(withTimeout(50_000){backend.directory(query)});store.cache(key,"ok",86400000)}
                             queueRelevant();readSources(3)
                         }}

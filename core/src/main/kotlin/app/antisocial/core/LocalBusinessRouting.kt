@@ -17,7 +17,7 @@ enum class LocalDistanceUnit(val id:String,val symbol:String) {
 }
 
 object LocalBusinessRouting {
-    /** Keep state/country context. A bare Melbourne must never become Melbourne, Australia. */
+    /** Keep state/country context. A shared city name must never silently move to another country. */
     fun queries(query:LocalDiscoveryQuery):List<String> {
         val area=query.area.label.replace(Regex(",?\\s*United States(?: of America)?$",RegexOption.IGNORE_CASE),"").trim()
         val topic=(if(query.mode==LocalSearchMode.EVENTS)LocalDiscoveryFilter.eventQuery(query.text)else LocalDiscoveryFilter.normalizedQuery(query.text)).ifBlank {if(query.mode==LocalSearchMode.EVENTS)"community"else "local businesses"}

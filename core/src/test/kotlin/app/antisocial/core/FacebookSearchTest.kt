@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class FacebookSearchTest {
     private val cleaner=UrlCleaner(JsonParser.parseString("{\"providers\":{}}").asJsonObject)
     private val routes=DarwinRoutes(JsonParser.parseReader(javaClass.getResourceAsStream("/darwin-routes.json")!!.reader()).asJsonObject,cleaner)
-    private val target=routes.search(Platform.FACEBOOK,"melbourne organic food")
+    private val target=routes.search(Platform.FACEBOOK,"sampleton organic food")
     private val source=Source(Platform.FACEBOOK,"facebook-public","https://www.facebook.com",role=SourceRole.ORIGINAL)
     private val permit=object: RequestFilter {override fun check(url: String,sourceUrl: String,type: String)=FilterDecision(false)}
     private fun fixture()=JsonParser.parseReader(javaClass.getResourceAsStream("/facebook-search-results.json")!!.reader()).asJsonObject
@@ -51,7 +51,7 @@ class FacebookSearchTest {
         val pages=FacebookProtocol.directory(payload(directoryFixture().toString()),target,source,routes,"PAGES_TAB")
         assertTrue(pages.posts.isEmpty());assertNull(pages.next);assertNull(pages.profile)
         assertEquals(listOf("Local Growers","Organic Market"),pages.accounts.map {it.name})
-        assertEquals("Community produce\nMelbourne",pages.accounts.first().description)
+        assertEquals("Community produce\nSampleton",pages.accounts.first().description)
         assertEquals("https://images.example/account-100.jpg",pages.accounts.first().avatar)
         assertEquals("https://www.facebook.com/people/Local-Growers/100",pages.accounts.first().target.canonicalUrl)
         assertEquals("https://www.facebook.com/OrganicMarket",pages.accounts.last().target.canonicalUrl)
@@ -182,7 +182,7 @@ class FacebookSearchTest {
           <a href="/mirror/login"><div class="search_card"><div class="search_body"><span>Login wall</span></div></div></a>
           <a href="/mirror/Market/posts/500"><div class="search_card"><div class="search_body"><span>A post is not an account</span></div></div></a>
           <article class="post"><div class="post_name"><b>Post author is not a directory result</b></div></article>
-          <div id="navigation_buttons"><a href="/mirror/search?t=pages&amp;q=melbourne+organic+food&amp;cursor=unused">Next</a></div>
+          <div id="navigation_buttons"><a href="/mirror/search?t=pages&amp;q=sampleton+organic+food&amp;cursor=unused">Next</a></div>
         """.trimIndent()
         MockWebServer().use {server->
             server.start();repeat(2){server.enqueue(MockResponse().setBody(html))}
@@ -198,7 +198,7 @@ class FacebookSearchTest {
             repeat(2){val request=server.takeRequest().requestUrl!!;assertEquals("/mirror/search",request.encodedPath);assertEquals(target.identity,request.queryParameter("q"));assertNull(request.queryParameter("cursor"));categories+=request.queryParameter("t")!!}
             assertEquals(setOf("pages","people"),categories);assertEquals(2,server.requestCount)
             assertThrows(SourceFailure::class.java){FacebookProtocol.phiceDirectory(Payload("<article class=\"post\">Only a post author</article>",selected.root+"/search?t=pages&q=x","text/html",200),target,selected,routes)}
-            assertThrows(IllegalArgumentException::class.java){FacebookProtocol.alternateSearchUrl(selected.root+"/search?t=posts&q=melbourne+organic+food",target,selected,"pages")}
+            assertThrows(IllegalArgumentException::class.java){FacebookProtocol.alternateSearchUrl(selected.root+"/search?t=posts&q=sampleton+organic+food",target,selected,"pages")}
         }
     }
 
@@ -303,7 +303,7 @@ class FacebookSearchTest {
                 assertEquals("SearchCometResultsPaginatedResultsQuery",data["fb_api_req_friendly_name"])
                 assertEquals("25707066605590247",data["doc_id"]);assertEquals("0",data["__user"])
                 val variables=JsonParser.parseString(data.getValue("variables")).asJsonObject
-                assertEquals("melbourne organic food",variables.getAsJsonObject("args")["text"].asString)
+                assertEquals("sampleton organic food",variables.getAsJsonObject("args")["text"].asString)
                 assertEquals("POSTS_TAB",variables.getAsJsonObject("args").getAsJsonObject("experience")["type"].asString)
                 assertEquals(5,variables["count"].asInt);assertFalse(variables["useDefaultActor"].asBoolean)
                 assertFalse(variables.has("id"));assertFalse(variables.has("actorID"))
@@ -341,7 +341,7 @@ class FacebookSearchTest {
         assertEquals(0L,gateway.protectionStats().checked)
     }
 
-    private fun phiceHtml(next: String="/search?t=posts&amp;q=melbourne+organic+food&amp;cursor=more")="""
+    private fun phiceHtml(next: String="/search?t=posts&amp;q=sampleton+organic+food&amp;cursor=more")="""
        <article class="post"><a class="post_link" href="/Market/posts/500"></a><div class="post_name"><b>Market</b></div><div class="post_text">Organic market</div><div class="post_time"><span title="2026-10-16T10:00:00Z"></span></div></article>
        <article class="post"><a class="post_link" href="/Garden/posts/501"></a><div class="post_name"><b>Garden</b></div><div class="post_text">Community garden</div><div class="post_time"><span title="2026-10-17T10:00:00Z"></span></div></article>
        <article class="comment"><a class="comment_link" href="/Market/posts/500?comment_id=9"></a><div class="comment_text">Unrelated nested reply</div></article>
@@ -360,10 +360,10 @@ class FacebookSearchTest {
             assertEquals(setOf("https://www.facebook.com/Market/posts/500","https://www.facebook.com/Garden/posts/501"),first.posts.map {it.canonicalUrl}.toSet())
             assertNotNull(first.next);assertNull(adapter.fetch(target,first.next).next)
             repeat(2){index->val request=server.takeRequest().requestUrl!!
-                assertEquals("/search",request.encodedPath);assertEquals("posts",request.queryParameter("t"));assertEquals("melbourne organic food",request.queryParameter("q"))
+                assertEquals("/search",request.encodedPath);assertEquals("posts",request.queryParameter("t"));assertEquals("sampleton organic food",request.queryParameter("q"))
                 if(index==1)assertEquals("more",request.queryParameter("cursor"))
             }
-            for(url in listOf(selected.root+"/search?t=posts&q=unrelated&cursor=bad",selected.root+"/search?t=profiles&q=melbourne+organic+food&cursor=bad",selected.root+"/search?t=posts&q=melbourne+organic+food&q=other&cursor=bad","https://elsewhere.example/search?t=posts&q=melbourne+organic+food&cursor=bad")) {
+            for(url in listOf(selected.root+"/search?t=posts&q=unrelated&cursor=bad",selected.root+"/search?t=profiles&q=sampleton+organic+food&cursor=bad",selected.root+"/search?t=posts&q=sampleton+organic+food&q=other&cursor=bad","https://elsewhere.example/search?t=posts&q=sampleton+organic+food&cursor=bad")) {
                 assertThrows(IllegalArgumentException::class.java){runBlocking {adapter.fetch(target,FacebookProtocol.cursor(selected,target,"alternate",url))}}
             }
             assertEquals(2,server.requestCount)

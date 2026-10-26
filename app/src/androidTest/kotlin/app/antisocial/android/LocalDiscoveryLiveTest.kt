@@ -46,7 +46,7 @@ class LocalDiscoveryLiveTest {
             repo.prefs.restore(JSONObject(before));repo.applyNetworkSettings();repo.localSearchConnection(false)
         }
     }
-    @Test fun melbourneIdentityGraphOverProtectedProductionTransport()=runBlocking {
+    @Test fun identityGraphOverProtectedProductionTransport()=runBlocking {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialLocalDiscoveryLive")=="true")
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val repo=(context.applicationContext as AntiSocialApplication).repo
@@ -55,8 +55,9 @@ class LocalDiscoveryLiveTest {
         try {
             repo.prefs.originalFallback=true
             val backend=PublicLocalDiscoveryBackend(repo)
-            val areas=withTimeout(120_000){backend.areas("Melbourne")}
-            val area=areas.first {it.countryCode=="AU"}.copy(radiusKm=5)
+            val expected=LocalLiveInput.area();require(!expected.countryCode.isNullOrBlank())
+            val areas=withTimeout(120_000){backend.areas(expected.name)}
+            val area=areas.first {it.countryCode==expected.countryCode}.copy(radiusKm=expected.radiusKm)
             report.add("area",Gson().toJsonTree(area));report.addProperty("torReady",repo.tor.state.value.ready)
             Assert.assertTrue(repo.tor.state.value.ready)
             val identities=withTimeout(90_000){backend.identities(area.point)}
@@ -70,7 +71,6 @@ class LocalDiscoveryLiveTest {
             report.addProperty("nativeCards",native.size);Assert.assertTrue(native.isNotEmpty())
             report.add("sample",Gson().toJsonTree(native.first {it.socials.isNotEmpty()}))
             try {
-                repo.localDiscovery.writableDatabase.delete("cache","id LIKE 'directory-rest:%'",null)
                 val directory=withTimeout(60_000){backend.directory(LocalDiscoveryQuery(area,"organic food"))}
                 report.addProperty("osmPlaces",directory.businesses.size)
             }catch(e:CancellationException){if(e !is TimeoutCancellationException)throw e;report.addProperty("osmUnavailable","Timed out")}

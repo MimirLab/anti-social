@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -23,8 +24,8 @@ import java.io.File
 class LocalDiscoveryTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
-    private val area=LocalArea("fixture-melbourne","Melbourne","Melbourne, Victoria, Australia",LocalPoint(-37.8136,144.9631),5,"Australia/Melbourne")
-    private val place=LocalBusiness("fixture-library","Community Library","library","Books, workshops and a public calendar.","10 Main St, Melbourne","Melbourne",area.point,websites=listOf("https://library.fixture.invalid/"),socials=listOf("https://www.facebook.com/library_fixture","https://www.instagram.com/library_fixture/"),phones=listOf("+61 123"),sourceIds=listOf("fixture-library"),checkedAt=System.currentTimeMillis())
+    private val area=LocalArea("fixture-sampleton","Sampleton","Sampleton, Victoria, Australia",LocalPoint(-37.8136,144.9631),5,"Australia/Melbourne")
+    private val place=LocalBusiness("fixture-library","Community Library","library","Books, workshops and a public calendar.","10 Main St, Sampleton","Sampleton",area.point,websites=listOf("https://library.fixture.invalid/"),socials=listOf("https://www.facebook.com/library_fixture","https://www.instagram.com/library_fixture/"),phones=listOf("+61 123"),sourceIds=listOf("fixture-library"),checkedAt=System.currentTimeMillis())
     private val firstDeckArea=LocalArea("fixture-first-deck","Example City","Example City, Test Region",LocalPoint(10.0,20.0),5,"UTC",countryCode="ZZ")
     private lateinit var preferences:String
     private lateinit var backend:LocalDiscoveryBackend
@@ -50,6 +51,19 @@ class LocalDiscoveryTest {
         val dir=File(ui.activity.getExternalFilesDir("validation"),"local-discovery").apply {mkdirs()}
         File(dir,"$name.png").outputStream().use {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
     }
+    @Test fun knownDirectoryPausesDoNotStartOrWaitForPrivateTransport()=runBlocking {
+        repo.prefs.tor=false;repo.prefs.originalFallback=false;repo.prefs.searchProvider=SearchProvider.DARWIN
+        repo.localSearchConnection(false);repo.applyNetworkSettings()
+        withTimeout(5000){repo.tor.state.first {!it.enabled}}
+        listOf("https://overpass.private.coffee/api/interpreter","https://overpass-api.de/api/interpreter").forEach {
+            repo.localDiscovery.cache("directory-rest:"+it,"rate limited",60_000)
+        }
+        try {
+            try {withTimeout(2000){PublicLocalDiscoveryBackend(repo).directory(LocalDiscoveryQuery(firstDeckArea,"workshop"))};fail("Paused directories must report their known state")}
+            catch(_:SourceFailure){}
+            assertFalse("Known pauses must not enable transport",repo.tor.state.value.enabled)
+        }finally {repo.localSearchConnection(false)}
+    }
     @Test fun nativeSearchConnectsBusinessesToSocialAccountsAndDisplaysDatedEvents() {
         val session=LocalEvent("fixture-event","Puppet storytime",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),description="A family puppet workshop with practical activities.",venue=place.name,address=place.address,locality=area.name,point=area.point,urls=listOf("https://library.fixture.invalid/events/puppets"),price="Free",checkedAt=System.currentTimeMillis())
         ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend {
@@ -68,7 +82,7 @@ class LocalDiscoveryTest {
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         ui.waitUntil(5000){ui.onAllNodesWithText("Website").fetchSemanticsNodes().isEmpty()}
         ui.onNodeWithTag("Search mode EVENTS").performClick();ui.waitUntil {model.localSearch.state.value.events.any {it.id==session.id}}
-        ui.onNodeWithText("Puppet storytime").assertIsDisplayed();ui.onNodeWithText("Community Library · Melbourne · Free").assertIsDisplayed();evidence("events")
+        ui.onNodeWithText("Puppet storytime").assertIsDisplayed();ui.onNodeWithText("Community Library · Sampleton · Free").assertIsDisplayed();evidence("events")
         ui.onNodeWithContentDescription("Save Puppet storytime").performClick();ui.waitUntil {session.id in model.localSearch.state.value.saved}
         ui.onNodeWithContentDescription("Library",useUnmergedTree=true).performClick();ui.onNodeWithTag("Library scope events").performClick();ui.waitUntil {ui.onAllNodesWithTag("Event ${session.id}").fetchSemanticsNodes().isNotEmpty()};ui.onNodeWithText("Puppet storytime").assertIsDisplayed()
     }
@@ -87,7 +101,7 @@ class LocalDiscoveryTest {
                 calls.computeIfAbsent(source.url){java.util.concurrent.atomic.AtomicInteger()}.incrementAndGet()
                 if(source.kind!=LocalSourceKind.SOCIAL)return LocalExtraction(validEmpty=true)
                 first.complete(Unit);release.await()
-                val profile=Profile(repo.routes.recognize(source.url)!!,social.name,"Melbourne\nHours: Monday - Friday 9am - 5pm\nEmail: hello@library.fixture.invalid",links=listOf("https://www.instagram.com/library_fixture/"),displayNameSupplied=true)
+                val profile=Profile(repo.routes.recognize(source.url)!!,social.name,"Sampleton\nHours: Monday - Friday 9am - 5pm\nEmail: hello@library.fixture.invalid",links=listOf("https://www.instagram.com/library_fixture/"),displayNameSupplied=true)
                 return LocalBusinessSocial.profile(business!!,profile,repo.routes,System.currentTimeMillis())
             }
         }}
@@ -116,14 +130,14 @@ class LocalDiscoveryTest {
                 calls+=source.url
                 return when(source.url) {
                     unknown->LocalExtraction(sources=listOf(LocalPublisherSource(website,label="Community Library",discoveredFrom=unknown)))
-                    website->LocalExtraction(businesses=listOf(place.copy(socials=emptyList(),websites=listOf(website),phones=listOf("3212598005"),checkedAt=System.currentTimeMillis())))
+                    website->LocalExtraction(businesses=listOf(place.copy(socials=emptyList(),websites=listOf(website),phones=listOf("2025550101"),checkedAt=System.currentTimeMillis())))
                     else->LocalExtraction(validEmpty=true)
                 }
             }
         };model.localSearch.search(force=true)}
         show();ui.waitUntil(15_000){!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching}
         assertTrue("Social source was not read: $calls",calls.contains(unknown));assertTrue("Offered website was not read: $calls",calls.contains(website))
-        assertEquals(listOf("3212598005"),model.localSearch.state.value.businesses.single().phones)
+        assertEquals(listOf("2025550101"),model.localSearch.state.value.businesses.single().phones)
     }
     @Test fun savedSnapshotSurvivesExpiryAndOrdinaryDirectoryCorrections()=runBlocking {
         var clock=System.currentTimeMillis();val dbName="local-fixture-${System.nanoTime()}.db"
@@ -189,7 +203,7 @@ class LocalDiscoveryTest {
     }
     @Test fun productionCalendarParserRunsNativelyOnAndroid() {
         val date=area.today().plusDays(1).toString().replace("-", "")
-        val body="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:android-calendar\r\nSUMMARY:Workshop\r\nDTSTART;VALUE=DATE:$date\r\nRRULE:FREQ=DAILY;COUNT=2\r\nLOCATION:Melbourne\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        val body="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:android-calendar\r\nSUMMARY:Workshop\r\nDTSTART;VALUE=DATE:$date\r\nRRULE:FREQ=DAILY;COUNT=2\r\nLOCATION:Sampleton\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
         val events=LocalCalendars.parse(body,"https://calendar.fixture.invalid/public.ics",System.currentTimeMillis(),area).events
         assertEquals(2,events.size);assertTrue(events.all {it.start.allDay});assertNotEquals(events[0].id,events[1].id)
     }
@@ -223,7 +237,7 @@ class LocalDiscoveryTest {
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
     }
     @Test fun unavailableAccountsStayOutOfCardsAndContactActionsUseDialAndEmail() {
-        val value=place.copy(id="fixture-contact",phones=listOf("+1 (321) 254-2211"),emails=listOf("hello@library.fixture.invalid"),socials=listOf("https://www.facebook.com/fixtureLiveBusiness","https://www.facebook.com/fixtureDeadBusiness"))
+        val value=place.copy(id="fixture-contact",phones=listOf("+1 (202) 555-0100"),emails=listOf("hello@library.fixture.invalid"),socials=listOf("https://www.facebook.com/fixtureLiveBusiness","https://www.facebook.com/fixtureDeadBusiness"))
         ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(businesses=listOf(value))){!it.contains("Dead")};model.localSearch.search(force=true)}
         show();ui.waitUntil(10000){!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching&&model.localSearch.state.value.businesses.any {it.id==value.id}}
         assertEquals(listOf(value.socials.first()),model.localSearch.state.value.businesses.first {it.id==value.id}.socials)
@@ -235,14 +249,14 @@ class LocalDiscoveryTest {
         }}
         instrumentation.addMonitor(monitor)
         try {
-            ui.onNodeWithText("+1 (321) 254-2211").performClick();ui.waitUntil {intent.get()!=null};assertEquals(android.content.Intent.ACTION_DIAL,intent.get().action);assertEquals("tel:+13212542211",intent.get().dataString)
+            ui.onNodeWithText("+1 (202) 555-0100").performClick();ui.waitUntil {intent.get()!=null};assertEquals(android.content.Intent.ACTION_DIAL,intent.get().action);assertEquals("tel:+12025550100",intent.get().dataString)
             intent.set(null);ui.onNodeWithText("hello@library.fixture.invalid").performClick();ui.waitUntil {intent.get()!=null};assertEquals(android.content.Intent.ACTION_SENDTO,intent.get().action);assertEquals("mailto:hello@library.fixture.invalid",intent.get().dataString)
         }finally {instrumentation.removeMonitor(monitor)}
     }
     @Test fun legacyDuplicatesAreReconciledWithoutRewritingASavedCopy():Unit=runBlocking {
         val name="business-merge-${System.nanoTime()}.db";val store=LocalDiscoveryStore(ui.activity,databaseName=name)
-        val a=place.copy(id="fixture-old-a",name="Burger Inn",address="1819 N Harbor City Blvd, Melbourne",point=null,locality="Melbourne")
-        val b=a.copy(id="fixture-old-b",name="The Burger Inn",address="1819 North Harbor City Boulevard, Melbourne, FL",socials=listOf("https://www.instagram.com/burger/"))
+        val a=place.copy(id="fixture-old-a",name="Acorn Diner",address="1819 N Example Park Blvd, Sampleton",point=null,locality="Sampleton")
+        val b=a.copy(id="fixture-old-b",name="The Acorn Diner",address="1819 North Example Park Boulevard, Sampleton, FL",socials=listOf("https://www.instagram.com/burger/"))
         try {withContext(Dispatchers.IO) {
             store.save(a)
             for(p in listOf(a,b))store.writableDatabase.insertOrThrow("records",null,android.content.ContentValues().apply {put("id",p.id);put("kind","business");put("payload",com.google.gson.Gson().toJson(p));put("checked",System.currentTimeMillis());put("expires",System.currentTimeMillis()+86400000)})
@@ -253,9 +267,9 @@ class LocalDiscoveryTest {
     @Test fun escapedCalendarDuplicatesReconcileLocallyWithoutRenewingOrRewritingSavedCopies():Unit=runBlocking {
         val name="event-merge-${System.nanoTime()}.db";val store=LocalDiscoveryStore(ui.activity,databaseName=name)
         val now=System.currentTimeMillis();val link="https://events.fixture.invalid/event/trick-or-treat/"
-        val a=LocalEvent("fixture-event-old","Downtown Melbourne Trick or Treat",LocalEventTime("2026-10-24T11:00-03:00"),venue="Downtown Melbourne, E New Haven Avenue, Melbourne",locality="Melbourne",urls=listOf(link),sourceIds=listOf("calendar-one"),checkedAt=now-100,
+        val a=LocalEvent("fixture-event-old","Downtown Sampleton Trick or Treat",LocalEventTime("2026-10-24T11:00-03:00"),venue="Downtown Sampleton, E Garden Avenue, Sampleton",locality="Sampleton",urls=listOf(link),sourceIds=listOf("calendar-one"),checkedAt=now-100,
             evidence=listOf(LocalDiscoveryIdentity.evidence("start","2026-10-24T11:00-03:00",link,now-100,LocalEvidenceKind.CALENDAR)))
-        val b=a.copy(id="fixture-event-web",start=LocalEventTime("2026-10-24T11:00-04:00"),venue="Downtown Melbourne",sourceIds=listOf("web-one"),checkedAt=now,price="Free")
+        val b=a.copy(id="fixture-event-web",start=LocalEventTime("2026-10-24T11:00-04:00"),venue="Downtown Sampleton",sourceIds=listOf("web-one"),checkedAt=now,price="Free")
         try {withContext(Dispatchers.IO) {
             store.save(a)
             for(e in listOf(a,b))store.writableDatabase.insertOrThrow("records",null,android.content.ContentValues().apply {put("id",e.id);put("kind","event");put("payload",com.google.gson.Gson().toJson(e));put("checked",e.checkedAt);put("expires",now+60000)})
@@ -294,7 +308,7 @@ class LocalDiscoveryTest {
     }
     @Test fun openEventDetailsFollowTheFreshestRecordWithoutReopeningTheSheet() {
         val at=System.currentTimeMillis()
-        val event=LocalEvent("fixture-live-event","Neighborhood workshop",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),venue="Community Library",locality="Melbourne",price="$12",sourceIds=listOf("fixture-occurrence"),checkedAt=at)
+        val event=LocalEvent("fixture-live-event","Neighborhood workshop",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),venue="Community Library",locality="Sampleton",price="$12",sourceIds=listOf("fixture-occurrence"),checkedAt=at)
         runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(events=listOf(event)),area)}
         ui.runOnIdle {model.localSearch.mode(LocalSearchMode.EVENTS)};show()
         ui.waitUntil {model.localSearch.state.value.events.any {it.id==event.id}}
@@ -320,7 +334,7 @@ class LocalDiscoveryTest {
     @Test fun readyCardQuietlyReceivesVisitDetailsAndItsSavedCopyRetainsThem() {
         val deliver=CompletableDeferred<Unit>()
         val menu="https://library.fixture.invalid/menu"
-        val enriched=place.copy(phones=listOf("3212598005"),checkedAt=place.checkedAt+1000,evidence=listOf(LocalDiscoveryIdentity.evidence("menu",menu,place.websites.first(),place.checkedAt+1000,LocalEvidenceKind.PUBLISHER)))
+        val enriched=place.copy(phones=listOf("2025550101"),checkedAt=place.checkedAt+1000,evidence=listOf(LocalDiscoveryIdentity.evidence("menu",menu,place.websites.first(),place.checkedAt+1000,LocalEvidenceKind.PUBLISHER)))
         ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(place))) {
             override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){deliver.await();onData(LocalExtraction(businesses=listOf(enriched)))}
         };model.localSearch.search(force=true)}
@@ -337,7 +351,7 @@ class LocalDiscoveryTest {
     @Test fun laterCloserBusinessesAppendWithoutMovingTheCardAlreadyBeingRead() {
         val deliver=CompletableDeferred<Unit>()
         val first=place.copy(point=LocalPoint(-37.83,144.96))
-        val later=place.copy(id="fixture-near",name="Neighbourhood Library",address="20 Main St, Melbourne",sourceIds=listOf("fixture-near"))
+        val later=place.copy(id="fixture-near",name="Neighbourhood Library",address="20 Main St, Sampleton",sourceIds=listOf("fixture-near"))
         ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(first))) {
             override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){deliver.await();onData(LocalExtraction(businesses=listOf(later)))}
         };model.localSearch.search(force=true)}
@@ -349,7 +363,7 @@ class LocalDiscoveryTest {
     }
     @Test fun changingTheQueryRejectsEvenALateUncooperativeEnrichmentCallback() {
         val started=CompletableDeferred<Unit>();val deliver=CompletableDeferred<Unit>();val finished=CompletableDeferred<Unit>()
-        val late=place.copy(id="fixture-late",name="Late unrelated result",address="99 Side St, Melbourne",point=LocalPoint(-37.84,144.97),sourceIds=listOf("fixture-late"))
+        val late=place.copy(id="fixture-late",name="Late unrelated result",address="99 Side St, Sampleton",point=LocalPoint(-37.84,144.97),sourceIds=listOf("fixture-late"))
         ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(place))) {
             override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){started.complete(Unit);withContext(NonCancellable){deliver.await();try {onData(LocalExtraction(businesses=listOf(late)))}finally {finished.complete(Unit)}}}
         };model.localSearch.search(force=true)}
@@ -396,8 +410,8 @@ class LocalDiscoveryTest {
         assertTrue(model.localSearch.state.value.coverage.none {it.contains("unavailable")||it.contains("No readable")})
     }
     @Test fun regionalEventsArriveBeforeSlowDiscoveryAndForeignRoutesAreNeverRead() {
-        val local=LocalArea("fixture-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
-        val session=LocalEvent("fixture-regional-event","Nearby repair workshop",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),venue="Community workshop",locality="Satellite Beach",point=LocalPoint(28.175,-80.602),sourceIds=listOf("fixture-regional-event"))
+        val local=LocalArea("fixture-fl","Sampleton","Sampleton, Florida, United States",LocalPoint(28.612218,-80.807555),25,"America/New_York",countryCode="US")
+        val session=LocalEvent("fixture-regional-event","Nearby repair workshop",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),venue="Community workshop",locality="Bayview",point=LocalPoint(28.703588,-80.801445),sourceIds=listOf("fixture-regional-event"))
         val seen=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         runBlocking(Dispatchers.IO){repo.localDiscovery.offerSource(local,LocalPublisherSource("https://api.hel.fi/linkedevents/v1/event/",LocalSourceKind.LINKED_EVENTS))}
         ui.runOnIdle {model.localSearch.area(local);model.localSearch.mode(LocalSearchMode.EVENTS);model.localSearch.backend=object:LocalDiscoveryBackend {
@@ -417,27 +431,27 @@ class LocalDiscoveryTest {
         ui.runOnIdle {model.localSearch.stop()}
     }
     @Test fun neighboringTownAddressesUseAtMostTwoVenueLookupsPerSearch() {
-        val local=LocalArea("fixture-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+        val local=LocalArea("fixture-fl","Sampleton","Sampleton, Florida, United States",LocalPoint(28.612218,-80.807555),25,"America/New_York",countryCode="US")
         val count=java.util.concurrent.atomic.AtomicInteger()
-        val rows=(0..3).map {i->LocalEvent("fixture-venue-$i","Workshop $i",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),venue="Workshop",address="${750+i} Jamaica Blvd, Satellite Beach, FL 32937",sourceIds=listOf("fixture-venue-$i"))}
+        val rows=(0..3).map {i->LocalEvent("fixture-venue-$i","Workshop $i",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),venue="Workshop",address="${750+i} Example Blvd, Bayview, FL 00037",sourceIds=listOf("fixture-venue-$i"))}
         ui.runOnIdle {model.localSearch.area(local);model.localSearch.mode(LocalSearchMode.EVENTS);model.localSearch.backend=object:LocalDiscoveryBackend {
             override suspend fun areas(text:String)=emptyList<LocalArea>()
             override suspend fun directory(query:LocalDiscoveryQuery)=LocalExtraction()
             override suspend fun identities(point:LocalPoint)=LocalExtraction()
             override suspend fun discover(query:LocalDiscoveryQuery)=emptyList<LocalWebHit>()
             override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?)=LocalExtraction(events=if(source.url.contains("fun4spacecoastkids"))rows else emptyList(),validEmpty=true)
-            override suspend fun venue(query:LocalDiscoveryQuery,event:LocalEvent):LocalEvent {count.incrementAndGet();return event.copy(point=LocalPoint(28.175,-80.602),locality="Satellite Beach")}
+            override suspend fun venue(query:LocalDiscoveryQuery,event:LocalEvent):LocalEvent {count.incrementAndGet();return event.copy(point=LocalPoint(28.703588,-80.801445),locality="Bayview")}
         };model.localSearch.search(force=true)}
         ui.waitUntil(10000){!model.localSearch.state.value.loading&&!model.localSearch.state.value.enriching}
         assertEquals(2,count.get());assertEquals(2,model.localSearch.state.value.events.size)
     }
     @Test fun geographicAdmissionKeepsDistantEventsOutButRetainsAKnownEventsMoveAndSavedCopy():Unit=runBlocking {
-        val local=LocalArea("fixture-fl","Melbourne","Melbourne, Florida, United States",LocalPoint(28.08363,-80.60811),25,"America/New_York",countryCode="US")
+        val local=LocalArea("fixture-fl","Sampleton","Sampleton, Florida, United States",LocalPoint(28.612218,-80.807555),25,"America/New_York",countryCode="US")
         val name="opportunity-geo-${System.nanoTime()}.db";val store=LocalDiscoveryStore(ui.activity,databaseName=name)
         val session=LocalEvent("fixture-known","Workshop",LocalEventTime(local.today().plusDays(1).toString(),allDay=true),point=local.point,sourceIds=listOf("fixture-known"),checkedAt=1000)
         try {withContext(Dispatchers.IO) {
             val far=session.copy(id="fixture-far",point=LocalPoint(60.17,24.94),sourceIds=listOf("fixture-far"))
-            val foreign=session.copy(id="fixture-foreign",point=null,locality="Melbourne",address="Melbourne, Victoria, Australia",sourceIds=listOf("fixture-foreign"))
+            val foreign=session.copy(id="fixture-foreign",point=null,locality="Sampleton",address="Sampleton, Victoria, Australia",sourceIds=listOf("fixture-foreign"))
             assertEquals(1,store.ingest(LocalExtraction(events=listOf(session,far,foreign)),local).second)
             store.save(session)
             store.ingest(LocalExtraction(events=listOf(session.copy(point=far.point,checkedAt=2000,modifiedAt=2000))),local)
@@ -543,8 +557,8 @@ class LocalDiscoveryTest {
 
     @Test fun chainLocationsShareOneCardAndKeepTheirOwnContactDetails() {
         ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
-        val first=place.copy(id="fixture-chain-one",name="Northstar Coffee - Downtown",address="10 Main St, Melbourne",websites=listOf("https://northstarcoffee.fixture.invalid/locations/downtown"),socials=emptyList(),phones=listOf("+13215550101"),sourceIds=listOf("fixture-chain-one"))
-        val second=first.copy(id="fixture-chain-two",name="Northstar Coffee - Riverside",address="20 River Rd, Melbourne",phones=listOf("+13215550102"),sourceIds=listOf("fixture-chain-two"),point=LocalPoint(area.point.latitude+.002,area.point.longitude))
+        val first=place.copy(id="fixture-chain-one",name="Northstar Coffee - Downtown",address="10 Main St, Sampleton",websites=listOf("https://northstarcoffee.fixture.invalid/locations/downtown"),socials=emptyList(),phones=listOf("+12025550103"),sourceIds=listOf("fixture-chain-one"))
+        val second=first.copy(id="fixture-chain-two",name="Northstar Coffee - Riverside",address="20 River Rd, Sampleton",phones=listOf("+12025550104"),sourceIds=listOf("fixture-chain-two"),point=LocalPoint(area.point.latitude+.002,area.point.longitude))
         runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(first,second)),area)}
         show();ui.waitUntil {model.localSearch.state.value.businesses.size==2}
         ui.onNodeWithText("2 nearby locations").assertIsDisplayed()

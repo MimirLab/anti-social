@@ -182,14 +182,14 @@ class SearchDiscoveryUiTest {
     }
     @Test fun facebookKeepsPageNamesAndAuthenticAddressesWithoutInventingNumericHandles() {
         val accounts=listOf(
-            profile(Platform.FACEBOOK,"https://www.facebook.com/10000$suffix","Melbourne Organic Growers"),
+            profile(Platform.FACEBOOK,"https://www.facebook.com/10000$suffix","Sampleton Organic Growers"),
             profile(Platform.FACEBOOK,"https://www.facebook.com/nativefirst$suffix","First local page"),
             profile(Platform.FACEBOOK,"https://www.facebook.com/nativelast$suffix","Last local page"),
         )
         val item=post(Platform.FACEBOOK,1)
         val vm=show(Platform.FACEBOOK,accounts,initialPosts=listOf(item))
         ui.onNodeWithText("Pages & people").assertIsDisplayed()
-        ui.onNodeWithText("Melbourne Organic Growers").assertIsDisplayed()
+        ui.onNodeWithText("Sampleton Organic Growers").assertIsDisplayed()
         ui.onNodeWithText("facebook.com/10000$suffix").assertIsDisplayed()
         ui.onNodeWithText("@10000$suffix").assertDoesNotExist()
         ui.onNodeWithTag("Search feed").performScrollToNode(hasText(item.body));ui.onNodeWithText(item.body).assertIsDisplayed()

@@ -513,7 +513,7 @@ GPL/source notices are preserved.
 
 The installed **0.26.1/code 37** native preview returned **16 genuine page/person
 records and 11 public posts**, with no index-snippet cards, for
-`melbourne organic food`. The shelf and horizontal swipes were inspected on the
+a regional organic-food query. The shelf and horizontal swipes were inspected on the
 native screen. This is a point-in-time observation; results and ranking can
 change. The release passes 905 core and 79 Android tests; build, lint, retained
 state and source limits are recorded in [VALIDATION.md](../VALIDATION.md).
@@ -526,7 +526,7 @@ query and search operation. Public Phice search is an alternate path; its next
 links also retain the selected query and post-search scope. This is an
 independently implemented reader informed by [Phice's public protocol research](https://github.com/Willie169/phice),
 with no social account, account token or paid API key. The installed native app
-returned 12 newly fetched public posts for `melbourne organic food`, with no
+returned 12 newly fetched public posts for a regional organic-food query, with no
 profile or index-snippet cards; the first post was observed by 5,092 ms in one
 normal UI run. This sampled upper bound is not a benchmark or a coverage
 guarantee. A separate host probe returned six posts. Protocols and anonymous

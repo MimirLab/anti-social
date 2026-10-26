@@ -23,8 +23,8 @@ class LocalAnnouncementTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
     private val model get()=ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java]
-    private val area=LocalArea("fixture-local","Melbourne","Melbourne, Florida, US",LocalPoint(28.08,-80.60),25,"America/New_York",countryCode="US")
-    private val owner=LocalBusiness("fixture-library","Town Library","library",address="123 Main St, Melbourne, FL",locality="Melbourne",point=area.point)
+    private val area=LocalArea("fixture-local","Sampleton","Sampleton, Florida, US",LocalPoint(28.608588,-80.799445),25,"America/New_York",countryCode="US")
+    private val owner=LocalBusiness("fixture-library","Town Library","library",address="123 Main St, Sampleton, FL",locality="Sampleton",point=area.point)
     private lateinit var prefs:String
     private lateinit var backend:LocalDiscoveryBackend
     @Before fun isolate() {
