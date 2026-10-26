@@ -15,6 +15,11 @@ class DarwinRoutes(data: JsonObject, private val cleaner: UrlCleaner) {
     val searchJsonApis:Set<String> = data.getAsJsonArray("searchSources")?.mapNotNull {n->val o=n.asJsonObject
         o["root"]?.asString?.trimEnd('/')?.takeIf {o["frontend"]?.asString=="librey"&&o["jsonApi"]?.asBoolean==true}
     }?.toSet().orEmpty()
+    /** Link-only protocols have their own bank. Qualification for publisher
+     * links does not imply support for native social search or its cursors. */
+    val publisherSearchSources:List<Source> = (searchSources+data.getAsJsonArray("publisherSearchSources")?.map {n->val o=n.asJsonObject
+        Source(Platform.X,o["frontend"].asString,o["root"].asString,fallbackOnly=true)
+    }.orEmpty()).filter {it.frontend in setOf("librey","4get")}.distinctBy {it.frontend to it.root.trimEnd('/')}.take(64)
     private val sourceRoots=java.util.concurrent.ConcurrentHashMap(sources.filterNot {it.frontend=="piped"}.map {it to URI(it.root)}.groupBy {it.second.host.lowercase(java.util.Locale.ROOT)})
     /** Only already implemented web frontends are reversible social links.
      * Shared API/feed renderers must never become aliases for their first platform. */

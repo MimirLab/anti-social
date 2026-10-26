@@ -628,8 +628,14 @@ class LocalDiscoveryTest {
     }
 
     @Test fun nativeBusinessAndEventDecksUseTheResponsiveStructuredIndexMirror() {
+        nativeIndexDecks(false)
+    }
+    @Test fun nativeBusinessAndEventDecksCanUseAnIndependentPublisherProtocol() {
+        nativeIndexDecks(true)
+    }
+    private fun nativeIndexDecks(fourget:Boolean) {
         val document="""<script type="application/ld+json">[{"@type":"LocalBusiness","@id":"https://publisher.fixture.invalid/","name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}},{"@type":"Event","name":"Radio workshop","startDate":"${firstDeckArea.today().plusDays(1)}","location":{"name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}}}]</script>"""
-        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document).use {f->
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document,fourget).use {f->
             runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}
             ui.runOnIdle {
                 model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
@@ -647,8 +653,8 @@ class LocalDiscoveryTest {
                 ui.waitUntil(6000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.name=="Community workshop"}else model.localSearch.state.value.events.any {it.title=="Radio workshop"}}
                 val title=if(mode==LocalSearchMode.BUSINESSES)"Community workshop"else "Radio workshop"
                 ui.onNodeWithText(title).assertIsDisplayed();assertEquals(1L,f.release.count)
-                assertTrue(f.requests.any {it.startsWith("quick-index.fixture.invalid/api.php?")});assertTrue(f.requests.any {it.startsWith("publisher.fixture.invalid/")})
-                evidence("structured-index-${mode.name.lowercase()}")
+                assertTrue(f.requests.any {it.startsWith("quick-index.fixture.invalid/"+if(fourget)"api/v1/web?"else "api.php?")});assertTrue(f.requests.any {it.startsWith("publisher.fixture.invalid/")})
+                evidence("${if(fourget)"independent"else "structured"}-index-${mode.name.lowercase()}")
             }finally {ui.runOnIdle {model.localSearch.stop()};runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}}
         }
     }

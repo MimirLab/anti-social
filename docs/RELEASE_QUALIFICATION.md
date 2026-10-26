@@ -9,6 +9,45 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.37 independent publisher-link fallback
+
+The local index router adds a native 4get reader in a separate publisher-link
+bank. Native social-search capabilities and continuations are unchanged. The
+selected provider, Tor/session/origin enforcement and existing three-attempt,
+three-reader limits still apply. An empty or missing LibreY API representation can promote
+its retained HTML candidate ahead of unstarted mirrors within that same budget.
+Explicit authentication, challenge and server-wait refusals do not retry another
+representation. Redirect wrapper decoding now checks provider hostname boundaries.
+
+Research inspected **18 representations across 17 candidate endpoints** through
+Android NetworkGateway/Tor, using generic queries. Nine 4get and eight SearXNG
+roots were considered; only one supplied usable organic links. Other responses
+included authentication/rate/403 refusals, SOCKS failures, challenge HTML and a
+JSON API-disabled error with HTTP 200. No unproductive root was activated. The
+qualified 4get reader checks `status: ok` and bounded `web` rows, ignores answers,
+snippets and single-use pagination tokens, and rejects ambiguous critical fields.
+Protocol documentation and the dated scope are in
+[local discovery routing](LOCAL_DISCOVERY_ROUTING.md#independent-publisher-links-03837).
+
+Final qualification: **2,297 JVM cases**, zero failures/errors, one optional
+model-weight skip; debug/test assembly and Android lint pass. The frozen native
+selection ran **122 methods: 120 passes, two opt-in skips, zero failures**.
+It covers discovery/store, announcements, menus, saved records/Library migration,
+social search/scope, scheduling/privacy and feed windows. Both old and independent
+protocol fixtures produce visible business/event cards while the first mirror is
+held. The actual native synthetic screens were inspected. Existing cancellation,
+source budget, explicit wait and saved-copy checks remain covered.
+
+A separate enabled check through the new production protocol returned ten
+publisher links with Tor ready in **2,763 ms**, using an unrelated regional query.
+This measures that dated index-link delivery only, not completed factual cards,
+phone search latency, battery use or general endpoint availability. Captured
+responses remain in external engineering evidence and are reused during analysis.
+
+No dependency, model, native library, permission, database migration or new setting
+is added. Signing, source/APK correspondence, preview-state retention and the
+permanent download receive the standard release checks.
+
 ## 0.38.36 selected index routes and cancelled search packets
 
 A real Gateway/SOCKS regression held the first index mirror and supplied a readable

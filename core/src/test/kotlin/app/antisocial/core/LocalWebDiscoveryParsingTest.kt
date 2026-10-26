@@ -28,4 +28,22 @@ class LocalWebDiscoveryParsingTest {
         val body="""<form><input type="password"></form><div class="text-result-wrapper"><a href="https://publisher.fixture.invalid/calendar"><h2>Public workshop</h2></a></div>"""
         assertEquals(listOf(LocalWebHit("https://publisher.fixture.invalid/calendar","Public workshop")),LocalWebDiscovery.parse(body,source))
     }
+    @Test fun fourgetOnlyUsesOrganicWebLinksWithAnExplicitSuccessfulStatus() {
+        val body="""{"status":"ok","answer":[{"title":"An answer","url":"https://ignored.fixture.invalid/"}],"web":[{"title":"Community <b>workshop</b>","url":"https://publisher.fixture.invalid/calendar","description":"Unverified hours"},{"title":"Next","url":"https://index.fixture.invalid/api/v1/web?npt=token"}],"npt":"single-use-token","related":["ignore"]}"""
+        assertEquals(listOf(LocalWebHit("https://publisher.fixture.invalid/calendar","Community workshop")),LocalWebDiscovery.parse(body,source,"4get"))
+        assertTrue(LocalWebDiscovery.parse("""{"status":"ok","web":[]}""",source,"4get").isEmpty())
+        assertEquals(HealthStatus.UNAVAILABLE,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse(body.replace("\"ok\"","\"Upstream error\""),source,"4get")}.status)
+        assertEquals(HealthStatus.CHALLENGE,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse("""{"status":"Captcha required"}""",source,"4get")}.status)
+    }
+    @Test fun foreignShapesDuplicateCriticalFieldsAndMissingArraysAreNotFourgetResults() {
+        val row="""{"title":"Workshop","url":"https://publisher.fixture.invalid/"}"""
+        for(body in listOf("[$row]","""{"0":$row}""","""{"status":"ok"}""","""{"web":[$row]}""","""{"status":"error","status":"ok","web":[$row]}""","""{"status":"ok","web":[],"web":[$row]}""","""{"status":"ok","web":[{"title":"A","url":"https://a.fixture.invalid/","url":"https://b.fixture.invalid/"}]}"""))
+            assertEquals(HealthStatus.UNSUPPORTED,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse(body,source,"4get")}.status)
+        assertEquals(HealthStatus.UNSUPPORTED,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse("<div class='text-result-wrapper'><a href='https://publisher.fixture.invalid/'><h2>Workshop</h2></a></div>",source,"4get")}.status)
+    }
+    @Test fun redirectWrappersRequireARealProviderHostnameBoundary() {
+        val fake="https://notduckduckgo.com/?uddg=https%3A%2F%2Fother.fixture.invalid%2F"
+        val bing="https://notbing.com/ck/a?u=https%3A%2F%2Fother.fixture.invalid%2F"
+        for(url in listOf(fake,bing))assertEquals(LocalDiscoveryIdentity.url(url),LocalWebDiscovery.parse("""[{"title":"Publisher","url":"$url"}]""",source).single().url)
+    }
 }

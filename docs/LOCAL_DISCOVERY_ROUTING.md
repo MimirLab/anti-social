@@ -51,6 +51,47 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Independent publisher links (0.38.37)
+
+The local publisher bank now includes one qualified 4get endpoint alongside the
+existing LibreY routes. This is a separate `publisherSearchSources` bank: it does
+not advertise native social-search support or add a new user-selected provider.
+Selecting Bing or DuckDuckGo still uses that provider alone. Regional requests
+remain Tor-only through NetworkGateway, with pinned origins and captured sessions.
+The existing three-read ceiling and three-reader concurrency limit also cover the
+additional protocol. No idle probes or continuous crawl are introduced.
+
+The small native reader uses `/api/v1/web?s=…`, retaining only organic `web`
+destination/title pairs after checking the protocol's explicit `status: ok`.
+HTTP 200, answer panels, snippets and related searches do not establish content
+or facts. Missing/wrong shapes, duplicate critical fields and bounded-structure
+violations are rejected. Continuation tokens are deliberately ignored here: local
+publisher discovery takes one bounded batch, and 4get documents single-use,
+short-lived tokens that cannot safely be treated as reusable page URLs.
+
+If a cheap LibreY API returns no links or lacks its supported representation, its
+retained HTML candidate moves ahead of unstarted mirrors. This preserves the
+server-assisted coverage as the bank grows, spending an ordinary attempt rather
+than adding work. Authentication, challenge and explicit server waits do not
+trigger a representation retry. Endpoint/transport waits cover the new protocol;
+cancelled losers remain absent from failure learning. Redirect wrapper decoding
+also requires a real Bing/DuckDuckGo hostname boundary.
+
+The 2026-10-25/26 Android qualification inspected published candidates once per
+selected representation and cached the responses outside public source. Only
+`4get.canine.tools` supplied usable organic JSON links among the inspected new
+engines. Other observations included a JSON failure under HTTP 200, challenge
+HTML, authentication/rate/403 refusals and SOCKS failures. No SearXNG route was
+activated. A catalog entry or an operator's uptime report is candidate evidence,
+not proof of usable content through the reader's transport. One successful read
+does not guarantee continued availability or regional coverage.
+
+Protocol references: [4get API](https://git.lolcat.ca/lolcat/4get/src/branch/master/api.txt),
+[published instance directory](https://4get.ca/instances), and
+[SearXNG formats and requests](https://docs.searxng.org/dev/search_api.html).
+This is a native protocol implementation; no external engine, scripting runtime,
+model, dependency, permission or service account is bundled.
+
 ### Selected index routing (0.38.36)
 
 Regional publisher discovery and field-directed searches share one local index

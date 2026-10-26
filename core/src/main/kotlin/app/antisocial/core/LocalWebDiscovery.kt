@@ -30,10 +30,10 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
         htmlOnly.remove(source.root);htmlOnly[source.root]=clock()+6*3_600_000L
         while(htmlOnly.size>64)htmlOnly.remove(htmlOnly.keys.first())
     }
-    private data class Trial(val index:Int,val hits:List<LocalWebHit>?=null,val failure:Exception?=null)
+    private data class Trial(val index:Int,val hits:List<LocalWebHit>?=null,val failure:Exception?=null,val htmlFallback:Source?=null)
     private fun sources(provider:SearchProvider,originalFallback:Boolean)=when(provider) {
         SearchProvider.BING,SearchProvider.DUCKDUCKGO->if(originalFallback)listOf(Source(Platform.X,provider.frontend!!,provider.root!!,true,SourceRole.ORIGINAL))else emptyList()
-        SearchProvider.DARWIN->routes.searchSources.filter {it.frontend=="librey"}.distinctBy {it.root.trimEnd('/')}.take(64)
+        SearchProvider.DARWIN->routes.publisherSearchSources
     }
     /** Local scheduling information; checking it sends no probe and does not
      * renew a deadline. Callers can skip a known pause before starting Tor. */
@@ -58,7 +58,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
         pause(provider,originalFallback)?.let {throw it}
         fun address(candidate:Candidate):String {
             val source=candidate.source
-            return source.root.trimEnd('/')+when(source.frontend){"bing-rss"->"/search?format=rss&q=";"duckduckgo"->"/html/?q=";else->if(candidate.api)"/api.php?q="else "/search.php?q="}+DarwinRoutes.encode(query)+
+            return source.root.trimEnd('/')+when(source.frontend){"bing-rss"->"/search?format=rss&q=";"duckduckgo"->"/html/?q=";"4get"->"/api/v1/web?s=";else->if(candidate.api)"/api.php?q="else "/search.php?q="}+DarwinRoutes.encode(query)+
                 if(source.frontend=="librey"){if(candidate.api)"&t=0&nf=1&ns=1&nfb=1"else "&t=0&nf=1&ns=1"}else ""
         }
         fun target(candidate:Candidate)=Target(candidate.source.platform,TargetKind.SEARCH,query,address(candidate))
@@ -67,9 +67,9 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                 .thenBy {learning.score(it,Capability.SEARCH,true)})
         // Cheap structured reads precede a retained HTML/server-assisted path.
         // Both representations spend the SAME three-attempt allowance.
-        val primary=ordered.map {Candidate(it,it.root.trimEnd('/') in routes.searchJsonApis&&!prefersHtml(it))}
-        val available=primary+primary.filter {it.api}.map {it.copy(api=false)}
-        val candidates=available.filter {learning.eligible(it.source,Capability.SEARCH,true,target(it))}
+        val primary=ordered.map {Candidate(it,it.frontend=="4get"||it.root.trimEnd('/') in routes.searchJsonApis&&!prefersHtml(it))}
+        val available=primary+primary.filter {it.api&&it.source.frontend=="librey"}.map {it.copy(api=false)}
+        val candidates=available.filter {learning.eligible(it.source,Capability.SEARCH,true,target(it))}.toMutableList()
         var failure:Exception?=available.firstNotNullOfOrNull {learning.failure(it.source,Capability.SEARCH,true,target(it))}
         if(candidates.isEmpty())throw failure ?: SourceFailure(HealthStatus.EMPTY,"No publisher links were available")
         if(!session.policy.ready||session.policy.socksPort !in 1..65535)throw SourceFailure(HealthStatus.UNAVAILABLE,"Waiting for a private search connection. No direct fallback was used.")
@@ -81,19 +81,19 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
             }
             fun claim():Boolean {while(true){val count=attempts.get();if(count>=3)return false;if(attempts.compareAndSet(count,count+1))return true}}
             fun start() {
-                val index=next++;val candidate=candidates[index];val source=candidate.source
+                val index=next++;val candidate=candidates.removeAt(0);val source=candidate.source
                 latest=index;started=System.nanoTime();hedgeMs=learning.hedgeDelay(source,Capability.SEARCH,true);advance=false
                 running[index]=launch {
                     val result=try {permits.withPermit {
                         current();currentCoroutineContext().ensureActive()
-                        if(candidate.api&&prefersHtml(source)||!learning.eligible(source,Capability.SEARCH,true,target(candidate))||!claim())return@withPermit Trial(index)
+                        if(candidate.api&&source.frontend=="librey"&&prefersHtml(source)||!learning.eligible(source,Capability.SEARCH,true,target(candidate))||!claim())return@withPermit Trial(index)
                         val begin=System.nanoTime()
                         try {
                             val payload=gateway.text(address(candidate),maxBytes=1024*1024,route=NetworkRoute.TOR,allowedOrigins=setOf(source.root),expectedSession=session)
-                            val hits=parse(payload.text,payload.finalUrl)
-                            if(candidate.api&&!json(payload.text)) {
+                            val hits=parse(payload.text,payload.finalUrl,source.frontend)
+                            if(candidate.api&&source.frontend=="librey"&&!json(payload.text)) {
                                 rememberHtml(source)
-                                if(hits.isEmpty())return@withPermit Trial(index,failure=SourceFailure(HealthStatus.UNSUPPORTED,"This index does not offer readable API results; trying its public HTML route"))
+                                if(hits.isEmpty())return@withPermit Trial(index,failure=SourceFailure(HealthStatus.UNSUPPORTED,"This index does not offer readable API results; trying its public HTML route"),htmlFallback=source)
                             }
                             if(hits.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"The selected index supplied no publisher links for this query")
                             current();observe(candidate,HealthStatus.HEALTHY,(System.nanoTime()-begin)/1_000_000,"Public publisher links extracted")
@@ -105,11 +105,11 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                             observe(candidate,error.status,0,error.message.orEmpty());Trial(index,failure=error)
                         }catch(e:Exception) {
                             currentCoroutineContext().ensureActive();current()
-                            if(candidate.api&&(e as? SourceFailure)?.httpStatus in setOf(404,405,410)) {
-                                rememberHtml(source);return@withPermit Trial(index,failure=e)
+                            if(candidate.api&&source.frontend=="librey"&&(e as? SourceFailure)?.httpStatus in setOf(404,405,410)) {
+                                rememberHtml(source);return@withPermit Trial(index,failure=e,htmlFallback=source)
                             }
                             observe(candidate,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
-                            Trial(index,failure=e)
+                            Trial(index,failure=e,htmlFallback=source.takeIf {candidate.api&&source.frontend=="librey"&&(e as? SourceFailure)?.status==HealthStatus.EMPTY})
                         }
                     }}catch(e:CancellationException){currentCoroutineContext().ensureActive();Trial(index,failure=e)}
                     // Policy cancellation while this child remains active is a
@@ -118,15 +118,20 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                 }
             }
             try {
-                while(next<candidates.size&&attempts.get()<3||running.isNotEmpty()) {
+                while(candidates.isNotEmpty()&&attempts.get()<3||running.isNotEmpty()) {
                     currentCoroutineContext().ensureActive();current()
                     if(running.isEmpty()){start();continue}
-                    val canStart=next<candidates.size&&running.size<3&&attempts.get()<3
+                    val canStart=candidates.isNotEmpty()&&running.size<3&&attempts.get()<3
                     val remaining=((hedgeMs*1_000_000-(System.nanoTime()-started)+999_999)/1_000_000).coerceAtLeast(0)
                     val result=if(canStart)select<Trial?> {replies.onReceive {it};onTimeout(if(advance)0 else remaining){null}}else replies.receive()
                     if(result==null)start()else {
                         running.remove(result.index)
                         result.failure?.let {if(it is CancellationException)throw it;failure=it}
+                        // Retain the server-assisted HTML path when a cheap
+                        // LibreY API lacks coverage. It spends an ordinary slot,
+                        // ahead of unstarted mirrors, never after a refusal.
+                        result.htmlFallback?.let {source->val at=candidates.indexOfFirst {it.source==source&&!it.api}
+                            if(at>0)candidates.add(0,candidates.removeAt(at))}
                         if(!result.hits.isNullOrEmpty()){current();return@coroutineScope result.hits}
                         if(result.index==latest)advance=true
                     }
@@ -136,15 +141,18 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
         }
     }
     companion object {
+        /** Availability scope, distinct from adapters that hydrate social posts. */
+        val frontends=setOf("librey","4get","bing-rss","duckduckgo")
         private fun json(body:String)=body.trimStart().firstOrNull() in setOf('{','[')
-        fun parse(body:String,url:String):List<LocalWebHit> {
+        fun parse(body:String,url:String,frontend:String="librey"):List<LocalWebHit> {
             require(body.length<=1024*1024)
-            if(json(body))return normalize(api(body),url)
+            if(json(body))return normalize(api(body,frontend),url)
             HtmlAdmission.check(body)
             val page=Jsoup.parse(body,url,if(body.trimStart().startsWith("<?xml")||body.contains("<rss"))Parser.xmlParser()else Parser.htmlParser())
             if(page.select("form[action*=challenge],#challenge-form,.anomaly-modal,input[name=captcha]").isNotEmpty()||
                 Regex("verify (?:that )?you are human|unusual traffic|automated queries|bots use duckduckgo|challenge-form",RegexOption.IGNORE_CASE).containsMatchIn(page.text().take(12000)))
                 throw SourceFailure(HealthStatus.CHALLENGE,"The selected search source requested verification. Cached results remain available.")
+            if(frontend=="4get")throw SourceFailure(HealthStatus.UNSUPPORTED,"This publisher index did not return its supported API representation")
             val raw=mutableListOf<LocalWebHit>()
             page.select("item").take(40).forEach {item->val link=item.selectFirst("link")?.text().orEmpty();if(link.isNotBlank())raw+=LocalWebHit(link,item.selectFirst("title")?.text().orEmpty())}
             page.select("a.result__a,.text-result-wrapper a:has(h2),li.b_algo h2 a,a.result-link").take(40).forEach {a->raw+=LocalWebHit(a.absUrl("href"),a.text())}
@@ -157,22 +165,23 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                 val host=link.toHttpUrlOrNull()?.host.orEmpty()
                 if(host=="bing.com"||host.endsWith(".bing.com")||host=="duckduckgo.com"||host.endsWith(".duckduckgo.com"))return@mapNotNull null
                 val parsed=link.toHttpUrlOrNull()
-                if(parsed?.host==source.toHttpUrlOrNull()?.host&&parsed?.encodedPath in setOf("/search.php","/api.php","/settings.php","/instances.php"))return@mapNotNull null
+                if(parsed?.host==source.toHttpUrlOrNull()?.host&&parsed?.encodedPath in setOf("/search.php","/api.php","/settings.php","/instances.php","/api/v1/web","/web","/instances","/settings"))return@mapNotNull null
                 LocalWebHit(link,hit.title.take(400))
             }.distinctBy {it.url}.take(24)
-        private fun api(body:String):List<LocalWebHit> {
+        private fun api(body:String,frontend:String):List<LocalWebHit> {
             val rows=mutableListOf<LocalWebHit>();var count=0;var error=false
+            val fourget=frontend=="4get";var status:String?=null;var web=false
             fun invalid():Nothing=throw SourceFailure(HealthStatus.UNSUPPORTED,"This public-index response exceeds its supported JSON structure")
             return try {JsonReader(body.reader()).use {reader->
                 reader.strictness=Strictness.STRICT;reader.nestingLimit=16
                 fun row() {
                     if(++count>256)invalid()
                     if(reader.peek()!=JsonToken.BEGIN_OBJECT){reader.skipValue();return}
-                    reader.beginObject();var title:String?=null;var url:String?=null;var fields=0
+                    reader.beginObject();var title:String?=null;var url:String?=null;var fields=0;val seen=mutableSetOf<String>()
                     while(reader.hasNext()) {
                         if(++fields>64)invalid()
                         when(val name=reader.nextName()) {
-                            "url","title"->if(reader.peek()==JsonToken.STRING){val value=reader.nextString();if(value.length<=8192){if(name=="url")url=value else title=value}}else reader.skipValue()
+                            "url","title"->{if(!seen.add(name))invalid();if(reader.peek()==JsonToken.STRING){val value=reader.nextString();if(value.length<=8192){if(name=="url")url=value else title=value}}else reader.skipValue()}
                             else->reader.skipValue()
                         }
                     }
@@ -182,25 +191,37 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                     }
                 }
                 when(reader.peek()) {
-                    JsonToken.BEGIN_ARRAY->{reader.beginArray();while(reader.hasNext())row();reader.endArray()}
+                    JsonToken.BEGIN_ARRAY->{if(fourget)invalid();reader.beginArray();while(reader.hasNext())row();reader.endArray()}
                     JsonToken.BEGIN_OBJECT->{reader.beginObject();var fields=0
                         while(reader.hasNext()) {
                             if(++fields>272)invalid()
                             val name=reader.nextName()
-                            if(name=="error"&&reader.peek()!=JsonToken.NULL){error=true;reader.skipValue()}
-                            else if(name.isNotEmpty()&&name.all {it in '0'..'9'})row()else reader.skipValue()
+                            if(fourget&&name=="status") {if(status!=null||reader.peek()!=JsonToken.STRING)invalid();status=reader.nextString().also {if(it.length>512)invalid()}}
+                            else if(fourget&&name=="web") {if(web||reader.peek()!=JsonToken.BEGIN_ARRAY)invalid();web=true;reader.beginArray();while(reader.hasNext())row();reader.endArray()}
+                            else if(name=="error"&&reader.peek()!=JsonToken.NULL){error=true;reader.skipValue()}
+                            else if(!fourget&&name.isNotEmpty()&&name.all {it in '0'..'9'})row()else reader.skipValue()
                         };reader.endObject()}
                     else->invalid()
                 }
                 if(reader.peek()!=JsonToken.END_DOCUMENT)invalid()
                 if(error)throw SourceFailure(HealthStatus.UNAVAILABLE,"The public index reported an upstream search failure")
+                if(fourget) {
+                    if(status==null)invalid()
+                    if(status!="ok") {
+                        val kind=when {Regex("captcha|challenge|verify",RegexOption.IGNORE_CASE).containsMatchIn(status!!)->HealthStatus.CHALLENGE
+                            Regex("rate.?limit|too many requests",RegexOption.IGNORE_CASE).containsMatchIn(status!!)->HealthStatus.RATE_LIMITED
+                            else->HealthStatus.UNAVAILABLE}
+                        throw SourceFailure(kind,"The publisher index could not serve this search")
+                    }
+                    if(!web)invalid()
+                }
                 rows
             }}catch(e:SourceFailure){throw e}catch(_:Exception){invalid()}
         }
         private fun unwrap(value:String):String? {
             val parsed=value.toHttpUrlOrNull() ?: return null
-            parsed.queryParameter("uddg")?.takeIf {parsed.host.endsWith("duckduckgo.com")}?.let {return it}
-            if(parsed.host.endsWith("bing.com")&&parsed.encodedPath.startsWith("/ck/")) {
+            parsed.queryParameter("uddg")?.takeIf {parsed.host=="duckduckgo.com"||parsed.host.endsWith(".duckduckgo.com")}?.let {return it}
+            if((parsed.host=="bing.com"||parsed.host.endsWith(".bing.com"))&&parsed.encodedPath.startsWith("/ck/")) {
                 val token=parsed.queryParameter("u") ?: return null
                 return if(token.startsWith("a1"))runCatching {String(Base64.getUrlDecoder().decode(token.drop(2)))}.getOrNull()else token
             }

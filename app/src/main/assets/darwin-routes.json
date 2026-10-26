@@ -825,5 +825,12 @@
       "fallbackOnly": true,
       "curated": true
     }
+  ],
+  "publisherSearchSources": [
+    {
+      "frontend": "4get",
+      "root": "https://4get.canine.tools",
+      "curated": true
+    }
   ]
 }

@@ -20,7 +20,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     private val providerCooldowns=linkedMapOf<String,Long>()
     private fun key(s: Source,c: Capability,t: Boolean)="${s.key}|$c|$t"
     private fun providerKey(s:Source,c:Capability,t:Boolean):String?=
-        if(c==Capability.SEARCH&&s.frontend in PublicSearchAdapter.frontends)"${s.frontend}|${s.root}|$t"else null
+        if(c==Capability.SEARCH&&s.frontend in LocalWebDiscovery.frontends)"${s.frontend}|${s.root}|$t"else null
     private fun providerUntil(s:Source,c:Capability,t:Boolean)=providerKey(s,c,t)?.let {providerCooldowns[it]} ?: 0L
     private fun effective(value:RouteStats):RouteStats {
         val until=maxOf(value.cooldownUntil,providerUntil(value.source,value.capability,value.tor))
@@ -120,7 +120,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     }
     companion object {
         private const val DAY=86_400_000L
-        private fun isGlobalFailure(result: ProbeResult)=result.capability==Capability.SEARCH&&result.source.frontend in PublicSearchAdapter.frontends&&
+        private fun isGlobalFailure(result: ProbeResult)=result.capability==Capability.SEARCH&&result.source.frontend in LocalWebDiscovery.frontends&&
             (result.status==HealthStatus.LOGIN_REQUIRED||result.status==HealthStatus.UNAVAILABLE&&result.retryAfterMs!=null)||result.status==HealthStatus.RATE_LIMITED||result.status==HealthStatus.CHALLENGE||
             result.status==HealthStatus.UNAVAILABLE&&(result.detail.contains("resolve",true)||result.detail.contains("timeout",true)||result.detail.contains("timed out",true)||result.detail.contains("connect",true)||Regex("\\b5[0-9]{2}\\b").containsMatchIn(result.detail))
         fun isTargetSpecific(result: ProbeResult)=!isGlobalFailure(result)&&(result.status in setOf(HealthStatus.EMPTY,HealthStatus.LOGIN_REQUIRED)||

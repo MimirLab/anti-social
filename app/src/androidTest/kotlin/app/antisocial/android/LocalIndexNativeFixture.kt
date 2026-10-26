@@ -14,14 +14,14 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-internal class LocalIndexNativeFixture(private val publisher:String):Closeable {
+internal class LocalIndexNativeFixture(private val publisher:String,private val fourget:Boolean=false):Closeable {
     private val socket=ServerSocket(0,8,InetAddress.getByName("127.0.0.1"))
     private val acceptor=Executors.newSingleThreadExecutor();private val workers=Executors.newFixedThreadPool(4)
     private val connections=ConcurrentHashMap.newKeySet<Socket>()
     val requests=CopyOnWriteArrayList<String>();val release=CountDownLatch(1)
     private val cleaner=UrlCleaner(JsonParser.parseString("""{"providers":{}}""").asJsonObject)
     val gateway=NetworkGateway(cleaner,object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)},true)
-    val routes=DarwinRoutes(JsonParser.parseString("""{"sources":[],"services":{},"searchSources":[{"platform":"twitter","frontend":"librey","root":"http://first-index.fixture.invalid","jsonApi":true,"fallbackOnly":true},{"platform":"twitter","frontend":"librey","root":"http://quick-index.fixture.invalid","jsonApi":true,"fallbackOnly":true}]}""").asJsonObject,cleaner)
+    val routes=DarwinRoutes(JsonParser.parseString("""{"sources":[],"services":{},"searchSources":[{"platform":"twitter","frontend":"librey","root":"http://first-index.fixture.invalid","jsonApi":true,"fallbackOnly":true}${if(fourget)""else ",{\"platform\":\"twitter\",\"frontend\":\"librey\",\"root\":\"http://quick-index.fixture.invalid\",\"jsonApi\":true,\"fallbackOnly\":true}"}],"publisherSearchSources":${if(fourget)"[{\"frontend\":\"4get\",\"root\":\"http://quick-index.fixture.invalid\"}]"else "[]"}}""").asJsonObject,cleaner)
     val engine=LocalWebDiscovery(gateway,routes)
     private val client:okhttp3.OkHttpClient
     init {
@@ -44,7 +44,8 @@ internal class LocalIndexNativeFixture(private val publisher:String):Closeable {
                     };check(ended);requests+=host+request.substringAfter(' ').substringBefore(' ')
                     val body=when(host) {
                         "first-index.fixture.invalid"->{check(release.await(8,TimeUnit.SECONDS));"[]"}
-                        "quick-index.fixture.invalid"->"""{"0":{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"},"results_source":"upstream.fixture.invalid"}"""
+                        "quick-index.fixture.invalid"->if(fourget)"""{"status":"ok","web":[{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"}],"answer":[{"url":"https://ignored.fixture.invalid/"}],"npt":"do-not-consume"}"""
+                            else """{"0":{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"},"results_source":"upstream.fixture.invalid"}"""
                         "publisher.fixture.invalid"->publisher
                         else->error("Unexpected fixture destination")
                     }.toByteArray()

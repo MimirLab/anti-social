@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class LocalWebDiscoveryRoutingTest {
     private data class Reply(val body:String="",val code:Int=200,val headers:Map<String,String> = emptyMap())
     private data class Request(val host:String,val path:String,val headers:List<String>)
-    private class Fixture(val hosts:List<String> = listOf("first.fixture.invalid","second.fixture.invalid","third.fixture.invalid"),apis:Set<String> = emptySet()):AutoCloseable {
+    private class Fixture(val hosts:List<String> = listOf("first.fixture.invalid","second.fixture.invalid","third.fixture.invalid"),apis:Set<String> = emptySet(),fourget:Set<String> = emptySet()):AutoCloseable {
         private val server=ServerSocket(0,16,InetAddress.getLoopbackAddress())
         private val workers=Executors.newCachedThreadPool()
         private val sockets=ConcurrentLinkedQueue<Socket>()
@@ -31,7 +31,7 @@ class LocalWebDiscoveryRoutingTest {
         },true)
         var now=System.currentTimeMillis()
         val learning=AdaptiveRouting{now}
-        val routes=DarwinRoutes(JsonParser.parseString("""{"sources":[],"services":{},"searchSources":[${hosts.joinToString(","){"""{"platform":"twitter","frontend":"librey","root":"http://$it","fallbackOnly":true,"jsonApi":${it in apis}}"""}}]}""").asJsonObject,cleaner)
+        val routes=DarwinRoutes(JsonParser.parseString("""{"sources":[],"services":{},"searchSources":[${hosts.filterNot {it in fourget}.joinToString(","){"""{"platform":"twitter","frontend":"librey","root":"http://$it","fallbackOnly":true,"jsonApi":${it in apis}}"""}}],"publisherSearchSources":[${hosts.filter {it in fourget}.joinToString(","){"""{"frontend":"4get","root":"http://$it"}"""}}]}""").asJsonObject,cleaner)
         val engine=LocalWebDiscovery(gateway,routes,learning,clock={now})
         init {
             gateway.configureTor(NetworkPolicy(true,server.localPort,true))
@@ -98,7 +98,8 @@ class LocalWebDiscoveryRoutingTest {
         Fixture(hosts,hosts.toSet()).use {f->
             f.respond={Reply("[]")}
             assertEquals(HealthStatus.EMPTY,failure {f.engine.search("unusual workshop",SearchProvider.DARWIN,false)}.status)
-            assertEquals(3,f.requests.size);assertTrue(f.requests.all {it.path.startsWith("/api.php?")})
+            assertEquals(3,f.requests.size)
+            assertEquals(listOf("/api.php","/search.php","/api.php"),f.requests.map {it.path.substringBefore('?')})
         }
     }
     @Test fun concurrentLookupsShareThreeActiveReadersAndCancellationLeavesNoOutage():Unit=runBlocking {
@@ -222,6 +223,39 @@ class LocalWebDiscoveryRoutingTest {
             f.respond={r->if(r.host==f.hosts.first())Reply(code=302,headers=mapOf("Location" to "http://unselected.fixture.invalid/search.php?q=workshop"))else Reply(html())}
             assertEquals(1,f.engine.search("workshop",SearchProvider.DARWIN,false).size)
             assertEquals(listOf(f.hosts[0],f.hosts[1]),f.requests.map {it.host})
+        }
+    }
+    @Test fun anIndependentPublisherProtocolCanRescueAHeldMirror():Unit=runBlocking {
+        val hosts=listOf("held.fixture.invalid","independent.fixture.invalid")
+        Fixture(hosts,setOf(hosts[0]),setOf(hosts[1])).use {f->
+            f.respond={r->if(r.host==hosts[0]){check(f.release.await(8,TimeUnit.SECONDS));Reply("[]")}
+                else Reply("""{"status":"ok","web":[{"title":"Community workshop","url":"https://publisher.fixture.invalid/calendar"}],"npt":"single-use-token"}""")}
+            val query="\"community workshop\" Test Region -cancelled"
+            assertEquals(1,withTimeout(3500){f.engine.search(query,SearchProvider.DARWIN,false)}.size)
+            assertEquals(1,f.routes.searchSources.size);assertEquals(2,f.routes.publisherSearchSources.size)
+            val request=f.requests.last();assertTrue(request.path.startsWith("/api/v1/web?s="))
+            assertEquals(query,DarwinRoutes.queryValue(java.net.URI("http://"+request.host+request.path),"s"))
+            assertFalse(request.path.contains("npt"));assertEquals(1L,f.release.count)
+        }
+    }
+    @Test fun publisherApiRefusalsAreEndpointScopedWithoutHtmlRetry():Unit=runBlocking {
+        val host="independent.fixture.invalid"
+        Fixture(listOf(host),fourget=setOf(host)).use {f->
+            f.respond={Reply("""{"status":"Captcha required","web":[]}""")}
+            assertEquals(HealthStatus.CHALLENGE,failure {f.engine.search("community workshop",SearchProvider.DARWIN,false)}.status)
+            val source=f.routes.publisherSearchSources.single()
+            assertFalse(f.learning.eligible(source.copy(platform=Platform.INSTAGRAM),Capability.SEARCH,true))
+            failure {f.engine.search("another workshop",SearchProvider.DARWIN,false)}
+            assertEquals(1,f.requests.size)
+        }
+    }
+    @Test fun anEmptyStructuredReadKeepsItsHtmlCoverageAheadOfNewCandidates():Unit=runBlocking {
+        val hosts=listOf("index.fixture.invalid","independent.fixture.invalid")
+        Fixture(hosts,setOf(hosts[0]),setOf(hosts[1])).use {f->
+            f.respond={r->if(r.path.startsWith("/api.php"))Reply("[]")else Reply(html())}
+            assertEquals(1,f.engine.search("community workshop",SearchProvider.DARWIN,false).size)
+            assertEquals(listOf("/api.php","/search.php"),f.requests.map {it.path.substringBefore('?')})
+            assertTrue(f.requests.all {it.host==hosts[0]})
         }
     }
 }
