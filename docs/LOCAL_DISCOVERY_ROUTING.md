@@ -51,6 +51,69 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Selected index routing (0.38.36)
+
+Regional publisher discovery and field-directed searches share one local index
+router. It keeps the selected provider and original-access choice fixed throughout
+an operation. Darwin's configured search mirrors use bounded rolling attempts:
+a readable later mirror can return while an older read is still pending. Completed
+results take priority over an expired hedge timer, and a failed latest attempt can
+advance its successor immediately. Source and representation fallbacks share a
+three-attempt ceiling per concrete query, with at most three local index readers
+active across the repository. A winner cancels redundant pending work. The existing
+two initial queries, field-query limits and publisher-read allowances remain.
+
+The router shares SourcePool's bounded endpoint/transport learning and existing
+local persistence. A refusal at one mirror does not park the entire Darwin bank.
+Explicit waits cover other queries and platform copies using that same endpoint
+and Tor transport; an in-flight success cannot clear the wait. Empty query results
+remain query-specific. Skipped, cancelled and policy-invalidated work does not
+train an outage or renew a deadline. Known pauses are checked before transport
+preparation; cached field-search hits can return without that wait. Old coarse
+`local-index-rest` entries are no longer consulted.
+
+An explicitly qualified `jsonApi` flag enables LibreY's small public JSON
+representation. The native adapter streams bounded numeric-key PHP result objects
+or arrays, retaining organic destination/title pairs. It ignores special answers,
+upstream labels and snippets as factual evidence. Body size, nesting, row and
+field limits apply before accepting results. Login/challenge pages, API errors,
+unsafe URLs and search-navigation links do not become publisher material. An
+optional login form does not hide already public organic results.
+
+The structured first attempt disables LibreY's own instance fallback, frontend
+rewrites and special answers. A retained HTML path can still provide the previous
+server-assisted coverage within the same attempt ceiling. A missing/disabled API
+can select HTML for six hours in a bounded in-memory format bank; explicit
+refusals are not retried through another representation. Only the existing
+`librey.private.coffee` instance has the flag. A protected Android observation
+returned ten links in 4,698 bytes of decoded response text; a separate HTML read
+of the same generic query contained 10,709 bytes. These are dated payload
+observations, not wire-byte or controlled phone-latency measurements. Additional
+catalog candidates included failed, empty and parked responses and were not added
+to the active pool. An upstream list or HTTP 200 alone is not delivery evidence.
+
+All requests still use NetworkGateway and mandatory Tor for regional indexes.
+Each lookup captures its network session and connection selection; requests and
+redirects stay within the selected source origin. A later policy change cancels
+the operation rather than silently adopting another session, provider or direct
+connection. Generic index delivery trains endpoint observations; it does not
+establish that a particular social post can be retrieved. SourcePool still checks
+that requested content before delivery.
+
+A separate native regression exposed a batch that passed the query check and then
+waited for the store monitor. It could write after the reader changed searches.
+Generation admission now runs inside that monitor and before transaction commit;
+revoked packets roll back their facts and publisher hints. The controller also
+stops obsolete queue work. Native checks use explicit gates and an observed
+monitor wait, protecting saved copies and avoiding a timer-dependent assumption
+about when the user action occurred.
+
+Interface references: [LibreY API](https://github.com/Ahwxorg/LibreY/blob/main/api.php),
+[request options](https://github.com/Ahwxorg/LibreY/blob/main/misc/search_engine.php)
+and [server fallback](https://github.com/Ahwxorg/LibreY/blob/main/engines/librex/fallback.php).
+The implementation is native Kotlin and adds no packaged search engine, model,
+service account or dependency.
+
 ### First-card admission and accumulated caches (0.38.35)
 
 The two ordinary publisher readers retain their existing slots. While no useful
@@ -140,7 +203,7 @@ field names and repeated excerpts without deleting original provenance records.
 | Overture via the existing Fused route | Physical identities, websites, phones and social accounts | City cell plus two precise-match cells; ordinary results expire. Public example availability is source dependent. |
 | Photon / OpenStreetMap | Named/category place discovery | One geographic query, 20 results, 512 KiB. Shares OSM identifiers with Overpass. |
 | Overpass | Targeted names/categories and local organizer hubs | Selected radius, 350 results, 2 MiB; unavailable routes rest. |
-| Selected public index | Discover publisher pages | Two initial regional queries; two additional field-directed queries, at most six hits each. Uses the selected provider and Tor. |
+| Selected public index | Discover publisher pages | Two initial regional queries; two additional field-directed queries, at most six hits each. Uses the selected provider and Tor. At most three source/representation attempts per concrete query and three concurrent local-index readers across the repository. |
 | AllThePlaces | Existing first-party-derived brand outputs | Published run HTML and statistics select at most two matching files. Only spiders with 1–6,000 reported features qualify; each decoded file is limited to 8 MiB. No global ZIP or spider execution. |
 | Publisher/directory readers | Structured branch facts, contacts and explicit source links | Two ordinary readers and one delayed first-deck rescue slot. Eight initial plus ten supplemental reads normally; first-deck discovery may borrow unused capacity within the total source/venue-attempt cap. Each page is limited to 2 MiB and 18 seconds. |
 | Public social routing | Verified business profiles and linked public material | Existing Darwin-derived source pool, alternates and allowed original fallback. Eight account checks, two concurrent, 16 seconds each; an empty frontend is not an account. |

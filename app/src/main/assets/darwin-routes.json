@@ -815,7 +815,8 @@
       "frontend": "librey",
       "root": "https://librey.private.coffee",
       "fallbackOnly": true,
-      "curated": true
+      "curated": true,
+      "jsonApi": true
     },
     {
       "platform": "twitter",

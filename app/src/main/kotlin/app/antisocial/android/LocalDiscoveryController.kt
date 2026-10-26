@@ -65,18 +65,21 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
         val hits=mutableListOf<LocalWebHit>();discover(query){synchronized(hits){hits+=it}};return hits.distinctBy {it.url}
     }
     override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend (List<LocalWebHit>)->Unit) {
+        val provider=repo.prefs.searchProvider;val originals=repo.prefs.originalFallback
+        fun current()=repo.prefs.searchProvider==provider&&repo.prefs.originalFallback==originals
+        repo.awaitReady()
+        if(!current())throw CancellationException("The selected search policy changed")
+        repo.localWeb.pause(provider,originals)?.let {throw it}
         protected()
-        val index=LocalWebDiscovery(repo.gateway,repo.routes)
-        val key="local-index-rest:${repo.prefs.searchProvider.id}"
-        if(repo.localDiscovery.cache(key)!=null)throw SourceFailure(HealthStatus.UNAVAILABLE,"The selected search source is resting after an unavailable response")
-        var success=false;var failure:Exception?=null
+        if(!current())throw CancellationException("The selected search policy changed")
+        val monitor=Any();var success=false;var failure:Exception?=null
         // Two bounded queries through the selected provider. Deliver and read
         // the first batch without waiting for its slower companion.
         coroutineScope {LocalBusinessRouting.queries(query).map {text->launch {
-            try {val hits=withTimeout(22_000){index.search(text,repo.prefs.searchProvider,repo.prefs.originalFallback)};synchronized(index){success=true};onHits(hits)}
-            catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();synchronized(index){failure=e}}
+            try {val hits=withTimeout(22_000){repo.localWeb.search(text,provider,originals,::current)};synchronized(monitor){success=true};onHits(hits)}
+            catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();synchronized(monitor){failure=e}}
             catch(e:CancellationException){throw e}
-            catch(e:Exception){synchronized(index){failure=e};if((e as? SourceFailure)?.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED))repo.localDiscovery.cache(key,"paused",30*60000)}
+            catch(e:Exception){synchronized(monitor){failure=e}}
         }}.joinAll()}
         if(!success)throw failure ?: SourceFailure(HealthStatus.EMPTY,"No public publisher links were found")
     }
@@ -88,13 +91,16 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
     }
     override suspend fun refine(query:LocalDiscoveryQuery,business:LocalBusiness):List<LocalWebHit> {
         val text=LocalBusinessEnrichment.query(business,query.area) ?: return emptyList()
-        protected()
-        if(repo.localDiscovery.cache("local-index-rest:${repo.prefs.searchProvider.id}")!=null)return emptyList()
-        val key="local-refine:v1:"+LocalDiscoveryIdentity.hash(text+repo.prefs.searchProvider.id)
+        val provider=repo.prefs.searchProvider;val originals=repo.prefs.originalFallback
+        fun current()=repo.prefs.searchProvider==provider&&repo.prefs.originalFallback==originals
+        repo.awaitReady()
+        if(!current())throw CancellationException("The selected search policy changed")
+        val key="local-refine:v1:"+LocalDiscoveryIdentity.hash(text+provider.id)
         repo.localDiscovery.cache(key)?.let {return gson.fromJson(it,Array<LocalWebHit>::class.java).toList()}
-        return try {LocalWebDiscovery(repo.gateway,repo.routes).search(text,repo.prefs.searchProvider,repo.prefs.originalFallback).take(6).also {repo.localDiscovery.cache(key,gson.toJson(it),6*3600000)}}
-        catch(e:CancellationException){throw e}
-        catch(e:SourceFailure){if(e.status in setOf(HealthStatus.CHALLENGE,HealthStatus.RATE_LIMITED))repo.localDiscovery.cache("local-index-rest:${repo.prefs.searchProvider.id}","paused",30*60000);throw e}
+        repo.localWeb.pause(provider,originals)?.let {throw it}
+        protected()
+        if(!current())throw CancellationException("The selected search policy changed")
+        return repo.localWeb.search(text,provider,originals,::current).take(6).also {repo.localDiscovery.cache(key,gson.toJson(it),6*3600000)}
     }
     private val gson=Gson()
     override suspend fun venue(query:LocalDiscoveryQuery,event:LocalEvent):LocalEvent? {
@@ -351,7 +357,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                 deckReady.complete(Unit);state.update {it.copy(loading=false,enriching=true,phase=LocalSearchPhase.ENRICHING)}
             }}
             fun note(value:String){if(current())state.update {it.copy(coverage=(it.coverage+value).distinct().takeLast(8))}}
-            suspend fun ingest(data:LocalExtraction) {currentCoroutineContext().ensureActive();if(!current())return;withContext(Dispatchers.IO){store.ingest(data,area)};posters.addAll(data.posters.take(20));detailRevision.incrementAndGet();if(current()){data.notice?.let(::note);publish();ready()}}
+            suspend fun ingest(data:LocalExtraction) {currentCoroutineContext().ensureActive();if(!current())return;withContext(Dispatchers.IO){store.ingest(data,area,::current)};if(!current())return;posters.addAll(data.posters.take(20));detailRevision.incrementAndGet();data.notice?.let(::note);publish();ready()}
             suspend fun lane(label:String,action:suspend ()->Unit) {try {action()}catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();note("$label: timed out; cached material remains available.")}catch(e:CancellationException){throw e}catch(e:Exception){note("$label: ${e.message ?: "unavailable"}")}}
             try {
                 publish()
@@ -379,6 +385,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             .sortedWith(compareBy<Pair<LocalBusiness,Int>> {intent?.publisherAffinity(it.first) ?: 0}.thenBy {it.second}.thenBy {it.first.point?.distanceKm(area.point) ?: 1e9}).map {it.first}
                     }
                     fun queueRelevant() {
+                        if(!current())return
                         val sources=mutableListOf<LocalPublisherSource>()
                         relevant().take(8).forEach {owner->
                             sources+=owner.websites.sortedBy {LocalBusinessDetails.websitePriority(owner,it)}.take(2).map {LocalPublisherSource(it,businessId=owner.id,label=owner.name)}

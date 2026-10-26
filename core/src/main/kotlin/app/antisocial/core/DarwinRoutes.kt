@@ -10,6 +10,11 @@ class DarwinRoutes(data: JsonObject, private val cleaner: UrlCleaner) {
     // Separate from social mirrors: these discover links through Darwin's public
     // search routes, and must never be recognized as alternate social URLs.
     val searchSources: List<Source> = data.getAsJsonArray("searchSources")?.map {n->val o=n.asJsonObject;Source(Platform.entries.first {it.id==o["platform"].asString},o["frontend"].asString,o["root"].asString,fallbackOnly=true)} ?: emptyList()
+    /** An explicitly qualified representation, not an inferred API probe on
+     * every mirror. Source identity and endpoint pauses stay shared with HTML. */
+    val searchJsonApis:Set<String> = data.getAsJsonArray("searchSources")?.mapNotNull {n->val o=n.asJsonObject
+        o["root"]?.asString?.trimEnd('/')?.takeIf {o["frontend"]?.asString=="librey"&&o["jsonApi"]?.asBoolean==true}
+    }?.toSet().orEmpty()
     private val sourceRoots=java.util.concurrent.ConcurrentHashMap(sources.filterNot {it.frontend=="piped"}.map {it to URI(it.root)}.groupBy {it.second.host.lowercase(java.util.Locale.ROOT)})
     /** Only already implemented web frontends are reversible social links.
      * Shared API/feed renderers must never become aliases for their first platform. */

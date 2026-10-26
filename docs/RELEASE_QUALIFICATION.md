@@ -9,6 +9,64 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.36 selected index routes and cancelled search packets
+
+A real Gateway/SOCKS regression held the first index mirror and supplied a readable
+second mirror. The prior serial implementation failed the 3.5-second delivery
+check. Bounded rolling attempts now reach that mirror and can use a freed slot for
+a third one. The existing session round-trip check already passed before this
+change; it is retained, not presented as a newly discovered bypass.
+
+The local index singleton shares endpoint/Tor learning with SourcePool. Checks
+cover cross-query/platform pauses, other-endpoint eligibility, unchanged explicit
+deadlines after skipped work and in-flight success, query-specific empties,
+cancellation, bounded concurrent readers and source/representation attempts,
+HTML fallback, API absence, pre-transport pause admission and redirect-origin
+pinning. Strict streamed JSON extraction rejects malformed/excessive structures
+and preserves organic links without treating snippets or special answers as facts.
+
+Opt-in Android probes used NetworkGateway and Tor with a generic query, independent
+of a reader's area. One existing instance returned ten JSON links in 4,698 bytes of
+decoded response text; a separate HTML observation contained 10,709 bytes. Ten
+candidate API endpoints were inspected once each, without pagination or retries.
+Other observations included HTTP errors, TLS/SOCKS failures, an empty array and a
+parked domain returning HTML with HTTP 200. None became a newly active mirror.
+Only the observed existing instance receives the qualified API flag. These are
+source-dependent observations, not universal uptime or performance guarantees.
+
+The initial 119-method native selection found one cancellation-fixture failure.
+Its fixed delay did not establish which side of the query change received the
+packet. Explicit gates made that ordering reliable. A further native counterexample
+observed the callback actually waiting at `LocalDiscoveryStore.ingest`, changed the
+query, then released the store. The pre-fix implementation wrote the stale batch;
+the guarded implementation rejects it. A separate dedicated-database check verifies
+rollback at the commit boundary, including publisher hints, unchanged factual
+revision and protected saved bytes. The three focused checks then passed together.
+An earlier JVM fixture failure came from acquiring a client during teardown while
+Tor was deliberately unavailable; its production assertions passed. The teardown
+and the cancellation test's timeout distinction were corrected.
+
+Final qualification: **2,291 JVM cases**, zero failures/errors, one optional
+model-weight skip; debug/test assembly and Android lint pass. The final frozen native selection ran **121 methods: 119 passes, two opt-in
+skips, zero failures**.
+The native selection covers local discovery and store contracts, announcements,
+menus, Library/migration, saved records, social search/scope, privacy, scheduling
+and feed windows. Actual synthetic business and event cards were inspected after
+JSON index discovery, publisher retrieval and structured extraction through the
+owned native SOCKS fixture. No source scripts run.
+
+Two separately enabled methods also passed on the same final frozen APK: the
+synthetic accumulated-cache diagnostic and the selected public-index router.
+The production router returned ten publisher links with Tor active in one dated
+2,292 ms observation. That timing is index-link delivery, not a completed regional
+business/event search or a physical-phone benchmark. Identifying response output
+stays in the external engineering evidence.
+
+The increment adds no model, dependency, native library, permission, setting or
+database migration. Preview-state, signing, exact source/APK correspondence and
+permanent-download verification follow the normal publishing procedure. Physical
+phone latency, energy and memory distributions remain unmeasured.
+
 ## 0.38.35 first business/event cards and accumulated-cache work
 
 A controlled native regression on the previous implementation held two public

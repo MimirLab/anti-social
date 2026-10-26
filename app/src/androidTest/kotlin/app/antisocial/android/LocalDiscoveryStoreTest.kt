@@ -95,4 +95,14 @@ class LocalDiscoveryStoreTest {
         val current=store.businesses(area).single()
         assertEquals(fresh.id,current.id);assertTrue(current.phones.isEmpty());assertEquals(saved,payloads("copies"))
     }
+    @Test fun aRevokedBatchRollsBackFactsAndPublisherHintsBeforeCommit() {
+        store.save(business);val saved=payloads("copies");val revision=store.revision.value
+        val source=LocalPublisherSource("https://publisher.fixture.invalid/calendar")
+        var checks=0
+        assertEquals(0 to 0,store.ingest(LocalExtraction(businesses=listOf(business),events=listOf(event),sources=listOf(source)),area){++checks<3})
+        assertTrue(store.businesses(area).isEmpty());assertTrue(store.events().isEmpty());assertTrue(store.sources(area).isEmpty())
+        assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
+        checks=0;store.offerSources(area,listOf(source)){++checks<2}
+        assertTrue(store.sources(area).isEmpty());assertEquals(saved,payloads("copies"))
+    }
 }

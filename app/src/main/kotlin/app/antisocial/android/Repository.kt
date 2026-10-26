@@ -124,6 +124,7 @@ class Repository(val context: Context) {
     }
     val tor=TorController(context,gateway,scope)
     val pool=SourcePool(gateway,routes,PublicPathways(assetJson("public-pathways.json"))) {r->dao.putHealth(HealthRow("${r.source.key}|${r.capability}|${r.tor}",gson.toJson(r),r.checkedAt))}
+    internal val localWeb by lazy {LocalWebDiscovery(gateway,routes,pool.learning,onLearning={pool.onLearning(it)})}
     internal var directLoader: suspend (Target,(String)->Unit)->Page = {target,progress->pool.load(target,originalFallback=prefs.originalFallback,progress=progress)}
     internal var feedMemory=FeedMemoryStore(context,scope)
     internal var followLoader: suspend (Follow)->Page = {loadFollow(it)}

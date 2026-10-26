@@ -348,17 +348,38 @@ class LocalDiscoveryTest {
         assertEquals(listOf(first.id,later.id),model.localSearch.state.value.businesses.map {it.id})
     }
     @Test fun changingTheQueryRejectsEvenALateUncooperativeEnrichmentCallback() {
-        val started=CompletableDeferred<Unit>()
+        val started=CompletableDeferred<Unit>();val deliver=CompletableDeferred<Unit>();val finished=CompletableDeferred<Unit>()
         val late=place.copy(id="fixture-late",name="Late unrelated result",address="99 Side St, Melbourne",point=LocalPoint(-37.84,144.97),sourceIds=listOf("fixture-late"))
         ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(place))) {
-            override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){started.complete(Unit);withContext(NonCancellable){delay(700);onData(LocalExtraction(businesses=listOf(late)))}}
+            override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){started.complete(Unit);withContext(NonCancellable){deliver.await();try {onData(LocalExtraction(businesses=listOf(late)))}finally {finished.complete(Unit)}}}
         };model.localSearch.search(force=true)}
         try {ui.waitUntil(10_000){started.isCompleted}}
         catch(e:Exception){throw AssertionError("Background startup: foreground=${repo.gateway.hasForegroundRequests}, state=${model.localSearch.state.value}",e)}
         ui.runOnIdle {model.localSearch.text("different query")}
+        deliver.complete(Unit);runBlocking {withTimeout(3000){finished.await()}}
         ui.waitUntil(3000){model.localSearch.state.value.businesses.isEmpty()&&!model.localSearch.state.value.enriching}
-        runBlocking {delay(900)}
         runBlocking(Dispatchers.IO){assertNull(repo.localDiscovery.business(late.id))}
+    }
+    @Test fun queryChangeRejectsABatchAlreadyWaitingForTheStore() {
+        val started=CompletableDeferred<Unit>();val deliver=CompletableDeferred<Unit>();val finished=CompletableDeferred<Unit>()
+        val waiter=java.util.concurrent.atomic.AtomicReference<Thread?>()
+        val held=java.util.concurrent.CountDownLatch(1);val unlock=java.util.concurrent.CountDownLatch(1)
+        val worker=java.util.concurrent.Executors.newSingleThreadExecutor()
+        val late=place.copy(id="fixture-store-waiter",name="Late unrelated result",sourceIds=listOf("fixture-store-waiter"))
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(businesses=listOf(place))) {
+            override suspend fun enrich(query:LocalDiscoveryQuery,businesses:List<LocalBusiness>,onData:suspend (LocalExtraction)->Unit){started.complete(Unit);withContext(NonCancellable+Dispatchers.IO){deliver.await();waiter.set(Thread.currentThread());try {onData(LocalExtraction(businesses=listOf(late)))}finally {finished.complete(Unit)}}}
+        };model.localSearch.search(force=true)}
+        try {
+            ui.waitUntil(10_000){started.isCompleted};ui.waitForIdle()
+            worker.submit {synchronized(repo.localDiscovery){held.countDown();check(unlock.await(8,java.util.concurrent.TimeUnit.SECONDS))}}
+            assertTrue(held.await(2,java.util.concurrent.TimeUnit.SECONDS));deliver.complete(Unit)
+            // Observe the actual monitor wait; never assume that a timer placed
+            // an IO callback on a particular side of the query-change action.
+            ui.waitUntil(3000){waiter.get()?.let {thread->thread.state==Thread.State.BLOCKED&&thread.stackTrace.any {it.className==LocalDiscoveryStore::class.java.name&&it.methodName=="ingest"}}==true}
+            ui.runOnIdle {model.localSearch.text("different query")};unlock.countDown()
+            runBlocking {withTimeout(3000){finished.await()}}
+            runBlocking(Dispatchers.IO){assertNull("A batch queued before cancellation must recheck at the store boundary",repo.localDiscovery.business(late.id))}
+        }finally {unlock.countDown();deliver.complete(Unit);worker.shutdownNow();assertTrue(worker.awaitTermination(3,java.util.concurrent.TimeUnit.SECONDS))}
     }
     @Test fun aWiderCalendarWindowRefetchesAHealthyRangeLimitedSource() {
         val calendar=LocalPublisherSource("https://calendar.fixture.invalid/api/2/events",LocalSourceKind.LOCALIST,label="Library events")
@@ -603,6 +624,32 @@ class LocalDiscoveryTest {
                 if(mode==LocalSearchMode.BUSINESSES)ui.onNodeWithTag("Business ${owner.id}").assertIsDisplayed()else ui.onNodeWithTag("Event ${session.id}").assertIsDisplayed()
                 evidence("first-${mode.name.lowercase()}-card-rescue")
             }finally {ui.runOnIdle {model.localSearch.stop()};release.complete(Unit);runBlocking(Dispatchers.IO){repo.localDiscovery.writableDatabase.delete("sources","area=?",arrayOf(firstDeckArea.cacheKey))}}
+        }
+    }
+
+    @Test fun nativeBusinessAndEventDecksUseTheResponsiveStructuredIndexMirror() {
+        val document="""<script type="application/ld+json">[{"@type":"LocalBusiness","@id":"https://publisher.fixture.invalid/","name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}},{"@type":"Event","name":"Radio workshop","startDate":"${firstDeckArea.today().plusDays(1)}","location":{"name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}}}]</script>"""
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document).use {f->
+            runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}
+            ui.runOnIdle {
+                model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+                    override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit){onHits(f.engine.search(query.text,SearchProvider.DARWIN,false))}
+                    override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                        // Stage the HTTPS identity on an owned HTTP/SOCKS fixture;
+                        // shipping URL, TLS and Gateway admission stay unchanged.
+                        val payload=f.gateway.text(source.url.replace("https://","http://"),route=NetworkRoute.TOR)
+                        return LocalStructuredData.html(payload.text,source.url,System.currentTimeMillis(),firstDeckArea)
+                    }
+                }
+                model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop");model.localSearch.search(force=true)
+            }
+            try {
+                ui.waitUntil(6000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.name=="Community workshop"}else model.localSearch.state.value.events.any {it.title=="Radio workshop"}}
+                val title=if(mode==LocalSearchMode.BUSINESSES)"Community workshop"else "Radio workshop"
+                ui.onNodeWithText(title).assertIsDisplayed();assertEquals(1L,f.release.count)
+                assertTrue(f.requests.any {it.startsWith("quick-index.fixture.invalid/api.php?")});assertTrue(f.requests.any {it.startsWith("publisher.fixture.invalid/")})
+                evidence("structured-index-${mode.name.lowercase()}")
+            }finally {ui.runOnIdle {model.localSearch.stop()};runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}}
         }
     }
 

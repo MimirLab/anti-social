@@ -84,10 +84,10 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         }}
     @Synchronized fun savedIds()=rows("SELECT id FROM copies").toSet()
     @Synchronized fun sources(area:LocalArea):List<LocalPublisherSource> = rows("SELECT payload FROM sources WHERE area=? AND expires>? LIMIT 768",arrayOf(area.cacheKey,now().toString())).mapNotNull {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
-    @Synchronized fun offerSources(area:LocalArea,sources:List<LocalPublisherSource>) {
-        if(sources.isEmpty())return
+    @Synchronized fun offerSources(area:LocalArea,sources:List<LocalPublisherSource>,admit:()->Boolean={true}) {
+        if(sources.isEmpty()||!admit())return
         val db=writableDatabase;db.beginTransaction()
-        try {sources.forEach {offerSource(area,it)};db.setTransactionSuccessful()}finally {db.endTransaction()}
+        try {sources.forEach {offerSource(area,it)};if(admit())db.setTransactionSuccessful()}finally {db.endTransaction()}
     }
     @Synchronized fun offerSource(area:LocalArea,source:LocalPublisherSource) {
         val old=rows("SELECT payload FROM sources WHERE url=? AND area=? AND expires>?",arrayOf(source.url,area.cacheKey,now().toString())).firstOrNull()?.let {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
@@ -153,20 +153,26 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         }finally {db.endTransaction()}
         return true
     }
-    @Synchronized fun ingest(extraction:LocalExtraction,area:LocalArea):Pair<Int,Int> {
+    /** Generation admission runs after acquiring the store monitor and again
+     * at commit. A callback waiting behind another write cannot revive itself
+     * after the reader changes query. The predicate must be cheap and local. */
+    @Synchronized fun ingest(extraction:LocalExtraction,area:LocalArea,admit:()->Boolean={true}):Pair<Int,Int> {
+        if(!admit())return 0 to 0
         val hasBusinesses=extraction.businesses.isNotEmpty();val hasEvents=extraction.events.isNotEmpty()
         // A link-only or valid-empty page cannot change card facts. In
         // particular it must not decode/reconcile every cached record first.
         if(!hasBusinesses&&!hasEvents&&extraction.announcements.isEmpty()) {
-            offerSources(area,extraction.sources.take(48));return 0 to 0
+            offerSources(area,extraction.sources.take(48),admit);return 0 to 0
         }
         var altered=false
         if(hasBusinesses)altered=reconcile(area)||altered
         if(hasEvents)altered=reconcileEvents()||altered
-        val db=writableDatabase;var places=0;var sessions=0
+        val repaired=altered
+        val db=writableDatabase;var places=0;var sessions=0;var committed=false
         val identities=mutableMapOf<String,String>()
         db.beginTransaction()
         try {
+            if(!admit()){if(repaired)changed();return 0 to 0}
             if(hasBusinesses) {
                 val known=businesses(area).associateBy {it.id}.toMutableMap()
                 val prepared=mutableMapOf<String,LocalBusinessIdentity.Prepared>()
@@ -214,8 +220,9 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
                 put(candidate.id,"announcement",gson.toJson(candidate),null,candidate.checkedAt,now()+7L*86400000,candidate.title+" "+candidate.text);altered=true
             }
             extraction.sources.take(48).forEach {candidate->offerSource(area,candidate.copy(businessId=identities[candidate.businessId] ?: candidate.businessId))}
-            db.setTransactionSuccessful()
+            if(admit()){db.setTransactionSuccessful();committed=true}
         }finally {db.endTransaction()}
+        if(!committed){if(repaired)changed();return 0 to 0}
         val expired=trim()
         if(altered||places>0||sessions>0||expired)changed()
         return places to sessions
