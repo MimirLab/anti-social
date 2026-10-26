@@ -14,6 +14,10 @@ internal object CaptionAliases {
     private val spaces=Regex("[\\s\\p{Z}]+")
     private val leading=setOf("our","the","my","official")
     private val labels=setOf("observatory","agency","department","foundation","institute","university","organization","corporation","company","office","team","project")
+    private val mentionArticle=Regex("(?i)^(?:the|our|my|official)\\s+")
+    private val qualifiers=labels+setOf("space","telescope","satellite","spacecraft","rover")
+    private val competing=setOf("no","not","never","without","new","old","former","different","replacement","fake","counterfeit","one","two","three","four","five","six","seven","eight","nine","ten")
+    private val ordinal=Regex("[IVXLCDM]{1,8}")
     private fun normalize(s:String)=spaces.replace(Normalizer.normalize(s,Normalizer.Form.NFC)," ").trim().lowercase(Locale.ROOT)
     private val tags=Regex("(?:\\s+#[\\p{L}\\p{N}_]+){1,8}\\s*$")
     private val urls=Regex("https://[^\\s<>\"']+")
@@ -42,11 +46,27 @@ internal object CaptionAliases {
         if(normalize(left.take(fromA))!=normalize(right.take(fromB))||normalize(left.substring(endA))!=normalize(right.substring(endB)))return false
         if(left.take(fromA).length+left.substring(endA).length<160)return false
         fun name(mention:String,prose:String):Boolean {
-            if(!mention.startsWith('@')||!words.matches(mention)||prose.contains('@'))return false
-            val handle=compact(mention);if(handle.length<6)return false
-            val tokens=words.findAll(prose).map {normalize(it.value)}.toList().dropWhile {it in leading}.dropLastWhile {it in labels}
+            val named=if(mediaConfirmed)mentionArticle.replace(mention,"")else mention
+            if(!named.startsWith('@')||!words.matches(named)||prose.contains('@'))return false
+            val handle=compact(named);if(handle.length<6)return false
+            val names=words.findAll(prose).map {it.value}.toList().dropWhile {normalize(it) in leading}.dropLastWhile {normalize(it) in labels}
+            val tokens=names.map(::normalize)
             val spelled=tokens.joinToString(""){compact(it)}
-            return tokens.isNotEmpty()&&(spelled==handle||mediaConfirmed&&spelled.length>=8&&handle.endsWith(spelled)&&handle.length-spelled.length in 1..8)
+            if(tokens.isNotEmpty()&&(spelled==handle||mediaConfirmed&&spelled.length>=8&&handle.endsWith(spelled)&&handle.length-spelled.length in 1..8))return true
+            // A compound handle may omit a first name or a work qualifier:
+            // @AsterDawn -> Aster's Maya Dawn Space Telescope. Require whole
+            // ordered proper-name words, not fuzzy characters or a shared surname.
+            // This route is available only after independent strong media proof.
+            if(!mediaConfirmed||handle.length<8||names.size !in 2..6)return false
+            val parts=names.map {normalize(it).replace('’','\'').removeSuffix("'s")}
+            if(parts.any {it in competing||it.any(Char::isDigit)}||names.any {ordinal.matches(it)||it.firstOrNull()?.isUpperCase()!=true})return false
+            for(mask in 1 until (1 shl parts.size)) {
+                val selected=parts.indices.filter {mask and (1 shl it)!=0}
+                if(selected.size<2||parts.size-selected.size>2||selected.first()!=0||selected.any {parts[it].length<3})continue
+                if(parts.drop(selected.last()+1).any {it !in qualifiers})continue
+                if(selected.joinToString(""){parts[it]}==handle)return true
+            }
+            return false
         }
         val x=left.substring(fromA,endA);val y=right.substring(fromB,endB)
         fun handles(a:String,b:String):Boolean {

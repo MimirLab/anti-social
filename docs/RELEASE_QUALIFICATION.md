@@ -9,6 +9,38 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.44 compound references in corroborated image copies
+
+One long caption can use a compound account handle while another spells out a
+full proper name. The alias comparison now permits one leading article and an
+ordered sequence of whole proper-name words, with at most two omitted name/work
+qualifiers. At least two substantial words must reconstruct the entire handle;
+a shared surname, partial spelling, changed subject, number, negation or concrete
+destination cannot establish this match. This additional path requires the
+existing independent image proof and long identical surrounding prose. It makes
+no account-ownership claim and introduces no lookup or model request.
+
+The recorded two-platform case occupied two cards on retained 0.38.43 logic,
+despite both pictures decoding correctly. Its captured pixel observations now
+produce one collected card and one complete caption taken from the actual
+full-name edition, retaining both originals. Synthetic positive/separation cases
+exercise the same mechanism without bundling reader reproduction inputs.
+
+Source records, image acquisition and decoding are unchanged. The new native
+fixture checks one caption, one picture with both platform labels, and protected
+capture of both original editions. Qualification receipts remain external.
+
+Qualification passed **2,389 JVM cases**, zero failures/errors and three optional
+skips; final numeric/negation guards and the private recorded-input replay also
+passed a 45-case selection. Debug/test assembly and Android lint passed with
+existing warnings. The 112-method native reader/fusion/media/Library selection
+has **112 passes and no skips** after correcting the new fixture's assumption of
+a fixed platform-label order. Its assertions now require exactly both source
+labels while respecting the configured order. The final 46-method native
+fusion/media/sharing/Library selection passed, and its actual screen was inspected.
+The initial fixture failure and successful rerun are both retained. No production
+loader, Gateway, permission, model, database schema or native runtime is changed.
+
 ## 0.38.43 reader regression recovery and visible sharing
 
 The full Material pull arrow/progress bubble replaces the overly subtle toolbar

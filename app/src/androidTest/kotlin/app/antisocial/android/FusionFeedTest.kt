@@ -263,6 +263,29 @@ class FusionFeedTest {
         assertEquals(instagram.media,runBlocking {repo.dao.post(repo.key(instagram))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.media)
     }
 
+    @Test fun compoundHandleAndFullWorkNameUseOneCaptionOnePictureAndSaveBothOriginals() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val tail=" telescope recently recorded stars forming inside this distant cloud. This region contains bright young stars surrounded by large amounts of dust and gas. The observing team published the original picture and the instrument settings so readers can inspect the result and compare earlier observations."
+        val x=oldX.copy(body="The @AsterDawn"+tail)
+        val fb=oldInstagram.copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",body="Aster's Maya Dawn Space"+tail)
+        records+=listOf(x,fb);store(x,follow(Platform.X));store(fb,follow(Platform.FACEBOOK))
+        cachePicture(x);cachePicture(fb,jpeg=true)
+        assertTrue(repo.images.identities.same(x,fb))
+        seed("all",listOf(x,fb));val vm=model();show(vm,all=true);waitRow(x)
+        row(fb).assertDoesNotExist();ui.onAllNodesWithTag("Fused post text").assertCountEquals(1)
+        ui.onNodeWithText(fb.body).assertExists()
+        ui.onAllNodes(SemanticsMatcher("one collected picture"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
+        val label=ui.onNodeWithTag("Media sources ${x.media.single().url}").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(""){it.text}
+        assertTrue(label.startsWith("Image from "))
+        val platforms=label.removePrefix("Image from ").split(" · ")
+        assertEquals(2,platforms.size);assertEquals(setOf("X","Facebook"),platforms.toSet())
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==2}
+        assertCapturedSources(listOf(x,fb),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+        evidence("compound-reference-one-caption-one-picture")
+    }
+
     @Test fun allFeedFusesSharedPictureAndCaptionPreservesContextAndEveryCommentStream() {
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
         cachePicture(x);cachePicture(instagram,jpeg=true)
