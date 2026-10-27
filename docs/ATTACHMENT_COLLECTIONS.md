@@ -1,5 +1,56 @@
 # Attachment collections
 
+## Live-feed reconciliation, 0.38.47
+
+Several failures occurred outside pairwise matching. A late counterpart could
+move an already displayed announcement farther down the chronology, or leave
+two old rows after their source group became one. Established rows now retain
+their ordering timestamp during automatic adoption. Row coalescing requires one
+complete, current qualified component covering every old alias; partial overlap
+cannot bridge unrelated collections. The retained visible body, row key and
+viewport anchor survive. Deliberate Newest adoption can establish a fresh order.
+
+Refreshing a signed Meta image URL must not erase artwork already observed for
+that qualified CDN object. The bounded image bank now indexes its existing
+observations by the same strict object identity used by attachment comparison.
+An unobserved token/host variant can reuse compatible visual evidence; conflicting
+decoded copies block that fallback. Exact observations take precedence. Expiry,
+eviction and clearing remove the alias evidence too. This shares neither cached
+bytes nor file hashes, AI declarations, credentials or signature validation.
+The refreshed URL remains unobserved for actual image loading. This closes a
+live failure where a refresh replaced the URLs, the visible body retained its
+old media, and matching split an already collected announcement.
+
+Source-aware presentation also excludes known empty generated feed wrappers,
+transport-escaped entity artifacts and generated author headers. Nitter repost
+headings containing full URLs can share the body's shortened destination labels
+only after their corresponding hosts, paths, query and fragment agree. The
+presentation keeps the supplied full destinations and repost attribution. Raw
+source records and substantive quoted/reply context remain intact.
+
+Additional bounded candidate routes address source-qualified announcement
+headings, compact proper-name references and duplicate same-feed reel entries.
+These extend the existing routes. A shared opening cover can corroborate a
+specific contemporaneous announcement without establishing identical footage
+or allowing a picture to disappear. Already admitted editions retain their
+distinct attributed sentences and every playable recording. The native card
+uses one player with source-edition controls when each edition supplies one
+recording; a platform supplying only a known generated still is labelled Preview.
+Multiple recordings in an individual source post remain separate.
+
+A public-profile Reddit submission with an empty body can collect its own
+publisher's substantial explanation on that exact thread. The route requires
+the canonical parent identity, matching generated heading, source/profile author
+evidence and a short publication interval. A same-publisher glyph-only follow-up
+can remain inside that collection. Ordinary replies, another author's comment,
+changed headings and substantive parent posts do not qualify. Originals,
+discussion roots and source-specific reaction text remain available and saved.
+
+No model, additional crawl, permission, database migration, runtime or production
+dependency is added. These paths use existing acquired source and image evidence.
+See the dated [release qualification](RELEASE_QUALIFICATION.md) for actual native
+scroll inspection, captured-input replays and regression scope.
+
 ## Complete presentation and late content, 0.38.46
 
 The live card, Context and offline reader use a shared, read-only `CollectionPlan`

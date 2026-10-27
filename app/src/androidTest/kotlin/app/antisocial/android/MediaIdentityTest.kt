@@ -26,6 +26,43 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun refreshedSignedImageUrlsRetainObservedArtworkWithoutTransferringFileValidation() {
+        val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
+        val first="https://scontent-a.xx.fbcdn.net$path?oh=old&oe=one"
+        val fresh="https://scontent-b.cdninstagram.com$path?stp=dst-jpg_e35_p1080x1080_tt6&oh=new&oe=two"
+        val x="https://images.example.org/picture.jpg";val picture=landscape();val bank=MediaIdentityStore()
+        try {
+            bank.observe(first,picture);bank.observe(x,picture)
+            val refreshed=post(fresh,Platform.INSTAGRAM)
+            assertFalse("Actual reads still inspect the exact new URL",bank.knows(fresh))
+            assertEquals(bank.captured(post(first)).media.single().visualFingerprint,bank.captured(refreshed).media.single().visualFingerprint)
+            assertTrue(bank.same(post(x),refreshed))
+            assertNull("File-specific provenance is never copied",bank.captured(refreshed).media.single().aiMetadata)
+            assertNull(bank.captured(post(fresh+"&stp=cp0_dst-jpg_s640x640")).media.single().visualFingerprint)
+            assertNull(bank.captured(post(fresh.replace(".cdninstagram.com",".example.org"))).media.single().visualFingerprint)
+            val changed=landscape().also {Canvas(it).drawRect(0f,0f,it.width*.7f,it.height.toFloat(),Paint().apply {color=Color.RED})}
+            try {
+                bank.observe(fresh,changed)
+                assertFalse("An actually different decoded copy overrides earlier alias evidence",bank.same(post(x),refreshed))
+                assertNull("Conflicting observations block unobserved aliases",bank.captured(post(first.replace("oh=old","oh=third"))).media.single().visualFingerprint)
+            }finally {changed.recycle()}
+        }finally {picture.recycle()}
+    }
+
+    @Test fun artworkAliasEvidenceExpiresAndEvictsWithItsOriginalObservation() {
+        val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
+        val first="https://scontent-a.xx.fbcdn.net$path?oh=first"
+        val alias="https://scontent-b.xx.fbcdn.net$path?oh=second"
+        var now=100L;val bank=MediaIdentityStore(maxEntries=1,ttlMs=10,clock={now});val picture=landscape()
+        try {
+            bank.observe(first,picture);assertNotNull(bank.captured(post(alias)).media.single().visualFingerprint)
+            now+=10;assertNull(bank.captured(post(alias)).media.single().visualFingerprint)
+            bank.observe(first,picture);bank.observe("https://images.example.org/unrelated.jpg",picture)
+            assertNull(bank.captured(post(alias)).media.single().visualFingerprint)
+            bank.observe(first,picture);bank.clear();assertNull(bank.captured(post(alias)).media.single().visualFingerprint)
+        }finally {picture.recycle()}
+    }
+
     @Test fun aDeclaredVideoPreviewUsesTheVideoSlotWithoutErasingAnActualPhotograph() {
         val clip=post("https://videos.example.org/clip.mp4",Platform.X).copy(media=listOf(Media("https://videos.example.org/clip.mp4","video","https://images.example.org/player.jpg")))
         val p=app.antisocial.core.Provenance(app.antisocial.core.Source(Platform.INSTAGRAM,"rss-bridge","https://reader.example"),1793000000000,"https://reader.example/feed")

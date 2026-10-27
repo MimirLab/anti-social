@@ -4,6 +4,7 @@ package app.antisocial.android
 import android.graphics.Bitmap
 import app.antisocial.core.Post
 import app.antisocial.core.VisualFrames
+import app.antisocial.core.ImageAssetIdentity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,8 +31,9 @@ class MediaIdentityStore(
         val aspect: Double,val horizontal: Long,val vertical: Long,
         val cells: List<Int>,val contrast: Double,val encoded: String,val postMatch:Boolean
     )
-    private data class Observation(val fingerprint: Fingerprint,val observedAt: Long)
+    private data class Observation(val fingerprint: Fingerprint,val observedAt: Long,val asset: String?)
     private val observations=LinkedHashMap<String,Observation>()
+    private val assetUrls=mutableMapOf<String,MutableSet<String>>()
     private var nextExpiry=Long.MAX_VALUE
     private var lastClock=Long.MIN_VALUE
     private val changes=MutableStateFlow(0L)
@@ -47,7 +49,7 @@ class MediaIdentityStore(
         if(expire(clock()))changes.value+=1
         val media=post.media.map {item->
             val url=when(item.type){"image"->item.url;"video"->item.preview;else->null}
-            val f=observations[url]?.fingerprint
+            val f=url?.let(::observedFingerprint)
             if(f==null)item else if(f.postMatch)item.copy(visualFingerprint=f.encoded,attachmentFingerprint=null)
             else item.copy(visualFingerprint=null,attachmentFingerprint=f.encoded)
         }
@@ -62,13 +64,16 @@ class MediaIdentityStore(
             val now=clock()
             var changed=expire(now)
             val previous=observations.remove(url)
+            forgetAsset(url,previous)
             if(fingerprint!=null) {
-                observations[url]=Observation(fingerprint,now)
+                val asset=ImageAssetIdentity.key(url)
+                observations[url]=Observation(fingerprint,now,asset)
+                if(asset!=null)assetUrls.getOrPut(asset){linkedSetOf()}.add(url)
                 nextExpiry=minOf(nextExpiry,now+ttlMs)
                 changed=changed||previous?.fingerprint!=fingerprint
             }else changed=changed||previous!=null
             while(observations.size>maxEntries) {
-                observations.entries.iterator().apply {next();remove()};changed=true
+                observations.entries.iterator().apply {val old=next();forgetAsset(old.key,old.value);remove()};changed=true
             }
             if(changed)changes.value+=1
         }
@@ -76,13 +81,29 @@ class MediaIdentityStore(
 
     fun same(a: Post,b: Post): Boolean=synchronized(observations) {
         if(expire(clock()))changes.value+=1
-        val first=images(a).mapNotNull {observations[it]?.fingerprint}
-        val second=images(b).mapNotNull {observations[it]?.fingerprint}
+        val first=images(a).mapNotNull(::observedFingerprint)
+        val second=images(b).mapNotNull(::observedFingerprint)
         first.any {left->second.any {right->matches(left,right)}}
     }
 
     fun clear()=synchronized(observations) {
-        if(observations.isNotEmpty()) {observations.clear();nextExpiry=Long.MAX_VALUE;changes.value+=1}
+        if(observations.isNotEmpty()) {observations.clear();assetUrls.clear();nextExpiry=Long.MAX_VALUE;changes.value+=1}
+    }
+
+    /** A refreshed signed URL does not erase already observed artwork. Use only
+     * the existing qualified CDN object identity; contrary decoded copies block
+     * this fallback. No cached bytes, file hashes or credentials are transferred.
+     * knows() remains exact so an actual read still observes the refreshed file. */
+    private fun observedFingerprint(url:String):Fingerprint? {
+        observations[url]?.let {return it.fingerprint}
+        val asset=ImageAssetIdentity.key(url) ?: return null
+        val copies=assetUrls[asset].orEmpty().mapNotNull {observations[it]?.fingerprint}
+        val first=copies.firstOrNull() ?: return null
+        return first.takeIf {copies.all {other->other===first||VisualFrames.sameImage(first.encoded,other.encoded)}}
+    }
+    private fun forgetAsset(url:String,observation:Observation?) {
+        val asset=observation?.asset ?: return
+        assetUrls[asset]?.let {urls->urls.remove(url);if(urls.isEmpty())assetUrls.remove(asset)}
     }
 
     private fun expire(now: Long): Boolean {
@@ -91,9 +112,9 @@ class MediaIdentityStore(
         lastClock=now;nextExpiry=Long.MAX_VALUE
         val iterator=observations.entries.iterator();var changed=false
         while(iterator.hasNext()) {
-            val observation=iterator.next().value
+            val entry=iterator.next();val observation=entry.value
             val age=now-observation.observedAt
-            if(age<0||age>=ttlMs) {iterator.remove();changed=true}
+            if(age<0||age>=ttlMs) {forgetAsset(entry.key,observation);iterator.remove();changed=true}
             else nextExpiry=minOf(nextExpiry,observation.observedAt+ttlMs)
         }
         return changed

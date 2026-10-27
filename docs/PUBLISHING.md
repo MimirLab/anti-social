@@ -101,6 +101,11 @@ Search-tab behavior without embedding an owner's queries or reader state in sour
 reads through the production Gateway, then records the observed attachment
 groups in private external device evidence. These are opt-in engineering checks;
 normal regression runs skip the packet and no captured reader data ships.
+Optional per-case `imageEdge` (64–1600, default 1600) compares the actual decoder
+resolutions. `refreshedPosts` can supply exactly the same original identities
+after those reads, allowing a signed-URL refresh to be replayed against earlier
+pixel observations. Read receipts retain the URLs actually inspected; this
+diagnostic does not authenticate replacement bytes or download them implicitly.
 
 Business arguments contain the initial name, address, locality, optional point,
 websites, socials, phones and source IDs needed by that check. Missing required

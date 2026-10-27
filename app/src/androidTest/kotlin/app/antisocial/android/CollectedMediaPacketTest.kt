@@ -29,6 +29,8 @@ class CollectedMediaPacketTest {
             for((index,raw)in cases.withIndex()) {
                 val spec=raw.asJsonObject;val posts=spec.getAsJsonArray("posts").map {repo.gson.fromJson(it,Post::class.java)}
                 require(posts.size in 1..12)
+                val imageEdge=spec["imageEdge"]?.asInt ?: 1600
+                require(imageEdge in 64..1600)
                 val row=JsonObject();report.add(row);val reads=JsonArray();row.add("reads",reads)
                 for(post in posts)for(media in post.media) {
                     val url=if(media.type=="video")media.preview else media.url
@@ -41,7 +43,7 @@ class CollectedMediaPacketTest {
                             val key=Repository.hash(url);if(key !in originals)originals[key]=repo.dao.media(key)
                             repo.dao.putMedia(MediaRow(key,file.path,file.length(),System.currentTimeMillis()))
                         }
-                        withTimeout(35_000){repo.images.load(url,post.contentSourceUrl,1600)}
+                        withTimeout(35_000){repo.images.load(url,post.contentSourceUrl,imageEdge)}
                         val captured=repo.images.identities.captured(post.copy(media=listOf(media))).media.single()
                         read.addProperty("fingerprint",captured.visualFingerprint);read.addProperty("attachmentFingerprint",captured.attachmentFingerprint)
                         repo.availableMedia(url)?.let {source->
@@ -52,7 +54,12 @@ class CollectedMediaPacketTest {
                     catch(e:Exception){read.addProperty("error",e.message ?: e.javaClass.simpleName)}
                     File(output,"report.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(report))
                 }
-                val captured=posts.map(repo.images.identities::captured)
+                // Replay a source refresh after inspecting the earlier bytes.
+                // This exposes signed-URL churn without downloading replacements
+                // or treating an alias observation as file authentication.
+                val refreshed=spec.getAsJsonArray("refreshedPosts")?.map {repo.gson.fromJson(it,Post::class.java)}
+                require(refreshed==null||refreshed.size==posts.size&&refreshed.map(CrossPosts::originalKey).toSet()==posts.map(CrossPosts::originalKey).toSet())
+                val captured=(refreshed ?: posts).map(repo.images.identities::captured)
                 row.add("posts",repo.gson.toJsonTree(captured));row.add("attachments",repo.gson.toJsonTree(collectedAttachments(captured)))
                 File(output,"report.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(report))
             }
