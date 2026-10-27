@@ -383,6 +383,20 @@ class FusionFeedTest {
         ui.onAllNodes(SemanticsMatcher("one already-read photograph"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
     }
 
+    @Test fun oneVideoUrlWithConflictingTimingObservationsKeepsSelectableDistinctKeys() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val preview="https://fusion-x-$suffix.invalid/observed-cover.png"
+        val media=Media("https://video-x-$suffix.invalid/observed.mp4","video",preview,durationMs=10000)
+        val x=oldX.copy(body=shared,media=listOf(media,media.copy(durationMs=90000)))
+        records+=x;store(x,follow(Platform.X));cacheGalleryPicture(preview,1)
+        assertEquals(2,collectedAttachments(listOf(x)).size)
+        seed("all",listOf(x));val vm=model();show(vm,all=true);waitRow(x)
+        revealCombinedControl(hasText("Video 2"))
+        ui.onNodeWithText("Video 2").performClick().assertIsSelected()
+        ui.onAllNodesWithText("Play video").assertCountEquals(1)
+        evidence("same-url-timing-observations-remain-selectable")
+    }
+
     @Test fun attachmentLayoutAndCdnCopiesRenderOneCaptionTwoPicturesAndBothCommentStreams() {
         val (oldX,oldInstagram)=pair();val caption=shared.trimEnd('.')
         fun imagePath(index:Int)="/v/t39.30808-6/123456${suffix}_${234567890+index}_345678901_n.jpg"

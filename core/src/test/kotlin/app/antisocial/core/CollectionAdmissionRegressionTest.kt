@@ -39,4 +39,17 @@ class CollectionAdmissionRegressionTest {
         val tonal=listOf(a.copy(body="Workshop repairs are ready!"),b.copy(body="Workshop repairs are ready."))
         assertEquals(listOf(tonal.first().body),CrossPostFusion.compose(tonal)!!.segments.map {it.text})
     }
+    @Test fun metadataImageEnclosuresDoNotBecomeCompetingEditorialDestinations() {
+        val a=post("400",body="Workshop repairs are ready.").copy(media=listOf(Media("https://images.example/first.jpg")),links=listOf("https://images.example/first.jpg"))
+        val b=post("401",Platform.INSTAGRAM,a.body).copy(media=listOf(Media("https://images.example/second.jpg")),links=listOf("https://images.example/second.jpg"))
+        val follows=listOf(Follow("x",Target(Platform.X,TargetKind.PROFILE,"workshop","https://x.com/workshop"),"Workshop",personId="workshop"),
+            Follow("ig",Target(Platform.INSTAGRAM,TargetKind.PROFILE,"workshop","https://www.instagram.com/workshop"),"Workshop",personId="workshop"))
+        val memberships=mapOf(b.identityKey to setOf("ig"))
+        assertEquals(1,CrossPosts.group(listOf(a,b),follows,memberships).size)
+        val articles=listOf(a.copy(links=a.links!!+"https://docs.example/one"),b.copy(links=b.links!!+"https://docs.example/two"))
+        assertEquals(2,CrossPosts.group(articles,follows,memberships).size)
+        val literal=listOf(a.copy(body=a.body+" Read https://images.example/first.jpg"),b.copy(body=b.body+" Read https://images.example/second.jpg"))
+        assertEquals(2,CrossPosts.group(literal,follows,memberships).size)
+        assertNull(CrossPostFusion.compose(literal))
+    }
 }

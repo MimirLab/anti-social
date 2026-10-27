@@ -71,10 +71,10 @@ object CrossPosts {
     private val opaqueLinkHosts=setOf("bit.ly","bitly.com","tinyurl.com","t.co","lnkd.in","go.nasa.gov")
     private val opaqueLinkPath=Regex("/[A-Za-z0-9_-]{3,80}/?")
     internal fun opaqueLink(value:String)=value.toHttpUrlOrNull()?.let {it.isHttps&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in opaqueLinkHosts&&it.query==null&&opaqueLinkPath.matches(it.encodedPath)}==true
-    internal fun onlyOpaqueOrOriginalLinks(post:Post)=PostLinks.urls(post).all {value->
-        // Feed enclosures can also appear in the source link inventory. They
-        // are already represented by their attachment, not a competing article.
-        post.media.any {it.url==value||it.preview==value}||linksToOriginal(value,post)||normalizedUrl(value)?.let(::opaqueLink)==true
+    internal fun onlyOpaqueOrOriginalLinks(post:Post):Boolean {
+        val literal=if(post.links.isNullOrEmpty())emptySet()else PostPresentation.destinationLabels(PostPresentation.content(post)).mapNotNull(::normalizedUrl).toSet()
+        val enclosures=enclosureLinks(post,literal)
+        return PostLinks.urls(post).all {value->linksToOriginal(value,post)||normalizedUrl(value)?.let {it in enclosures||opaqueLink(it)}==true}
     }
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
@@ -374,6 +374,14 @@ object CrossPosts {
     }
     private fun tokens(value: String)=words.findAll(value.lowercase()).map {tokenWhitespace.replace(it.value,"").replace('−','-')}.toList()
     private fun normalizedUrl(value: String)=CrossPostFusion.normalizedUrl(value){normalizeUrl(value)}
+    /** Additional link-inventory entries for actual media are transport data.
+     * A literal publisher link or a social work URL remains editorial evidence. */
+    private fun enclosureLinks(post:Post,literal:Set<String>):Set<String> {
+        val supplied=post.links.orEmpty().take(16).toSet()
+        if(supplied.isEmpty())return emptySet()
+        return post.media.take(12).flatMap {listOfNotNull(it.url,it.preview)}.filter {it in supplied}.mapNotNull(::normalizedUrl)
+            .filter {it !in literal&&(SocialLinkHosts.platform(it)==null||ImageAssetIdentity.key(it)!=null)}.toSet()
+    }
     private fun normalizeUrl(value: String): String? {
         val clean=decoded(value).trim()
         val alias=SocialLinkHosts.canonical(clean) ?: clean
@@ -429,12 +437,13 @@ object CrossPosts {
         val base=tokens(trailingTags.replace(plain,"")).joinToString(" ")
         val literalLinks=PostPresentation.destinationLabels(content).mapNotNull(::normalizedUrl).toSet()
         val urls=(post.links.orEmpty().take(16).mapNotNull(::normalizedUrl)+literalLinks).toSet()
+        val enclosures=enclosureLinks(post,literalLinks)
         val media=post.media.take(12).mapNotNull {if(it.type=="image")ImageAssetIdentity.key(it.url) ?: normalizedUrl(it.url)else normalizedUrl(it.url)}.toSet()
         return Features(post,owner,wordTokens.joinToString(" "),base,wordTokens,wordTokens.filter {it.any(Char::isDigit)},wordTokens.filter {it in negations},meaningfulSymbols.findAll(plain).joinToString(""){it.value},urls,
             // A literal non-social site address can itself be the announced
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
-            urls.filter {(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain),
+            urls.filter {it !in enclosures&&(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain),
             realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post),eligible.filter {it.second.id in sources}.mapTo(linkedSetOf()){it.second.id},null)
     }
     private fun explicit(a: Features,b: Features): Boolean {

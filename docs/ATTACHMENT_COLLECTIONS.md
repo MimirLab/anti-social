@@ -26,6 +26,11 @@ nomination retains selective complete buckets before broad ones, with the same
 128-candidate bound and mutual/ambiguity checks. An over-budget bucket remains
 unexamined; it is not evidence that its members differ.
 
+Media-enclosure entries in a feed's link inventory do not become competing
+editorial destinations merely because two platforms use different image CDNs.
+Literal publisher links and social work URLs retain their comparison rules, and
+the full original link inventory remains available.
+
 Distinct recordings remain separate inventory entries even with identical posters
 and equal or unknown durations. The reader presents one shared cover with source
 edition controls, preserving every playable recording for Context and saves. The

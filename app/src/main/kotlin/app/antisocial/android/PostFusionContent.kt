@@ -45,14 +45,14 @@ import app.antisocial.core.PostPresentation
 
 /** A shared cover takes one slot while every recording remains selectable. */
 @Composable internal fun CollectedMediaChoice(group:CollectedMediaGroup):CollectedAttachment {
-    fun key(item:CollectedAttachment)=item.media.type+":"+item.media.url+":"+item.originalKeys.sorted().joinToString("|")
-    var chosen by remember(group.primary.media.url){mutableStateOf(key(group.primary))}
-    val selected=group.editions.firstOrNull {key(it)==chosen} ?: group.primary
+    fun key(index:Int,item:CollectedAttachment)=index.toString()+":"+item.media.type+":"+item.media.url+":"+item.media.durationMs+":"+item.media.audioUrl+":"+item.originalKeys.sorted().joinToString("|")
+    var chosen by remember(group.primary.media.url){mutableStateOf(key(group.editions.indexOf(group.primary),group.primary))}
+    val selected=group.editions.withIndex().firstOrNull {key(it.index,it.value)==chosen}?.value ?: group.primary
     if(group.editions.size>1)Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Text("Media editions",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("Media editions ${group.primary.media.url}")) {
-            itemsIndexed(group.editions,key={_,item->key(item)}) {index,item->
-                FilterChip(selected==item,{chosen=key(item)},label={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+            itemsIndexed(group.editions,key={index,item->key(index,item)}) {index,item->
+                FilterChip(selected==item,{chosen=key(index,item)},label={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                     app.antisocial.core.PlatformOrder.sort(item.platforms).forEach {PlatformMark(it,18.dp)}
                     Text((if(item.media.type=="video")"Video"else "Image")+if(group.editions.count {it.platforms==item.platforms&&it.media.type==item.media.type}>1)" ${index+1}"else "",fontSize=11.sp)
                 }},modifier=Modifier.testTag("Media edition ${item.media.url}"))
