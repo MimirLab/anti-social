@@ -26,7 +26,11 @@ transport-escaped entity artifacts and generated author headers. Nitter repost
 headings containing full URLs can share the body's shortened destination labels
 only after their corresponding hosts, paths, query and fragment agree. The
 presentation keeps the supplied full destinations and repost attribution. Raw
-source records and substantive quoted/reply context remain intact.
+source records and substantive quoted/reply context remain intact. The native
+Facebook adapter's leading attached-story label likewise remains visible as
+attribution outside its caption; publisher commentary before that label stays
+in the body. Existing picture-proven name aliases compose before a partial
+paragraph fallback, so a credit-name variation does not repeat the paragraph.
 
 Additional bounded candidate routes address source-qualified announcement
 headings, compact proper-name references and duplicate same-feed reel entries.

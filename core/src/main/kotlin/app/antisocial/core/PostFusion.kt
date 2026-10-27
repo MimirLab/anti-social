@@ -487,6 +487,12 @@ object CrossPostFusion {
         DecoratedPostCopies.compose(posts)?.let {return it}
         AttachmentCaptions.compose(posts)?.let {return it}
         CaptionAliases.compose(posts)?.let {return it}
+        // Prefer the complete proper-name caption to repeated source paragraphs
+        // when the existing independent copy/media checks qualify its aliases.
+        // Candidate recognition alone never supplies that corroboration.
+        CaptionAliases.compose(posts,mediaConfirmed=true)?.let {aliases->
+            if(CrossPosts.sameContentCopies(posts))return aliases
+        }
         // Grouping proves timing/content/corroboration independently; a copy
         // never certifies that its distinct publishers are the same person.
         // A fully equivalent short caption needs no partial-span alignment, but

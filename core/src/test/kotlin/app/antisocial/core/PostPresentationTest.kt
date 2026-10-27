@@ -12,6 +12,16 @@ class PostPresentationTest {
     private val cleaner=UrlCleaner(asset("clean-links.json"))
     private val routes=DarwinRoutes(asset("darwin-routes.json"),cleaner)
     private val source=routes.sources.first {it.frontend=="nitter"}
+    @Test fun aFacebookAttachedStoryLabelRetainsAttributionOutsideItsAuthoredCaption() {
+        val p=Provenance(Source(Platform.FACEBOOK,"original","https://www.facebook.com",role=SourceRole.ORIGINAL),1,"https://www.facebook.com/api/graphql/")
+        val shared=post.copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/123456789/posts/987654321",title="",body="Shared from Space Workshop:\n$caption",provenance=p)
+        val before=Gson().toJson(shared);val shown=PostPresentation.text(shared)
+        assertEquals(caption,shown.body);assertEquals("Shared from Space Workshop",shown.attribution)
+        assertEquals(before,Gson().toJson(shared))
+        for(other in listOf(shared.copy(provenance=null),shared.copy(provenance=p.copy(finalUrl="https://reader.example/feed")),shared.copy(body="My own introduction.\n\n"+shared.body))) {
+            assertEquals(other.body,PostPresentation.text(other).body);assertNull(PostPresentation.text(other).attribution)
+        }
+    }
     @Test fun aGeneratedRepostHeadingExpandsItsShortenedWwwLabelWithoutRepeatingTheProse() {
         val link="https://www.archive.example/updates/2026/complete-workshop-notes"
         val body="$caption Read archive.example/updates/2…"

@@ -51,9 +51,14 @@ appear once. Separate Android decoding checks exercised six refreshed-image
 reads, smaller cache-restoration renditions and the signed-URL transition. Sixty-four
 mixed-resolution combinations also passed; resolution differences were ruled out
 before the URL change was isolated. Six recorded repost examples verify one
-caption with supplied full destinations and unchanged raw records.
+caption with supplied full destinations and unchanged raw records. A subsequent
+native pass found an attached Facebook story repeated beside its X edition; the
+adapter's generated “Shared from” line is now retained as visible attribution
+outside the caption. Its two decoded originals pass the corpus replay as one
+card. The qualified name-alias compositor also takes precedence over partial
+paragraph composition, avoiding a repeated paragraph around a name/handle change.
 
-The full JVM suite passed **2,425 cases, zero failures/errors, three optional
+The full JVM suite passed **2,426 cases, zero failures/errors, three optional
 skips**. The broader intermediate API 35 native selection passed **176 methods,
 zero failed, one optional live-Tor skip**. After the signed-URL fix, all **68
 focused native methods passed**, including contrary-image, unsupported-transform,

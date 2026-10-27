@@ -25,6 +25,7 @@ class AttachmentCopiesRegressionTest {
         val fusion=CrossPostFusion.composeMedia(groups.single().posts)
         assertNotNull(fusion);assertEquals(1,fusion!!.segments.size)
         assertTrue(fusion.segments.single().text.endsWith("our Aurora Scope Observatory."))
+        assertEquals("The primary presentation must not return repeated source paragraphs before its qualified alias route",fusion,CrossPostFusion.compose(groups.single().posts))
         assertEquals(before,posts)
     }
     @Test fun namingVariantsCannotSwallowDifferentClaimsDestinationsOrPictures() {

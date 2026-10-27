@@ -39,6 +39,16 @@ object PostPresentation {
     }
     private fun textUncached(post: Post): PostTextPresentation {
         val sourceBody=sourceBody(post)
+        // FacebookAdapter adds this label for an attached shared story. Keep
+        // the attribution outside the authored caption so an uncaptioned share
+        // can collect with that story's other editions. An author's own leading
+        // commentary, other sources and ordinary inline text remain untouched.
+        if(post.platform==Platform.FACEBOOK&&post.title.isBlank()&&post.provenance?.source?.frontend=="original"&&
+            runCatching {URI(post.provenance.finalUrl).let {it.host in setOf("www.facebook.com","facebook.com")&&it.path=="/api/graphql/"}}.getOrDefault(false)) {
+            Regex("^Shared from ([^\\r\\n:]{1,150}):\\r?\\n(?=\\S)").find(sourceBody)?.let {header->
+                return PostTextPresentation("",sourceBody.substring(header.range.last+1),header.value.trimEnd().removeSuffix(":"))
+            }
+        }
         if(post.title.isBlank()||sourceBody.isBlank())return PostTextPresentation(post.title,sourceBody)
         val title=comparison(post.title)
         val author=comparison(post.author).removePrefix("@")
