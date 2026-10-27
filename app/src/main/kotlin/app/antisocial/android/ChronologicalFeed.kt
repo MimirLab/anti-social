@@ -38,7 +38,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 
-private data class FrozenFeedRow(val key: String,val aliases: List<String>,val posts: List<Post>,val bodyPosts: List<Post> = posts,val explanation: FeedRuleExplanation?=null) {
+private data class FrozenFeedRow(val key: String,val aliases: List<String>,val posts: List<Post>,val bodyPosts: List<Post> = posts,val explanation: FeedRuleExplanation?=null,val orderAt:Long?=posts.first().publishedAt) {
     val primary get()=posts.first()
 }
 private data class FeedRestore(val row: Int,val offset: Int,val exact: Boolean)
@@ -233,7 +233,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             // Explicit adoption also freezes admitted source editions whose
             // cached roots fall outside this feed's current retrieval window.
             .map {extend(it,adopting=true).let {row->row.copy(bodyPosts=row.posts)}}
-            .sortedWith(compareByDescending<FrozenFeedRow> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {it.key})
+            .sortedWith(compareByDescending<FrozenFeedRow> {it.orderAt ?: Long.MIN_VALUE}.thenBy {it.key})
     }
     suspend fun prepareReadAliases(values: List<FrozenFeedRow>,observe: Boolean=false): ()->Unit = withContext(Dispatchers.Default) {
         val projected=values.map {row->Triple(row,row.bodyPosts.map {filterProjection(repo,it)},row.posts.map {filterProjection(repo,it)})}
@@ -315,9 +315,16 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             val visibleBefore=frozen.filter {it.key in visibleKeys}
             val next=if(startBatch)collected else collected.map {row->
                 val locked=visibleBefore.firstOrNull {old->old.aliases.any {it in row.aliases}}
-                val stable=before.anchorKey?.takeIf {it in row.aliases} ?: locked?.key ?: row.key
-                row.copy(key=stable,posts=locked?.let {listOf(it.primary)+row.posts.filter {p->repo.key(p)!=repo.key(it.primary)}} ?: row.posts,bodyPosts=locked?.bodyPosts ?: row.bodyPosts)
-            }
+                // Keep the earliest already displayed collection's position,
+                // including after it leaves the viewport. A later-discovered
+                // older counterpart must not move a read card below the reader
+                // and make the same announcement appear a second time.
+                val established=frozen.firstOrNull {it.key in row.aliases}
+                val stable=before.anchorKey?.takeIf {it in row.aliases} ?: locked?.key?.takeIf {it in row.aliases} ?: established?.key ?: row.key
+                val primary=(locked ?: established)?.primary?.let {old->row.posts.firstOrNull {repo.key(it)==repo.key(old)}}
+                row.copy(key=stable,posts=primary?.let {listOf(it)+row.posts.filter {p->repo.key(p)!=repo.key(it)}} ?: row.posts,
+                    bodyPosts=locked?.bodyPosts ?: row.bodyPosts,orderAt=established?.orderAt ?: row.orderAt)
+            }.sortedWith(compareByDescending<FrozenFeedRow>{it.orderAt ?: Long.MIN_VALUE}.thenBy {it.key})
             if(!startBatch&&before.anchorKey!=null&&next.none {it.key==before.anchorKey}) {
                 // Cache/rule removal of the actual reading point needs explicit
                 // navigation; keep its frozen card under the reader's finger.
@@ -386,7 +393,11 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         val owners=sidecarRows.flatMap {row->row.aliases.map {it to row.key}}.toMap()
         val extended=sidecarRows.map {extend(it,owners)}
         if(extended==sidecarRows)return@LaunchedEffect
-        prepareReadAliases(extended).invoke()
+        val commitRead=prepareReadAliases(extended)
+        // Preparing aliases suspends on the worker. It must not overwrite a
+        // newer atomic regroup which committed while this sidecar was prepared.
+        if(rows!=sidecarRows||latestGroups!=counterparts||!latestGroupsReady)return@LaunchedEffect
+        commitRead()
         val inherited=sidecarRows.zip(extended).filter {(old,next)->old.aliases.all {it in baseline}&&!ContentRevisions.addsContext(old.bodyPosts,next.posts)}.flatMap {it.second.aliases}
         baseline=baseline+inherited
         rows=extended

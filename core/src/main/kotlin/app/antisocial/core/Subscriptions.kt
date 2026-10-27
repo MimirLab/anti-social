@@ -91,6 +91,7 @@ object CrossPosts {
         val url=uri(post.canonicalUrl) ?: return null
         if(post.platform !in ExpandedRoutes.federated&&SocialLinkHosts.platform(post.canonicalUrl)!=post.platform)return null
         PostAuthorAccounts.target(post)?.let {return post.platform.id+":"+it.identity.lowercase(java.util.Locale.ROOT)}
+        declaredCommentAccount(post)?.let {return it}
         val parts=url.path.orEmpty().trim('/').split('/').filter(String::isNotBlank)
         val username=Regex("[A-Za-z0-9_.-]{1,100}")
         val token=Regex("[A-Za-z0-9_-]{1,200}")
@@ -123,6 +124,22 @@ object CrossPosts {
         val server=if(post.platform in ExpandedRoutes.federated)origin(url)+":"else ""
         val identity=if(post.platform==Platform.BLUESKY&&account.startsWith("did:"))account else account.lowercase(java.util.Locale.ROOT)
         return post.platform.id+":"+server+identity
+    }
+    /** A Reddit profile feed explicitly names its author. Keep this narrower
+     * than a display-name guess: both the profile acquisition path and the /u/
+     * declaration must agree, and the original must identify an actual comment. */
+    private fun declaredCommentAccount(post:Post):String? {
+        if(post.platform!=Platform.REDDIT||post.parentId!=null||!ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("comment:"))return null
+        if(SocialLinkHosts.platform(post.canonicalUrl)!=Platform.REDDIT)return null
+        val author=Regex("^/?u/([A-Za-z0-9_-]{1,100})$").matchEntire(post.author)?.groupValues?.get(1) ?: return null
+        val p=post.provenance ?: return null
+        if(p.source.platform!=Platform.REDDIT||p.source.frontend !in setOf("original","redlib","libreddit","teddit","rss-bridge","rsshub"))return null
+        val url=uri(p.finalUrl) ?: return null
+        if(p.source.role==SourceRole.ORIGINAL) {if(SocialLinkHosts.platform(p.finalUrl)!=Platform.REDDIT)return null}
+        else if(!DarwinRoutes.matches(url,p.source.root))return null
+        val supplied=Regex("^/(?:user|u)/([A-Za-z0-9_-]{1,100})(?:/(?:[.]rss|comments[.]json|overview[.]json))?/?$")
+            .matchEntire(url.path.orEmpty())?.groupValues?.get(1) ?: return null
+        return author.takeIf {it.equals(supplied,true)}?.let {Platform.REDDIT.id+":"+it.lowercase(java.util.Locale.ROOT)}
     }
     /** Choose a real discussion root using supplied public reply counts only.
      * An unknown count never outranks a known count; ties favor the original. */
@@ -543,6 +560,7 @@ object CrossPosts {
             posts.all {post->val value=if(post===posts.first())first else features(post,emptyMap(),emptyMap());value.validOriginal&&!value.truncated&&completeCopyText(first,value)}
     }
     private fun copyMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
+        if(commentCopies(a,b))return true
         if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!a.validOriginal||!b.validOriginal)return false
         val reference=explicit(a,b)
         val ownUrls=listOfNotNull(a.canonical,b.canonical).toSet()
@@ -578,6 +596,15 @@ object CrossPosts {
         }
         if(distance==null||distance>MAX_REPEAT_WINDOW.toULong()||!(images||clips||reference))return false
         return CrossPostFusion.copiedCore(a.post,b.post)||images&&CrossPostFusion.mediaMatched(a.post,b.post)
+    }
+    private fun commentCopies(a:Features,b:Features):Boolean {
+        val account=declaredCommentAccount(a.post) ?: return false
+        if(account!=declaredCommentAccount(b.post)||a.post.preview||b.post.preview||!completeCopyText(a,b)||a.destinations!=b.destinations)return false
+        val body=tokens(decoded(a.post.body))
+        if(body.size<24||body.toSet().size<12||a.post.body.length<160)return false
+        val first=a.post.publishedAt?.takeIf {it>0} ?: return false
+        val second=b.post.publishedAt?.takeIf {it>0} ?: return false
+        return kotlin.math.abs(first-second)<=600_000
     }
     private fun fusionMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean,repeated: Boolean=false): Boolean {
         if(a.post.platform==b.post.platform&&!repeated||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||!a.validOriginal||!b.validOriginal)return false

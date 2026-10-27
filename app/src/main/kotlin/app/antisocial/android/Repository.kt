@@ -295,7 +295,7 @@ class Repository(val context: Context) {
         if(refresh.publishing)emptyFlow()else if(ids.isEmpty())flowOf(PostWindow(emptyList(),refresh.generation)) else combine(ids.chunked(400).map {chunk->dao.followedPosts(chunk).map {rows->rows.map {FeedPostRecord(it.key,it.payload,it.publishedAt,it.createdAt)}}.distinctUntilChanged()}) {chunks->
             chunks.flatMap {it}.distinctBy {it.key}.sortedWith(compareByDescending<FeedPostRecord> {it.publishedAt ?: Long.MIN_VALUE}.thenByDescending {it.createdAt}).take(1000)
         }.distinctUntilChanged().map {rows->
-            val posts=rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.filter(::readableRecord).also {registerPageOrigins(Page(it))}
+            val posts=rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.filter {readableRecord(it)&&FeedRefresh.readable(it)}.also {registerPageOrigins(Page(it))}
             PostWindow(posts,refresh.generation)
         }
     }.flowOn(Dispatchers.Default)

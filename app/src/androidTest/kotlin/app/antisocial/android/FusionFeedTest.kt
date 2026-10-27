@@ -338,6 +338,46 @@ class FusionFeedTest {
         evidence("same-video-cover-distinct-recording-choices")
     }
 
+    @Test fun differentVideoOpeningFramesUseOnePlayerWithBothSourceEditions() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val first=Media("https://video-x-$suffix.invalid/first.mp4","video","https://fusion-x-$suffix.invalid/first-cover.png","First source video cover")
+        val second=Media("https://video-instagram-$suffix.invalid/second.mp4","video","https://fusion-instagram-$suffix.invalid/second-cover.png","Second source video cover")
+        val x=oldX.copy(body=shared,media=listOf(first));val instagram=oldInstagram.copy(body=shared,media=listOf(second))
+        records+=listOf(x,instagram);store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(first.preview!!,1);cacheGalleryPicture(second.preview!!,2)
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        revealCombinedControl(hasTestTag("Media edition ${second.url}"))
+        ui.onNodeWithTag("Media edition ${second.url}").performClick()
+        ui.onNodeWithTag("Media sources ${second.url}").assertTextEquals("Video from Instagram")
+        ui.onAllNodesWithText("Play video").assertCountEquals(1)
+        assertEquals(2,contextSnapshot(repo,x,records).media.size)
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=records)}
+        assertEquals(2,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!.flatMap {it.media}.size)
+        ui.waitUntil(10000){ui.onAllNodesWithContentDescription("Second source video cover").fetchSemanticsNodes().isNotEmpty()}
+        evidence("different-video-opening-frames-one-player")
+    }
+
+    @Test fun anOlderLateCounterpartDoesNotMoveAReadCollectionBackBelowTheReader() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body=shared,publishedAt=now)
+        val instagram=oldInstagram.copy(body=shared,publishedAt=now-2*24*60*60*1000)
+        val middle=x.copy(id=x.id+"8",canonicalUrl=x.canonicalUrl+"8",body="A separate workshop update: the reading room is open to visitors this afternoon.",publishedAt=now-24*60*60*1000,media=emptyList())
+        val tail=x.copy(id=x.id+"9",canonicalUrl=x.canonicalUrl+"9",body="The earlier volunteer meeting has finished. The next gathering will be announced separately.",publishedAt=now-3*24*60*60*1000,media=emptyList())
+        records+=listOf(x,instagram,middle,tail);records.forEach {store(it,follow(it.platform))};cachePicture(x);cachePicture(instagram,jpeg=true)
+        val feed="stable-late-collection:$person";seed(feed,records)
+        val known=mutableStateOf(records.associate {repo.key(it) to listOf(it)});val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {ChronologicalFeed(vm,records,accounts,emptySet(),feed,"Late-source fixture","Actual reading order",grouped=true,onAdd={},counterparts=known.value)}}}
+        waitRow(x);repo.feedMemory.markRead(feed,listOf(repo.key(x)))
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(middle)}"))
+        val before=top(middle)
+        ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram),repo.key(middle) to listOf(middle),repo.key(tail) to listOf(tail))}
+        runBlocking {delay(1500)};ui.waitForIdle()
+        assertTrue("The current reading point stays fixed",abs(top(middle)-before)<=2f)
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(x)}"))
+        ui.waitUntil(10000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
+        evidence("older-counterpart-retains-original-reading-position")
+    }
+
     @Test fun shortLiteralVariantsRetainBothPicturesAndBothSourceCaptionsInContextAndSavedCopy() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val x=oldX.copy(body="Workshop repairs, ready for inspection.");val instagram=oldInstagram.copy(body="Workshop repairs ready for inspection.")

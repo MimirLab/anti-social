@@ -48,9 +48,14 @@ internal fun collectionPlan(posts:List<Post>,identities:MediaIdentityStore?=null
 @Composable internal fun rememberCollectionPlan(repo:Repository,posts:List<Post>):CollectionPlan {
     // New decoder evidence may collapse existing pictures. It must not trigger
     // expensive text alignment or rewrite the frozen caption on every revision.
-    val fusion=remember(posts){collectedPostFusion(posts)}
+    // Admission may already have used cached pixel evidence which isn't in the
+    // original Room payload. Capture that same local evidence once when this
+    // frozen body is adopted, so its composer can use the proof too. Later image
+    // revisions still cannot rewrite text beneath an active reader.
+    val prepared=remember(posts){posts.map(repo.images.identities::captured)}
+    val fusion=remember(prepared){collectedPostFusion(prepared)}
     val attachments=rememberCollectedAttachments(repo,posts)
-    return remember(posts,fusion,attachments){CollectionPlan(posts,fusion,attachments)}
+    return remember(prepared,fusion,attachments){CollectionPlan(prepared,fusion,attachments)}
 }
 
 /** Compare the union so a replacement image cannot hide behind an unchanged
@@ -162,5 +167,19 @@ internal fun collectedMediaGroups(attachments:List<CollectedAttachment>,relatedS
         val group=matching.singleOrNull()
         if(group==null)groups+=mutableListOf(item)else group+=item
     }
-    return groups.map {CollectedMediaGroup(it.toList())}
+    // Providers routinely choose different opening frames for the same
+    // announcement. One playable edition per original can share a visual slot
+    // across platforms without asserting that the recordings are identical.
+    // A genuine multi-video original keeps its separate slots and every source
+    // recording remains selectable, in Context and in the saved inventory.
+    val videoCounts=attachments.filter {it.media.type=="video"}.flatMap {it.originalKeys}.groupingBy {it}.eachCount()
+    fun eligible(group:List<CollectedAttachment>)=group.any {it.media.type=="video"}&&
+        group.filter {it.media.type=="video"}.all {it.originalKeys.isNotEmpty()&&it.originalKeys.all {key->videoCounts[key]==1}}
+    fun platforms(group:List<CollectedAttachment>)=group.filter {it.media.type=="video"}.flatMap {it.platforms}.toSet()
+    val slots=mutableListOf<MutableList<CollectedAttachment>>()
+    for(group in groups) {
+        val target=if(eligible(group))slots.singleOrNull {eligible(it)&&platforms(it).intersect(platforms(group)).isEmpty()}else null
+        if(target==null)slots+=group else target+=group
+    }
+    return slots.map {CollectedMediaGroup(it.toList())}
 }

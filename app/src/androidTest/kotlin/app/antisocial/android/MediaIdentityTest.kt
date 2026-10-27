@@ -26,6 +26,24 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun alternatePlatformVideoEditionsShareASlotDespiteDifferentOpeningFrames() {
+        val first=post("https://videos.example.org/first.mp4",Platform.X).copy(media=listOf(Media("https://videos.example.org/first.mp4","video","https://images.example.org/musician.jpg")))
+        val second=post("https://videos.example.org/second.mp4",Platform.FACEBOOK).copy(media=listOf(Media("https://videos.example.org/second.mp4","video","https://images.example.org/ensemble.jpg")))
+        val inventory=collectedAttachments(listOf(first,second))
+        assertEquals(2,inventory.size)
+        for(input in listOf(inventory,inventory.reversed())) {
+            val groups=collectedMediaGroups(input)
+            assertEquals(1,groups.size)
+            assertEquals(inventory.toSet(),groups.single().editions.toSet())
+        }
+    }
+    @Test fun aSourceWithSeveralVideosRetainsEachDistinctVisualSlot() {
+        val a=post("https://videos.example.org/a.mp4",Platform.X).copy(media=listOf(
+            Media("https://videos.example.org/a.mp4","video","https://images.example.org/a.jpg"),
+            Media("https://videos.example.org/b.mp4","video","https://images.example.org/b.jpg")))
+        val b=post("https://videos.example.org/c.mp4",Platform.FACEBOOK).copy(media=listOf(Media("https://videos.example.org/c.mp4","video","https://images.example.org/c.jpg")))
+        assertEquals(3,collectedMediaGroups(collectedAttachments(listOf(a,b))).size)
+    }
     @Test fun matchingPostersDoNotIdentifyTwoDifferentPlayableRecordings() {
         val preview="https://images.example.org/shared-cover.jpg"
         val a=post("https://video.example.org/first.mp4",Platform.X).copy(media=listOf(Media("https://video.example.org/first.mp4","video",preview)))

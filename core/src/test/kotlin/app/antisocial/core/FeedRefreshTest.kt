@@ -4,6 +4,21 @@ import org.junit.Test
 import org.junit.Assert.*
 
 class FeedRefreshTest {
+    @Test fun emptyGeneratedHeadingsAreNotPostsButRealEmojiCaptionsAndSavedSourceValuesRemain() {
+        val empty=post.copy(author="fixture",title="Post by fixture: ...",body="")
+        assertFalse(FeedRefresh.readable(empty))
+        assertFalse(FeedRefresh.readable(empty.copy(title="Post by @fixture: …")))
+        assertTrue(FeedRefresh.readable(empty.copy(body="🇺🇸")))
+        assertTrue(FeedRefresh.readable(empty.copy(title="Post by fixture: A useful public announcement")))
+        assertEquals("Post by fixture: ...",empty.title)
+    }
+    @Test fun retainedKittygramGenerationDatesCannotBecomeFreshReadingPositions() {
+        val p=provenance.copy(source=Source(Platform.INSTAGRAM,"kittygram","https://reader.example"),finalUrl="https://reader.example/fixture/atom.xml")
+        val legacy=post.copy(platform=Platform.INSTAGRAM,author="fixture",title="Post by fixture: Useful public caption...",body="Useful public caption",publishedAt=1000,provenance=p)
+        assertFalse(FeedRefresh.readable(legacy))
+        assertTrue(FeedRefresh.readable(legacy.copy(publishedAt=100_000)))
+        assertTrue(FeedRefresh.readable(legacy.copy(provenance=p.copy(source=p.source.copy(frontend="rss-bridge")))))
+    }
     private val source=Source(Platform.X,"nitter","https://reader.example")
     private val provenance=Provenance(source,1000,"https://reader.example/user")
     private val post=Post("1",Platform.X,"https://x.com/user/status/1","user","Public post",publishedAt=900,provenance=provenance)

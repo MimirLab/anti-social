@@ -20,8 +20,21 @@ object PostPresentation {
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
 
     fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).also {CrossPostFusion.rememberPresentation(post,it)}
+    /** RSS-Bridge's Bluesky renderer adds its author/posted header before the
+     * authored text (getPostDescription in bridges/BlueskyBridge.php). Remove
+     * exactly that root header, scoped to its source and canonical handle.
+     * Quoted/reply context and a second, authored occurrence stay intact. */
+    private fun sourceBody(post:Post):String {
+        if(post.platform!=Platform.BLUESKY||post.provenance?.source?.frontend!="rss-bridge")return post.body
+        val path=runCatching {URI(post.canonicalUrl).path.trim('/').split('/')}.getOrNull() ?: return post.body
+        if(path.size!=4||path[0]!="profile"||path[2]!="post")return post.body
+        val handle=path[1].takeIf {it.matches(Regex("[A-Za-z0-9.-]{3,253}"))} ?: return post.body
+        val header=Regex("^(?:[^@\\r\\n]{1,150}\\s+)?@${Regex.escape(handle)}\\s+posted:\\s*",RegexOption.IGNORE_CASE).find(post.body) ?: return post.body
+        return post.body.substring(header.range.last+1)
+    }
     private fun textUncached(post: Post): PostTextPresentation {
-        if(post.title.isBlank()||post.body.isBlank())return PostTextPresentation(post.title,post.body)
+        val sourceBody=sourceBody(post)
+        if(post.title.isBlank()||sourceBody.isBlank())return PostTextPresentation(post.title,sourceBody)
         val title=comparison(post.title)
         val author=comparison(post.author).removePrefix("@")
         val nitter=post.platform==Platform.X&&post.provenance?.source?.frontend=="nitter"
@@ -39,10 +52,10 @@ object PostPresentation {
             // heading. Only a proven body echo can remove it.
             listOf(heading,heading.trimStart('▶','\uFE0E','\uFE0F',' '))
         }.distinct()
-        var presentedBody=post.body
-        val mediaLabel=videoLabel.find(post.body)
+        var presentedBody=sourceBody
+        val mediaLabel=videoLabel.find(sourceBody)
         if(nitter&&post.media.isNotEmpty()&&mediaLabel!=null) {
-            val without=post.body.substring(0,mediaLabel.range.first).trimEnd()
+            val without=sourceBody.substring(0,mediaLabel.range.first).trimEnd()
             // This is an RSS media-link label only when the complete headline
             // independently supplies exactly the same caption without it.
             if(headings.any {it==comparison(without)})presentedBody=without
@@ -65,7 +78,8 @@ object PostPresentation {
             return heading.isNotEmpty()&&(heading==body||truncatedEcho||fullPrefix)
         }
         val shortenedEcho=repost!=null&&post.provenance?.source?.frontend=="nitter"&&shortenedRssEcho(repost.groupValues[2],presentedBody)
-        val redundant=headings.any(::echo)||shortenedEcho
+        val bridgeTitleEcho=sourceBody!=post.body&&captionWords.findAll(title).count()>=3&&body.startsWith("$title ")
+        val redundant=headings.any(::echo)||shortenedEcho||bridgeTitleEcho
         val attribution=if(repost!=null&&repostCaption!=null&&(echo(repostCaption)||shortenedEcho))"Reposted by ${repost.groupValues[1]}"else null
         return PostTextPresentation(if(redundant)""else post.title,presentedBody,attribution)
     }

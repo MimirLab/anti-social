@@ -69,7 +69,7 @@ object Extraction {
             val inText=if(post.platform==Platform.X&&!post.links.isNullOrEmpty())emptyList()else Regex("https://[^\\s<>]+",RegexOption.IGNORE_CASE).findAll(post.body).map {it.value.trimEnd('.',',',')',']','}','>',';','\"')}.toList()
             val links=(post.links.orEmpty()+inText).asSequence().mapNotNull {safe(it,provenance.finalUrl)}.filter {it!=post.canonicalUrl}.distinct().take(PostLinks.MAX_LINKS).toList()
             post.copy(id=ContentIdentity.key(post.platform,post.canonicalUrl),parentId=post.parentId?.let {if(it.startsWith("https://"))ContentIdentity.key(post.platform,it)else it},links=links)
-        }.distinctBy {it.id})
+        }.filter(FeedRefresh::readable).distinctBy {it.id})
     }
     fun rss(body: String, target: Target, provenance: Provenance, routes: DarwinRoutes): Page {
         // This parser does not resolve external resources. Reject declarations as
@@ -135,7 +135,11 @@ object Extraction {
                 }
             }}
             val media=MediaDuration.distinctMedia(markup.select("img[src]").mapNotNull { m -> safe(m.attr("src"),provenance.finalUrl)?.let { Media(it,description=m.attr("alt")) } }+VideoExtraction.html(markup,provenance.finalUrl)+enclosed)
-            Post(canonical,target.platform,canonical,tag("dc:creator","name","author").ifBlank { if(target.kind==TargetKind.PROFILE)target.identity else "" },plain(content),tag("title"),timestamp(tag("pubDate","published","updated")),media=media,provenance=provenance,links=markup.select("a[href]").mapNotNull {safe(it.attr("href"),provenance.finalUrl)}.filter {it!=canonical})
+            // Kittygram's Atom endpoint stamps every entry's updated field at
+            // feed generation, including years-old posts. Keep that observation
+            // separate from publication; undated seeds must not win FEED routing.
+            val date=timestamp(if(provenance.source.frontend=="kittygram")tag("pubDate","published")else tag("pubDate","published","updated"))
+            Post(canonical,target.platform,canonical,tag("dc:creator","name","author").ifBlank { if(target.kind==TargetKind.PROFILE)target.identity else "" },plain(content),tag("title"),date,media=media,provenance=provenance,links=markup.select("a[href]").mapNotNull {safe(it.attr("href"),provenance.finalUrl)}.filter {it!=canonical})
         }
         val next=document.getAllElements().firstOrNull {local(it)=="link"&&it.attr("rel")=="next"&&it.parent()?.let {parent->local(parent) in setOf("feed","channel")}==true}?.attr("href")?.let {safe(it,provenance.finalUrl)}
         return Page(posts,next=next,limitedTimeline=true)
