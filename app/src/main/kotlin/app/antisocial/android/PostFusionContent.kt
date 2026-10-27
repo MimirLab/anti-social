@@ -54,7 +54,7 @@ import app.antisocial.core.PostPresentation
             itemsIndexed(group.editions,key={index,item->key(index,item)}) {index,item->
                 FilterChip(selected==item,{chosen=key(index,item)},label={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
                     app.antisocial.core.PlatformOrder.sort(item.platforms).forEach {PlatformMark(it,18.dp)}
-                    Text((if(item.media.type=="video")"Video"else "Image")+if(group.editions.count {it.platforms==item.platforms&&it.media.type==item.media.type}>1)" ${index+1}"else "",fontSize=11.sp)
+                    Text((if(item.media.type=="video")"Video"else if(item.videoPreview)"Preview"else "Image")+if(group.editions.count {it.platforms==item.platforms&&it.media.type==item.media.type}>1)" ${index+1}"else "",fontSize=11.sp)
                 }},modifier=Modifier.testTag("Media edition ${item.media.url}"))
             }
         }

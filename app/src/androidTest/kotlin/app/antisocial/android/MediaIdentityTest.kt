@@ -26,6 +26,18 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun aDeclaredVideoPreviewUsesTheVideoSlotWithoutErasingAnActualPhotograph() {
+        val clip=post("https://videos.example.org/clip.mp4",Platform.X).copy(media=listOf(Media("https://videos.example.org/clip.mp4","video","https://images.example.org/player.jpg")))
+        val p=app.antisocial.core.Provenance(app.antisocial.core.Source(Platform.INSTAGRAM,"rss-bridge","https://reader.example"),1793000000000,"https://reader.example/feed")
+        val preview=post("https://images.example.org/another-frame.jpg",Platform.INSTAGRAM).copy(title="▶ A public workshop announcement",provenance=p)
+        val inventory=collectedAttachments(listOf(clip,preview))
+        assertEquals(2,inventory.size)
+        assertEquals(1,collectedMediaGroups(inventory).size)
+        assertEquals("Video preview from Instagram",inventory.single {it.videoPreview}.sourceLabel)
+        assertEquals(2,collectedMediaGroups(collectedAttachments(listOf(clip,preview.copy(title="A public workshop photograph")))).size)
+        assertEquals(2,collectedMediaGroups(collectedAttachments(listOf(clip,preview.copy(body="▶ A literal caption on a photograph")))).size)
+        assertEquals(2,collectedMediaGroups(collectedAttachments(listOf(preview,preview.copy(canonicalUrl=preview.canonicalUrl+"2",media=listOf(Media("https://images.example.org/different-frame.jpg")))))).size)
+    }
     @Test fun alternatePlatformVideoEditionsShareASlotDespiteDifferentOpeningFrames() {
         val first=post("https://videos.example.org/first.mp4",Platform.X).copy(media=listOf(Media("https://videos.example.org/first.mp4","video","https://images.example.org/musician.jpg")))
         val second=post("https://videos.example.org/second.mp4",Platform.FACEBOOK).copy(media=listOf(Media("https://videos.example.org/second.mp4","video","https://images.example.org/ensemble.jpg")))

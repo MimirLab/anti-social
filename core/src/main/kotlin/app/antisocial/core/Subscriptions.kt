@@ -72,9 +72,22 @@ object CrossPosts {
     private val opaqueLinkPath=Regex("/[A-Za-z0-9_-]{3,80}/?")
     internal fun opaqueLink(value:String)=value.toHttpUrlOrNull()?.let {it.isHttps&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in opaqueLinkHosts&&it.query==null&&opaqueLinkPath.matches(it.encodedPath)}==true
     internal fun onlyOpaqueOrOriginalLinks(post:Post):Boolean {
+        return editorialLinks(post).all(::opaqueLink)
+    }
+    internal fun editorialLinks(post:Post):Set<String> {
         val literal=if(post.links.isNullOrEmpty())emptySet()else PostPresentation.destinationLabels(PostPresentation.content(post)).mapNotNull(::normalizedUrl).toSet()
         val enclosures=enclosureLinks(post,literal)
-        return PostLinks.urls(post).all {value->linksToOriginal(value,post)||normalizedUrl(value)?.let {it in enclosures||opaqueLink(it)}==true}
+        return PostLinks.urls(post).filterNot {linksToOriginal(it,post)||normalizedUrl(it) in enclosures||escapedEntityTag(post,it)}.toSet()
+    }
+    /** The bridge's hashtag renderer can interpret the # inside an escaped
+     * apostrophe as a tag. Only a tag matching that exact numeric entity is a
+     * renderer artifact; ordinary author hashtags and other links stay intact. */
+    private fun escapedEntityTag(post:Post,value:String):Boolean {
+        if(post.platform!=Platform.INSTAGRAM||post.provenance?.source?.frontend!="rss-bridge")return false
+        val url=value.toHttpUrlOrNull() ?: return false
+        if(!url.isHttps||url.host !in setOf("instagram.com","www.instagram.com")||url.query!=null||url.fragment!=null)return false
+        val tag=Regex("/explore/tags/([0-9]{1,7})/?").matchEntire(url.encodedPath)?.groupValues?.get(1) ?: return false
+        return post.body.contains("&#$tag;")&&!Regex("(?<!&)#${Regex.escape(tag)}\\b").containsMatchIn(post.body)
     }
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
@@ -396,8 +409,18 @@ object CrossPosts {
     private fun enclosureLinks(post:Post,literal:Set<String>):Set<String> {
         val supplied=post.links.orEmpty().take(16).toSet()
         if(supplied.isEmpty())return emptySet()
-        return post.media.take(12).flatMap {listOfNotNull(it.url,it.preview)}.filter {it in supplied}.mapNotNull(::normalizedUrl)
+        val media=post.media.take(12).flatMap {listOfNotNull(it.url,it.preview)}
+        return supplied.filter {link->media.any {it==link||blueskyEnclosure(it)?.let {key->key==blueskyEnclosure(link)}==true}}.mapNotNull(::normalizedUrl)
             .filter {it !in literal&&(SocialLinkHosts.platform(it)==null||ImageAssetIdentity.key(it)!=null)}.toSet()
+    }
+    // These are two renditions of the same declared enclosure, not competing
+    // article destinations. This classification never suppresses an attachment
+    // or transfers pixel/signature validation between the files.
+    private fun blueskyEnclosure(value:String):String? {
+        val url=value.toHttpUrlOrNull() ?: return null
+        if(!url.isHttps||url.host!="cdn.bsky.app"||url.port!=443||url.username.isNotEmpty()||url.password.isNotEmpty()||url.query!=null||url.fragment!=null)return null
+        return Regex("/img/(?:feed_thumbnail|feed_fullsize)/plain/(did:plc:[a-z2-7]{24})/(b[a-z2-7]{30,120})(?:@(?:jpeg|png|webp))?")
+            .matchEntire(url.encodedPath)?.let {it.groupValues[1]+"/"+it.groupValues[2]}
     }
     private fun normalizeUrl(value: String): String? {
         val clean=decoded(value).trim()
@@ -453,7 +476,7 @@ object CrossPosts {
         val wordTokens=tokens(plain)
         val base=tokens(trailingTags.replace(plain,"")).joinToString(" ")
         val literalLinks=PostPresentation.destinationLabels(content).mapNotNull(::normalizedUrl).toSet()
-        val urls=(post.links.orEmpty().take(16).mapNotNull(::normalizedUrl)+literalLinks).toSet()
+        val urls=(post.links.orEmpty().take(16).filterNot {escapedEntityTag(post,it)}.mapNotNull(::normalizedUrl)+literalLinks).toSet()
         val enclosures=enclosureLinks(post,literalLinks)
         val media=post.media.take(12).mapNotNull {if(it.type=="image")ImageAssetIdentity.key(it.url) ?: normalizedUrl(it.url)else normalizedUrl(it.url)}.toSet()
         return Features(post,owner,wordTokens.joinToString(" "),base,wordTokens,wordTokens.filter {it.any(Char::isDigit)},wordTokens.filter {it in negations},meaningfulSymbols.findAll(plain).joinToString(""){it.value},urls,
@@ -613,10 +636,51 @@ object CrossPosts {
         val timeA=a.post.publishedAt ?: return false;val timeB=b.post.publishedAt ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>WINDOW.toULong())return false
+        if(!repeated&&distance<=600_000uL&&headingMatch(a,b,sameMedia))return true
         // A specific shared article destination can corroborate a substantial
         // caption too. Neither a common URL nor image alone establishes a match.
         if(!repeated&&a.destinations.intersect(b.destinations).isEmpty()&&!sameImages(a.post,b.post,sameMedia))return false
         return CrossPostFusion.matchesWithContext(a.post,b.post)
+    }
+    private fun headingMatch(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean =
+        AnnouncementHeadings.matches(a.post,b.post) {
+            fun concrete(row:Features)=(editorialLinks(row.post)+PostPresentation.destinationLabels(PostPresentation.content(row.post)).toSet()).filterNot {opaqueLink(it)||linksToOriginal(it,row.post)||nitterMentionLink(row.post,it)}.map {value->
+                value.toHttpUrlOrNull()?.let {it.newBuilder().host(it.host.removePrefix("www.")).build().toString()} ?: value
+            }.toSet()
+            val left=concrete(a);val right=concrete(b)
+            a.numbers==b.numbers&&a.negatives==b.negatives&&a.symbols==b.symbols&&
+                (left.isEmpty()||right.isEmpty()||left==right)&&sameAnnouncementArtwork(a.post,b.post,sameMedia)
+        }
+    private fun nitterMentionLink(post:Post,value:String):Boolean {
+        val source=post.provenance?.source ?: return false
+        if(post.platform!=Platform.X||source.frontend!="nitter"||PostPresentation.destinationLabels(PostPresentation.content(post)).any {it==value})return false
+        val url=uri(value) ?: return false
+        if(!DarwinRoutes.matches(url,source.root)||url.rawQuery!=null||url.fragment!=null)return false
+        val handle=url.path.trim('/').takeIf {it.matches(Regex("[A-Za-z0-9_]{1,15}"))} ?: return false
+        return Regex("(?<![\\p{L}\\p{N}_])@${Regex.escape(handle)}(?![A-Za-z0-9_])",RegexOption.IGNORE_CASE).containsMatchIn(post.body)
+    }
+    /** Matching cover art can corroborate a specific announcement headline.
+     * It does not establish equal recordings: every playable edition is kept. */
+    private fun sameAnnouncementArtwork(a:Post,b:Post,sameMedia:(Post,Post)->Boolean):Boolean {
+        fun frames(post:Post)=post.media.take(12).mapNotNull {item->when(item.type) {
+            "image"->item
+            "video"->item.preview?.let {item.copy(url=it,type="image")}
+            else->null
+        }}
+        val left=frames(a);val right=frames(b)
+        if(left.any {x->right.any {y->
+            val first=x.attachmentFingerprint ?: x.visualFingerprint;val second=y.attachmentFingerprint ?: y.visualFingerprint
+            if(first!=null&&second!=null)VisualFrames.sameImage(first,second)
+            else x.url==y.url||ImageAssetIdentity.same(x,y)
+        }})return true
+        return sameImages(a,b,sameMedia)
+    }
+    internal fun headingComposition(posts:List<Post>):Boolean {
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        return rows.indices.all {i->(i+1 until rows.size).all {j->
+            val a=rows[i];val b=rows[j];val x=a.post.publishedAt?.takeIf {it>0};val y=b.post.publishedAt?.takeIf {it>0}
+            x!=null&&y!=null&&kotlin.math.abs(x-y)<=600_000&&headingMatch(a,b){_,_->false}
+        }}
     }
     private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(a.post.platform!=b.post.platform||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated)return false
@@ -650,6 +714,7 @@ object CrossPosts {
         row.destinations.forEach {add("url:"+it)};row.media.forEach {add("media:"+it)}
         row.clips.forEach {add("clip:"+it)}
         val repeatAccount=row.account
+        if(row.owner!=null)AnnouncementHeadings.key(row.post)?.let {add("heading:${row.owner}:$it")}
         speaker(row.post)?.let {subject->(row.curator ?: repeatAccount)?.let {add("speaker:$it:$subject")}}
         CrossPostFusion.candidateAnchors(row.post).forEach {
             if(row.owner!=null)add("fusion:"+row.owner+":"+it)

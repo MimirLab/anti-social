@@ -27,6 +27,75 @@ class PostFusionTest {
         return Follow(platform.id,Target(platform,TargetKind.PROFILE,"fixture",url),"Fixture",personId="same-project")
     }
     private val linked=listOf(Platform.X,Platform.BLUESKY,Platform.THREADS).map(::account)
+    @Test fun aNitterMentionAnchorIsNotACompetingArticleInACorroboratedAnnouncement() {
+        val head="The community workshop is opening its public reading room."
+        val article="https://workshop.example/schedule"
+        val p=Provenance(Source(Platform.X,"nitter","https://reader.example"),time,"https://reader.example/fixture/rss")
+        val x=post(Platform.X,"$head Meet @WorkshopCrew and inspect the new equipment. $article").copy(provenance=p,links=listOf("https://reader.example/WorkshopCrew",article))
+        val blue=post(Platform.BLUESKY,"$head Meet our trained volunteers and inspect the new equipment. $article")
+        assertEquals(1,CrossPosts.group(listOf(x,blue),linked).size)
+        assertNotNull(CrossPostFusion.compose(listOf(x,blue)))
+        assertEquals(2,CrossPosts.group(listOf(x.copy(links=listOf("https://reader.example/SomeoneElse",article)),blue),linked).size)
+        assertEquals(2,CrossPosts.group(listOf(x.copy(links=listOf("https://reader.example.attacker.test/WorkshopCrew",article)),blue),linked).size)
+    }
+    @Test fun matchingVideoPostersCorroborateAnAnnouncementWithoutErasingEitherRecording() {
+        val head="There is plenty of work ahead when you are building a community workshop."
+        val cover="https://images.example.org/workshop-cover.jpg"
+        val a=post(Platform.X,"$head Inspect the repair stations with our volunteers.").copy(media=listOf(Media("https://video.example.org/one.mp4","video",preview=cover)))
+        val b=post(Platform.BLUESKY,"$head Browse the public reading room and join the afternoon tour.").copy(media=listOf(Media("https://video.example.org/two.mp4","video",preview=cover)))
+        val originals=listOf(a,b)
+        assertEquals(originals.toSet(),CrossPosts.group(originals,linked).single().posts.toSet())
+        assertEquals(head,CrossPostFusion.compose(originals)!!.segments.first().text)
+        assertEquals(listOf("https://video.example.org/one.mp4","https://video.example.org/two.mp4"),originals.flatMap {it.media}.map {it.url})
+        val different=b.copy(media=listOf(b.media.single().copy(preview="https://images.example.org/different.jpg")))
+        assertEquals(2,CrossPosts.group(listOf(a,different),linked).size)
+    }
+    @Test fun aCorroboratedHeadlineKeepsComplementaryLongEditionsOnOneCard() {
+        val head="There is plenty of work ahead when you are building a community workshop."
+        val first=post(Platform.X,"$head The repair stations will serve visitors throughout the morning. Bring your damaged equipment and meet the trained volunteers.")
+        val second=post(Platform.BLUESKY,"$head We have published a complete plan for the new reading room. Join the afternoon demonstration and inspect the bookshelves, with free admission for all visitors.")
+        assertEquals(1,CrossPosts.group(listOf(first,second),linked).size)
+        val composed=CrossPostFusion.compose(listOf(first,second))!!
+        assertEquals(head,composed.segments.first().text)
+        assertEquals(first.body.substringAfter(head).trim(),composed.segments[1].text)
+        assertEquals(second.body.substringAfter(head).trim(),composed.segments[2].text)
+        assertEquals(2,CrossPosts.group(listOf(first,second.copy(media=listOf(Media("https://images.example/other.jpg")))),linked).size)
+        assertEquals(2,CrossPosts.group(listOf(first,second),emptyList()).size)
+    }
+    @Test fun aRenditionEnclosureAndMissingMediaDoNotRepeatAnAlreadyCollectedCaption() {
+        val text="The volunteer workshop has opened its public reading room. Meet the team, browse the equipment, and find the complete schedule inside."
+        val cid="bafkreif4jreqaslj6zvmoatow4k5dfadalvovosiuhufhesf4q7ccap7s4"
+        val asset="plain/did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/$cid"
+        val full="https://cdn.bsky.app/img/feed_fullsize/$asset"
+        val blue=post(Platform.BLUESKY,text,media="https://cdn.bsky.app/img/feed_thumbnail/$asset").copy(links=listOf(full))
+        val x=post(Platform.X,"$text https://t.co/FixtureOne")
+        val noMedia=post(Platform.THREADS,text).copy(media=emptyList())
+        val editions=listOf(x,blue,noMedia)
+        assertTrue(CrossPosts.onlyOpaqueOrOriginalLinks(blue))
+        assertEquals(1,CrossPostFusion.compose(editions)!!.segments.size)
+        assertEquals(editions.map(CrossPosts::originalKey).toSet(),CrossPostFusion.compose(editions)!!.segments.single().originalKeys)
+        assertFalse(CrossPosts.onlyOpaqueOrOriginalLinks(blue.copy(body="$text $full")))
+        val anotherAsset=full.replace(cid,"b"+"a".repeat(58))
+        assertFalse(CrossPosts.onlyOpaqueOrOriginalLinks(blue.copy(links=listOf(anotherAsset))))
+        assertFalse(CrossPosts.onlyOpaqueOrOriginalLinks(blue.copy(links=listOf("https://publisher.example/different-story"))))
+    }
+    @Test fun linkedConcurrentHeadlinesRetainShortCallsToActionWithoutRepeatingTheAnnouncement() {
+        val headline="OPEN WORKSHOP: Come and meet the dedicated volunteers who maintain our community's public equipment and shared reading room."
+        val x=post(Platform.X,"$headline https://t.co/FixtureOne\nJoin the tour below ⬇️")
+        val blue=post(Platform.BLUESKY,"$headline WorkshopFixture.test",media="https://images.example.org/another.png")
+        assertEquals(1,CrossPosts.group(listOf(x,blue),linked).size)
+        val fusion=CrossPostFusion.compose(listOf(x,blue))!!
+        assertEquals(headline,fusion.segments.first().text)
+        assertTrue(fusion.segments.first().shared)
+        assertEquals(x.body.substringAfter(headline).trim(),fusion.segments[1].text)
+        assertEquals(setOf(Platform.X),fusion.segments[1].platforms)
+        assertEquals("WorkshopFixture.test",fusion.segments[2].text)
+        assertEquals(2,CrossPosts.group(listOf(x,blue),emptyList()).size)
+        for(other in listOf(blue.copy(body="$headline We are not open. WorkshopFixture.test"),
+            blue.copy(body="$headline 20 places. WorkshopFixture.test"),blue.copy(publishedAt=time+601_000),
+            blue.copy(body="$headline WorkshopFixture.test/another-event"),blue.copy(body=blue.body.replace("dedicated","retired")),blue.copy(media=emptyList())))
+            assertEquals(other.body,2,CrossPosts.group(listOf(x,other),linked).size)
+    }
     private fun editions(): List<Post> = listOf(
         post(Platform.X,"For the workshop team:\n\n$shared\n\nThere are 20 volunteer places available."),
         post(Platform.BLUESKY,"A note from our project office:\n\n$shared\n\nWe are not opening enrollment until Friday.")

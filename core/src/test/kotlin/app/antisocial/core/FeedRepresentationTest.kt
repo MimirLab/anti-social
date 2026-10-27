@@ -6,6 +6,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FeedRepresentationTest {
+    @Test fun anEscapedApostropheCannotManufactureAnInstagramTagDestination() {
+        val p=Provenance(Source(Platform.INSTAGRAM,"rss-bridge","https://reader.example"),1793000000000,"https://reader.example/feed")
+        val post=Post("123",Platform.INSTAGRAM,"https://www.instagram.com/p/FixtureOne/","fixture","We&#039;re opening the public workshop this Saturday. Meet the volunteers and inspect the equipment.",
+            provenance=p,links=listOf("https://www.instagram.com/explore/tags/039"))
+        assertTrue(PostPresentation.content(post).startsWith("We're"))
+        assertTrue(CrossPosts.onlyOpaqueOrOriginalLinks(post))
+        assertFalse(CrossPosts.onlyOpaqueOrOriginalLinks(post.copy(body=post.body+" #039")))
+        assertFalse(CrossPosts.onlyOpaqueOrOriginalLinks(post.copy(links=listOf("https://www.instagram.com/explore/tags/workshop"))))
+        assertFalse(CrossPosts.onlyOpaqueOrOriginalLinks(post.copy(provenance=p.copy(source=p.source.copy(frontend="original")))))
+        assertTrue(post.body.contains("&#039;"))
+    }
+    @Test fun knownApiEntityEscapesArePresentedOnceAndOriginalTransportTextSurvives() {
+        val p=Provenance(Source(Platform.X,"sotwe-api","https://reader.example"),1793000000000,"https://reader.example/api")
+        val post=Post("1",Platform.X,"https://x.com/fixture/status/1","fixture","Tools &amp; supplies; use &amp;amp; for a literal example.",provenance=p)
+        assertEquals("Tools & supplies; use &amp; for a literal example.",PostPresentation.content(post))
+        assertEquals("Tools &amp; supplies; use &amp;amp; for a literal example.",post.body)
+        assertEquals(post.body,PostPresentation.content(post.copy(provenance=p.copy(source=p.source.copy(frontend="original")))))
+    }
     @Test fun theKnownBlueskyRendererHeaderDoesNotBecomePartOfTheCaptionOrRepeatItsTitle() {
         val p=Provenance(Source(Platform.BLUESKY,"rss-bridge","https://reader.example"),1793000000000,"https://reader.example/?bridge=Bluesky")
         val body="The maker collective @fixture.bsky.social posted: The workshop is open to visitors. Bring your questions and meet the volunteers."

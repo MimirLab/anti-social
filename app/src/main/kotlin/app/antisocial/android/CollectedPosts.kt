@@ -76,8 +76,8 @@ internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedP
     return rememberCollectedAttachments(repo,posts).map {it.media}
 }
 
-internal data class CollectedAttachment(val media: Media,val platforms: Set<Platform>,val originalKeys: Set<String>,val previewPlatforms:Set<Platform> = emptySet()) {
-    val sourceLabel get()=when(media.type){"image"->"Image";"video"->"Video";"audio"->"Audio";else->"Attachment"}+" from "+PlatformOrder.sort(platforms).joinToString(" · "){it.label}+
+internal data class CollectedAttachment(val media: Media,val platforms: Set<Platform>,val originalKeys: Set<String>,val previewPlatforms:Set<Platform> = emptySet(),val videoPreview:Boolean=false) {
+    val sourceLabel get()=(if(videoPreview)"Video preview"else when(media.type){"image"->"Image";"video"->"Video";"audio"->"Audio";else->"Attachment"})+" from "+PlatformOrder.sort(platforms).joinToString(" · "){it.label}+
         (previewPlatforms-platforms).takeIf {it.isNotEmpty()}?.let {" · preview from "+PlatformOrder.sort(it).joinToString(" · "){p->p.label}}.orEmpty()
 }
 
@@ -138,7 +138,12 @@ internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentitySto
     }.toMap()
     return clusters.indices.filter {it !in previewOf}.map {i->
         val group=clusters[i];val previews=previewOf.filterValues {it==i}.keys.flatMap {clusters[it]}
-        CollectedAttachment(group.first().media,group.map {it.post.platform}.toSet(),(group+previews).map {CrossPosts.originalKey(it.post)}.toSet(),previews.map {it.post.platform}.toSet())
+        // RSS-Bridge explicitly prefixes Instagram videos with a play marker.
+        // Its public fallback can supply only the poster. This is a preview
+        // edition, not another photograph or a playable video declaration.
+        val videoPreview=group.all {it.media.type=="image"&&it.post.platform==Platform.INSTAGRAM&&it.post.media.size==1&&
+            it.post.provenance?.source?.frontend=="rss-bridge"&&it.post.title.trimStart().startsWith("▶")&&!it.post.body.trimStart().startsWith("▶")}
+        CollectedAttachment(group.first().media,group.map {it.post.platform}.toSet(),(group+previews).map {CrossPosts.originalKey(it.post)}.toSet(),previews.map {it.post.platform}.toSet(),videoPreview)
     }
 }
 
@@ -173,7 +178,8 @@ internal fun collectedMediaGroups(attachments:List<CollectedAttachment>,relatedS
     // A genuine multi-video original keeps its separate slots and every source
     // recording remains selectable, in Context and in the saved inventory.
     val videoCounts=attachments.filter {it.media.type=="video"}.flatMap {it.originalKeys}.groupingBy {it}.eachCount()
-    fun eligible(group:List<CollectedAttachment>)=group.any {it.media.type=="video"}&&
+    val hasVideo=attachments.any {it.media.type=="video"}
+    fun eligible(group:List<CollectedAttachment>)=hasVideo&&group.any {it.media.type=="video"||it.videoPreview}&&
         group.filter {it.media.type=="video"}.all {it.originalKeys.isNotEmpty()&&it.originalKeys.all {key->videoCounts[key]==1}}
     fun platforms(group:List<CollectedAttachment>)=group.filter {it.media.type=="video"}.flatMap {it.platforms}.toSet()
     val slots=mutableListOf<MutableList<CollectedAttachment>>()

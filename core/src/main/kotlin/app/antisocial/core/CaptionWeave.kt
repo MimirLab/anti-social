@@ -43,9 +43,14 @@ internal object CaptionWeave {
     }
     /** Bounded candidate confirmation; caller supplies actual media and timing proof. */
     fun matches(a:Post,b:Post)=plan(listOf(a,b))!=null
-    internal fun plan(posts:List<Post>):List<FusionRun>? {
+    internal fun plan(posts:List<Post>,qualified:Boolean=false):List<FusionRun>? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
         val docs=posts.sortedBy(CrossPosts::originalKey).map {document(it) ?: return null}
+        val coverage=if(qualified).65 else .88
+        if(qualified) {
+            val claims=Regex("\\p{N}+(?:[.,]\\p{N}+)*|\\b(?:no|not|never|without|cannot|can't|don't|doesn't|didn't|won't)\\b",RegexOption.IGNORE_CASE)
+            if(docs.map {claims.findAll(it.words.joinToString(" "){w->w.key}).map {m->m.value}.toList()}.distinct().size!=1)return null
+        }
         if(posts.map {PostPresentation.proseWithoutLinks(PostPresentation.content(it)).count {c->c=='?'}}.distinct().size>1)return null
         val versions=docs.groupBy {it.words.map {w->w.key}}
         if(versions.size !in 2..8)return null
@@ -53,17 +58,17 @@ internal object CaptionWeave {
         // silently make their alternatives indistinguishable in a platform key.
         if(docs.groupBy {it.post.platform}.values.any {rows->rows.map {it.words.map {w->w.key}}.distinct().size>1})return null
         val longest=docs.maxOf {it.words.size}
-        if(docs.minOf {it.words.size}<longest*.88)return null
+        if(docs.minOf {it.words.size}<longest*coverage)return null
         // A cheap bag upper bound rejects unrelated captions before allocating
         // a small alignment table; exact ordered projection still decides.
         val counts=versions.keys.first().groupingBy {it}.eachCount()
         for(next in versions.keys.drop(1)) {
             val other=next.groupingBy {it}.eachCount()
-            if(counts.entries.sumOf {(word,n)->minOf(n,other[word] ?: 0)}<longest*.88)return null
+            if(counts.entries.sumOf {(word,n)->minOf(n,other[word] ?: 0)}<longest*coverage)return null
         }
         var shared=versions.keys.first()
         for(next in versions.keys.drop(1))shared=common(shared,next)
-        if(shared.size<24||shared.size<docs.maxOf {it.words.size}*.88||shared.joinToString(" ").length<140)return null
+        if(shared.size<24||shared.size<docs.maxOf {it.words.size}*coverage||shared.joinToString(" ").length<140)return null
         val positions=IntArray(docs.size);val runs=mutableListOf<FusionRun>();val buffer=mutableListOf<String>()
         val allPlatforms=docs.mapTo(linkedSetOf()){it.post.platform};val allKeys=docs.mapTo(linkedSetOf()){CrossPosts.originalKey(it.post)}
         fun flush() {if(buffer.isNotEmpty()){runs+=FusionRun(true,listOf(FusionVariant(buffer.joinToString(" "),allPlatforms,allKeys)));buffer.clear()}}
@@ -91,7 +96,7 @@ internal object CaptionWeave {
         val tail=docs.indices.map {docs[it].words.drop(positions[it])}
         if(tail.any {it.isNotEmpty()})variants(tail)
         flush()
-        if(runs.count {!it.shared}>3)return null
+        if(runs.count {!it.shared}>(if(qualified)6 else 3))return null
         // Account/name substitutions have their own qualified alias route.
         // A high-overlap caption must not turn a different mentioned subject
         // into a local editorial wording variant.
@@ -99,7 +104,7 @@ internal object CaptionWeave {
         if(runs.filterNot {it.shared}.any {run->run.variants.any {variant->
             val words=Regex("[\\p{L}\\p{N}']+").findAll(variant.text).map {it.value}.toList()
             val sentence=variant.text.firstOrNull()?.isUpperCase()==true&&variant.text.lastOrNull() in listOf('.','!','?')
-            words.any {key(it) in substantive}||!sentence&&words.any {it.firstOrNull()?.isUpperCase()==true}
+            words.any {key(it) in substantive}||!qualified&&!sentence&&words.any {it.firstOrNull()?.isUpperCase()==true}
         }})return null
         // Proof of preservation, independent of the alignment tie choices. A
         // source's selected branches reproduce every normalized literal token.
@@ -115,6 +120,15 @@ internal object CaptionWeave {
     }
     fun compose(posts:List<Post>):PostFusion? {
         val runs=plan(posts) ?: return null
+        return render(posts,runs)
+    }
+    /** Presentation only after an independently admitted, source-qualified
+     * announcement. Never used as a lower-threshold copy detector. */
+    fun composeQualified(posts:List<Post>):PostFusion? {
+        val runs=plan(posts,qualified=true) ?: return null
+        return render(posts,runs)
+    }
+    private fun render(posts:List<Post>,runs:List<FusionRun>):PostFusion {
         val text=runs.joinToString(" "){run->if(run.shared)run.variants.single().text else
             run.variants.filter {it.text.isNotBlank()}.joinToString(" / ","[","]"){variant->variant.text+" — "+PlatformOrder.sort(variant.platforms).joinToString(" · "){it.label}}}
         return PostFusion(listOf(FusionSegment(text,posts.mapTo(linkedSetOf()){it.platform},false,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))),runs)

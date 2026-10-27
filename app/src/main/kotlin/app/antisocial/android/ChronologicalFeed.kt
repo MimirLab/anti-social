@@ -38,8 +38,28 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 
-private data class FrozenFeedRow(val key: String,val aliases: List<String>,val posts: List<Post>,val bodyPosts: List<Post> = posts,val explanation: FeedRuleExplanation?=null,val orderAt:Long?=posts.first().publishedAt) {
+internal data class FrozenFeedRow(val key: String,val aliases: List<String>,val posts: List<Post>,val bodyPosts: List<Post> = posts,val explanation: FeedRuleExplanation?=null,val orderAt:Long?=posts.first().publishedAt) {
     val primary get()=posts.first()
+}
+/** A late, fully qualified component owns one reading card. Preserve the visible
+ * card's body/key, or the first established position when it is off screen.
+ * Partial overlaps never bridge two previously admitted announcements. */
+internal fun coalesceFeedRows(rows:List<FrozenFeedRow>,counterparts:Map<String,List<Post>>,visible:Set<String>,key:(Post)->String):List<FrozenFeedRow> {
+    val components=rows.map {row->row.aliases.asSequence().mapNotNull {alias->
+        counterparts[alias]?.mapTo(linkedSetOf(alias),key)?.takeIf {it.containsAll(row.aliases)}
+    }.firstOrNull()}
+    val buckets=rows.indices.filter {components[it]!=null}.groupBy {components[it]!!}
+    val replacements=mutableMapOf<Int,FrozenFeedRow>();val removed=mutableSetOf<Int>()
+    for((component,indices) in buckets) {
+        if(indices.size<2)continue
+        val winner=indices.firstOrNull {rows[it].key in visible} ?: indices.first()
+        val row=rows[winner]
+        val editions=(row.posts+indices.filter {it!=winner}.flatMap {rows[it].posts}).distinctBy(key)
+        if(editions.any {key(it) !in component})continue
+        replacements[winner]=row.copy(aliases=editions.map(key),posts=editions)
+        removed+=indices.filter {it!=winner}
+    }
+    return rows.indices.filter {it !in removed}.map {replacements[it] ?: rows[it]}
 }
 private data class FeedRestore(val row: Int,val offset: Int,val exact: Boolean)
 private data class FeedContent(val aliases: Set<String>,val text: List<String>,val media: Set<String>)
@@ -385,20 +405,21 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             rows=initial
         }
     }
-    // Known counterparts enrich only the fixed-height platform controls. Card
-    // content, primary identity and chronological placement stay frozen.
+    // A late match must collapse existing cards too, not merely add each other's
+    // source icons. The retained visible card's body/position remain frozen.
     val sidecarRows=rows
     LaunchedEffect(sidecarRows,counterparts,counterpartsReady) {
         if(sidecarRows==null||!counterpartsReady)return@LaunchedEffect
-        val owners=sidecarRows.flatMap {row->row.aliases.map {it to row.key}}.toMap()
-        val extended=sidecarRows.map {extend(it,owners)}
+        val coalesced=coalesceFeedRows(sidecarRows,counterparts,visibleKeys,repo::key)
+        val owners=coalesced.flatMap {row->row.aliases.map {it to row.key}}.toMap()
+        val extended=coalesced.map {extend(it,owners)}
         if(extended==sidecarRows)return@LaunchedEffect
         val commitRead=prepareReadAliases(extended)
         // Preparing aliases suspends on the worker. It must not overwrite a
         // newer atomic regroup which committed while this sidecar was prepared.
         if(rows!=sidecarRows||latestGroups!=counterparts||!latestGroupsReady)return@LaunchedEffect
         commitRead()
-        val inherited=sidecarRows.zip(extended).filter {(old,next)->old.aliases.all {it in baseline}&&!ContentRevisions.addsContext(old.bodyPosts,next.posts)}.flatMap {it.second.aliases}
+        val inherited=extended.flatMap {next->sidecarRows.firstOrNull {it.key==next.key}?.takeIf {old->old.aliases.all {it in baseline}&&!ContentRevisions.addsContext(old.bodyPosts,next.posts)}?.let {next.aliases}.orEmpty()}
         baseline=baseline+inherited
         rows=extended
     }

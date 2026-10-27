@@ -2,6 +2,7 @@
 package app.antisocial.core
 
 import org.jsoup.Jsoup
+import org.jsoup.parser.Parser
 import java.net.URI
 import java.text.Normalizer
 import java.util.Locale
@@ -25,6 +26,10 @@ object PostPresentation {
      * exactly that root header, scoped to its source and canonical handle.
      * Quoted/reply context and a second, authored occurrence stay intact. */
     private fun sourceBody(post:Post):String {
+        // This API retains Twitter's HTML entity transport escaping. Decode
+        // once for native text; an authored "&amp;" was encoded as "&amp;amp;".
+        if(post.platform==Platform.X&&post.provenance?.source?.frontend=="sotwe-api")return Parser.unescapeEntities(post.body,false)
+        if(post.platform==Platform.INSTAGRAM&&post.provenance?.source?.frontend=="rss-bridge")return Parser.unescapeEntities(post.body,false)
         if(post.platform!=Platform.BLUESKY||post.provenance?.source?.frontend!="rss-bridge")return post.body
         val path=runCatching {URI(post.canonicalUrl).path.trim('/').split('/')}.getOrNull() ?: return post.body
         if(path.size!=4||path[0]!="profile"||path[2]!="post")return post.body

@@ -507,7 +507,7 @@ object CrossPostFusion {
             // same. Grouping has already checked accounts, timing and changed
             // facts. Keep one exact source caption and all links on its original
             // editions, instead of repeating the prose around opaque link codes.
-            if(posts.all {it.media.isNotEmpty()&&CrossPosts.onlyOpaqueOrOriginalLinks(it)}&&
+            if(posts.all {CrossPosts.onlyOpaqueOrOriginalLinks(it)}&&
                 posts.any {PostLinks.urls(it).any(CrossPosts::opaqueLink)}) {
                 val captions=complete.map(PostPresentation::referenceFreeCaption)
                 if(captions.distinct().size==1) {
@@ -526,9 +526,9 @@ object CrossPostFusion {
             return PostFusion(versions.values.map {sources->FusionSegment(PostPresentation.content(sources.first()),sources.mapTo(linkedSetOf()){it.platform},
                 sources.size==posts.size,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))})
         }
-        val prepared=posts.map {prepare(it) ?: return null}
-        for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j])==null)return null
-        return composePrepared(posts,prepared)
+        val prepared=posts.map {prepare(it) ?: return AnnouncementHeadings.compose(posts)}
+        for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j])==null)return AnnouncementHeadings.compose(posts)
+        return composePrepared(posts,prepared) ?: AnnouncementHeadings.compose(posts)
     }
 
     private fun composePrepared(posts: List<Post>,prepared: List<Prepared>): PostFusion? {
