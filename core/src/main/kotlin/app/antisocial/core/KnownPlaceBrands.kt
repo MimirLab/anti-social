@@ -54,7 +54,10 @@ internal class PlaceBrandIndex(text:String) {
 internal object PlaceCategoryFamilies {
     private val amenities=setOf("restaurant","fast_food","cafe","bar","pub","ice_cream","food_court")
     private val shops=setOf("beverages","alcohol","bakery","coffee","confectionery","deli","pastry","tea","food")
-    fun food(name:String,concepts:List<PlaceConcept>)=name in setOf("beverage supplier","food supplier","food wholesaler")||
+    // The structured reader retains Schema.org types. These exact food types
+    // are compatible categories, not arbitrary generic businesses or ownership.
+    private val publishedFoodTypes=setOf("food establishment","fast food restaurant","cafe or coffee shop","ice cream shop","bar or pub")
+    fun food(name:String,concepts:List<PlaceConcept>)=name in publishedFoodTypes||name in setOf("beverage supplier","food supplier","food wholesaler")||
         concepts.any {it.cuisine||it.tags.any {tag->tag["amenity"] in amenities||tag["shop"] in shops}}
 }
 

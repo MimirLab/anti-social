@@ -48,6 +48,16 @@ class LocalDiscoveryStoreTest {
         assertEquals(1,store.businesses(area).size);assertEquals(1,store.events().size)
         assertEquals(saved,payloads("copies"))
     }
+    @Test fun libraryCoffeeSearchRetainsCafesAndRetailersWithoutRewritingTheirSnapshots() {
+        val cafe=business.copy(id="fixture-cafe",name="Copper Cup",category="cafe")
+        val retailer=business.copy(id="fixture-beans",name="Bean Counter",category="coffee store")
+        val unrelated=business.copy(id="fixture-hardware",name="Copper Hardware",category="hardware store")
+        listOf(cafe,retailer,unrelated).forEach(store::save);val saved=payloads("copies")
+        assertEquals(setOf(cafe.id,retailer.id),store.savedDiscoveries("coffee").map {it.id}.toSet())
+        assertEquals(setOf(retailer.id),store.savedDiscoveries("coffee -cafe").map {it.id}.toSet())
+        assertTrue(store.savedDiscoveries("\"coffee\"").none {it.id==cafe.id})
+        assertEquals(saved,payloads("copies"))
+    }
     @Test fun businessFactsDoNotScanOrRewriteUnrelatedEventOccurrences() {
         raw(event.id,"event",event);raw("fixture-event-copy","event",event.copy(id="fixture-event-copy",sourceIds=listOf("fixture-other-event")))
         val before=payloads("records","event")

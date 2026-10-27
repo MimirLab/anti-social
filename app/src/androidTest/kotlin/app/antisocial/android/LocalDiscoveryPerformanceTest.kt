@@ -18,6 +18,60 @@ import java.time.LocalDate
  * the test device/run, never a physical-phone performance prediction. */
 @RunWith(AndroidJUnit4::class)
 class LocalDiscoveryPerformanceTest {
+    @Test fun measureSearchMatchingAndGroupingComponents() {
+        val args=InstrumentationRegistry.getArguments()
+        Assume.assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialDiscoveryBenchmark")=="true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val label=args.getString("antisocialBenchmarkLabel")?.takeIf {it.matches(Regex("[a-zA-Z0-9_-]{1,40}"))} ?: "measurement"
+        val origin=LocalPoint(40.0,-100.0)
+        val description="Published information includes practical arrangements, access instructions, contact details and registration. ".repeat(12)
+        val names=listOf("Saffron Room","Burger King","Copper Cup","Circuit Garden","Spoke Works","Chapter House")
+        val categories=listOf("Indian restaurant","burger restaurant","cafe","makerspace","bicycle repair","bookshop")
+        val businesses=(0 until 1200).map {i->LocalBusiness("benchmark-match-business-$i",if(i%6==1)names[1]else names[i%6]+" $i",categories[i%6],description,
+            "${i+1} Example Street","Example City",LocalPoint(40+(i/50)*.001,-100+(i%50)*.001),checkedAt=100,
+            evidence=listOf(LocalDiscoveryIdentity.evidence("accessibility","Level entrance","https://publisher.fixture.invalid/location/$i",100,LocalEvidenceKind.PUBLISHER)))}
+        val titles=listOf("Spaceflight demonstration","Workshop afternoon","Children’s nature walk","Chess club evening","Live music","Repair class")
+        val events=(0 until 2500).map {i->LocalEvent("benchmark-match-event-$i",titles[i%6]+" $i",LocalEventTime("2031-06-11",allDay=true),
+            description=description+if(i%6==0&&(i/6)%5==0)" Private session."else " Public session.",venue="Example hall $i",point=origin,
+            price=if((i/6)%2==0)"Free"else "$15",age=when(i%6){2->"Ages 1–3";1,5->"Ages 5–12";else->""})}
+        val samples=mutableListOf<Map<String,Any>>();val mismatches=mutableSetOf<String>()
+        fun measure(kind:String,query:String,expected:Set<String>,match:()->List<String>) {
+            repeat(3){sample->
+                val began=SystemClock.elapsedRealtimeNanos();val ids=match();val ms=(SystemClock.elapsedRealtimeNanos()-began)/1e6
+                val actual=ids.toSet();val missing=(expected-actual).size;val unexpected=(actual-expected).size
+                if(missing>0||unexpected>0)mismatches+="$kind / $query: $missing missing, $unexpected unexpected"
+                samples+=mapOf("kind" to kind,"query" to query,"sample" to sample,"elapsedMs" to ms,"matches" to ids.size,"missing" to missing,"unexpected" to unexpected)
+            }
+        }
+        for((query,type)in listOf("indian food" to 0,"burger" to 1,"coffee" to 2,"makerspace" to 3,"bicycle repair" to 4)) {
+            measure("businessMatching",query,businesses.filterIndexed {i,_->i%6==type}.map {it.id}.toSet()) {
+                businesses.filter {LocalBusinessRouting.matches(query,it)}.map {it.id}
+            }
+        }
+        measure("businessMatching","\"Saffron Room 0\"",setOf(businesses.first().id)) {
+            businesses.filter {LocalBusinessRouting.matches("\"Saffron Room 0\"",it)}.map {it.id}
+        }
+        for(query in listOf("","rocket launch","free workshops","outdoors for toddlers","rocket launch -\"private session\"")) {
+            val intent=LocalEventIntent.parse(query)
+            val expected=events.filterIndexed {i,_->when(query) {
+                ""->true
+                "rocket launch"->i%6==0
+                "free workshops"->i%6 in setOf(1,5)&&(i/6)%2==0
+                "outdoors for toddlers"->i%6==2
+                else->i%6==0&&(i/6)%5!=0
+            }}.map {it.id}.toSet()
+            measure("eventMatching",query,expected){events.filter {intent.match(it).matches}.map {it.id}}
+        }
+        repeat(3){sample->
+            val began=SystemClock.elapsedRealtimeNanos();val groups=LocalBusinessDeck.groupsForArea(businesses,origin,"US");val ms=(SystemClock.elapsedRealtimeNanos()-began)/1e6
+            assertEquals(1001,groups.size);assertEquals(businesses.toSet(),groups.flatMap {it.locations}.toSet())
+            samples+=mapOf("kind" to "businessGrouping","sample" to sample,"elapsedMs" to ms,"cards" to groups.size)
+        }
+        val dir=File(context.getExternalFilesDir("validation"),"local-discovery-performance").apply {mkdirs()}
+        File(dir,"$label-matching.json").writeText(Gson().toJson(mapOf("synthetic" to true,"timingsDescribeOnlyThisDevice" to true,
+            "scope" to "Matching and grouping separately; excludes database reads, network and UI", "businesses" to businesses.size,"events" to events.size,"samples" to samples)))
+        assertTrue("Independently labelled populations must be retained: "+mismatches.joinToString("; "),mismatches.isEmpty())
+    }
     @Test fun measureAccumulatedCachePreparation():Unit=runBlocking(Dispatchers.IO) {
         val args=InstrumentationRegistry.getArguments()
         Assume.assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialDiscoveryBenchmark")=="true")

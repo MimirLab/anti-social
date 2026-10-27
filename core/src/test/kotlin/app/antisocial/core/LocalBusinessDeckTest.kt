@@ -136,4 +136,28 @@ class LocalBusinessDeckTest {
         assertEquals(3,LocalBusinessDeck.groupsForArea(listOf(ordinary,conflicting,other),origin,"US").size)
     }
 
+    @Test fun schemaFoodCategoriesAndNumberedStorefrontsKeepOneCardAcrossChains() {
+        val origin=LocalPoint(40.0,-100.0)
+        for(name in listOf("Taco Bell","Burger King","McDonald's","Starbucks")) {
+            val rows=listOf("restaurant","FoodEstablishment","FastFoodRestaurant","cafe").mapIndexed {i,category->
+                LocalBusiness("numbered-$i",when(i){0->name;1->"$name #${100+i}";2->"$name Store ${100+i}";else->"$name Location #${100+i}"},category=category,
+                    address="${10+i} Example St",point=LocalPoint(40+i*.001,-100.0),phones=listOf("+1202555010$i"),hours="Monday ${8+i}am - 5pm")
+            }
+            val group=LocalBusinessDeck.groupsForArea(rows,origin,"US").single()
+            assertEquals(name,group.title);assertEquals(rows,group.locations)
+            assertEquals(rows.map {it.phones},group.locations.map {it.phones})
+        }
+    }
+
+    @Test fun storefrontNumberHandlingDoesNotStripArbitraryNamesOrConflictingFacts() {
+        val origin=LocalPoint(40.0,-100.0)
+        val a=LocalBusiness("one","Taco Bell",category="restaurant",address="1 Example St",point=origin)
+        val others=listOf("Taco Bell Repair #101","Taco Bell Cantina #102","Taco Bell #101 Annex","Taco Bell #102 Hardware")
+            .mapIndexed {i,name->a.copy(id="other-$i",name=name,address="${20+i} Example St")}
+        val wrongCategory=a.copy(id="hardware",name="Taco Bell #103",category="HardwareStore",address="30 Example St")
+        val conflicting=a.copy(id="conflicting",name="Taco Bell #104",address="40 Example St",evidence=listOf(claim("brand id","Q12345678902")))
+        assertEquals(1+others.size+2,LocalBusinessDeck.groupsForArea(listOf(a)+others+wrongCategory+conflicting,origin,"US").size)
+        assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(a,a.copy(id="different",name="Taco Bell #105",address="50 Example St")),origin,"ZZ").size)
+    }
+
 }

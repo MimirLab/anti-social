@@ -9,9 +9,10 @@ import java.util.Locale
 object SearchText {
     const val VERSION=1
     private val word=Regex("[\\p{L}\\p{N}][\\p{L}\\p{N}\\p{M}]*")
+    private val combiningMarks=Regex("\\p{M}+")
     fun words(value:String,foldAccents:Boolean=true,maxWords:Int=256,maxWordLength:Int=64):List<String> {
         val text=Normalizer.normalize(value,if(foldAccents)Normalizer.Form.NFKD else Normalizer.Form.NFKC).lowercase(Locale.ROOT)
-            .let {if(foldAccents)it.replace(Regex("\\p{M}+"),"")else it}
+            .let {if(foldAccents)it.replace(combiningMarks,"")else it}
         return word.findAll(text).take(maxWords).map {it.value.take(maxWordLength).let {w->if(w.lastOrNull()?.isHighSurrogate()==true)w.dropLast(1)else w}}.toList()
     }
     private val irregular=mapOf("children" to "child","people" to "person","men" to "man","women" to "woman","feet" to "foot","teeth" to "tooth","mice" to "mouse","classes" to "class","buses" to "bus","dishes" to "dish","businesses" to "business","addresses" to "address","watches" to "watch","boxes" to "box","churches" to "church","launches" to "launch","branches" to "branch","beaches" to "beach","sandwiches" to "sandwich","searches" to "search","patches" to "patch","batches" to "batch","matches" to "match","coaches" to "coach","speeches" to "speech")

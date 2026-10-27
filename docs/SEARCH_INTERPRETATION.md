@@ -16,7 +16,7 @@ language understanding or generated business facts.
 
 Put a phrase in double quotes to keep its wording and suppress concept, spelling
 and morphology expansion for that phrase: `"rocket launch"`, `"Acorn Diner"`.
-Names, handles, numerical identifiers and field-like literal text are protected
+Quoted names, handles, numerical identifiers and field-like literal text are protected
 from generic rewriting. A leading minus excludes a word or phrase in the shared
 local/scoped matcher. Business and event adapters also retain their existing
 mode-specific exclusions and constraints. Exclusions remain attached to alternate
@@ -75,6 +75,49 @@ Ranking is computed once per candidate projection instead of inside each sort
 comparison. Immutable vocabulary is loaded once; private plan/correction memo
 banks are small, local, bounded and expire after fifteen minutes. Ordinary cache
 cleanup trims them; explicit cache clearing removes them. No query heartbeat or idle crawl is introduced.
+
+## Prepared local matching (0.38.52)
+
+The local matcher now prepares its finite alternative clauses once for an event
+intent or a saved-event Library read. Document views belong to the individual
+record evaluation, rather than the query: later edits cannot reuse an earlier
+record's words. Alternative event clauses share the same bounded views. The
+existing ordinary-word and literal-phrase limits remain distinct, with regression
+controls for long identifiers, late quoted text, negatives and concurrent query
+reuse. This changes repeated work, not the available evidence or network policy.
+
+Business category matching evaluates description/evidence projections only when
+needed. A published category can settle a term without normalizing every caption
+and visit detail. These lazy projections are local to a synchronous call; they
+are not shared mutable document caches. Fixed lexical, age, admission and publisher
+patterns are reused. A conflicting explicit age range can reject an event before
+its long caption is processed, retaining the existing unknown-range treatment.
+
+An event intent without content constraints can accept its text immediately.
+Occurrence dates, geography, price controls outside that intent and saved/live
+selection still pass through their existing admission layers. An empty text query
+does not make a distant or out-of-window event eligible.
+
+Coffee exposed a separate recall defect. The directory could retrieve cafés, but
+the shared category vocabulary bound `coffee` only to retailers. Reader-language
+mapping now includes both cafés and coffee retailers. The generated spelling bank
+also retains each form's actual vocabulary entry, so `coffees` can reach its
+concept despite conservative stemming. Shared phrase expansion accepts exact
+known forms, rather than importing fuzzy business correction into general topics.
+An early candidate failed the existing `space`/`spice shop` guard and was rejected;
+the guard remains unchanged. Literal original paths, quotes and exclusions remain.
+The directory compiler emits an equivalent café predicate only once in its single
+bounded request; this is not a new network route or a higher request allowance.
+
+The design keeps query preparation separate from document evaluation, a useful
+principle illustrated by [Lucene's Query/Weight/Scorer separation](https://github.com/apache/lucene/blob/main/lucene/core/src/java/org/apache/lucene/search/Weight.java).
+It remains project-native Kotlin, with no Lucene runtime dependency. Local lazy
+views follow Kotlin's [thread-safety modes](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin/-lazy-thread-safety-mode/):
+the unsynchronized mode is confined to an individual evaluation, while prepared
+query state is immutable and its shared lazy initialization remains synchronized.
+The [dated qualification](RELEASE_QUALIFICATION.md#03852-coffee-recall-and-prepared-local-matching)
+separates component timings, labelled-result controls, actual native screens and
+the remaining physical-device measurement limits.
 
 ## Sources and reproducibility
 

@@ -108,17 +108,32 @@ object LocalDiscoveryFilter {
         val canonical=SearchText.plural(word)
         if(canonical in alternatives||word.length<5)canonical else (alternatives.keys+alternatives.values.flatten()).asSequence().filter {SearchText.oneEdit(word,it)}.map(SearchText::plural).distinct().take(2).toList().singleOrNull() ?: canonical
     }
-    fun matches(query:String,content:String):Boolean {
-        val intent=SearchIntent.parse(query)
-        val available=SearchText.words(content.take(32000)).map(SearchText::plural).toSet()
-        fun has(clause:SearchClause):Boolean {
-            if(clause.quoted||clause.protected||clause.words.size!=1)return SearchIntent("",listOf(clause.copy(excluded=false))).matches(content.take(32000))
-            val word=clause.words.single();val canonical=SearchText.plural(word)
-            val corrected=PlaceSearchVocabulary.correction(canonical)
-            return (alternatives[word] ?: alternatives[canonical] ?: setOf(word,canonical)).any {SearchText.plural(it) in available}||corrected in available
-        }
-        return SearchMeaning.variants(intent).any {variant->variant.clauses.filterNot {!it.quoted&&it.words.singleOrNull() in stop}.all {if(it.excluded)!has(it)else has(it)}}
+    /** A record's bounded views are local to one evaluation. Prepared queries
+     * can be reused across records without retaining their text or evidence. */
+    internal class Document(content:String) {
+        private val text=content.take(32000)
+        val available by lazy(LazyThreadSafetyMode.NONE){SearchText.words(text).map(SearchText::plural).toSet()}
+        val phrases by lazy(LazyThreadSafetyMode.NONE){SearchDocument(text)}
     }
+    class PreparedQuery internal constructor(query:String) {
+        private data class Clause(val excluded:Boolean,val alternatives:Set<String>?,val literal:SearchIntent?) {
+            fun has(document:Document)=alternatives?.any {it in document.available} ?: requireNotNull(literal).matches(document.phrases)
+        }
+        private val paths=SearchMeaning.variants(SearchIntent.parse(query)).map {variant->
+            variant.clauses.filterNot {!it.quoted&&it.words.singleOrNull() in stop}.map {clause->
+                if(clause.quoted||clause.protected||clause.words.size!=1)Clause(clause.excluded,null,SearchIntent("",listOf(clause.copy(excluded=false))))
+                else {
+                    val word=clause.words.single();val canonical=SearchText.plural(word)
+                    val words=(alternatives[word] ?: alternatives[canonical] ?: setOf(word,canonical)).map(SearchText::plural).toSet()+listOfNotNull(PlaceSearchVocabulary.correction(canonical))
+                    Clause(clause.excluded,words,null)
+                }
+            }
+        }
+        fun matches(content:String)=matches(Document(content))
+        internal fun matches(document:Document)=paths.any {path->path.all {clause->if(clause.excluded)!clause.has(document)else clause.has(document)}}
+    }
+    fun prepare(query:String)=PreparedQuery(query)
+    fun matches(query:String,content:String)=prepare(query).matches(content)
     fun eventQuery(value:String)=LocalEventIntent.parse(value).discoveryText
     fun business(query:LocalDiscoveryQuery,business:LocalBusiness)=LocalGeography.inside(query.area,business.point,business.locality,business.address,business.evidence)
     fun geographic(area:LocalArea,event:LocalEvent)=!event.online&&LocalGeography.inside(area,event.point,event.locality,event.address,event.evidence)

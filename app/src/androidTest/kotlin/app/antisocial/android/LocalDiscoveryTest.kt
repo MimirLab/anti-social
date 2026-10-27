@@ -225,6 +225,27 @@ class LocalDiscoveryTest {
         }
         override suspend fun account(url:String)=accessible(url)
     }
+    @Test fun coffeeSearchShowsCafesAndRetailersAndKeepsExplicitBypasses() {
+        fun row(id:String,name:String,category:String,n:Int)=place.copy(id=id,name=name,category=category,address="$n Example Street",point=LocalPoint(area.point.latitude+n*.001,area.point.longitude),
+            phones=emptyList(),websites=emptyList(),socials=emptyList(),sourceIds=listOf(id),evidence=emptyList())
+        val cafe=row("fixture-coffee-cafe","Copper Cup","cafe",1)
+        val retailer=row("fixture-coffee-store","Bean Counter","coffee store",2)
+        val unrelated=row("fixture-coffee-unrelated","Copper Hardware","hardware store",3)
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(businesses=listOf(cafe,retailer,unrelated)));model.localSearch.text("coffee");model.localSearch.search(force=true)}
+        show();ui.waitUntil(15_000){model.localSearch.state.value.businesses.isNotEmpty()&&!model.localSearch.state.value.enriching&&!model.localSearch.state.value.loading}
+        evidence("coffee-first-deck-before-assert")
+        assertEquals(setOf(cafe.id,retailer.id),model.localSearch.state.value.businesses.map {it.id}.toSet())
+        assertEquals(2,model.localSearch.state.value.groups.size)
+        ui.onNodeWithTag("Local discovery results").performScrollToNode(hasText(cafe.name))
+        ui.onNodeWithText(cafe.name).assertIsDisplayed();evidence("coffee-cafe-card")
+        ui.onNodeWithTag("Local discovery results").performScrollToNode(hasText(retailer.name))
+        ui.onNodeWithText(retailer.name).assertIsDisplayed();evidence("coffee-retailer-card")
+        for(query in listOf("coffee -cafe","\"coffee\"")) {
+            ui.runOnIdle {model.localSearch.text(query)}
+            ui.waitUntil(5000){model.localSearch.state.value.businesses.map {it.id}==listOf(retailer.id)}
+            ui.onNodeWithText(retailer.name).assertIsDisplayed()
+        }
+    }
     @Test fun unitSwitchPreservesRadiusAndPersistsAcrossControllerRecreation() {
         ui.runOnIdle {model.localSearch.area(area.copy(radiusKm=25));model.localSearch.unit(LocalDistanceUnit.KILOMETRES)}
         show();ui.onNodeWithTag("Discovery area").performClick()
@@ -702,7 +723,7 @@ class LocalDiscoveryTest {
 
     @Test fun tacosShareOneChainCardBeforeAndAfterBrandDetailsStreamIn() {
         val region=firstDeckArea.copy(point=LocalPoint(40.0,-100.0),countryCode="US")
-        val branches=(1..24).map {n->place.copy(id="fixture-taco-chain-$n",name="Taco Bell",category="mexican restaurant",address="$n Example St",locality=region.name,
+        val branches=(1..24).map {n->place.copy(id="fixture-taco-chain-$n",name=when(n%4){0->"Taco Bell #$n";1->"Taco Bell Store $n";else->"Taco Bell"},category=when(n%3){0->"FoodEstablishment";1->"FastFoodRestaurant";else->"mexican restaurant"},address="$n Example St",locality=region.name,
             point=LocalPoint(40+n*.001,-100.0),websites=emptyList(),socials=emptyList(),evidence=emptyList(),keywords=emptyList(),related=null,
             phones=listOf("+1202555${n.toString().padStart(4,'0')}"),sourceIds=listOf("fixture-taco-chain-$n"))}
         val independent=branches.first().copy(id="fixture-independent-tacos",name="Marigold Tacos",address="100 Side St",sourceIds=listOf("fixture-independent-tacos"))

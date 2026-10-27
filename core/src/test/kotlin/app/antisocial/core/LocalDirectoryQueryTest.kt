@@ -7,6 +7,9 @@ import org.junit.Test
 class LocalDirectoryQueryTest {
     private val area=LocalArea("fixture","Example City","Example City, Test Region",LocalPoint(10.0,20.0),5,"UTC")
     private fun code(text:String)=LocalPlaceSources.overpassUrl(area,topic=text).toHttpUrl().queryParameter("data")!!
+    @Test fun typedCafePredicatesDoNotRepeatTheLegacyInterestRequest() {
+        for(topic in listOf("coffee","cafes"))assertEquals(topic,1,Regex("amenity=\\\"?cafe\\\"?").findAll(code(topic)).count())
+    }
     @Test fun recognizedCategoriesDoNotAlsoScanNameBrandAndAlternateNameRegexes() {
         for(text in listOf("library","indian food","bakery","cafes","ice cream")) {
             val query=code(text)

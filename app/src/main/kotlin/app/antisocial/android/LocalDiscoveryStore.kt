@@ -102,7 +102,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     /** Library reads captured copies directly. Never joins live records, checks
      * accounts, reconciles discoveries or starts a menu/source request. */
     @Synchronized fun savedDiscoveries(query:String=""):List<LocalSavedDiscovery> =
-        readableDatabase.rawQuery("SELECT id,kind,payload,saved FROM copies ORDER BY saved DESC LIMIT 2000",null).use {c->buildList {
+        readableDatabase.rawQuery("SELECT id,kind,payload,saved FROM copies ORDER BY saved DESC LIMIT 2000",null).use {c->val eventSearch=LocalDiscoveryFilter.prepare(query);buildList {
             while(c.moveToNext())runCatching {
                 val id=c.getString(0);val saved=c.getLong(3)
                 if(c.getString(1)=="business") {
@@ -112,7 +112,7 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
                 }else if(c.getString(1)=="event") {
                     val v=gson.fromJson(c.getString(2),LocalEvent::class.java)
                     val body=listOf(v.title,v.description,v.venue,v.address,v.locality,v.organizer,v.price,v.age,v.start.value).joinToString(" ")
-                    if(LocalDiscoveryFilter.matches(query,body))add(LocalSavedDiscovery(id,saved,event=v))
+                    if(eventSearch.matches(body))add(LocalSavedDiscovery(id,saved,event=v))
                 }
             }
         }}

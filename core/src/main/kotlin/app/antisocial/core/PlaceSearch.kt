@@ -15,9 +15,13 @@ data class PlaceSearch(val original:String,val terms:List<PlaceTerm>) {
     val onlyCategories get()=terms.filterNot {it.excluded}.all {it.concepts.isNotEmpty()}
     val fingerprint get()="place-v1:"+terms.joinToString("|"){"${it.quoted}:${it.excluded}:${it.words.joinToString(" ")}:${it.concepts.joinToString(","){c->c.id}}"}
     fun matches(business:LocalBusiness):Boolean {
-        val content=LocalBusinessRouting.text(business)
-        val full=SearchText.normalized(content);val category=SearchText.normalized(business.category+" "+business.keywords.joinToString(" "))
-        val details=SearchText.normalized(business.description+" "+LocalBusinessDetails.facts(business).joinToString(" "){it.value})
+        // A published category often settles a term without processing the
+        // description/evidence. These projections live only for this call, so
+        // later factual edits never depend on an old normalized document.
+        val content by lazy(LazyThreadSafetyMode.NONE){LocalBusinessRouting.text(business)}
+        val full by lazy(LazyThreadSafetyMode.NONE){SearchText.normalized(content)}
+        val category by lazy(LazyThreadSafetyMode.NONE){SearchText.normalized(business.category+" "+business.keywords.joinToString(" "))}
+        val details by lazy(LazyThreadSafetyMode.NONE){SearchText.normalized(business.description+" "+LocalBusinessDetails.facts(business).joinToString(" "){it.value})}
         fun contains(text:String,words:List<String>)=(" $text ").contains(" "+words.joinToString(" ")+" ")
         fun match(term:PlaceTerm):Boolean {
             if(term.quoted)return SearchIntent("",listOf(SearchClause(term.words,true))).matches(content)
@@ -57,17 +61,24 @@ object PlaceSearchVocabulary {
     private val aliases by lazy {buildMap<String,MutableList<PlaceConcept>> {
         concepts.forEach {c->c.aliases.forEach {alias->getOrPut(SearchText.normalized(alias)){mutableListOf()}.add(c)}}
         // Reader-language equivalences, not the upstream related-terms field.
-        mapOf("food" to "amenity/restaurant","dining" to "amenity/restaurant","eatery" to "amenity/restaurant","coffee shop" to "amenity/cafe","grocery store" to "shop/supermarket","grocery" to "shop/supermarket","taqueria" to "cuisine:mexican","taco" to "cuisine:mexican","hamburger" to "cuisine:burger").forEach {(alias,id)->concepts.firstOrNull {it.id==id}?.let {getOrPut(alias){mutableListOf()}.add(it)}}
+        mapOf("food" to "amenity/restaurant","dining" to "amenity/restaurant","eatery" to "amenity/restaurant","coffee" to "amenity/cafe","coffee shop" to "amenity/cafe","grocery store" to "shop/supermarket","grocery" to "shop/supermarket","taqueria" to "cuisine:mexican","taco" to "cuisine:mexican","hamburger" to "cuisine:burger").forEach {(alias,id)->concepts.firstOrNull {it.id==id}?.let {getOrPut(alias){mutableListOf()}.add(it)}}
         listOf("amenity/cafe","shop/supermarket","shop/convenience","shop/greengrocer","amenity/marketplace").forEach {id->concepts.firstOrNull {it.id==id}?.let {getOrPut("food"){mutableListOf()}.add(it)}}
     }}
-    private val correctionWords by lazy {aliases.keys.filter {" " !in it&&it.length in 4..32}.flatMap {listOf(it,it+"s",it+"es")}.toSet()}
+    // Keep each generated spelling tied to the actual vocabulary entry. The
+    // conservative stemmer deliberately leaves forms such as "coffees" alone;
+    // returning that generated form would then lose its category association.
+    private val correctionWords by lazy {buildMap<String,MutableSet<String>> {
+        aliases.keys.filter {" " !in it&&it.length in 4..32}.forEach {alias->
+            listOf(alias,alias+"s",alias+"es").forEach {spelling->getOrPut(spelling){mutableSetOf()}.add(alias)}
+        }
+    }}
     private val corrections=linkedMapOf<String,Pair<Long,String?>>()
     private const val MEMO_MS=15*60_000L
     private fun expired(at:Long)=System.currentTimeMillis()-at !in 0..MEMO_MS
     @Synchronized fun correction(word:String):String? {
         if(word.length !in 5..32||word in aliases||word.any {it !in 'a'..'z'})return null
         corrections[word]?.takeUnless {expired(it.first)}?.let {return it.second}
-        return correctionWords.asSequence().filter {SearchText.oneEdit(word,it)}.map(SearchText::plural).distinct().take(2).toList().singleOrNull().also {corrections[word]=System.currentTimeMillis() to it;while(corrections.size>128)corrections.remove(corrections.keys.first())}
+        return correctionWords.asSequence().filter {SearchText.oneEdit(word,it.key)}.flatMap {it.value.asSequence()}.distinct().take(2).toList().singleOrNull().also {corrections[word]=System.currentTimeMillis() to it;while(corrections.size>128)corrections.remove(corrections.keys.first())}
     }
     private val plans=linkedMapOf<String,Pair<Long,PlaceSearch>>()
     @Synchronized fun cleanup(clear:Boolean=false) {
@@ -101,7 +112,10 @@ object PlaceSearchVocabulary {
     }
     /** Strong category aliases only. Related indexing terms are not synonyms. */
     fun phrases(value:String):List<String>? {
-        val found=aliases[SearchText.normalized(value)]?.distinctBy {it.id} ?: return null
+        val normalized=SearchText.normalized(value)
+        // Shared concepts accept known spellings/inflections here, not a fuzzy
+        // guess: an ordinary topic such as "space" must not become "spice".
+        val found=(aliases[normalized] ?: correctionWords[normalized]?.singleOrNull()?.let(aliases::get))?.distinctBy {it.id} ?: return null
         if(found.size>3||SearchText.words(value).size==1&&found.all {it.cuisine})return null
         return found.flatMap {concept->concept.aliases.filter {alias->!concept.cuisine||SearchText.words(alias).size>=2}}
             .distinctBy(SearchText::normalized).take(5).takeIf {it.isNotEmpty()}

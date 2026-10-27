@@ -9,6 +9,125 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.52 chain labels, coffee recall and prepared local matching
+
+The preceding speed measurements covered reconciliation, not the remaining local
+matching work. New opt-in Android component measurements against the unchanged
+signed v0.38.51 (`1a835e5`) identified seconds of repeated caption processing in
+an accumulated cache. This pass changes native Kotlin matching and source-query
+construction. It adds no model, dependency, permission, network route, background
+poller, database migration or persistent document cache. Darwin remains the donor.
+
+### Independently reproduced recall defects
+
+A labelled fixture contains cafés with names omitting “coffee”, coffee retailers
+and an unrelated shop. The old shared place vocabulary associated `coffee` with
+retailers alone. Overpass could retrieve cafés through its existing interest path,
+but final business matching rejected them. A focused JVM control failed. In the
+large unchanged-APK native fixture, all **200 labelled cafés were missing**. The
+actual old Search-tab journey also failed exact membership: its completed deck
+showed the retailer and omitted the café. Both old and candidate native screens
+were inspected. The corrected journey shows both; quoted/exclusion controls and
+saved-Library byte-preservation checks pass.
+
+The reader mapping now retains cafés and retailers. Generated spelling candidates
+keep their actual vocabulary entries, rather than returning a generated form that
+the conservative stemmer leaves unresolved. This repairs `coffees` without changing
+the stemmer or discarding the literal query. Exact known forms also reach the
+shared concept/FTS alternatives. Fuzzy business suggestions are not imported into
+general phrase expansion. An early unshipped candidate failed the existing
+`space` → `spice shop` protection; that candidate was rejected and the original
+guard remains. Quotes, protected identifiers and exclusions retain their controls.
+
+A separate source-construction regression reproduced an equivalent café predicate
+appearing twice inside one bounded Overpass request. Typed and legacy predicates
+now avoid that repetition when they are equivalent; broader legacy predicates
+remain. This does not imply that the old code issued two HTTP requests or prove
+a measured server-side speedup. Regional bounds, output caps and Gateway policy
+are unchanged.
+
+### Chain grouping across source representations
+
+The current live Taco search returned 15 locations of the requested chain in one
+reading card, before this additional correction. That dated observation does not
+establish which version or record representation produced the reported flood.
+A broader deterministic control independently failed for numbered storefront
+names and structured food categories. The grouping label now recognizes an
+explicit trailing store number; exact Schema.org food types participate in the
+existing compatible-category check. This is shared code, with controls covering
+Taco Bell, Burger King, McDonald’s and Starbucks, rather than query-specific rules.
+
+Original names, addresses, phones, hours and source evidence remain in distinct
+branch records. Geography and conflicting brand identities still constrain the
+catalogue; other storefront formats and incompatible categories stay separate.
+The native Taco journey now includes numbered names and structured categories,
+then checks the same card as website/name evidence streams in. The opt-in live
+check also records bounded progress counts, rather than only the final deck.
+
+### Work moved out of repeated record evaluations
+
+`LocalDiscoveryFilter.prepare` freezes the bounded clause alternatives for an event
+intent or saved-event Library read. Each evaluated record owns its bounded text
+views; alternative clauses reuse those views without retaining earlier records.
+Business category matching defers long description/evidence projections until
+needed. Fixed lexical, age, admission and publisher patterns are reused.
+
+An event intent with no content constraints returns its text decision immediately;
+date/geographic/saved-live admission still runs separately. Explicit incompatible
+age fields can reject a record before scanning its long caption. The existing
+unknown-range behavior, admission facts and explanation strings remain covered.
+`LocalDiscoveryPreparedTest` covers concepts, exact/negative phrases, protected
+identifiers, existing text bounds, changed documents and concurrent query reuse.
+`LocalEventIntentTest` covers explicit/unknown ages and reason preservation.
+The [search implementation guide](SEARCH_INTERPRETATION.md#prepared-local-matching-03852)
+links the architectural references and distinguishes local lazy views from shared
+query state. This is project code, not a bundled Lucene search runtime.
+
+### Dated component measurements
+
+The API 35 emulator evaluated the same synthetic **1,200 businesses and 2,500
+events**, with long descriptions and independently labelled result identities.
+Each operation has three samples. No build or other test ran during the timed
+matching comparisons. The table reports medians, including the first sample;
+small samples are not a p95 or a statistical performance distribution.
+Database reads, reconciliation, source fetching and UI drawing are excluded.
+
+| Matching operation | v0.38.51 median | Candidate median |
+| --- | ---: | ---: |
+| Business cuisine | 1,767.0 ms | 676.6 ms |
+| Business burger category | 1,464.5 ms | 634.1 ms |
+| Business makerspace category | 1,569.7 ms | 627.0 ms |
+| Business repair category | 1,606.0 ms | 654.7 ms |
+| Business quoted name | 2,275.3 ms | 608.4 ms |
+| Event empty text intent | 2,190.1 ms | 0.8 ms |
+| Event compound subject | 4,020.7 ms | 2,377.8 ms |
+| Event free workshops | 4,177.0 ms | 2,343.4 ms |
+| Event outdoors/toddler intent | 2,672.4 ms | 1,611.6 ms |
+| Event subject with excluded phrase | 5,496.6 ms | 3,581.7 ms |
+
+The coffee fixture is a correctness comparison (0/200 versus 200/200 cafés), not
+an equal-population latency claim. Other labelled populations remain equal. The
+1,001-card grouping control retains all 1,200 original locations. The known-defect
+baseline benchmark intentionally records its coffee failure; it is not counted
+as a passing native run. All candidate populations pass.
+
+These are emulator component observations, not complete-search, physical-phone,
+battery or memory benchmarks. Topic matching still has measurable work; this is
+not a claim that every local search is instant. The existing progressive delivery,
+request budgets, source ownership, Tor/session policy, cancellation and saved
+snapshot guarantees remain in force.
+
+The full JVM run passed **2,459 cases, zero failures/errors and two optional skips
+(2,461 total)**. The skips remain the private cross-post packet and optional native
+embedding check. Release lint passed. The signed candidate passed the existing
+business/event/store/menu/Library native selection with **83 passes, zero failures
+and zero skips**. One preceding shared-process candidate run timed out in three
+background-start waits after the standalone benchmark; those three passed in a
+fresh process with unchanged code. Both logs are retained, without claiming a
+proven cause. Frozen clean-commit APK/source/signing, repeated shipping-native
+checks, preview backup/state preservation and the anonymous permanent download
+are verified before promotion/publication.
+
 ## 0.38.51 publisher route diversity and repeated reconciliation
 
 Reviewed against v0.38.50 (`dda1ee7`) on October 27. This increment changes

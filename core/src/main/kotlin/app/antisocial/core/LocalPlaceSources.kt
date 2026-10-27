@@ -55,7 +55,10 @@ object LocalPlaceSources {
         // have no predicates and retain all three identity routes.
         val named=if(hubs||meaningful.isEmpty()||category.isNotEmpty())""else listOf("name","brand","alt_name").joinToString("") {key->"nwr[$key~\"${meaningful.joinToString(".*")}\",i]$around;"}
         val others=if(!hubs&&interest!=null)""else if(!hubs&&meaningful.isNotEmpty())""else "nwr[amenity~\"^($amenities)$\"][name]$around;nwr[tourism~\"^(museum|gallery|information|attraction)$\"][name]$around;nwr[leisure~\"^(trampoline_park|sports_centre|fitness_centre|bowling_alley)$\"][name]$around;"
-        val selectedShops=if(meaningful.isNotEmpty()&&interest==null)""else shops
+        // A typed predicate may already cover the legacy interest (e.g. cafe).
+        // Keep genuinely broader legacy predicates, but do not evaluate an
+        // identical geographic scan twice in the same server-side union.
+        val selectedShops=if(category.any {it.replace("\"","")==interest}||meaningful.isNotEmpty()&&interest==null)""else shops
         val classified=category.joinToString(""){predicate->"nwr$predicate[name]$around;"}
         // Overpass maxsize is server working RAM, not response size. Keep
         // transfer/storage capped separately at 2 MiB in NetworkGateway.

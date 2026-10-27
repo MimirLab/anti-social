@@ -68,6 +68,15 @@ from flooding the first deck while website enrichment is still pending, without
 combining branch facts or issuing additional requests. See the
 [qualification and source record](RELEASE_QUALIFICATION.md#03850-chain-grouping-before-website-enrichment).
 
+Numbered storefront suffixes (`#123`, `Store 123`, `Branch #123`, `Location 123`)
+also leave the grouping label in 0.38.52. The full original name stays in its
+branch record. This label still needs the existing scoped catalogue or declared
+identity/site evidence; a similar name alone is insufficient. Exact structured
+food categories such as `FoodEstablishment` and `FastFoodRestaurant` are accepted
+as food categories, while a conflicting hardware category remains incompatible.
+The controls cover multiple chains, geography, different storefront formats,
+conflicting brand IDs, distinct branch facts and late enrichment.
+
 ### Sparse records and established chains (0.38.41)
 
 Many name-directory results contain only a name, address and coordinates. They

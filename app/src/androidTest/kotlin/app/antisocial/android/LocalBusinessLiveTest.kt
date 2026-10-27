@@ -6,6 +6,7 @@ import app.antisocial.core.*
 import com.google.gson.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import org.junit.*
 import org.junit.runner.RunWith
 import org.json.JSONObject
@@ -30,10 +31,19 @@ class LocalBusinessLiveTest {
                 val start=android.os.SystemClock.elapsedRealtime()
                 withContext(Dispatchers.Main){controller.text(query);controller.search()}
                 var firstMs:Long?=null
-                val watcher=launch {controller.state.first {it.businesses.any {b->LocalDiscoveryFilter.matches(query,LocalBusinessRouting.text(b))}};firstMs=android.os.SystemClock.elapsedRealtime()-start}
+                val progress=JsonArray();var previous:List<Int>?=null
+                val watcher=launch {controller.state.collect {snapshot->
+                    if(firstMs==null&&snapshot.businesses.any {b->LocalDiscoveryFilter.matches(query,LocalBusinessRouting.text(b))})firstMs=android.os.SystemClock.elapsedRealtime()-start
+                    val chain=case.groupedName?.let {name->snapshot.groups.filter {g->g.locations.any {LocalBusinessOwnership.sameBrand(name,LocalBusinessDeck.label(it))}}}
+                    val counts=listOf(snapshot.groups.size,snapshot.businesses.size,chain?.size ?: 0,chain?.sumOf {it.locations.size} ?: 0)
+                    if(counts!=previous&&progress.size()<64){previous=counts;progress.add(JsonObject().apply {
+                        addProperty("elapsedMs",android.os.SystemClock.elapsedRealtime()-start);addProperty("cards",counts[0]);addProperty("locations",counts[1])
+                        if(chain!=null){addProperty("chainCards",counts[2]);addProperty("chainLocations",counts[3])}
+                    })}
+                }}
                 val state=withTimeout(180_000){controller.state.first {!it.loading&&!it.enriching}}
                 watcher.cancelAndJoin()
-                val row=JsonObject().apply {addProperty("query",query);addProperty("elapsedMs",android.os.SystemClock.elapsedRealtime()-start);addProperty("firstCardMs",firstMs);addProperty("cards",state.groups.size);addProperty("locations",state.businesses.size);add("coverage",Gson().toJsonTree(state.coverage));add("businesses",Gson().toJsonTree(state.businesses));add("groups",Gson().toJsonTree(state.groups))}
+                val row=JsonObject().apply {addProperty("query",query);addProperty("elapsedMs",android.os.SystemClock.elapsedRealtime()-start);addProperty("firstCardMs",firstMs);addProperty("cards",state.groups.size);addProperty("locations",state.businesses.size);add("progress",progress);add("coverage",Gson().toJsonTree(state.coverage));add("businesses",Gson().toJsonTree(state.businesses));add("groups",Gson().toJsonTree(state.groups))}
                 runs.add(row);report.add("runs",runs)
                 File(context.filesDir,"local-business-live.json").writeText(GsonBuilder().setPrettyPrinting().create().toJson(report))
                 Assert.assertTrue("No native business cards for $query",state.businesses.isNotEmpty())

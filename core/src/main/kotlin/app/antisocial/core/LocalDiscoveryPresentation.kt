@@ -36,9 +36,10 @@ data class LocalBusinessGroup(val id:String,val locations:List<LocalBusiness>,va
  * evidence; neither a shared operator nor an unqualified name establishes one. */
 object LocalBusinessDeck {
     private val atSuffix=Regex("(?i)\\s+at\\s+.+$")
+    private val storeNumberSuffix=Regex("(?i)\\s+(?:#\\s*|(?:store|branch|location)\\s*#?\\s*)[0-9]{1,10}\\s*$")
     private val brandId=Regex("Q[1-9][0-9]{0,18}")
     private val legacyTags=setOf("cuisine","organic","diet:vegan","diet:vegetarian","wheelchair","brand","operator")
-    private fun labelText(value:String)=value.substringBefore(" - ").substringBefore(" – ").substringBefore(" — ").replace(atSuffix,"")
+    private fun labelText(value:String)=value.substringBefore(" - ").substringBefore(" – ").substringBefore(" — ").replace(atSuffix,"").replace(storeNumberSuffix,"")
     fun label(b:LocalBusiness)=labelText(b.name)
     private data class Identity(val business:LocalBusiness,val name:String,val ids:Set<String>,val brands:Map<String,String>,val domains:Set<String>,val unresolvedSite:Boolean,val street:String?) {
         val ambiguous:Boolean get()=ids.size>1||ids.isEmpty()&&brands.size>1

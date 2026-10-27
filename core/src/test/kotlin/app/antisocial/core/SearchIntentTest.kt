@@ -8,6 +8,28 @@ import org.junit.Test
 class SearchIntentTest {
     private val area=LocalArea("fixture-area","Example City","Example City, Test Region",LocalPoint(10.0,20.0),25,countryCode="ZZ")
     private val indian=LocalBusiness("i","Saffron Palace","restaurant",point=area.point,keywords=listOf("cuisine","indian"))
+    @Test fun readerCoffeeIntentKeepsCafesAndCoffeeRetailersWithLiteralAndNegativeControls() {
+        val cafe=LocalBusiness("cafe","Copper Cup","cafe")
+        val retailer=LocalBusiness("beans","Bean Counter","coffee store")
+        val unrelated=LocalBusiness("hardware","Copper Hardware","hardware store")
+        for(query in listOf("coffee","coffees","Coffee")) {
+            assertTrue(query,LocalBusinessRouting.matches(query,cafe))
+            assertTrue(query,LocalBusinessRouting.matches(query,retailer))
+            assertFalse(query,LocalBusinessRouting.matches(query,unrelated))
+        }
+        assertFalse(LocalBusinessRouting.matches("\"coffee\"",cafe))
+        assertFalse(LocalBusinessRouting.matches("coffee -cafe",cafe))
+        assertTrue(LocalBusinessRouting.matches("coffee -cafe",retailer))
+        assertTrue(SearchMeaning.matches("coffee","A cafe"))
+        assertTrue(SearchMeaning.matches("coffees","A cafe"))
+        assertTrue(SearchMeaning.matches("coffees","Two coffees served"))
+        assertFalse(SearchMeaning.matches("\"coffees\"","A coffee store"))
+        assertFalse(SearchMeaning.matches("\"coffee\"","A cafe"))
+        assertTrue(LocalSearch.expandedQueries("coffees").any {"cafe" in it})
+        val query=LocalPlaceSources.overpassUrl(area,topic="coffee").toHttpUrl().queryParameter("data")!!
+        assertTrue(query.contains("[shop=\"coffee\"]"))
+        assertEquals("A typed category must not repeat the legacy cafe request",1,Regex("amenity=\\\"?cafe\\\"?").findAll(query).count())
+    }
     @Test fun cuisineQueriesReachStructuredTagsAndSurviveDownstreamMatchingWithoutNameKeywords() {
         for(query in listOf("indian food","Indian restaurants","find good indian food near me","indain resturants")) {
             assertTrue(query,LocalBusinessRouting.matches(query,indian))

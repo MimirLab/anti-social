@@ -5,6 +5,15 @@ import kotlin.test.*
 
 class LocalEventIntentTest {
     private fun event(title:String,age:String="",description:String="",price:String="")=LocalEvent("e",title,LocalEventTime("2026-10-24",allDay=true),age=age,description=description,price=price)
+    @Test fun explicitAgeAdmissionRetainsReasonsAndUnknownRanges() {
+        val intent=LocalEventIntent.parse("outdoors for toddlers")
+        assertEquals(LocalEventMatch(false),intent.match(event("Children’s nature walk","Ages 5–12")))
+        val accepted=intent.match(event("Children’s nature walk","Ages 1–3"))
+        assertTrue(accepted.matches);assertTrue(accepted.unknowns.isEmpty())
+        assertEquals(listOf("Published age range overlaps your search","Outdoor activity"),accepted.reasons)
+        val unknown=intent.match(event("Children’s nature walk","Not stated"))
+        assertTrue(unknown.matches);assertEquals(listOf("Age range not stated"),unknown.unknowns)
+    }
     @Test fun compoundSubjectsAndMinusExclusionsSurviveRetrievalAndAdmission() {
         val intent=LocalEventIntent.parse("rocket launches -cancelled")
         assertTrue(intent.match(event("Spaceflight demonstration")).matches)
