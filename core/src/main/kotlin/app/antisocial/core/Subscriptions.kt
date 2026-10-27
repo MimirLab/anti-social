@@ -142,7 +142,11 @@ object CrossPosts {
      * than a display-name guess: both the profile acquisition path and the /u/
      * declaration must agree, and the original must identify an actual comment. */
     private fun declaredCommentAccount(post:Post):String? {
-        if(post.platform!=Platform.REDDIT||post.parentId!=null||!ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("comment:"))return null
+        if(!ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("comment:"))return null
+        return declaredRedditProfileAuthor(post)
+    }
+    internal fun declaredRedditProfileAuthor(post:Post):String? {
+        if(post.platform!=Platform.REDDIT||post.parentId!=null)return null
         if(SocialLinkHosts.platform(post.canonicalUrl)!=Platform.REDDIT)return null
         val author=Regex("^/?u/([A-Za-z0-9_-]{1,100})$").matchEntire(post.author)?.groupValues?.get(1) ?: return null
         val p=post.provenance ?: return null
@@ -248,7 +252,7 @@ object CrossPosts {
      * discussion remains distinct; the UI must retain each publisher attribution. */
     fun sameContentCopies(posts: List<Post>,sameMedia: (Post,Post)->Boolean={_,_->false}): Boolean {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
-        if(galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
+        if(RedditSupplements.collection(posts)||galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->copyMatch(prepared[i],prepared[j],sameMedia)}}
     }
@@ -868,7 +872,7 @@ object CrossPosts {
             PostGroup(originals.sortedWith(compareBy<Post> {it.publishedAt?.takeIf {time->time>0} ?: Long.MAX_VALUE}.thenBy(::originalKey)))
         }
         checkpoint()
-        return collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia).sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
+        return RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia)).sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
 }
 

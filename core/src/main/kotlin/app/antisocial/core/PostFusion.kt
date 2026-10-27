@@ -483,6 +483,7 @@ object CrossPostFusion {
      */
     fun compose(posts: List<Post>): PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        RedditSupplements.compose(posts)?.let {return it}
         DecoratedPostCopies.compose(posts)?.let {return it}
         AttachmentCaptions.compose(posts)?.let {return it}
         CaptionAliases.compose(posts)?.let {return it}

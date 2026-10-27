@@ -612,6 +612,24 @@ class FusionFeedTest {
         assertEquals(instagram.body,runBlocking {repo.dao.post(repo.key(instagram))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.body)
     }
 
+    @Test fun aTitleOnlySubmissionAndItsPublishersExplanationReadOnceAndSaveEveryThread() {
+        val target=follow(Platform.REDDIT)
+        val parentId="ab${suffix}";val title="Public workshop opens a new community equipment room"
+        val p=Provenance(Source(Platform.REDDIT,"original","https://www.reddit.com",role=SourceRole.ORIGINAL),now,"https://www.reddit.com/user/$handle/.rss")
+        val parent=Post("post:$parentId",Platform.REDDIT,"https://www.reddit.com/user/$handle/comments/$parentId/workshop","u/$handle","",title,publishedAt=now-60_000,provenance=p)
+        val comment=Post("comment:$parentId:cd$suffix",Platform.REDDIT,"https://www.reddit.com/r/u_$handle/comments/$parentId/workshop/cd$suffix","/u/$handle",shared,"/u/$handle on $title",publishedAt=now-40_000,provenance=p)
+        val wave=comment.copy(id="comment:$parentId:ef$suffix",canonicalUrl=comment.canonicalUrl.replace("cd$suffix","ef$suffix"),body="👋",publishedAt=now-20_000)
+        records+=listOf(parent,comment,wave);records.forEach {store(it,target)}
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(parent)
+        row(comment).assertDoesNotExist();ui.onAllNodesWithText(title).assertCountEquals(1);ui.onAllNodesWithText(shared).assertCountEquals(1)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(parent)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.onAllNodesWithText("👋").assertCountEquals(1)
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(parent))}?.fusionRoots?.size==3}
+        assertCapturedSources(records,runBlocking {repo.library.details(repo.key(parent))}!!.fusionRoots.orEmpty())
+        evidence("publisher-thread-supplement-one-card-and-both-originals")
+    }
+
     @Test fun aFullySharedCaptionUsesOneFusedBodyAndSavesBothOriginalEditions() {
         val (originalX,originalInstagram)=pair()
         val x=originalX.copy(body=shared,title="RT by @WhiteHouse: $shared");val instagram=originalInstagram.copy(body=shared)
