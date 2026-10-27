@@ -27,6 +27,32 @@ class PostFusionTest {
         return Follow(platform.id,Target(platform,TargetKind.PROFILE,"fixture",url),"Fixture",personId="same-project")
     }
     private val linked=listOf(Platform.X,Platform.BLUESKY,Platform.THREADS).map(::account)
+    @Test fun aCaptionOnlyFacebookReelAliasCannotMakeTheCompleteVideoCopyAmbiguous() {
+        val caption="Progress will come through patient work. Keep moving forward."
+        val x=post(Platform.X,caption).copy(media=listOf(Media("https://video.example/one.mp4","video")))
+        val fb=x.copy(id="fb",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/123456/posts/456789",publishedAt=time+110_000)
+        val reel=fb.copy(id="reel",canonicalUrl="https://www.facebook.com/reel/987654",title=caption,media=emptyList())
+        val f=Follow("facebook-feed",Target(Platform.FACEBOOK,TargetKind.PROFILE,"fixture","https://www.facebook.com/fixture"),"Fixture",personId="same-project")
+        val membership=mapOf(CrossPosts.originalKey(fb) to setOf(f.id),CrossPosts.originalKey(reel) to setOf(f.id))
+        for(input in listOf(listOf(x,fb,reel),listOf(reel,fb,x))) {
+            val group=CrossPosts.group(input,linked+f,membership).single()
+            assertEquals(input.toSet(),group.posts.toSet());assertEquals(1,CrossPostFusion.compose(group.posts)!!.segments.size)
+        }
+        assertEquals(2,CrossPosts.group(listOf(fb,reel),listOf(f)).size)
+        assertEquals(2,CrossPosts.group(listOf(fb,reel.copy(publishedAt=fb.publishedAt!!+1)),listOf(f),membership).size)
+        assertEquals(2,CrossPosts.group(listOf(fb,reel.copy(body=caption.replace("Progress","Retreat"))),listOf(f),membership).size)
+    }
+    @Test fun aCompactSharedParagraphCanStillQualifyAnImageCorroboratedWorkNameAlias() {
+        val rest="recently mapped new stars in this vast cloud. This small area of gas and dust, named Q17, is far from Earth, in the outer part of our galaxy."
+        val x=post(Platform.X,"The @AsterDawn telescope $rest")
+        val blue=post(Platform.BLUESKY,"Aster's Maya Dawn Space Telescope $rest")
+        assertTrue(CaptionAliases.equivalent(x,blue,mediaConfirmed=true))
+        assertFalse(CaptionAliases.equivalent(x,blue,mediaConfirmed=false))
+        assertEquals(1,CrossPosts.group(listOf(x,blue),linked).size)
+        assertEquals(1,CrossPostFusion.composeMedia(listOf(x,blue))!!.segments.size)
+        assertFalse(CaptionAliases.equivalent(x,blue.copy(body=blue.body.replace("Q17","Q18")),mediaConfirmed=true))
+        assertFalse(CaptionAliases.equivalent(x.copy(body=x.body.replace("AsterDawn","AsterDusk")),blue,mediaConfirmed=true))
+    }
     @Test fun aNitterMentionAnchorIsNotACompetingArticleInACorroboratedAnnouncement() {
         val head="The community workshop is opening its public reading room."
         val article="https://workshop.example/schedule"
@@ -49,6 +75,13 @@ class PostFusionTest {
         assertEquals(listOf("https://video.example.org/one.mp4","https://video.example.org/two.mp4"),originals.flatMap {it.media}.map {it.url})
         val different=b.copy(media=listOf(b.media.single().copy(preview="https://images.example.org/different.jpg")))
         assertEquals(2,CrossPosts.group(listOf(a,different),linked).size)
+        val detail=ByteArray(4096){80};val changed=detail.clone().apply {this[100]=0}
+        val one=VisualFrames.encode(.6,40.0,0,0,List(48){100},detail)!!
+        val two=VisualFrames.encode(.6,40.0,0,0,List(48){100},changed)!!
+        assertFalse(VisualFrames.sameImage(one,two));assertTrue(VisualFrames.same(one,two))
+        val editions=listOf(a.copy(media=listOf(a.media.single().copy(visualFingerprint=one))),different.copy(media=listOf(different.media.single().copy(visualFingerprint=two))))
+        assertEquals(1,CrossPosts.group(editions,linked).size)
+        assertEquals(2,CrossPosts.group(editions,linked).single().posts.flatMap {it.media}.map {it.url}.distinct().size)
     }
     @Test fun aCorroboratedHeadlineKeepsComplementaryLongEditionsOnOneCard() {
         val head="There is plenty of work ahead when you are building a community workshop."

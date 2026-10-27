@@ -670,7 +670,10 @@ object CrossPosts {
         val left=frames(a);val right=frames(b)
         if(left.any {x->right.any {y->
             val first=x.attachmentFingerprint ?: x.visualFingerprint;val second=y.attachmentFingerprint ?: y.visualFingerprint
-            if(first!=null&&second!=null)VisualFrames.sameImage(first,second)
+            // Scene resemblance is sufficient only for this corroborated
+            // announcement route. Attachment suppression continues to require
+            // its separate detailed equality proof.
+            if(first!=null&&second!=null)VisualFrames.sameImage(first,second)||VisualFrames.same(first,second)
             else x.url==y.url||ImageAssetIdentity.same(x,y)
         }})return true
         return sameImages(a,b,sameMedia)
@@ -689,7 +692,12 @@ object CrossPosts {
         // exact same subscribed feed, timestamp and distinctive complete text
         // prove a repeat without pretending either URL is the other's ID.
         val feedAlias=a.post.platform==Platform.FACEBOOK&&a.suppliedBy.intersect(b.suppliedBy).isNotEmpty()&&
-            a.post.publishedAt!=null&&a.post.publishedAt==b.post.publishedAt&&completeCopyText(a,b)&&a.text.length>=80&&a.tokens.size>=12&&a.tokens.toSet().size>=8
+            a.post.publishedAt!=null&&a.post.publishedAt==b.post.publishedAt&&completeCopyText(a,b)&&
+            (a.text.length>=80&&a.tokens.size>=12&&a.tokens.toSet().size>=8||
+                // The same feed can expose a caption-only reel alongside its
+                // complete video post. Reconcile that extraction alias before
+                // it creates two competing Facebook candidates for X/Instagram.
+                (a.post.media.isEmpty()||b.post.media.isEmpty())&&a.text.length>=48&&a.tokens.size>=7&&a.tokens.toSet().size>=7)
         if(!sameAccount&&!feedAlias)return false
         val timeA=a.post.publishedAt?.takeIf {it>0} ?: return false;val timeB=b.post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()

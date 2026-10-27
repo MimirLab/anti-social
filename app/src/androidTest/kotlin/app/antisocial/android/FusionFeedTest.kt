@@ -159,11 +159,17 @@ class FusionFeedTest {
         }
         if(render!==source)render.recycle();source.recycle()
         val url=post.media.single().url;val key=Repository.hash(url);mediaKeys+=key
-        val file=File(repo.context.cacheDir,"content/$key").apply {parentFile?.mkdirs();writeBytes(bytes)}
-        runBlocking {
-            repo.dao.putMedia(MediaRow(key,file.path,bytes.size.toLong(),now))
-            if(preload)repo.images.load(url,post.canonicalUrl,1024)
-        }
+        // These direct fixture writes bypass Repository's atomic media writer.
+        // Hold the reader's normal lease while publishing them so startup orphan
+        // maintenance cannot sweep the file between its write and database row.
+        repo.lease(key,true)
+        try {
+            val file=File(repo.context.cacheDir,"content/$key").apply {parentFile?.mkdirs();writeBytes(bytes)}
+            runBlocking {
+                repo.dao.putMedia(MediaRow(key,file.path,bytes.size.toLong(),now))
+                if(preload)repo.images.load(url,post.canonicalUrl,1024)
+            }
+        }finally {repo.lease(key,false)}
     }
     private fun assertCapturedSources(expected: List<Post>,actual: List<Post>) {
         assertEquals(expected.map(repo::key).toSet(),actual.map(repo::key).toSet())

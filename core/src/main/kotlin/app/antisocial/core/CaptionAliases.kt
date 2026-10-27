@@ -44,7 +44,10 @@ internal object CaptionAliases {
         val fromA=aa[prefix].range.first;val fromB=bb[prefix].range.first
         val endA=aa[aa.lastIndex-suffix].range.last+1;val endB=bb[bb.lastIndex-suffix].range.last+1
         if(normalize(left.take(fromA))!=normalize(right.take(fromB))||normalize(left.substring(endA))!=normalize(right.substring(endB)))return false
-        if(left.take(fromA).length+left.substring(endA).length<160)return false
+        // A complete 24-word shared passage can fall just below 160 characters.
+        // Strong independent picture proof permits that shorter prose; every
+        // ordered proper-name, punctuation, destination and claim guard stays.
+        if(left.take(fromA).length+left.substring(endA).length<(if(mediaConfirmed)120 else 160))return false
         fun name(mention:String,prose:String):Boolean {
             val named=if(mediaConfirmed)mentionArticle.replace(mention,"")else mention
             if(!named.startsWith('@')||!words.matches(named)||prose.contains('@'))return false
