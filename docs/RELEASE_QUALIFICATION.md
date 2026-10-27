@@ -9,6 +9,74 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.46 complete collected posts and bounded candidate recovery
+
+Qualified on 2026-10-26. This increment retains the existing detectors,
+CaptionWeave, literal source paths, discussion roots and chronological reading
+locks. A shared read-only collection plan gives the live card, Context and the
+saved reader a complete attachment inventory even when compact caption alignment
+cannot represent an already admitted collection. That fallback retains complete
+attributed source text instead of selecting only a platform's longest version.
+Failed saved-source validation reports failure rather than silently saving the
+primary edition alone.
+
+Retained failing controls reproduced four independent defects: a redundant
+generated title displacing a richer same-original gallery snapshot; auxiliary
+candidate overflow erasing a distinctive reciprocal nomination; a late photograph
+with an unchanged caption failing to trigger body adoption; and equal video
+posters suppressing distinct playable recordings. The final controls pass. The
+same-original chooser now compares effective captions within an acquisition
+batch; it does not invent publisher edit identities or union historical revisions.
+Candidate buckets are scheduled by selectivity under the existing 128-candidate
+bound. Skipped comparisons are not evidence that posts differ.
+
+The existing gallery route now accepts a qualified exact heading within a fuller
+announcement, retaining its additional sentence. Detailed attachment-only image
+observations can support that nonblank caption route without acquiring general
+post-identity authority. Short admitted captions can compose despite opaque
+campaign links. Feed-enclosure entries matching declared media no longer become
+competing editorial destinations; literal publisher links and genuinely different
+articles retain their guards. Decorative ending punctuation can share one actual
+reading caption while material wording remains attributed and originals unchanged.
+
+Media inventory and screen layout are separate. Confirmed picture/rendition
+copies still combine with their source labels. A shared cover can use one media
+slot with selectable editions while retaining distinct recordings or qualified
+related frames. Preview attribution distinguishes supplying a still from supplying
+a playable video. A newly observed picture triggers the existing pending/idle
+adoption mechanism; a proven re-encoding adds attribution without reopening a read
+announcement. Persisted read signatures and viewport protections are unchanged.
+
+A private Gateway capture retrieved 19 current head posts across three platforms.
+Eleven selected originals, including one retained earlier counterpart, form four
+expected announcement families in both input orders with explicit linked-publisher
+fixtures. Every selected media read decoded. A separate assertion checks the short
+shared caption appears once. This qualifies the captured input and supplied
+linkage, not every possible phone subscription binding or future source response.
+
+Validation: **2,404 JVM cases, zero failures/errors, two optional skips**. Final
+API 35 native regression: **171 methods, 170 passed, zero failed, one optional
+live-Tor skip**. Debug assembly and release lint pass. The selection covers cold
+gallery matching, literal wording/projection guards, late-photo adoption, read
+inheritance for observed re-encodings, same-batch storage/page replay, distinct
+video choices, Context, saved/portable copies, cache recovery, settings retention,
+sharing, chronological memory, coverage and revalidation. Native screens were
+inspected, including selecting a recording and its actual decoded cover.
+
+Earlier broad runs caught a repeated styling-only caption and a related-frame
+layout regression; both were repaired before the final full rerun. Two native
+fixtures needed actual Library/media scrolling and an asynchronous-open wait.
+An additional same-URL/conflicting-duration control verifies stable selectable UI
+keys. Failed runs and corrections remain in the private evidence record.
+
+No dependency, permission, database migration, model, decoder or network transport
+is added. This change introduces no extra crawl or full-video verification fetch.
+Release promotion verifies the clean source stamp, existing signer and unchanged
+native payload, then backs up and checks retained preview state. Controlled
+physical-phone performance and arbitrary fine-detail image changes remain outside
+this qualification. See [attachment collections](ATTACHMENT_COLLECTIONS.md) and
+[media collections](MEDIA_COLLECTIONS.md) for the production boundaries.
+
 ## 0.38.45 cache recovery and source-attributed wording variants
 
 Qualified on 2026-10-26. A new native regression first reproduced a manual-cache
