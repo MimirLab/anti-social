@@ -648,7 +648,7 @@ class FeedMemoryTest {
         seed(personFeed,rows)
         show(mutableStateOf(rows),listOf(account),refreshPerson=true);waitForRow(rows.first())
         ui.waitUntil(5_000){ui.onAllNodesWithTag("Jump to newest").fetchSemanticsNodes().any {!it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)}}
-        ui.onNodeWithText("Slop consumed, go be productive.").assertDoesNotExist()
+        ui.onAllNodes(hasAnyAncestor(hasTestTag("Feed refresh feedback"))).assertCountEquals(0)
         val before=repo.feedRefresh.value.generation
         ui.onNodeWithTag("Following feed").performScrollToIndex(12)
         ui.onNodeWithTag("Feed pull to refresh").performTouchInput {swipeDown(startY=height*.2f,endY=height*.7f,durationMillis=420)}
@@ -691,7 +691,7 @@ class FeedMemoryTest {
         assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[blue.id]?.status)
         assertNotNull(repo.feedMemory.refresh.value[blue.id]?.lastSuccessAt)
         ui.mainClock.advanceTimeBy(1_000);ui.waitForIdle()
-        ui.onNodeWithText("Slop consumed, go be productive.").assertDoesNotExist()
+        ui.onAllNodes(hasAnyAncestor(hasTestTag("Feed refresh feedback"))).assertCountEquals(0)
         ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed pending subscriptions"))
         ui.onNodeWithTag("Feed pending subscriptions").assertIsDisplayed()
         evidence("pending-source-suppresses-catch-up-snackbar")
@@ -714,7 +714,10 @@ class FeedMemoryTest {
         assertEquals(setOf(outside.id),repo.feedRefresh.value.requested)
         assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[selected.id]?.status)
         ui.mainClock.advanceTimeBy(1_000);ui.waitForIdle()
-        ui.onNodeWithText("Slop consumed, go be productive.").assertDoesNotExist()
+        // The legitimate caught-up footer may use any quip, including the old
+        // fixed wording. This assertion concerns a refresh snackbar, not that
+        // independently rendered (possibly off-screen) reading boundary.
+        ui.onAllNodes(hasAnyAncestor(hasTestTag("Feed refresh feedback"))).assertCountEquals(0)
         evidence("unrelated-refresh-does-not-claim-current-feed-caught-up")
     }
 
