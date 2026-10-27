@@ -30,23 +30,25 @@ internal class PlaceBrandIndex(text:String) {
         return point?.let {it.distanceKm(LocalPoint(circle[1].asDouble,circle[0].asDouble))<=if(circle.size()==3)circle[2].asDouble else 25.0}
     }
     private val food=setOf("restaurant","fast_food","cafe","bar","pub","ice_cream","food_court")
-    fun match(name:String,category:String,country:String?,point:LocalPoint?):Brand? {
-        val alias=LocalDiscoveryMerge.businessName(name)
-        val candidates=byName[alias].orEmpty()
-        if(candidates.isEmpty())return null
+    fun match(name:String,category:String,country:String?,point:LocalPoint?):Brand? = matchNames(listOf(name),category,country,point).singleOrNull()
+    fun matchNames(names:List<String>,category:String,country:String?,point:LocalPoint?):List<Brand> {
+        val indexed=names.asSequence().map(LocalDiscoveryMerge::businessName).distinct().take(8)
+            .map {it to byName[it].orEmpty()}.filter {it.second.isNotEmpty()}.toList()
+        if(indexed.isEmpty())return emptyList()
         val classification=SearchText.normalized(LocalBusinessContact.category(category))
         val concepts=if(classification.isBlank())emptyList()else PlaceSearchVocabulary.parse(classification).concepts
         val tags=concepts.flatMap {it.tags}
-        val matches=candidates.filter {b->
-            b.include.any {scope(it,country,point)==true}&&b.exclude.all {scope(it,country,point)==false}&&
-                (classification.isBlank()||classification==SearchText.normalized(b.value.replace('_',' '))||b.key=="amenity"&&b.value in food&&PlaceCategoryFamilies.food(classification,concepts)||tags.any {it[b.key]==b.value})
-        }
-        // Prefer an actual published storefront name to a shared parent label,
-        // after geographic/category admission. Genuine competing names stay unknown.
-        val specific=matches.filter {alias in it.storefronts}.ifEmpty {matches}
-        if(specific.map {it.id}.distinct().size!=1)return null
-        return specific.firstOrNull()
+        return indexed.flatMap {(alias,candidates)->
+            val matches=candidates.filter {b->
+                b.include.any {scope(it,country,point)==true}&&b.exclude.all {scope(it,country,point)==false}&&
+                    (classification.isBlank()||classification in genericCategories||classification==SearchText.normalized(b.value.replace('_',' '))||b.key=="amenity"&&b.value in food&&PlaceCategoryFamilies.food(classification,concepts)||tags.any {it[b.key]==b.value})
+            }
+            // Prefer an actual published storefront name to a shared parent label,
+            // after geographic/category admission. Genuine competing names stay unknown.
+            matches.filter {alias in it.storefronts}.ifEmpty {matches}
+        }.distinctBy {it.id}
     }
+    private val genericCategories=setOf("store","shop","business","local business","localbusiness","place","establishment","organization","organisation","point of interest","poi")
 }
 
 internal object PlaceCategoryFamilies {
@@ -59,4 +61,5 @@ internal object PlaceCategoryFamilies {
 internal object KnownPlaceBrands {
     private val index by lazy {PlaceBrandIndex(requireNotNull(javaClass.getResourceAsStream("/place-brands.json")).bufferedReader().use {it.readText()})}
     fun match(name:String,category:String,country:String?,point:LocalPoint?)=index.match(name,category,country,point)
+    fun matchNames(names:List<String>,category:String,country:String?,point:LocalPoint?)=index.matchNames(names,category,country,point)
 }

@@ -58,4 +58,10 @@ class KnownPlaceBrandsTest {
         assertNull(conflicting.match("Aster Bowl","restaurant","us",point))
     }
 
+    @Test fun genericStoreClassificationDoesNotContradictAnExactKnownStorefront() {
+        val point=LocalPoint(40.0,-100.0)
+        assertEquals("Q752941",KnownPlaceBrands.match("Taco Bell","Store","US",point)?.id)
+        assertNull(KnownPlaceBrands.match("Taco Bell","hardware store","US",point))
+    }
+
 }

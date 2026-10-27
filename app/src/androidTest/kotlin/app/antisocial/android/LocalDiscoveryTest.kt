@@ -716,6 +716,14 @@ class LocalDiscoveryTest {
         val original=groups.single {it.title=="Taco Bell"}.id
         assertEquals(branches.map {it.id}.toSet(),groups.single {it.title=="Taco Bell"}.locations.map {it.id}.toSet())
         ui.onNodeWithText("24 nearby locations").assertIsDisplayed()
+        val sourceNamed=branches.last().copy(id="fixture-taco-source-name",name="Taco Bell Exampletown",category="Store",address="25 Example St",point=LocalPoint(40.025,-100.0),
+            phones=listOf("+12025550025"),sourceIds=listOf("fixture-taco-source-name"),evidence=listOf(LocalDiscoveryIdentity.evidence("name","Taco Bell","https://directory.fixture.invalid/location",200,LocalEvidenceKind.DIRECTORY)))
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(sourceNamed)),region)}
+        ui.waitUntil(15_000){model.localSearch.state.value.businesses.size==26}
+        groups=model.localSearch.state.value.groups
+        assertEquals(2,groups.size);assertEquals(25,groups.single {it.title=="Taco Bell"}.locations.size)
+        ui.onNodeWithText("25 nearby locations").assertIsDisplayed();evidence("taco-chain-source-name")
+        val allBranches=branches+sourceNamed
         val enriched=branches.mapIndexed {i,b->val site=if(i%2==0)"https://locations.tacobell.com/branch$i"else "https://www.tacobell.com/branch$i"
             b.copy(websites=listOf(site),evidence=listOf(LocalDiscoveryIdentity.evidence("brand","Taco Bell",site,200,LocalEvidenceKind.DIRECTORY)))}
         runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=enriched),region)}
@@ -723,10 +731,10 @@ class LocalDiscoveryTest {
         groups=model.localSearch.state.value.groups
         assertEquals(2,groups.size)
         val chain=groups.single {it.title=="Taco Bell"}
-        assertEquals(original,chain.id);assertEquals(branches.map {it.phones}.toSet(),chain.locations.map {it.phones}.toSet())
-        assertEquals(branches.map {it.address},chain.locations.map {it.address})
+        assertEquals(original,chain.id);assertEquals(allBranches.map {it.phones}.toSet(),chain.locations.map {it.phones}.toSet())
+        assertEquals(allBranches.map {it.address},chain.locations.map {it.address})
         assertEquals(independent.id,groups.single {it.title==independent.name}.primary.id)
-        ui.onNodeWithText("24 nearby locations").assertIsDisplayed();evidence("taco-chain-streamed-details")
+        ui.onNodeWithText("25 nearby locations").assertIsDisplayed();evidence("taco-chain-streamed-details")
     }
 
     @Test fun sparsePlaceRowsJoinAnEstablishedChainAsWebsiteEvidenceStreamsIn() {

@@ -124,4 +124,16 @@ class LocalBusinessDeckTest {
         assertEquals(2,LocalBusinessDeck.groupsForArea(rows.take(1)+rows[1].copy(evidence=listOf(claim("brand","Unrelated Tacos"))),origin,"US").size)
     }
 
+    @Test fun qualifiedSourceNamesSurviveLocalityHeadingsAndGenericWebsiteCategories() {
+        val origin=LocalPoint(40.0,-100.0)
+        val ordinary=LocalBusiness("ordinary","Taco Bell",category="restaurant",address="10 Example St",point=origin)
+        val heading=ordinary.copy(id="heading",name="Taco Bell Exampletown",category="Store",address="20 Example St",point=LocalPoint(40.01,-100.0),evidence=listOf(claim("name","Taco Bell")))
+        assertEquals(listOf(listOf(ordinary,heading)),LocalBusinessDeck.groupsForArea(listOf(ordinary,heading),origin,"US").map {it.locations})
+        assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(ordinary,heading.copy(category="hardware store")),origin,"US").size)
+        assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(ordinary,heading.copy(evidence=heading.evidence.map {it.copy(kind=LocalEvidenceKind.PUBLIC_POST)})),origin,"US").size)
+        val conflicting=heading.copy(evidence=heading.evidence+claim("name","McDonald's"))
+        val other=ordinary.copy(id="other",name="McDonald's",address="30 Example St")
+        assertEquals(3,LocalBusinessDeck.groupsForArea(listOf(ordinary,conflicting,other),origin,"US").size)
+    }
+
 }

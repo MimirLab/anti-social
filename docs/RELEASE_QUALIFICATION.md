@@ -19,6 +19,17 @@ The exact ordinary name then appeared to have conflicting IDs, so the catalog
 correctly refused to guess from that damaged representation. A second gap skipped
 the catalog whenever a directory supplied any brand label, even without an ID.
 
+The next live check found a remaining branch under a website locality heading
+and the generic `Store` category, while its retained directory name was still
+the exact chain name. That candidate failed the live one-card assertion. A
+private replay and two further frozen controls reproduced the omission. The
+reading projection now considers up to eight distinct qualified directory or
+publisher name assertions, preparing category interpretation once. Generic
+schema types such as Store remain unknown for this lookup; detailed incompatible
+categories still reject it. Public-post name mentions are not identity aliases,
+and conflicting recognized source-name IDs leave the record ambiguous. No
+published field is overwritten or manufactured.
+
 The compiler now preserves storefront/explicit matching aliases separately from
 parent labels, using compact alias indexes in the same offline resource. Lookup
 first applies the existing country, exception and category rules, then prefers an
@@ -46,9 +57,11 @@ country exceptions and genuine same-name conflicts. `LocalBusinessDeckTest` and
 
 A frozen v0.38.49 debug build failed the new native control with **25 cards
 instead of two**: 24 bare Taco Bell branches plus one independent restaurant.
-The candidate passes the same control with two cards, a visible **24 nearby
-locations** counter, unchanged addresses/phones and a stable chain key after
-brand/website details stream in. Both native viewports were inspected directly.
+The candidate passes the same control with two cards and a visible **24 nearby
+locations** counter. A further branch carrying a locality heading, generic Store
+category and qualified source name raises that counter to 25 in the same card.
+Addresses/phones remain intact and the chain key stays stable as brand/website
+details stream in. Both native viewports were inspected directly.
 The baseline debug catalog was byte-verified against the official APK. An initial
 attempt pairing debug instrumentation with the release module hit an internal
 method-name mismatch before the fixture; it is retained as an engineering
@@ -65,11 +78,10 @@ and failed its membership assertion. The expected record IDs now come from
 reviewed name/brand/first-party source fields, independently of the grouping
 output; all membership and field-preservation assertions remain. No reader area, address, source packet or screenshot is published.
 
-The complete JVM run passed **2,446 cases, zero failures/errors and two optional
-skips (2,448 cases total)**, including the private full-record replay. Optional
+The complete JVM run passed **2,448 cases, zero failures/errors and two optional
+skips (2,450 cases total)**, including the private full-record replay. Optional
 skips are the private cross-post packet and native embedding check. Broader
-business/event/menu/library native qualification passed **77 methods with zero
-failures or skips**. The signed shipping artifact repeats that selection before
+business/event/menu/library native qualification passed **77 methods with zero failures or skips**. The signed shipping artifact repeats that selection before
 publication.
 
 The final APK/source, signer, preview-state preservation and anonymous permanent

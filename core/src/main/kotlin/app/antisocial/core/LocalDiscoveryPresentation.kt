@@ -38,7 +38,8 @@ object LocalBusinessDeck {
     private val atSuffix=Regex("(?i)\\s+at\\s+.+$")
     private val brandId=Regex("Q[1-9][0-9]{0,18}")
     private val legacyTags=setOf("cuisine","organic","diet:vegan","diet:vegetarian","wheelchair","brand","operator")
-    fun label(b:LocalBusiness)=b.name.substringBefore(" - ").substringBefore(" – ").substringBefore(" — ").replace(atSuffix,"")
+    private fun labelText(value:String)=value.substringBefore(" - ").substringBefore(" – ").substringBefore(" — ").replace(atSuffix,"")
+    fun label(b:LocalBusiness)=labelText(b.name)
     private data class Identity(val business:LocalBusiness,val name:String,val ids:Set<String>,val brands:Map<String,String>,val domains:Set<String>,val unresolvedSite:Boolean,val street:String?) {
         val ambiguous:Boolean get()=ids.size>1||ids.isEmpty()&&brands.size>1
     }
@@ -53,8 +54,12 @@ object LocalBusinessDeck {
             b.related.orEmpty().filter {it.role=="brand"}.map {it.name}+listOfNotNull(legacy)).map {it.trim().take(300)}.filter {it.isNotBlank()}
             .distinctBy {LocalDiscoveryMerge.businessName(it)}.associateBy {LocalDiscoveryMerge.businessName(it)}.filterKeys(String::isNotBlank)
         val label=label(b)
-        val catalog=if(declaredIds.isEmpty())KnownPlaceBrands.match(label,b.category,country,b.point)?.takeIf {candidate->declaredBrands.keys.all {it in candidate.aliases}}else null
-        val ids=declaredIds+listOfNotNull(catalog?.id)
+        val names=(listOf(label)+declared.filter {it.field=="name"}.sortedByDescending {it.checkedAt}.map {labelText(it.value)}).distinct().take(8)
+        val hints=if(declaredIds.isEmpty())KnownPlaceBrands.matchNames(names,b.category,country,b.point)else emptyList()
+        val catalog=hints.singleOrNull()?.takeIf {candidate->declaredBrands.keys.all {it in candidate.aliases}}
+        // Conflicting source names remain ambiguous, rather than silently
+        // selecting whichever name happened to arrive last.
+        val ids=declaredIds+if(hints.size>1)hints.map {it.id}else listOfNotNull(catalog?.id)
         val brands=listOfNotNull(catalog?.let {LocalDiscoveryMerge.businessName(it.name) to it.name}).toMap()+declaredBrands
         val boundHosts=declared.filter {it.field in setOf("website","websites")}.flatMap {LocalDiscoveryIdentity.urls(it.value)}
             .mapNotNull {it.toHttpUrlOrNull()?.host?.removePrefix("www.")}.toSet()

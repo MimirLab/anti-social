@@ -60,7 +60,10 @@ The offline brand index retains the distinction between a storefront name and a
 shared parent-brand label. Geographic/category admission happens before choosing
 an exact storefront alias; genuine competing exact names remain ambiguous.
 Compatible scoped brand labels can use this hint even when the directory omits
-the brand ID. Explicit conflicting IDs are preserved. This prevents known chains
+the brand ID. Retained qualified source names can also identify a branch when
+a website later supplies a locality heading and a generic Store classification.
+Up to eight distinct names share one category interpretation; conflicting name
+identities remain ambiguous. Public-post mentions do not supply these aliases. Explicit conflicting IDs are preserved. This prevents known chains
 from flooding the first deck while website enrichment is still pending, without
 combining branch facts or issuing additional requests. See the
 [qualification and source record](RELEASE_QUALIFICATION.md#03850-chain-grouping-before-website-enrichment).
