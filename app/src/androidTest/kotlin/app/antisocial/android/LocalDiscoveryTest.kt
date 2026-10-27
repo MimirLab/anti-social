@@ -756,6 +756,15 @@ class LocalDiscoveryTest {
         assertEquals(allBranches.map {it.address},chain.locations.map {it.address})
         assertEquals(independent.id,groups.single {it.title==independent.name}.primary.id)
         ui.onNodeWithText("25 nearby locations").assertIsDisplayed();evidence("taco-chain-streamed-details")
+        val streetNamed=branches.last().copy(id="fixture-taco-street-name",name="Taco Bell 26 Example Road",address="26 Example Rd, Example City",category="FastFoodRestaurant",
+            point=LocalPoint(40.026,-100.0),sourceIds=listOf("fixture-taco-street-name"),related=listOf(LocalRelatedEntity("Taco Bell Restaurant","brand",emptyList(),"https://directory.fixture.invalid/branch")))
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(streetNamed)),region)}
+        ui.waitUntil(15_000){model.localSearch.state.value.businesses.size==27}
+        groups=model.localSearch.state.value.groups
+        assertEquals(2,groups.size);assertEquals(original,groups.single {it.title=="Taco Bell"}.id)
+        assertEquals(26,groups.single {it.title=="Taco Bell"}.locations.size)
+        assertEquals(streetNamed,groups.single {it.title=="Taco Bell"}.locations.first {it.id==streetNamed.id})
+        ui.onNodeWithText("26 nearby locations").assertIsDisplayed();evidence("taco-chain-late-street-name")
     }
 
     @Test fun sparsePlaceRowsJoinAnEstablishedChainAsWebsiteEvidenceStreamsIn() {

@@ -37,10 +37,25 @@ data class LocalBusinessGroup(val id:String,val locations:List<LocalBusiness>,va
 object LocalBusinessDeck {
     private val atSuffix=Regex("(?i)\\s+at\\s+.+$")
     private val storeNumberSuffix=Regex("(?i)\\s+(?:#\\s*|(?:store|branch|location)\\s*#?\\s*)[0-9]{1,10}\\s*$")
+    private val streetStart=Regex("(?i)(?<!\\S)[0-9]+[a-z]?(?=\\s)")
+    private val brandDescriptors=setOf("restaurant","restaurants","store","stores","shop","shops")
     private val brandId=Regex("Q[1-9][0-9]{0,18}")
     private val legacyTags=setOf("cuisine","organic","diet:vegan","diet:vegetarian","wheelchair","brand","operator")
     private fun labelText(value:String)=value.substringBefore(" - ").substringBefore(" – ").substringBefore(" — ").replace(atSuffix,"").replace(storeNumberSuffix,"")
-    fun label(b:LocalBusiness)=labelText(b.name)
+    fun label(b:LocalBusiness):String {
+        val label=labelText(b.name)
+        if(!streetStart.containsMatchIn(label))return label
+        val street=LocalDiscoveryMerge.street(b.address) ?: return label
+        // A directory may append this branch's own street to its name. Require
+        // the complete suffix to be that street, not just an address prefix
+        // followed by an unrelated business name or extra descriptive words.
+        val count=street.split(' ').size
+        return streetStart.findAll(label).take(8).firstOrNull {match->
+            val suffix=label.substring(match.range.first)
+            LocalDiscoveryIdentity.words(suffix).size==count&&LocalDiscoveryMerge.street(suffix)==street
+        }?.let {label.substring(0,it.range.first).trim().trimEnd(',','·').takeIf(String::isNotBlank)} ?: label
+    }
+    private fun brandLabel(value:String)=value.split(' ').dropLastWhile {it in brandDescriptors}.joinToString(" ")
     private data class Identity(val business:LocalBusiness,val name:String,val ids:Set<String>,val brands:Map<String,String>,val domains:Set<String>,val unresolvedSite:Boolean,val street:String?) {
         val ambiguous:Boolean get()=ids.size>1||ids.isEmpty()&&brands.size>1
     }
@@ -56,8 +71,14 @@ object LocalBusinessDeck {
             .distinctBy {LocalDiscoveryMerge.businessName(it)}.associateBy {LocalDiscoveryMerge.businessName(it)}.filterKeys(String::isNotBlank)
         val label=label(b)
         val names=(listOf(label)+declared.filter {it.field=="name"}.sortedByDescending {it.checkedAt}.map {labelText(it.value)}).distinct().take(8)
-        val hints=if(declaredIds.isEmpty())KnownPlaceBrands.matchNames(names,b.category,country,b.point)else emptyList()
-        val catalog=hints.singleOrNull()?.takeIf {candidate->declaredBrands.keys.all {it in candidate.aliases}}
+        val hints=if(declaredIds.isEmpty())KnownPlaceBrands.matchNames(names,b.category,country,b.point).ifEmpty {
+            // A generic schema name can use its explicit brand. A known
+            // storefront format keeps priority over its parent's brand label.
+            KnownPlaceBrands.matchNames(declaredBrands.keys.map(::brandLabel),b.category,country,b.point)
+        }else emptyList()
+        val catalog=hints.singleOrNull()?.takeIf {candidate->declaredBrands.keys.all {brand->
+            brand in candidate.aliases||brandLabel(brand).let {it.isNotBlank()&&it in candidate.aliases}
+        }}
         // Conflicting source names remain ambiguous, rather than silently
         // selecting whichever name happened to arrive last.
         val ids=declaredIds+if(hints.size>1)hints.map {it.id}else listOfNotNull(catalog?.id)
@@ -67,9 +88,13 @@ object LocalBusinessDeck {
         val sites=b.websites.mapNotNull {raw->raw.toHttpUrlOrNull()?.host?.removePrefix("www.")?.takeIf {
             !LocalBusinessDetails.directorySite(b,raw)&&SocialLinkHosts.platform(raw)==null&&LocalMenuRouting.provider(raw)==null
         }?.let {it to raw}}
-        val domains=sites.filter {(host,raw)->host in boundHosts||LocalBusinessOwnership.firstParty(label,raw)||
+        val domains=sites.filter {(host,raw)->
+            // Repeating the branch address on a directory page does not make
+            // the directory a competing official chain website.
+            val publisherBound=declared.any {it.kind==LocalEvidenceKind.PUBLISHER&&it.sourceUrl.toHttpUrlOrNull()?.host?.removePrefix("www.")==host}
+            (!LocalBusinessOwnership.directoryLink(b,raw)||publisherBound)&&(host in boundHosts||LocalBusinessOwnership.firstParty(label,raw)||
             LocalDiscoveryIdentity.words(label).any {word->word.length>=5&&host.split('.').any {it==word}}||
-            LocalBusinessDetails.verifiedWebsite(b,raw)&&declared.any {it.field=="address"&&it.kind==LocalEvidenceKind.PUBLISHER&&it.sourceUrl.toHttpUrlOrNull()?.host?.removePrefix("www.")==host}
+            LocalBusinessDetails.verifiedWebsite(b,raw)&&declared.any {it.field=="address"&&it.kind==LocalEvidenceKind.PUBLISHER&&it.sourceUrl.toHttpUrlOrNull()?.host?.removePrefix("www.")==host})
         }.map {it.first}.toSet()
         return Identity(b,LocalDiscoveryMerge.businessName(label),ids,brands,domains,sites.any {it.first !in domains},LocalDiscoveryMerge.street(b.address))
     }

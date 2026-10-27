@@ -77,6 +77,17 @@ as food categories, while a conflicting hardware category remains incompatible.
 The controls cover multiple chains, geography, different storefront formats,
 conflicting brand IDs, distinct branch facts and late enrichment.
 
+A street appended to a directory name can supply a grouping label only when the
+entire suffix equals that record's own normalized street. Extra descriptive words
+or a different address do not qualify. A declared brand's trailing generic
+`Restaurant`, `Store` or `Shop` descriptor can match an otherwise exact catalogue
+alias; other format names and conflicting IDs remain distinct. These hints change
+the reading projection, not stored names, source ownership or branch facts.
+Explicit scoped brand fields also participate when a schema supplies a generic
+branch name such as `Restaurant`. A directory's repeated address cannot promote
+its hostname to a competing official chain site; publisher-bound site evidence
+and genuinely conflicting official sites retain their existing checks.
+
 ### Sparse records and established chains (0.38.41)
 
 Many name-directory results contain only a name, address and coordinates. They

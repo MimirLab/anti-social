@@ -60,9 +60,32 @@ Taco Bell, Burger King, McDonald’s and Starbucks, rather than query-specific r
 Original names, addresses, phones, hours and source evidence remain in distinct
 branch records. Geography and conflicting brand identities still constrain the
 catalogue; other storefront formats and incompatible categories stay separate.
-The native Taco journey now includes numbered names and structured categories,
-then checks the same card as website/name evidence streams in. The opt-in live
-check also records bounded progress counts, rather than only the final deck.
+The native Taco journey includes numbered names and structured categories, then
+checks the same card as website/name evidence streams in. A subsequent live run
+actually reproduced a split: it began with one chain card, then a directory
+appended a branch street to the business name and published a generic brand
+descriptor, producing a second card. That candidate was held. Its captured records
+remain private, with a replay checking the complete chain membership and facts.
+
+The final label path admits that suffix only when the entire suffix matches the
+record's own normalized street. A trailing generic brand descriptor can match an
+otherwise exact scoped catalogue alias. Different streets, trailing unrelated
+words, another storefront format and explicit conflicting IDs remain separate.
+Four-chain JVM controls and the native late-arrival journey preserve the original
+card identity and every branch record. The opt-in live check records bounded
+progress counts, rather than only the final deck.
+
+That replay also exposed a directory hostname vetoing the brand bucket after
+repeating the branch address. The reading projection now distinguishes that
+directory claim from publisher-bound site evidence. Explicit brand fields can
+qualify a generic schema branch name. Genuine competing official sites, scoped
+brand conflicts and unrelated businesses remain covered by negative controls.
+A known storefront format keeps priority over its parent's declared brand. The
+captured-record replay passes, and the subsequent cold/warm live checks retain
+one chain card at every recorded populated stage, including later discoveries.
+The native fixture ends with 26 locations in one card and its independent venue
+still separate. These observations qualify the exercised records and routes;
+they are not a universal claim about every chain or publisher.
 
 ### Work moved out of repeated record evaluations
 
@@ -94,16 +117,16 @@ Database reads, reconciliation, source fetching and UI drawing are excluded.
 
 | Matching operation | v0.38.51 median | Candidate median |
 | --- | ---: | ---: |
-| Business cuisine | 1,767.0 ms | 676.6 ms |
-| Business burger category | 1,464.5 ms | 634.1 ms |
-| Business makerspace category | 1,569.7 ms | 627.0 ms |
-| Business repair category | 1,606.0 ms | 654.7 ms |
-| Business quoted name | 2,275.3 ms | 608.4 ms |
-| Event empty text intent | 2,190.1 ms | 0.8 ms |
-| Event compound subject | 4,020.7 ms | 2,377.8 ms |
-| Event free workshops | 4,177.0 ms | 2,343.4 ms |
-| Event outdoors/toddler intent | 2,672.4 ms | 1,611.6 ms |
-| Event subject with excluded phrase | 5,496.6 ms | 3,581.7 ms |
+| Business cuisine | 1,767.0 ms | 687.0 ms |
+| Business burger category | 1,464.5 ms | 669.9 ms |
+| Business makerspace category | 1,569.7 ms | 645.0 ms |
+| Business repair category | 1,606.0 ms | 630.8 ms |
+| Business quoted name | 2,275.3 ms | 625.8 ms |
+| Event empty text intent | 2,190.1 ms | 1.2 ms |
+| Event compound subject | 4,020.7 ms | 2,484.1 ms |
+| Event free workshops | 4,177.0 ms | 2,441.8 ms |
+| Event outdoors/toddler intent | 2,672.4 ms | 1,664.6 ms |
+| Event subject with excluded phrase | 5,496.6 ms | 3,556.2 ms |
 
 The coffee fixture is a correctness comparison (0/200 versus 200/200 cafés), not
 an equal-population latency claim. Other labelled populations remain equal. The
@@ -117,8 +140,8 @@ not a claim that every local search is instant. The existing progressive deliver
 request budgets, source ownership, Tor/session policy, cancellation and saved
 snapshot guarantees remain in force.
 
-The full JVM run passed **2,459 cases, zero failures/errors and two optional skips
-(2,461 total)**. The skips remain the private cross-post packet and optional native
+The full JVM run passed **2,461 cases, zero failures/errors and two optional skips
+(2,463 total)**. The skips remain the private cross-post packet and optional native
 embedding check. Release lint passed. The signed candidate passed the existing
 business/event/store/menu/Library native selection with **83 passes, zero failures
 and zero skips**. One preceding shared-process candidate run timed out in three

@@ -160,4 +160,39 @@ class LocalBusinessDeckTest {
         assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(a,a.copy(id="different",name="Taco Bell #105",address="50 Example St")),origin,"ZZ").size)
     }
 
+    @Test fun aLateDirectoryStreetHeadingAndBrandDescriptorJoinTheExistingChain() {
+        val origin=LocalPoint(40.0,-100.0)
+        for(name in listOf("Taco Bell","Burger King","McDonald's","Starbucks")) {
+            val first=LocalBusiness("first",name,category="restaurant",address="10 Example Road",point=origin)
+            val late=first.copy(id="late",name="$name 25 Example Road",category="FastFoodRestaurant",address="25 Example Rd, Example City",point=LocalPoint(40.01,-100.0),
+                related=listOf(LocalRelatedEntity("$name Restaurant","brand",emptyList(),"https://directory.example/branch")))
+            val before=LocalBusinessDeck.groupsForArea(listOf(first),origin,"US").single()
+            val after=LocalBusinessDeck.groupsForArea(listOf(first,late),origin,"US").single()
+            assertEquals(before.id,after.id);assertEquals(name,after.title);assertEquals(listOf(first,late),after.locations)
+            assertEquals(1,LocalBusinessDeck.groupsForArea(listOf(first,late.copy(related=null)),origin,"US").size)
+            assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(first,late.copy(address="99 Other Road",related=null)),origin,"US").size)
+            assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(first,late.copy(name=late.name+" Hardware",related=null)),origin,"US").size)
+            assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(first,late.copy(related=listOf(late.related!!.single().copy(name="$name Cantina")))),origin,"US").size)
+            assertEquals(2,LocalBusinessDeck.groupsForArea(listOf(first,late.copy(evidence=listOf(claim("brand id","Q12345678902")))),origin,"US").size)
+        }
+    }
+
+    @Test fun declaredBrandsCanQualifyGenericSchemaNamesWithoutPromotingTheirDirectorySites() {
+        val origin=LocalPoint(40.0,-100.0)
+        val rows=listOf(LocalBusiness("named","Taco Bell",category="restaurant",address="10 Example Road",point=origin),
+            LocalBusiness("generic","Restaurant",category="FastFoodRestaurant",address="20 Example Road",point=LocalPoint(40.01,-100.0),
+                related=listOf(LocalRelatedEntity("Taco Bell","brand",emptyList(),"https://directory.example/branch"))))
+        assertEquals(listOf(rows),LocalBusinessDeck.groupsForArea(rows,origin,"US").map {it.locations})
+        val formats=(1..2).map {i->rows.first().copy(id="cantina-$i",name="Taco Bell Cantina",address="${30+i} Example Road",related=rows.last().related)}
+        val separateFormats=LocalBusinessDeck.groupsForArea(rows+formats,origin,"US")
+        assertEquals(2,separateFormats.size);assertEquals(setOf("Taco Bell","Taco Bell Cantina"),separateFormats.map {it.title}.toSet())
+        assertEquals(formats.toSet(),separateFormats.single {it.title=="Taco Bell Cantina"}.locations.toSet())
+        val first=branch("official",brandName="Cobalt Burger",site="https://cobaltburger.example/").copy(address="10 Example Road")
+        val url="https://cobaltburger.listings.example/branch"
+        val listing=branch("directory",brandName="Cobalt Burger",site=url).copy(address="20 Example Road",evidence=listOf(claim("brand","Cobalt Burger"),LocalFieldEvidence("address","20 Example Road",url,100,LocalEvidenceKind.DIRECTORY)))
+        assertEquals(listOf(listOf(first,listing)),LocalBusinessDeck.groups(listOf(first,listing)).map {it.locations})
+        val other=listing.copy(evidence=listOf(claim("brand","Cobalt Burger"),LocalFieldEvidence("address",listing.address,url,100,LocalEvidenceKind.PUBLISHER)))
+        assertEquals(2,LocalBusinessDeck.groups(listOf(first,other)).size)
+    }
+
 }
