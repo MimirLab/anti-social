@@ -158,7 +158,9 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val feedRefresh by repo.feedRefresh.collectAsStateWithLifecycle()
     // Keep the current scope represented even when a busy global feed's bounded
     // window omits its older rows, or Room delivers the two query results apart.
-    val matchingCandidates=remember(globalSnapshot,storedPosts,useGlobal){globalSnapshot?.let {if(useGlobal)it.posts else (storedPosts+it.posts).distinctBy(repo::key)}}
+    // The matcher reconciles same-original snapshots on its worker. A cheap
+    // first-item distinct here could discard a richer overlapping snapshot.
+    val matchingCandidates=remember(globalSnapshot,storedPosts,useGlobal){globalSnapshot?.let {if(useGlobal)it.posts else storedPosts+it.posts}}
     val matchingMemberships=remember(globalSnapshot,storedSnapshot){buildMap<String,Set<String>> {
         (if(useGlobal)listOfNotNull(globalSnapshot?.memberships)else listOfNotNull(globalSnapshot?.memberships,storedSnapshot?.memberships)).forEach {map->map.forEach {(key,ids)->put(key,get(key).orEmpty()+ids)}}
     }}
@@ -405,7 +407,9 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     val archive=rememberArchivePresentation(post,repo,active=fullImage==null&&!showOriginals&&!showOptions)
     val displayed=archive.post
     val attributedAccounts=remember(threads,displayed,archive.showingArchive){(if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads).distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}}
-    val fusion=remember(contentRoots,archive.showingArchive,displayed){if(!archive.showingArchive&&displayed.recoveredArchive==null)collectedPostFusion(contentRoots)else null}
+    val presentationRoots=if(!archive.showingArchive&&displayed.recoveredArchive==null)contentRoots else listOf(displayed)
+    val plan=rememberCollectionPlan(repo,presentationRoots)
+    val fusion=plan.fusion
     val caption=remember(contentRoots,displayed,fusion,archive.showingArchive){if(fusion==null&&!archive.showingArchive&&displayed.recoveredArchive==null)collectedCaptionPost(contentRoots) ?: displayed else displayed}
     val postLinks=remember(displayed,caption,contentRoots,repo){(listOf(displayed,caption)+contentRoots).flatMap(PostLinks::urls).map {repo.publicUrl(it,displayed.platform)}.distinct().take(PostLinks.MAX_LINKS)}
     val linkedVideo=post.platform==Platform.YOUTUBE
@@ -416,14 +420,15 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     // Saved-copy proof is needed only after a save action. It must not repeat
     // pairwise collection validation on the rendering/scrolling path.
     val savePlan=remember(contentRoots,threads,post){lazy {
-        val body=runCatching {repo.library.normalizedFusionRoots(post,contentRoots)}.getOrDefault(emptyList())
+        val body=repo.library.normalizedFusionRoots(post,contentRoots)
         val extended=if(collectedCaptionTexts(threads)==collectedCaptionTexts(contentRoots))
-            runCatching {repo.library.normalizedFusionRoots(post,threads)}.getOrDefault(emptyList())else emptyList()
+            repo.library.normalizedFusionRoots(post,threads)else emptyList()
         extended.ifEmpty {body}
     }}
-    val attachments=rememberCollectedAttachments(repo,if(fusion!=null)contentRoots else listOf(displayed))
+    val attachments=plan.attachments
+    val mediaGroups=remember(attachments,plan.originals){collectedMediaGroups(attachments,CrossPosts.relatedVisualUpdates(plan.originals))}
     val shownMedia=remember(attachments){attachments.map {it.media}}
-    val mediaSources=remember(displayed,fusion,contentRoots){if(fusion==null)emptyMap()else contentRoots.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
+    val mediaSources=remember(plan.originals){plan.originals.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
     val images=shownMedia.filter {it.type=="image"}
     val infoPosts=if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads
     LaunchedEffect(archive.showingArchive){fullImage=null}
@@ -468,7 +473,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             if(post.preview)Text("Public preview · full content unavailable",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(horizontal=16.dp,vertical=6.dp))
             if(linkedVideo&&caption.title.isNotBlank())MentionText(caption.title,repo,caption.platform,caption.canonicalUrl,fontSize=18.sp,fontWeight=FontWeight.SemiBold,maxLines=3,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(horizontal=16.dp,vertical=10.dp),explicitProfileLinks=caption.links.orEmpty())
             if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
-            attachments.forEach {attachment->val m=attachment.media
+            mediaGroups.forEach {group->val attachment=CollectedMediaChoice(group);val m=attachment.media
                 val owner=if(fusion==null)displayed else contentRoots.firstOrNull {root->root.media.any {it.url==m.url}} ?: displayed
                 if(contentRoots.map {it.platform}.distinct().size>1)Text(attachment.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier=Modifier.padding(start=16.dp,end=16.dp,top=8.dp).testTag("Media sources ${m.url}").clickable {showOriginals=true})

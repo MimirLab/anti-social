@@ -1,4 +1,71 @@
-# Attachment collections, 0.38.30
+# Attachment collections
+
+## Complete presentation and late content, 0.38.46
+
+The live card, Context and offline reader use a shared, read-only `CollectionPlan`
+over already admitted originals. Text compression is independent of the complete
+attachment inventory. Existing passage fusion and `CaptionWeave` remain the
+preferred presentation; if alignment cannot represent a collection, complete
+source-labelled blocks retain each distinct caption. A longest-per-platform
+fallback no longer removes another edition's unique wording. Save validation is
+still required; a failed proof reports failure rather than silently dropping the
+collection and saving only its primary original.
+
+Late updates compare text and the observed media inventory. A new photograph can
+therefore trigger off-screen adoption even when the caption is unchanged. Visible
+wording and media remain frozen until the existing adoption boundary. A verified
+reencoding adds attribution without reopening an already-read announcement; an
+unseen additional photograph does not inherit its old read mark. Existing stored
+revision signatures and reader state do not require a blanket reset.
+
+Within one acquisition batch, same-original selection measures effective caption
+content rather than redundant generated-title length before comparing attachment
+coverage. Storage and matching share this chooser; cached page keys are unique.
+Historical revisions are not unioned into a guessed current gallery. Candidate
+nomination retains selective complete buckets before broad ones, with the same
+128-candidate bound and mutual/ambiguity checks. An over-budget bucket remains
+unexamined; it is not evidence that its members differ.
+
+Distinct recordings remain separate inventory entries even with identical posters
+and equal or unknown durations. The reader presents one shared cover with source
+edition controls, preserving every playable recording for Context and saves. The
+existing qualified related-coverage route can likewise share a compact slot for
+nearby interview frames while keeping each captured frame selectable. Related
+scene similarity no longer deletes a distinct picture from the inventory.
+
+## Gallery headings and preview attribution, 0.38.46
+
+A single-picture edition can use a shorter heading than its complete gallery.
+After the existing original/time and actual-picture containment checks, a bounded
+caption route recognizes a complete, unique heading at a sentence boundary. It
+requires at least six words and 35 characters, limits omitted surrounding prose,
+and excludes changed quantities, negation, editorial corrections, questions,
+meaningful symbols and competing destinations from that additional route. Every
+picture must still be proven present; ambiguous galleries stay separate.
+Detailed `attachmentFingerprint` evidence can support this qualified nonblank
+gallery-caption relationship without becoming general post identity. A blank
+weak picture or legacy coarse-only attachment observation does not qualify.
+
+Composition keeps the longer announcement's extra sentence with only its actual
+sources and presents the shared heading once. Original captions, media, links
+and discussions remain intact. A short already-matched caption can also compose
+when one edition adds a known opaque campaign link; its complete link inventory
+remains available. This closes a mismatch where grouping succeeded but the card
+could fall back to one edition's attachments because caption composition failed.
+
+An observed still matching a playable video's poster no longer loses its source
+when removed from the picture inventory. The existing media label distinguishes
+“Video from …” from “preview from …”; a still does not establish that its platform
+published a video. If multiple distinct recordings match that still, it remains
+an independent selectable image rather than being assigned to one arbitrarily.
+Distinct opening frames alone do not establish identical clips.
+
+These paths add no requests, models, dependencies or permissions. Picture
+observations come from the existing bounded decoding/cache path. Native tests
+start with an empty image-identity bank and cached real fixture bytes, exercise
+late regrouping and deliberate caption adoption, retain distinct pictures, and
+validate saved-copy source admission. Current dated results are in
+[release qualification](RELEASE_QUALIFICATION.md).
 
 ## Literal caption variants, 0.38.45
 

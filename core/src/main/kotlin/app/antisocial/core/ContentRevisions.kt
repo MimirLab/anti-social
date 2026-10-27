@@ -50,15 +50,15 @@ object ContentRevisions {
     }
     /** Grouping proves a relationship; it doesn't prove the reader saw every
      * contribution. A fresh edition must be covered by actually read editions. */
-    fun addsContext(read: List<Post>,incoming: List<Post>): Boolean {
+    fun addsContext(read: List<Post>,incoming: List<Post>,includeMedia:Boolean=true): Boolean {
         if(read.isEmpty())return true
         val known=read.map(::text)
-        val assets=read.flatMap {it.media}.map(::media).toSet()
+        val assets=if(includeMedia)read.flatMap {it.media}.map(::media).toSet()else emptySet()
         val originals=(read+incoming).mapNotNull {reference(it.canonicalUrl)}.toSet()
         val documents=read.flatMap {references(it)}.toSet()+originals
         return incoming.any {post->
             val body=text(post)
-            (body.isBlank()&&post.media.isEmpty()) || body.isNotBlank()&&known.none {it.contains(body)} || post.media.any {media(it) !in assets} || references(post).any {it !in documents}
+            (body.isBlank()&&post.media.isEmpty()) || body.isNotBlank()&&known.none {it.contains(body)} || includeMedia&&post.media.any {media(it) !in assets} || references(post).any {it !in documents}
         }
     }
     fun coverage(post: Post): ExtractionCoverage = post.extractionCoverage ?: ExtractionCoverage(

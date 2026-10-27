@@ -409,7 +409,7 @@ class Repository(val context: Context) {
     private suspend fun storeRows(page:Page,followId:String?,allowPurged:Boolean=false) {
         registerPageOrigins(page)
         val now=System.currentTimeMillis()
-        for(item in page.posts) {
+        for(item in CrossPosts.originalSnapshots(page.posts)) {
             val post=archiveStore.marry(item)
             val key=key(post);val seen=dao.seen(key)
             if(seen?.purged==true&&!allowPurged)continue
@@ -435,7 +435,7 @@ class Repository(val context: Context) {
     }}
     suspend fun rememberPage(target: Target,page: Page)=withContext(Dispatchers.IO) {
         rememberAccountNames(page)
-        val bytes=gson.toJson(PageRecord(page.posts.map {key(it)},page.next,page.profile,page.provenance,page.collections,page.accounts,page.notice,page.continuationIssue,page.limitedTimeline,page.continuationSource,page.continuationProgress)).toByteArray()
+        val bytes=gson.toJson(PageRecord(page.posts.map {key(it)}.distinct(),page.next,page.profile,page.provenance,page.collections,page.accounts,page.notice,page.continuationIssue,page.limitedTimeline,page.continuationSource,page.continuationProgress)).toByteArray()
         if(bytes.size<=4*1024*1024)mediaMutex.withLock {
             val key=pageKey(target);val file=File(dataDir,key);atomic(file,bytes)
             val now=System.currentTimeMillis();dao.putMedia(MediaRow(key,file.path,bytes.size.toLong(),now,lastViewedAt=now))

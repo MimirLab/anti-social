@@ -219,6 +219,170 @@ class FusionFeedTest {
         ui.onNode(matcher).assertIsDisplayed()
     }
 
+    private fun cacheGalleryPicture(url:String,index:Int) {
+        val bitmap=picture();val canvas=Canvas(bitmap)
+        val paint=Paint().apply {color=when(index){1->Color.RED;2->Color.GREEN;else->Color.BLUE}}
+        canvas.drawRect(30f,20f,280f,150f,paint)
+        val key=Repository.hash(url);mediaKeys+=key
+        val file=File(repo.context.cacheDir,"content/$key").apply {parentFile?.mkdirs()}
+        try {file.outputStream().use {assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}}finally {bitmap.recycle()}
+        runBlocking {repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))}
+    }
+
+    @Test fun aColdGalleryScanCollectsItsShorterHeadingWithoutDiscardingUniquePicturesOrContext() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val heading="REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT";val intro="Work will continue."
+        val x=oldX.copy(body=heading+" https://t.co/AbCd123",media=listOf(Media("https://fusion-x-$suffix.invalid/gallery-one.png",description="Cold gallery single picture")))
+        val gallery=oldInstagram.copy(body="$intro $heading:",media=(1..3).map {Media("https://fusion-instagram-$suffix.invalid/gallery-$it.png",description="Cold gallery picture $it")})
+        records+=listOf(x,gallery);store(x,follow(Platform.X));store(gallery,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(x.media.single().url,1);gallery.media.forEachIndexed {i,m->cacheGalleryPicture(m.url,i+1)}
+        repo.images.identities.clear()
+        assertEquals("Without decoded evidence, distinct CDN addresses cannot prove inclusion",2,CrossPosts.group(records,accounts).size)
+        seed("all",records);val vm=model();show(vm,all=true)
+        try {
+            ui.waitUntil(15_000){ui.onAllNodesWithTag("Feed row ${repo.key(x)}").fetchSemanticsNodes().isNotEmpty()&&
+                ui.onAllNodesWithTag("Feed row ${repo.key(gallery)}").fetchSemanticsNodes().isEmpty()&&
+                ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
+            // The existing reading contract freezes a visible caption while
+            // late image evidence merges its sidecars. Deliberate adoption
+            // reveals newly found wording without moving it under the finger.
+            ui.onNodeWithTag("Jump to newest").performClick()
+            ui.waitUntil(10_000){ui.onAllNodesWithTag("Fusion shared text").fetchSemanticsNodes().any {node->
+                node.config.getOrNull(SemanticsProperties.Text)?.any {it.text==heading}==true}}
+        }catch(failure:Throwable) {
+            evidence("failure-cold-gallery")
+            val dir=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"fusion-feed")
+            File(dir,"failure-cold-gallery-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
+            File(dir,"failure-cold-gallery-proof.json").writeText(repo.gson.toJson(mapOf("posts" to records.map(repo.images.identities::captured),"groups" to CrossPosts.group(records.map(repo.images.identities::captured),accounts))))
+            throw failure
+        }
+        waitRow(x);row(gallery).assertDoesNotExist()
+        ui.onNodeWithTag("Fusion shared text").assertTextEquals(heading)
+        ui.onNodeWithTag("Fusion context 0").assertTextEquals(intro)
+        ui.onAllNodes(SemanticsMatcher("all distinct gallery pictures"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(3)
+        val captured=records.map(repo.images.identities::captured)
+        assertEquals(records.map(repo::key).toSet(),repo.library.normalizedFusionRoots(captured.first(),captured).map(repo::key).toSet())
+        assertEquals(3,collectedAttachments(captured).size)
+        assertEquals(listOf(intro,heading),collectedPostFusion(captured)!!.segments.map {it.text})
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Cold gallery single picture").fetchSemanticsNodes().isNotEmpty()}
+        evidence("cold-gallery-short-heading-and-source-context")
+    }
+
+    @Test fun aShortCaptionWithAnOpaqueLinkKeepsEveryDistinctAttachmentInTheNativeCard() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val caption="Workshop repairs are ready. 🛠"
+        val x=oldX.copy(body=caption+" https://t.co/AbCd123",media=oldX.media.map {it.copy(description="Short caption first picture")})
+        val instagram=oldInstagram.copy(body=caption,media=oldInstagram.media.map {it.copy(description="Short caption second picture")})
+        records+=listOf(x,instagram);store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(x.media.single().url,1);cacheGalleryPicture(instagram.media.single().url,2)
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();ui.onNodeWithTag("Fusion shared text").assertTextEquals(caption)
+        ui.onAllNodes(SemanticsMatcher("both distinct source pictures"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(2)
+        val captured=records.map(repo.images.identities::captured)
+        assertEquals(2,repo.library.normalizedFusionRoots(captured.first(),captured).size)
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Short caption first picture").fetchSemanticsNodes().isNotEmpty()}
+        evidence("short-campaign-caption-with-both-distinct-pictures")
+    }
+
+    @Test fun aLateSameCaptionPhotographIsAdoptedOffscreenWithoutNeedingNewest() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body=shared)
+        val extra=Media("https://fusion-instagram-$suffix.invalid/additional.png",description="New source photograph")
+        val instagram=oldInstagram.copy(body=shared,media=x.media+extra)
+        val tail=x.copy(id=x.id+"8",canonicalUrl=x.canonicalUrl+"8",body=(1..30).joinToString("\n"){"Unrelated reading-room notice $it: bring a book."},publishedAt=now-120000,media=emptyList())
+        records+=listOf(x,instagram,tail);val xFollow=follow(Platform.X);store(x,xFollow);store(tail,xFollow);store(instagram,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(x.media.single().url,1);cacheGalleryPicture(extra.url,2)
+        val sourceWindow=listOf(x,tail);val feed="late-photo:$person";seed(feed,sourceWindow,offset=19)
+        val known=mutableStateOf(mapOf(repo.key(x) to listOf(x),repo.key(tail) to listOf(tail)));val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {ChronologicalFeed(vm,sourceWindow,accounts,emptySet(),feed,"Photo fixture","Bounded source window",grouped=true,onAdd={},counterparts=known.value)}}}
+        waitRow(x);repo.feedMemory.markRead(feed,listOf(repo.key(x)));val before=top(x)
+        ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram),repo.key(tail) to listOf(tail))}
+        ui.waitUntil(10000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
+        assertFalse("The unseen new photograph must not inherit an old read mark",repo.key(instagram) in repo.feedMemory.get(feed).readKeys)
+        assertTrue(abs(top(x)-before)<=2f)
+        ui.onAllNodes(SemanticsMatcher("still frozen picture inventory"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(tail)}"))
+        ui.onNodeWithTag("Combined feed").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,600f)}
+        ui.waitUntil(10000){ui.onAllNodesWithTag("Feed row ${repo.key(x)}").fetchSemanticsNodes().isEmpty()}
+        // Off-screen adoption may run once the existing reading work is idle.
+        runBlocking {delay(1500)};ui.waitForIdle()
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(x)}"))
+        ui.waitUntil(10000){ui.onAllNodesWithTag("Post image ${repo.key(x)} ${extra.url}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onAllNodes(SemanticsMatcher("both adopted photographs"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(2)
+        evidence("late-same-caption-new-photograph-adopted")
+    }
+
+    @Test fun identicalVideoCoversUseOneSlotWithBothSourceRecordingsSelectableAndSaved() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val preview="https://fusion-x-$suffix.invalid/shared-cover.png"
+        val first=Media("https://video-x-$suffix.invalid/first.mp4","video",preview,"Shared video cover")
+        val second=Media("https://video-instagram-$suffix.invalid/second.mp4","video",preview,"Shared video cover")
+        val x=oldX.copy(body=shared,media=listOf(first));val instagram=oldInstagram.copy(body=shared,media=listOf(second))
+        records+=listOf(x,instagram);store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(preview,1)
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Media editions ${first.url}"))
+        ui.onNodeWithTag("Media edition ${second.url}").performClick()
+        ui.onNodeWithTag("Media sources ${second.url}").assertTextEquals("Video from Instagram")
+        ui.onNodeWithTag("Media sources ${first.url}").assertDoesNotExist()
+        val plan=collectionPlan(records,repo.images.identities)
+        assertEquals(2,plan.attachments.size);assertEquals(1,collectedMediaGroups(plan.attachments).size)
+        val snapshot=contextSnapshot(repo,x,records)
+        assertEquals(setOf(first.url,second.url),snapshot.media.map {it.url}.toSet())
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=records)}
+        val captured=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertEquals(setOf(first.url,second.url),captured.flatMap {it.media}.map {it.url}.toSet())
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasText("Play video"))
+        ui.waitUntil(10000){ui.onAllNodesWithContentDescription("Shared video cover").fetchSemanticsNodes().isNotEmpty()}
+        ui.onAllNodesWithText("Play video").assertCountEquals(1)
+        evidence("same-video-cover-distinct-recording-choices")
+    }
+
+    @Test fun shortLiteralVariantsRetainBothPicturesAndBothSourceCaptionsInContextAndSavedCopy() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body="Workshop repairs, ready for inspection.");val instagram=oldInstagram.copy(body="Workshop repairs ready for inspection.")
+        records+=listOf(x,instagram);store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(x.media.single().url,1);cacheGalleryPicture(instagram.media.single().url,2)
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        ui.onAllNodesWithText(x.body).assertCountEquals(1);ui.onAllNodesWithText(instagram.body).assertCountEquals(1)
+        ui.onAllNodes(SemanticsMatcher("complete short-variant media"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(2)
+        val snapshot=contextSnapshot(repo,x,records)
+        assertTrue(snapshot.text.contains(x.body));assertTrue(snapshot.text.contains(instagram.body));assertEquals(2,snapshot.media.size)
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=records)}
+        assertEquals(records.map {it.body}.toSet(),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!.map {it.body}.toSet())
+        evidence("short-literal-source-blocks-preserve-text-and-media")
+    }
+
+    @Test fun sameBatchSnapshotSelectionRetainsTheCompleteGalleryBeforeStorageAndPageReplay() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val rich=oldX.copy(body=shared,media=(1..5).map {Media("https://fusion-x-$suffix.invalid/complete-$it.png")})
+        val thin=rich.copy(title=shared.take(120)+"...",media=rich.media.take(1));records+=rich
+        val account=follow(Platform.X);store(rich,account)
+        mediaKeys+=repo.pageKey(account.target)
+        for(input in listOf(listOf(rich,thin),listOf(thin,rich)))runBlocking {
+            repo.store(Page(input),account.id,true)
+            val stored=repo.gson.fromJson(requireNotNull(repo.dao.post(repo.key(rich))).payload,Post::class.java)
+            assertEquals(rich,stored)
+            repo.rememberPage(account.target,Page(input))
+            val replay=requireNotNull(repo.cachedPage(account.target))
+            assertEquals(1,replay.posts.size);assertEquals(5,replay.posts.single().media.size)
+        }
+    }
+
+    @Test fun anObservedReencodedPictureAddsAttributionWithoutReopeningAnAlreadyReadAnnouncement() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body=shared);val instagram=oldInstagram.copy(body=shared)
+        records+=listOf(x,instagram);store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cachePicture(x);cachePicture(instagram,jpeg=true)
+        val feed="read-alias:$person";seed(feed,listOf(x));val known=mutableStateOf(mapOf(repo.key(x) to listOf(x)));val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {ChronologicalFeed(vm,listOf(x),accounts,emptySet(),feed,"Read fixture","Known reencoding",grouped=true,onAdd={},counterparts=known.value)}}}
+        waitRow(x);repo.feedMemory.markRead(feed,listOf(repo.key(x)))
+        ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram))}
+        ui.waitUntil(10000){repo.key(instagram) in repo.feedMemory.get(feed).readKeys}
+        assertTrue(repo.key(x) in repo.feedMemory.get(feed).readKeys)
+        ui.onAllNodes(SemanticsMatcher("one already-read photograph"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
+    }
+
     @Test fun attachmentLayoutAndCdnCopiesRenderOneCaptionTwoPicturesAndBothCommentStreams() {
         val (oldX,oldInstagram)=pair();val caption=shared.trimEnd('.')
         fun imagePath(index:Int)="/v/t39.30808-6/123456${suffix}_${234567890+index}_345678901_n.jpg"

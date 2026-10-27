@@ -12,7 +12,8 @@ internal fun contextReadable(value: String,root: Post,repo: Repository): String 
 
 internal fun contextSnapshot(repo: Repository,displayed: Post,roots: List<Post>,bodyRoots: List<Post> = roots,archived: Boolean=false): ContextSnapshot {
     val originals=roots.distinctBy(CrossPosts::originalKey).take(CrossPosts.MAX_EDITIONS)
-    val fusion=if(archived||displayed.recoveredArchive!=null)null else collectedPostFusion(bodyRoots)
+    val plan=collectionPlan(if(archived||displayed.recoveredArchive!=null)listOf(displayed)else bodyRoots,repo.images.identities)
+    val fusion=plan.fusion
     val passages=if(fusion!=null)fusion.segments.map {segment->
         val candidates=bodyRoots.filter {CrossPosts.originalKey(it) in segment.originalKeys}
         val context=fusionMentionContext(candidates,segment.text,repo)
@@ -28,5 +29,5 @@ internal fun contextSnapshot(repo: Repository,displayed: Post,roots: List<Post>,
     val links=bodies.flatMap(PostLinks::urls).map {repo.publicUrl(it)}.distinct().take(PostLinks.MAX_LINKS)
     val variant=if(archived)"archive:${ContentRevisions.signature(displayed)}"else "current"
     val revision=Repository.hash("reader-presentation-v3-sources|"+variant+"|"+bodies.joinToString("|"){CrossPosts.originalKey(it)+":"+ContentRevisions.signature(it)}+"|members:"+originals.map(CrossPosts::originalKey).sorted().joinToString("|")+"|reading:"+text+"|links:"+links.joinToString("\n")+"|annotations:"+repo.gson.toJson(originals.map {it.contextNotes}))
-    return ContextSnapshot(originals,text,contextReadable(PostPresentation.text(displayed).title,displayed,repo),revision,variant,links,collectedMedia(if(fusion==null)listOf(displayed)else bodyRoots,repo.images.identities))
+    return ContextSnapshot(originals,text,contextReadable(PostPresentation.text(displayed).title,displayed,repo),revision,variant,links,plan.attachments.map {it.media})
 }

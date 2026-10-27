@@ -24,8 +24,43 @@ internal fun orderedCollectedOriginals(posts: List<Post>): List<Post> {
 internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusion.compose(posts)
     ?: CrossPostFusion.composeMedia(posts)
     ?: CrossPostFusion.composeRelated(posts)
-    ?: (if(hasRepeatedOriginals(posts))CrossPostFusion.compose(posts.groupBy {it.platform}.values.mapNotNull(::collectedCaptionPost))else null)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}
+    ?: sourceCaptionBlocks(posts)
+
+/** Compression is optional after admission. A failed aligner must not choose a
+ * platform's longest edition and quietly omit another source's unique prose. */
+private fun sourceCaptionBlocks(posts:List<Post>):PostFusion? {
+    if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
+    val groups=posts.filter {PostPresentation.content(it).isNotBlank()}.groupBy {PostPresentation.content(it).trim()}
+    if(groups.isEmpty())return null
+    return PostFusion(groups.values.map {sources->FusionSegment(PostPresentation.content(sources.first()),sources.mapTo(linkedSetOf()){it.platform},
+        sources.size==posts.size,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))})
+}
+
+/** Read-only presentation of already admitted originals. This never establishes
+ * a match or author identity. Feed, Context and the saved reader share it; the
+ * Library's existing source/manifest admission remains a separate boundary. */
+internal data class CollectionPlan(val originals:List<Post>,val fusion:PostFusion?,val attachments:List<CollectedAttachment>)
+internal fun collectionPlan(posts:List<Post>,identities:MediaIdentityStore?=null):CollectionPlan {
+    val observed=if(identities==null)posts else posts.map(identities::captured)
+    return CollectionPlan(observed,collectedPostFusion(observed),collectedAttachments(observed))
+}
+@Composable internal fun rememberCollectionPlan(repo:Repository,posts:List<Post>):CollectionPlan {
+    // New decoder evidence may collapse existing pictures. It must not trigger
+    // expensive text alignment or rewrite the frozen caption on every revision.
+    val fusion=remember(posts){collectedPostFusion(posts)}
+    val attachments=rememberCollectedAttachments(repo,posts)
+    return remember(posts,fusion,attachments){CollectionPlan(posts,fusion,attachments)}
+}
+
+/** Compare the union so a replacement image cannot hide behind an unchanged
+ * attachment count. Proven CDN/pixel aliases and added attribution do not count
+ * as another photograph. Runs with content changes on a worker, not scrolling. */
+internal fun addsCollectedMedia(before:List<Post>,after:List<Post>,identities:MediaIdentityStore?=null):Boolean {
+    val known=before.flatMap {it.media}.mapTo(hashSetOf()){it.type to it.url}
+    if(after.all {post->post.media.all {(it.type to it.url) in known}})return false
+    return collectedAttachments(before+after,identities).size>collectedAttachments(before,identities).size
+}
 
 internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedPostFusion(posts)?.segments?.map {it.text}
     ?: listOf(collectedCaptionPost(posts)?.let(PostPresentation::content).orEmpty())
@@ -36,8 +71,9 @@ internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedP
     return rememberCollectedAttachments(repo,posts).map {it.media}
 }
 
-internal data class CollectedAttachment(val media: Media,val platforms: Set<Platform>,val originalKeys: Set<String>) {
-    val sourceLabel get()=when(media.type){"image"->"Image";"video"->"Video";"audio"->"Audio";else->"Attachment"}+" from "+PlatformOrder.sort(platforms).joinToString(" · "){it.label}
+internal data class CollectedAttachment(val media: Media,val platforms: Set<Platform>,val originalKeys: Set<String>,val previewPlatforms:Set<Platform> = emptySet()) {
+    val sourceLabel get()=when(media.type){"image"->"Image";"video"->"Video";"audio"->"Audio";else->"Attachment"}+" from "+PlatformOrder.sort(platforms).joinToString(" · "){it.label}+
+        (previewPlatforms-platforms).takeIf {it.isNotEmpty()}?.let {" · preview from "+PlatformOrder.sort(it).joinToString(" · "){p->p.label}}.orEmpty()
 }
 
 @Composable internal fun rememberCollectedAttachments(repo: Repository,posts: List<Post>): List<CollectedAttachment> {
@@ -45,41 +81,35 @@ internal data class CollectedAttachment(val media: Media,val platforms: Set<Plat
     return remember(posts,revision){collectedAttachments(posts,repo.images.identities)}
 }
 
-internal fun collectedMedia(posts: List<Post>,identities: MediaIdentityStore?=null): List<Media> = collectedAttachments(posts,identities).map {it.media}
+internal fun collectedMedia(posts: List<Post>,identities: MediaIdentityStore?=null): List<Media> {
+    val observed=if(identities==null)posts else posts.map(identities::captured)
+    return collectedMediaGroups(collectedAttachments(observed),CrossPosts.relatedVisualUpdates(observed)).map {it.primary.media}
+}
 
 internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentityStore?=null): List<CollectedAttachment> {
     data class Edition(val media: Media,val post: Post)
     val observed=if(identities==null)posts else posts.map(identities::captured)
-    val near=CrossPosts.relatedVisualUpdates(observed)
     val media=observed.flatMap {it.media}
     val assetKeys=media.filter {it.type=="image"}.mapNotNull {item->ImageAssetIdentity.key(item.url)?.let {item.url to it}}.toMap()
-    val videos=media.filter {it.type=="video"}
     val clusters=mutableListOf<MutableList<Edition>>()
     fun frame(m:Media)=m.attachmentFingerprint ?: m.visualFingerprint
     fun sameFrame(a:Media,b:Media)=VisualFrames.sameImage(frame(a),frame(b))
     fun sameClip(a:Media,b:Media)=VideoAssetIdentity.key(a.url)?.let {it==VideoAssetIdentity.key(b.url)}==true
-    fun samePoster(a:Media,b:Media):Boolean {
-        val first=a.preview ?: return false;val second=b.preview ?: return false
-        return first==second||sameFrame(a,b)||ImageAssetIdentity.same(Media(first),Media(second))
-    }
     fun compatible(a:Media,b:Media):Boolean {
         val first=a.durationMs?.takeIf {it>0};val second=b.durationMs?.takeIf {it>0}
         if(a.type=="video"&&first!=null&&second!=null&&
             kotlin.math.abs(first-second)>maxOf(1000L,maxOf(first,second)/100))return false
         return a.type !in setOf("image","video")||a.type=="video"&&sameClip(a,b)||frame(a)==null||frame(b)==null||
-            sameFrame(a,b)||a.type=="image"&&near&&VisualFrames.same(frame(a),frame(b),nearbyFrame=true)
+            sameFrame(a,b)
     }
     fun equivalent(a:Media,b:Media)=a.type==b.type&&(a.url==b.url||when(a.type) {
         "image"->assetKeys[a.url]?.let {it==assetKeys[b.url]}==true&&ImageAssetIdentity.same(a,b)||
-            sameFrame(a,b)||near&&VisualFrames.same(frame(a),frame(b),nearbyFrame=true)
-        "video"->sameClip(a,b)||samePoster(a,b)
+            sameFrame(a,b)
+        "video"->sameClip(a,b)
         else->false
     })
     for(edition in observed.flatMap {post->post.media.map {Edition(it,post)}}) {
         val item=edition.media
-        // An RSS thumbnail is already represented by the collected playable
-        // video. Its source record remains available in Collected originals.
-        if(item.type=="image"&&videos.any {video->video.preview==item.url||video.preview!=null&&sameFrame(item,video)})continue
         // A discarded copy can establish another CDN alias for the retained
         // picture. Keep that evidence within this call. Every known observation
         // must remain compatible: an intermediate JPEG cannot bridge two edits.
@@ -88,5 +118,49 @@ internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentitySto
         if(existing==null)clusters+=mutableListOf(edition)
         else if(existing.none {it.media==item&&CrossPosts.originalKey(it.post)==CrossPosts.originalKey(edition.post)})existing+=edition
     }
-    return clusters.map {group->CollectedAttachment(group.first().media,group.map {it.post.platform}.toSet(),group.map {CrossPosts.originalKey(it.post)}.toSet())}
+    // Resolve still previews after clustering, so arrival order cannot discard
+    // their origin or choose arbitrarily between two distinct playable clips.
+    // A preview establishes a matching picture, not video publication on that
+    // service; retain that distinction in the existing source label.
+    fun represents(image:Media,video:Media):Boolean {
+        val preview=video.preview ?: return false
+        val proof=image.url==preview||ImageAssetIdentity.same(image,Media(preview))||sameFrame(image,video)
+        return proof&&(frame(image)==null||frame(video)==null||sameFrame(image,video))
+    }
+    val videoGroups=clusters.indices.filter {clusters[it].first().media.type=="video"}
+    val previewOf=clusters.indices.filter {clusters[it].first().media.type=="image"}.mapNotNull {i->
+        videoGroups.filter {v->clusters[i].all {image->clusters[v].any {represents(image.media,it.media)}}}.singleOrNull()?.let {i to it}
+    }.toMap()
+    return clusters.indices.filter {it !in previewOf}.map {i->
+        val group=clusters[i];val previews=previewOf.filterValues {it==i}.keys.flatMap {clusters[it]}
+        CollectedAttachment(group.first().media,group.map {it.post.platform}.toSet(),(group+previews).map {CrossPosts.originalKey(it.post)}.toSet(),previews.map {it.post.platform}.toSet())
+    }
+}
+
+/** A shared poster can share screen space, never erase playable recordings.
+ * All distinct media remain in the plan, Context and saved inventory. */
+internal data class CollectedMediaGroup(val editions:List<CollectedAttachment>) {
+    val primary get()=editions.firstOrNull {it.media.type=="video"} ?: editions.first()
+}
+internal fun collectedMediaGroups(attachments:List<CollectedAttachment>,relatedScenes:Boolean=false):List<CollectedMediaGroup> {
+    fun cover(media:Media)=when(media.type) {
+        "image"->media
+        "video"->media.preview?.let {Media(it,visualFingerprint=media.visualFingerprint,attachmentFingerprint=media.attachmentFingerprint)}
+        else->null
+    }
+    fun same(a:Media,b:Media):Boolean {
+        val x=cover(a) ?: return false;val y=cover(b) ?: return false
+        fun frame(m:Media)=m.attachmentFingerprint ?: m.visualFingerprint
+        val detail=frame(x)!=null&&frame(y)!=null
+        if(relatedScenes&&a.type=="image"&&b.type=="image"&&VisualFrames.same(frame(x),frame(y),nearbyFrame=true))return true
+        if(detail&&!VisualFrames.sameImage(frame(x),frame(y)))return false
+        return x.url==y.url||ImageAssetIdentity.same(x,y)||detail
+    }
+    val groups=mutableListOf<MutableList<CollectedAttachment>>()
+    for(item in attachments) {
+        val matching=groups.filter {group->(relatedScenes||item.media.type=="video"||group.any {it.media.type=="video"})&&group.all {same(it.media,item.media)}}
+        val group=matching.singleOrNull()
+        if(group==null)groups+=mutableListOf(item)else group+=item
+    }
+    return groups.map {CollectedMediaGroup(it.toList())}
 }

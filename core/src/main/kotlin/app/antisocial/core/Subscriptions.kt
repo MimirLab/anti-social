@@ -71,7 +71,11 @@ object CrossPosts {
     private val opaqueLinkHosts=setOf("bit.ly","bitly.com","tinyurl.com","t.co","lnkd.in","go.nasa.gov")
     private val opaqueLinkPath=Regex("/[A-Za-z0-9_-]{3,80}/?")
     internal fun opaqueLink(value:String)=value.toHttpUrlOrNull()?.let {it.isHttps&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in opaqueLinkHosts&&it.query==null&&opaqueLinkPath.matches(it.encodedPath)}==true
-    internal fun onlyOpaqueOrOriginalLinks(post:Post)=PostLinks.urls(post).all {value->linksToOriginal(value,post)||normalizedUrl(value)?.let(::opaqueLink)==true}
+    internal fun onlyOpaqueOrOriginalLinks(post:Post)=PostLinks.urls(post).all {value->
+        // Feed enclosures can also appear in the source link inventory. They
+        // are already represented by their attachment, not a competing article.
+        post.media.any {it.url==value||it.preview==value}||linksToOriginal(value,post)||normalizedUrl(value)?.let(::opaqueLink)==true
+    }
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
         val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>,val decoration:DecoratedPostCopies.Prepared?) {
@@ -289,15 +293,25 @@ object CrossPosts {
         val text=caption(post)
         if(text.isNotBlank()) {
             val full=caption(anchor)
-            if(tokens(text)!=tokens(full)||meaningfulSymbols.findAll(text).map {it.value}.toList()!=meaningfulSymbols.findAll(full).map {it.value}.toList())return false
-            if(urlPattern.findAll(text).map {it.value}.toList()!=urlPattern.findAll(full).map {it.value}.toList())return false
+            val exact=tokens(text)==tokens(full)&&meaningfulSymbols.findAll(text).map {it.value}.toList()==meaningfulSymbols.findAll(full).map {it.value}.toList()&&
+                urlPattern.findAll(text).map {it.value}.toList()==urlPattern.findAll(full).map {it.value}.toList()
+            if(!exact&&!GalleryCaptionCopies.contains(anchor,post))return false
         }
+        // Low-information pictures cannot establish a post match by themselves.
+        // Inside a proven gallery, a complete qualified caption can additionally
+        // corroborate their detailed attachment observation. Captionless logos
+        // and weak scene hashes never gain this permission.
+        val weak=anchor.media.any {it.attachmentFingerprint!=null}||post.media.any {it.attachmentFingerprint!=null}
+        val captionQualified=weak&&text.isNotBlank()&&GalleryCaptionCopies.contains(anchor,post)
         return post.media.all {image->anchor.media.any {other->
             // A complete gallery claims that every picture is already present.
             // Detailed observations outrank a similar template/scene or a
             // looser callback when a face, number or crop has changed.
-            if(other.visualFingerprint!=null&&image.visualFingerprint!=null)
-                VisualFrames.sameImage(other.visualFingerprint,image.visualFingerprint)
+            val a=if(captionQualified)other.attachmentFingerprint ?: other.visualFingerprint else other.visualFingerprint
+            val b=if(captionQualified)image.attachmentFingerprint ?: image.visualFingerprint else image.visualFingerprint
+            val attachment=captionQualified&&(other.attachmentFingerprint!=null||image.attachmentFingerprint!=null)
+            if(attachment&&(a?.startsWith("f2|")!=true||b?.startsWith("f2|")!=true))false
+            else if(a!=null&&b!=null)VisualFrames.sameImage(a,b)
             else sameImages(anchor.copy(media=listOf(other)),post.copy(media=listOf(image)),sameMedia)
         }}
     }
@@ -509,6 +523,16 @@ object CrossPosts {
         fun questions(post: Post)=Regex("[?]").findAll(PostPresentation.proseWithoutLinks(PostPresentation.content(post))).joinToString(""){it.value}
         return questions(a.post)==questions(b.post)
     }
+    /** Presentation-only fallback for already admitted literal versions. It
+     * retains every punctuation variant as an attributed block; it does not
+     * lower any candidate, ownership, media or time threshold in group(). */
+    internal fun literalCaptionVersions(posts:List<Post>):Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.any {it.preview||it.parentId!=null||!onlyOpaqueOrOriginalLinks(it)})return false
+        val first=features(posts.first(),emptyMap(),emptyMap())
+        if(first.tokens.size>=20&&first.text.length>=120)return false
+        return first.text.length>=12&&first.tokens.size>=3&&first.tokens.distinct().size>=3&&
+            posts.all {post->val value=if(post===posts.first())first else features(post,emptyMap(),emptyMap());value.validOriginal&&!value.truncated&&completeCopyText(first,value)}
+    }
     private fun copyMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!a.validOriginal||!b.validOriginal)return false
         val reference=explicit(a,b)
@@ -606,17 +630,24 @@ object CrossPosts {
         val context=currentCoroutineContext()
         return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia){context.ensureActive()}}
     }
-    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,checkpoint:()->Unit={}):List<PostGroup> {
-        val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
-        // Canonical aliases are snapshots of one post, never separate discussion
-        // threads. Prefer the readable complete snapshot, retaining its provenance.
+    /** Reconcile overlapping extractions inside one input batch. Never union
+     * attachments across historical revisions or rewrite a source record. */
+    fun originalSnapshots(posts:List<Post>):List<Post> = CrossPostFusion.withPrepared {originalSnapshots(posts){}}
+    private fun originalSnapshots(posts:List<Post>,checkpoint:()->Unit):List<Post> {
         val unique=LinkedHashMap<String,Post>()
         fun quality(post: Post)=listOf(if(post.preview)0L else 1L,if(post.recoveredArchive==null)1L else 0L,
-            (post.body.length.toLong()+post.title.length).coerceAtMost(MAX_TEXT.toLong()),post.media.size.toLong(),post.provenance?.fetchedAt ?: 0)
+            // A generated headline which presentation removes is not extra
+            // source information. Do not let it displace a complete gallery.
+            if(post.body.length.toLong()+post.title.length<=MAX_TEXT)PostPresentation.content(post).length.toLong()else MAX_TEXT.toLong(),
+            post.media.size.toLong(),post.provenance?.fetchedAt ?: 0)
         fun better(a: Post,b: Post): Boolean {val aa=quality(a);val bb=quality(b);for(i in aa.indices)if(aa[i]!=bb[i])return aa[i]>bb[i];return false}
         posts.forEach {post->checkpoint();val key=originalKey(post);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
+        return unique.values.toList()
+    }
+    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,checkpoint:()->Unit={}):List<PostGroup> {
+        val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
         val postOrder=compareByDescending<Post> {it.publishedAt ?: Long.MIN_VALUE}.thenBy(::originalKey)
-        val prepared=unique.values.sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
+        val prepared=originalSnapshots(posts,checkpoint).sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
         val decorativeOwners=prepared.filter {checkpoint();it.owner!=null&&DecoratedPostCopies.mayChange(it.post)}.mapTo(hashSetOf()){it.owner}
         val ordered=if(decorativeOwners.isEmpty())prepared else prepared.map {row->
             checkpoint();if(row.owner in decorativeOwners)row.copy(decoration=DecoratedPostCopies.prepare(row.post))else row
@@ -630,22 +661,20 @@ object CrossPosts {
             val exactBucket=index[textKey].orEmpty()
             if(exactBucket.size>MAX_CANDIDATES+1)null else {
                 val exact=exactBucket.filter {it!=i}.toCollection(LinkedHashSet())
-                val extra=LinkedHashSet<Int>();var overflow=false
-                for(name in names) {
-                    if(name==textKey)continue
+                val extra=LinkedHashSet<Int>()
+                // Keep precise, complete buckets before broad shared links.
+                // A crowded route must not erase comparisons admitted by a
+                // more selective route. The total budget remains unchanged;
+                // skipped buckets mean unexamined, never a negative match.
+                for(name in names.filter {it!=textKey}.sortedWith(compareBy<String>{index[it].orEmpty().size}.thenBy {it})) {
                     val bucket=index[name].orEmpty()
                     // Repeated article/home/media links do not defeat a precise
                     // text bucket. Ignore whole broad buckets, never their first N.
                     if(bucket.size>MAX_CANDIDATES+1)continue
-                    for(other in bucket)if(other!=i&&other !in exact) {
-                        extra+=other
-                        if(exact.size+extra.size>MAX_CANDIDATES){overflow=true;break}
-                    }
-                    if(overflow)break
+                    val additions=bucket.filter {it!=i&&it !in exact&&it !in extra}
+                    if(exact.size+extra.size+additions.size<=MAX_CANDIDATES)extra+=additions
                 }
-                // If several auxiliary buckets together overflow, retain only
-                // the complete exact bucket; do not choose arbitrary near matches.
-                if(overflow)exact else LinkedHashSet(exact).apply {addAll(extra)}
+                LinkedHashSet(exact).apply {addAll(extra)}
             }
         }
         }

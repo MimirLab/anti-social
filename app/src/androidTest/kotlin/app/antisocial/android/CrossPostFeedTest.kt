@@ -642,6 +642,7 @@ class CrossPostFeedTest {
             for(phrase in listOf("Core inflation is down.","No one has been tougher on Russian sanctions than President Trump."))ui.onAllNodesWithText(phrase,substring=true).assertCountEquals(1)
             assertEquals("The same interview frame should appear once; the different second scene remains",2,collectedMedia(originals.map(repo.images.identities::captured)).size)
             assertEquals("A frozen collection uses fresh observations for its related-frame guard too",2,collectedMedia(originals,repo.images.identities).size)
+            assertEquals("Related cover grouping retains every distinct captured frame",3,collectedAttachments(originals,repo.images.identities).size)
             evidence("bessent-collected-coverage-native")
             revealCombinedControl(hasTestTag("Read discussions ${repo.key(primary)}"))
             ui.onNodeWithTag("Read discussions ${repo.key(primary)}").performClick()

@@ -172,9 +172,12 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
         ?: if(selectedEdition=="all"&&hasRepeatedOriginals(fusionRoots))CrossPosts.representative(fusionRoots,entry.post.platform) ?: entry.post else entry.post
     val version=sourceEdition.archivedVersion
     val displayed=if(showingArchive&&version!=null)version.displayPost(sourceEdition)else sourceEdition
-    val fusion=remember(fusionRoots,selectedEdition,showingArchive){if(selectedEdition=="all"&&!showingArchive)collectedPostFusion(fusionRoots)else null}
+    val presentationRoots=if(selectedEdition=="all"&&!showingArchive&&fusionRoots.isNotEmpty())fusionRoots else listOf(displayed)
     // Offline editions use their captured observations, never a newer live URL's bytes.
-    val attachments=remember(displayed,fusion,fusionRoots){collectedAttachments(if(fusion!=null)fusionRoots else listOf(displayed))}
+    val plan=remember(presentationRoots){collectionPlan(presentationRoots)}
+    val fusion=plan.fusion
+    val attachments=plan.attachments
+    val mediaGroups=remember(attachments,plan.originals){collectedMediaGroups(attachments,CrossPosts.relatedVisualUpdates(plan.originals))}
     val shownMedia=remember(attachments){attachments.map {it.media}}
     val caption=if(selectedEdition=="all"&&!showingArchive&&fusion==null)collectedCaptionPost(fusionRoots) ?: displayed else displayed
     val body=remember(caption){PostPresentation.text(caption)}
@@ -201,9 +204,11 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
             item {MediaInfoAction(repo,if(fusion!=null)fusionRoots else listOf(displayed),localOnly=true)}
             item {RecoveredArchiveLabel(displayed);ArchiveVersionLabel(version,showingArchive);if(fusion!=null)FusedPostText(fusion,roots=fusionRoots,repo=repo,networkAllowed=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(bottom=8.dp),repo,caption.platform,caption.canonicalUrl,networkAllowed=false);body.attribution?.let {PostAttribution(it,Modifier.padding(bottom=8.dp),repo,caption.platform,caption.canonicalUrl,networkAllowed=false)};if(body.title.isNotBlank())MentionText(body.title,repo,caption.platform,caption.canonicalUrl,networkAllowed=false,explicitProfileLinks=caption.links.orEmpty(),fontSize=20.sp,fontWeight=FontWeight.SemiBold);if(body.body.isNotBlank())PostBodyText(body.body,repo,caption.platform,tag="Local post body",sourceUrl=caption.canonicalUrl,networkAllowed=false,explicitProfileLinks=caption.links.orEmpty())}}
             if(displayed.preview)item {Text("Partial public content · this is the text that was available when saved.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-            items(shownMedia,key={"local-media:${it.url}"}) {media->
+            items(mediaGroups,key={"local-media:${it.primary.media.url}"}) {group->
+                val selected=CollectedMediaChoice(group)
+                val media=selected.media
                 val owner=if(fusion==null)displayed else fusionRoots.firstOrNull {root->root.media.any {it.url==media.url}} ?: displayed
-                if(fusionRoots.map {it.platform}.distinct().size>1)Text(attachments.first {it.media.url==media.url}.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(fusionRoots.map {it.platform}.distinct().size>1)Text(selected.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(media.url in selectedUrls)LocalCopyMedia(repo,media,owner,onImage={image=it})else Text(if(media.type=="image")"Photo not included in this copy"else "Video not included in this copy",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {

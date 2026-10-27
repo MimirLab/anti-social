@@ -80,6 +80,7 @@ object CrossPostFusion {
     private val numericClaim=Regex("(?:[<>!]=?|[≤≥≠≈=])?\\s*(?:[+\\-−\\p{Sc}]\\s*){0,3}\\p{N}+(?:[.,]\\p{N}+)*(?:\\s*[%‰\\p{Sc}])?")
     private val numericWhitespace=Regex("[\\p{Z}\\s]+")
     private val truncatedCaption=Regex("(?:…|\\.\\.\\.)\\s*$")
+    private val terminalExclamation=Regex("(?<=[\\p{L}\\p{N}])!(?=\\s|$)")
     private val explicitUrl=Regex("https?://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
     private val visibleUrl=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\\s<>]*)?",RegexOption.IGNORE_CASE)
     private val mention=Regex("@[\\p{L}\\p{N}_][\\p{L}\\p{N}_.-]{0,255}")
@@ -379,6 +380,7 @@ object CrossPostFusion {
             return PostFusion(listOf(FusionSegment(PostPresentation.content(sources.first()),sources.mapTo(linkedSetOf()){it.platform},false,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))))
         }
         if(CrossPosts.galleryCollection(posts)) {
+            GalleryCaptionCopies.compose(posts)?.let {return it}
             val caption=posts.filter {PostPresentation.content(it).isNotBlank()}.maxBy {it.media.size}
             val sources=posts.filter {PostPresentation.content(it).isNotBlank()}
             return PostFusion(listOf(FusionSegment(PostPresentation.content(caption),sources.mapTo(linkedSetOf()){it.platform},
@@ -505,7 +507,7 @@ object CrossPostFusion {
             // same. Grouping has already checked accounts, timing and changed
             // facts. Keep one exact source caption and all links on its original
             // editions, instead of repeating the prose around opaque link codes.
-            if(prose.length>=160&&proseWords.size>=24&&proseWords.distinct().size>=12&&posts.all {it.media.isNotEmpty()&&CrossPosts.onlyOpaqueOrOriginalLinks(it)}&&
+            if(posts.all {it.media.isNotEmpty()&&CrossPosts.onlyOpaqueOrOriginalLinks(it)}&&
                 posts.any {PostLinks.urls(it).any(CrossPosts::opaqueLink)}) {
                 val captions=complete.map(PostPresentation::referenceFreeCaption)
                 if(captions.distinct().size==1) {
@@ -513,6 +515,16 @@ object CrossPostFusion {
                     return PostFusion(listOf(FusionSegment(complete[representative],posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
                 }
             }
+        }
+        if((proseWords.size<MIN_WORDS||prose.length<MIN_CHARS)&&prose.length>=12&&proseWords.size in 3..MAX_WORDS&&proseWords.distinct().size>=3&&CrossPosts.literalCaptionVersions(posts)) {
+            // Keep ordinary tonal punctuation out of the reading workload.
+            // Question marks, internal commas, symbols, quantities and links
+            // retain the preceding guards and all exact source editions.
+            if(posts.map {terminalExclamation.replace(PostPresentation.comparableContent(it),".")}.distinct().size==1)
+                return PostFusion(listOf(FusionSegment(PostPresentation.content(posts.first()),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
+            val versions=posts.groupBy(PostPresentation::comparableContent)
+            return PostFusion(versions.values.map {sources->FusionSegment(PostPresentation.content(sources.first()),sources.mapTo(linkedSetOf()){it.platform},
+                sources.size==posts.size,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))})
         }
         val prepared=posts.map {prepare(it) ?: return null}
         for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j])==null)return null

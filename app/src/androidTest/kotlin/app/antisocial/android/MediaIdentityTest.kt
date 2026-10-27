@@ -26,6 +26,37 @@ import kotlin.math.sin
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun matchingPostersDoNotIdentifyTwoDifferentPlayableRecordings() {
+        val preview="https://images.example.org/shared-cover.jpg"
+        val a=post("https://video.example.org/first.mp4",Platform.X).copy(media=listOf(Media("https://video.example.org/first.mp4","video",preview)))
+        val b=post("https://video.example.org/second.mp4",Platform.FACEBOOK).copy(media=listOf(Media("https://video.example.org/second.mp4","video",preview)))
+        assertEquals(2,collectedAttachments(listOf(a,b)).size)
+        assertEquals(2,collectedAttachments(listOf(a.copy(media=a.media.map {it.copy(durationMs=90000)}),b.copy(media=b.media.map {it.copy(durationMs=90000)}))).size)
+        val inventory=collectedAttachments(listOf(a,b));val covers=collectedMediaGroups(inventory)
+        assertEquals("A repeated cover occupies one visual slot",1,covers.size)
+        assertEquals(setOf(a.media.single().url,b.media.single().url),covers.single().editions.map {it.media.url}.toSet())
+    }
+    @Test fun aStillPreviewRetainsItsSourceWithoutClaimingThatItPublishedTheVideo() {
+        val picture=landscape();val bank=MediaIdentityStore()
+        val preview="https://images.example.org/poster.jpg";val still="https://images.example.net/still.jpg"
+        try {
+            bank.observe(preview,picture);bank.observe(still,picture)
+            val video=post("https://video.example.org/clip.mp4",Platform.X).copy(media=listOf(Media("https://video.example.org/clip.mp4","video",preview)))
+            val image=post(still,Platform.INSTAGRAM)
+            for(posts in listOf(listOf(video,image),listOf(image,video))) {
+                val result=collectedAttachments(posts,bank).single()
+                assertEquals("video",result.media.type)
+                assertEquals(setOf(Platform.X),result.platforms)
+                assertEquals(setOf(Platform.INSTAGRAM),result.previewPlatforms)
+                assertEquals(setOf(video.identityKey,image.identityKey),result.originalKeys)
+                assertEquals("Video from X · preview from Instagram",result.sourceLabel)
+            }
+            val other=video.copy(platform=Platform.FACEBOOK,media=video.media.map {it.copy(url="https://another.example.org/different.mp4",durationMs=90_000)})
+            val short=video.copy(media=video.media.map {it.copy(durationMs=10_000)})
+            assertEquals("An ambiguous still must not choose between different clips",3,collectedAttachments(listOf(image,short,other),bank).size)
+        }finally {picture.recycle()}
+    }
+
     @Test fun darkPicturesDeduplicateInsideACollectionWithoutEstablishingPostIdentity() {
         fun moon(shift:Float)=Bitmap.createBitmap(600,400,Bitmap.Config.ARGB_8888).also {bitmap->
             val canvas=Canvas(bitmap);canvas.drawColor(Color.rgb(3,24,40))
@@ -47,6 +78,13 @@ class MediaIdentityTest {
             val attachments=collectedAttachments(listOf(first,second),bank)
             assertEquals(1,attachments.size);assertEquals(setOf(Platform.X,Platform.FACEBOOK),attachments.single().platforms)
             assertEquals(2,collectedAttachments(listOf(first,post("https://third.invalid/different.jpg")),bank).size)
+            val heading="THE WORKSHOP SHARED REPAIR EXAMPLES WITH THE COMMUNITY"
+            val gallery=bank.captured(first.copy(canonicalUrl="https://x.com/fixture/status/111",publishedAt=1790000000000,body=heading,media=first.media+Media("https://third.invalid/another.jpg")))
+            val singleton=bank.captured(second.copy(canonicalUrl="https://www.facebook.com/fixture/posts/222",publishedAt=1790000001000,body=heading))
+            assertTrue("Caption-qualified gallery containment can use detailed attachment evidence",app.antisocial.core.CrossPosts.galleryCollection(listOf(gallery,singleton)))
+            assertEquals(1,app.antisocial.core.CrossPosts.group(listOf(gallery,singleton),emptyList()).size)
+            assertFalse("A blank weak picture cannot attach through a shared logo or background",app.antisocial.core.CrossPosts.galleryCollection(listOf(gallery,singleton.copy(body=""))))
+            assertFalse(bank.same(first,second))
             val captured=listOf(first,second).map(bank::captured);bank.clear()
             assertEquals("The same bounded observation works in protected copies",1,collectedAttachments(captured).size)
         }finally {source.recycle();other.recycle();small.recycle();copy.recycle()}
@@ -61,8 +99,10 @@ class MediaIdentityTest {
             val b=post("https://video.twimg.com/ext_tw_video/123456789/vid/360x200/b.mp4",Platform.FACEBOOK).copy(media=listOf(Media("https://video.twimg.com/ext_tw_video/123456789/vid/360x200/b.mp4","video",posterB)))
             val c=post("https://scontent-a.xx.fbcdn.net/v/t42.0-2/987654321.mp4?oe=abc",Platform.INSTAGRAM).copy(media=listOf(Media("https://scontent-a.xx.fbcdn.net/v/t42.0-2/987654321.mp4?oe=abc","video",posterB)))
             val copies=collectedAttachments(listOf(a,b,c),bank)
-            assertEquals(1,copies.size);assertEquals(setOf(Platform.X,Platform.FACEBOOK,Platform.INSTAGRAM),copies.single().platforms)
-            assertTrue(copies.single().sourceLabel.startsWith("Video from "))
+            assertEquals(2,copies.size);assertEquals(setOf(Platform.X,Platform.FACEBOOK),copies.first().platforms)
+            assertEquals(setOf(Platform.INSTAGRAM),copies.last().platforms)
+            assertTrue(copies.first().sourceLabel.startsWith("Video from "))
+            assertEquals(1,collectedMediaGroups(copies).size)
             val long=c.copy(media=c.media.map {it.copy(durationMs=90_000)})
             val short=a.copy(media=a.media.map {it.copy(durationMs=10_000)})
             assertEquals("Different known running times retain separate players",2,collectedAttachments(listOf(short,long),bank).size)

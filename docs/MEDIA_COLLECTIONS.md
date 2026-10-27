@@ -5,6 +5,12 @@ keeps its existing account, text, time, ambiguity and source checks. A gallery
 removes a repeated picture only among editions already admitted to that card.
 Original posts, URLs, media attachments and comment roots are retained.
 
+Since 0.38.46, the complete attachment inventory and its screen layout are
+separate. A shared cover or qualified related interview frame can occupy one
+slot with source-edition controls. Every distinct recording/frame remains in
+the collection plan, Context input and saved originals. A matching poster is
+cover evidence, not proof that two recordings contain identical footage.
+
 The earlier reading card could keep raw media records after its captions were
 frozen. Later image-loader observations then improved grouping without reaching
 the displayed gallery. `rememberCollectedMedia` now observes the bounded local

@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.InlineTextContent
@@ -40,6 +42,25 @@ import app.antisocial.core.PostFusion
 import app.antisocial.core.Post
 import app.antisocial.core.PostBodyDetails
 import app.antisocial.core.PostPresentation
+
+/** A shared cover takes one slot while every recording remains selectable. */
+@Composable internal fun CollectedMediaChoice(group:CollectedMediaGroup):CollectedAttachment {
+    fun key(item:CollectedAttachment)=item.media.type+":"+item.media.url+":"+item.originalKeys.sorted().joinToString("|")
+    var chosen by remember(group.primary.media.url){mutableStateOf(key(group.primary))}
+    val selected=group.editions.firstOrNull {key(it)==chosen} ?: group.primary
+    if(group.editions.size>1)Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        Text("Media editions",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("Media editions ${group.primary.media.url}")) {
+            itemsIndexed(group.editions,key={_,item->key(item)}) {index,item->
+                FilterChip(selected==item,{chosen=key(item)},label={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                    app.antisocial.core.PlatformOrder.sort(item.platforms).forEach {PlatformMark(it,18.dp)}
+                    Text((if(item.media.type=="video")"Video"else "Image")+if(group.editions.count {it.platforms==item.platforms&&it.media.type==item.media.type}>1)" ${index+1}"else "",fontSize=11.sp)
+                }},modifier=Modifier.testTag("Media edition ${item.media.url}"))
+            }
+        }
+    }
+    return selected
+}
 
 /** The shared passage appears once; extra source wording stays visibly attributed. */
 @Composable internal fun FusedPostText(fusion: PostFusion,onOpen: (()->Unit)?=null,roots: List<Post> = emptyList(),repo: Repository?=null,showDetails: Boolean=true,networkAllowed: Boolean=true) {

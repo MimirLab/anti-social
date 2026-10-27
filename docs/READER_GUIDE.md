@@ -37,6 +37,12 @@ available streams, while platform tabs let you inspect each stream. Community
 participation belongs to All or its community tab; the app does not post into an
 unconnected social account.
 
+When recordings share a cover, **Media editions** lets you choose their source
+versions in one visual slot. Each recording remains available; a shared poster
+does not establish identical footage. Related interview frames can use the same
+compact selector. A still supplied by another platform is labelled as a preview
+or remains selectable as its own image.
+
 When corroborated copies have small wording edits, common text can appear once
 with bracketed alternatives. The small colored platform marks identify each
 fragment and open its original. Shared text stays neutral; full source editions

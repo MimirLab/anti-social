@@ -191,7 +191,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                 val known=row.aliases.flatMap {counterparts[it].orEmpty()}
                 if(known.any {post->owners[repo.key(post)]?.let {it!=row.key}==true})regroup=true
                 val current=latestEditions(row.posts,known)
-                if(current!=row.bodyPosts&&contexts(current)!=contexts(row.bodyPosts))captions+=row.key
+                if(current!=row.bodyPosts&&(contexts(current)!=contexts(row.bodyPosts)||addsCollectedMedia(row.bodyPosts,current,repo.images.identities)))captions+=row.key
             }
             FeedBodyChanges(frozen,available,counterparts,sources,captions,regroup)
         }
@@ -242,7 +242,10 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             if(observe)store.observePrepared(observations)
             val read=store.get(feedId).readKeys
             val groups=projected.filter {it.first.aliases.size>1}
-            val inheritable=groups.filter {(_,body,posts)->!ContentRevisions.addsContext(body.filter {repo.key(it) in read},posts)}.map {it.first.key}.toSet()
+            val inheritable=groups.filter {(_,body,posts)->
+                val seen=body.filter {repo.key(it) in read}
+                !ContentRevisions.addsContext(seen,posts,includeMedia=false)&&!addsCollectedMedia(seen,posts,repo.images.identities)
+            }.map {it.first.key}.toSet()
             store.mergeAliases(feedId,groups.filter {it.first.key in inheritable}.map {it.first.aliases})
             store.mergeAliases(feedId,groups.filter {it.first.key !in inheritable}.map {it.first.aliases},inheritRead=false)
         }

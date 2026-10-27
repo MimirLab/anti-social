@@ -210,8 +210,16 @@ class AntiSocialTest {
         }
         ui.onNodeWithContentDescription("Back").performClick()
         ui.onNodeWithText("Library",useUnmergedTree=true).performClick()
+        // The Library can retain another scroll position and Room publishes
+        // its rows asynchronously. Locate the saved fixture through the real
+        // search/list controls rather than assuming it is already on screen.
+        ui.waitUntil(10000){ui.onAllNodesWithTag("Library search").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library search").performTextReplacement("\"Offline fixture\"")
+        ui.waitUntil(10000){ui.onAllNodesWithTag("Library entry ${repo.key(old)}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library results").performScrollToNode(hasTestTag("Library entry ${repo.key(old)}"))
         ui.onNodeWithText("Offline fixture").assertIsDisplayed()
         ui.onNodeWithTag("Library entry ${repo.key(old)}").performClick()
+        ui.waitUntil(10000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
         ui.onNodeWithTag("Local copy reader").assertExists()
         ui.onNodeWithContentDescription("Remove local copy").performClick()
         ui.onNodeWithTag("Confirm remove local copy").performClick()
