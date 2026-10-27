@@ -472,7 +472,9 @@ class CrossPostFeedTest {
         val list=ui.onNodeWithTag("Combined feed")
         list.performScrollToNode(hasTestTag("Feed row ${repo.key(next)}"));row(next).assertIsDisplayed()
         list.performScrollToNode(hasTestTag("Feed row ${repo.key(x)}"));row(x).assertIsDisplayed();row(blue).assertDoesNotExist()
-        ui.onNodeWithContentDescription("X original actions").assertExists()
+        // Both distinct X announcements can be laid out after the scroll. The
+        // folded anchor must retain its own action, independently of the new row.
+        ui.onNode(hasContentDescription("X original actions") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))).assertExists()
         evidence("only-genuine-arrival-admitted-above-anchor-native")
     }
     @Test fun aReadMergedCardStaysReadWhenTheAcceptedIdentityBudgetIsFull() {
