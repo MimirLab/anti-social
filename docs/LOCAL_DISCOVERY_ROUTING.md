@@ -246,7 +246,7 @@ and current native validation.
 
 ### Independent publisher links (0.38.37)
 
-The local publisher bank now includes one qualified 4get endpoint alongside the
+The initial 0.38.37 publisher bank included one qualified 4get endpoint alongside the
 existing LibreY routes. This is a separate `publisherSearchSources` bank: it does
 not advertise native social-search support or add a new user-selected provider.
 Selecting Bing or DuckDuckGo still uses that provider alone. Regional requests
@@ -284,6 +284,54 @@ Protocol references: [4get API](https://git.lolcat.ca/lolcat/4get/src/branch/mas
 [SearXNG formats and requests](https://docs.searxng.org/dev/search_api.html).
 This is a native protocol implementation; no external engine, scripting runtime,
 model, dependency, permission or service account is bundled.
+
+### Publisher method diversity and unchanged cache work (0.38.51)
+
+The current bank retains `4get.canine.tools` and adds two endpoints from the
+[published directory](https://4get.ca/instances): `4get.dcs0.hu` and
+`4get.edmateo.site`. Both returned ten organic links through Android
+NetworkGateway/Tor and the production strict parser on October 27. Their
+post-readiness reads took 3.430 and 3.385 seconds in that qualification. They
+add endpoint alternatives; shared frontends can still share upstream engines.
+Other inspected endpoints returned a timeout, server error, challenge, rejected
+redirect or an explicit JSON failure. None was activated from HTTP reachability.
+
+`LocalWebDiscovery` now snapshots ranking observations, retains learned winners'
+positions, and interleaves frontend methods in the unproven slots. A controlled
+counterexample previously spent its three attempts on stalled LibreY mirrors
+without reaching a working different protocol. The corrected sequence reaches
+that protocol as its second attempt. Selected Bing/DuckDuckGo requests stay on
+their selected provider, and the same router-wide three-reader and per-search
+three-attempt limits, pauses, session checks and LibreY HTML fallback remain.
+
+Repeated publication also used to deserialize and reconcile every cached record,
+even when only the query or account availability changed. The store now keeps
+one event and one area-scoped business reconciliation receipt in memory. A
+receipt hashes the exact bounded active row sequence, payloads, expiry values
+and saved IDs; the business receipt also retains the complete area scope. This detects same-length edits from
+another database connection without relying on this object's revision counter.
+The fingerprint and any repair share a transaction; a failed or outer-rolled-back
+transaction cannot certify its temporary output. Expired rows stop participating
+at the ordinary read boundary. Protected saved snapshots remain untouched.
+
+There is no new table, migration, dependency, request, polling task or persistent
+record copy. Matching still runs when its inputs change and on the first read
+after process startup. Only the small receipts survive the operation; temporary
+JSON strings from its single input scan can supply decoding on a miss. Ordinary
+record reads, relevance filtering and network work have their existing costs.
+The measured first pass has some overhead; repeat-work savings are not a claim
+that the complete search or a physical phone is the same percentage faster.
+See the dated [release qualification](RELEASE_QUALIFICATION.md#03851-publisher-route-diversity-and-repeated-reconciliation).
+
+One further research lead remains **inactive**. Mwmbl's
+[documented anonymous API](https://developer.mwmbl.org/) returned real indexed
+pages through Android Gateway/Tor, with its public quota applying to anonymous
+requests. A generic library query found useful institutional calendars but also
+unrelated software and financial pages. An unrelated-region check still placed
+out-of-region pages first. This is transport/schema evidence, not sufficient
+local-relevance qualification. It is not a new fallback or hidden selected-provider
+substitute. Captured responses remain external development evidence; useful
+calendar URLs can be investigated separately without treating snippets as facts.
 
 ### Selected index routing (0.38.36)
 

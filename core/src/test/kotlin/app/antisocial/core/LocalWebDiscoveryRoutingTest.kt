@@ -238,6 +238,26 @@ class LocalWebDiscoveryRoutingTest {
             assertFalse(request.path.contains("npt"));assertEquals(1L,f.release.count)
         }
     }
+    @Test fun anotherUntriedProtocolPrecedesMoreMirrorsWithinTheSameBudget():Unit=runBlocking {
+        val mirrors=(1..4).map {"mirror-$it.fixture.invalid"};val others=(1..3).map {"publisher-$it.fixture.invalid"}
+        Fixture(mirrors+others,fourget=others.toSet()).use {f->
+            f.respond={r->if(r.host in mirrors){check(f.release.await(8,TimeUnit.SECONDS));Reply()}
+                else Reply("""{"status":"ok","web":[{"title":"Workshop","url":"https://publisher.fixture.invalid/calendar"}]}""")}
+            assertEquals(1,withTimeout(3500){f.engine.search("community workshop",SearchProvider.DARWIN,false)}.size)
+            assertEquals(listOf(mirrors[0],others[0]),f.requests.map {it.host})
+            assertEquals(1L,f.release.count);assertTrue(f.requests.size<=3)
+            assertTrue(f.learning.snapshot().none {it.source.root.endsWith(mirrors[0])})
+        }
+    }
+    @Test fun recentUsefulMirrorsKeepPriorityOverUntriedProtocols():Unit=runBlocking {
+        val mirrors=(1..3).map {"mirror-$it.fixture.invalid"};val other="publisher.fixture.invalid"
+        Fixture(mirrors+other,fourget=setOf(other)).use {f->
+            f.routes.searchSources.take(2).forEach {f.learning.observe(ProbeResult(it,Capability.SEARCH,HealthStatus.HEALTHY,1,f.now,true,"Useful fixture"))}
+            f.respond={r->if(r.host==mirrors[0])Reply(code=503)else Reply(html())}
+            assertEquals(1,f.engine.search("community workshop",SearchProvider.DARWIN,false).size)
+            assertEquals(mirrors.take(2),f.requests.map {it.host});assertTrue(f.requests.size<=3)
+        }
+    }
     @Test fun publisherApiRefusalsAreEndpointScopedWithoutHtmlRetry():Unit=runBlocking {
         val host="independent.fixture.invalid"
         Fixture(listOf(host),fourget=setOf(host)).use {f->

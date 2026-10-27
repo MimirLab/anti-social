@@ -9,11 +9,14 @@ import app.antisocial.core.*
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Instant
+import java.security.MessageDigest
 
 internal data class LocalSavedDiscovery(val id:String,val savedAt:Long,val business:LocalBusiness?=null,val event:LocalEvent?=null)
 
 internal class LocalDiscoveryStore(context:Context,private val now:()->Long=System::currentTimeMillis,databaseName:String="local-discovery-v1.db"):SQLiteOpenHelper(context,databaseName,null,9) {
     private val gson=Gson()
+    private var reconciledEvents:ByteArray?=null
+    private var reconciledBusinesses:Pair<LocalArea,ByteArray>?=null
     val revision=MutableStateFlow(0L)
     override fun onConfigure(db:SQLiteDatabase){db.enableWriteAheadLogging();db.rawQuery("PRAGMA journal_size_limit=1048576",null).use {it.moveToFirst()}}
     override fun onCreate(db:SQLiteDatabase) {
@@ -39,6 +42,39 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         }
     }
     private fun rows(sql:String,args:Array<String> = emptyArray()):List<String> = readableDatabase.rawQuery(sql,args).use {c->buildList {while(c.moveToNext())add(c.getString(0))}}
+    private data class Selection(val tail:String,val args:Array<String>)
+    private fun eventSelection(at:Long)=Selection(" FROM records WHERE kind='event' AND expires>? ORDER BY checked DESC LIMIT 5000",arrayOf(at.toString()))
+    private fun businessSelection(area:LocalArea?,at:Long):Selection {
+        val prefix=" FROM records WHERE kind='business' AND expires>?"
+        if(area==null)return Selection(prefix+" ORDER BY checked DESC LIMIT 2000",arrayOf(at.toString()))
+        val lat=area.radiusKm/110.0+.01;val lon=lat/kotlin.math.cos(Math.toRadians(area.point.latitude)).coerceAtLeast(.1)
+        // Longitude wrap is filtered by haversine after decoding.
+        val wrap=area.point.longitude-lon< -180||area.point.longitude+lon>180
+        return Selection(prefix+" AND (lat IS NULL OR lat BETWEEN ? AND ?)"+(if(wrap)""else " AND (lon IS NULL OR lon BETWEEN ? AND ?)")+" ORDER BY checked DESC LIMIT 2000",
+            (listOf(at.toString(),(area.point.latitude-lat).toString(),(area.point.latitude+lat).toString())+if(wrap)emptyList()else listOf((area.point.longitude-lon).toString(),(area.point.longitude+lon).toString())).toTypedArray())
+    }
+    /** Only a small receipt is retained, never a second cache of decoded records.
+     * Hash the exact bounded input, including same-length edits and expiry, in
+     * the reconciliation transaction. Revision counters alone miss other writers.
+     * Framing keeps arbitrary JSON/identifier boundaries unambiguous. */
+    private data class ReconciliationInput(val signature:ByteArray,val payloads:List<String>)
+    private fun reconciliationInput(db:SQLiteDatabase,selection:Selection,saved:Set<String>,retainPayloads:Boolean=true):ReconciliationInput {
+        val digest=MessageDigest.getInstance("SHA-256")
+        val payloads=mutableListOf<String>()
+        fun field(value:String) {
+            val bytes=value.toByteArray(Charsets.UTF_8);val n=bytes.size
+            digest.update(byteArrayOf((n ushr 24).toByte(),(n ushr 16).toByte(),(n ushr 8).toByte(),n.toByte()));digest.update(bytes)
+        }
+        field(saved.size.toString());saved.sorted().forEach(::field)
+        db.rawQuery("SELECT id,payload,expires"+selection.tail,selection.args).use {c->while(c.moveToNext()) {
+            val payload=c.getString(1)
+            field(c.getString(0));field(payload);field(c.getLong(2).toString())
+            if(retainPayloads)payloads+=payload
+        }}
+        return ReconciliationInput(digest.digest(),payloads)
+    }
+    private fun businessValues(values:List<String>,area:LocalArea?)=values.mapNotNull {runCatching {LocalBusinessOwnership.repairLegacy(gson.fromJson(it,LocalBusiness::class.java)).let {b->b.copy(websites=b.websites.flatMap {url->LocalDiscoveryIdentity.urls(url)}.distinct().take(12))}}.getOrNull()}.filter {area==null||LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}
+    private fun eventValues(values:List<String>)=values.mapNotNull {runCatching {gson.fromJson(it,LocalEvent::class.java)}.getOrNull()}
     @Synchronized fun cache(key:String):String?=rows("SELECT payload FROM cache WHERE id=? AND expires>?",arrayOf(key,now().toString())).firstOrNull()
     @Synchronized fun cache(key:String,value:String,ttl:Long) {require(value.length<=256*1024);writableDatabase.insertWithOnConflict("cache",null,ContentValues().apply {put("id",key);put("payload",value);put("expires",now()+ttl)},SQLiteDatabase.CONFLICT_REPLACE);trimCache()}
     /** A completion receipt must not outlive rejection of its query's facts. */
@@ -48,18 +84,10 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         try {cache(key,value,ttl);if(admit())db.setTransactionSuccessful()}finally {db.endTransaction()}
     }
     @Synchronized fun businesses(area:LocalArea?,saved:Boolean=false):List<LocalBusiness> {
-        val values=if(saved)rows("SELECT payload FROM copies WHERE kind='business' ORDER BY saved DESC LIMIT 2000")else if(area==null)rows("SELECT payload FROM records WHERE kind='business' AND expires>? ORDER BY checked DESC LIMIT 2000",arrayOf(now().toString()))else {
-            val lat=area.radiusKm/110.0+.01;val lon=lat/kotlin.math.cos(Math.toRadians(area.point.latitude)).coerceAtLeast(.1)
-            // Longitude wrap is filtered by haversine below; avoid excluding the
-            // other side of the date line at this inexpensive candidate stage.
-            val wrap=area.point.longitude-lon< -180||area.point.longitude+lon>180
-            rows("SELECT payload FROM records WHERE kind='business' AND expires>? AND (lat IS NULL OR lat BETWEEN ? AND ?)"+(if(wrap)""else " AND (lon IS NULL OR lon BETWEEN ? AND ?)")+" ORDER BY checked DESC LIMIT 2000",
-                (listOf(now().toString(),(area.point.latitude-lat).toString(),(area.point.latitude+lat).toString())+if(wrap)emptyList()else listOf((area.point.longitude-lon).toString(),(area.point.longitude+lon).toString())).toTypedArray())
-        }
-        return values.mapNotNull {runCatching {LocalBusinessOwnership.repairLegacy(gson.fromJson(it,LocalBusiness::class.java)).let {b->b.copy(websites=b.websites.flatMap {url->LocalDiscoveryIdentity.urls(url)}.distinct().take(12))}}.getOrNull()}.filter {area==null||LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}
+        val values=if(saved)rows("SELECT payload FROM copies WHERE kind='business' ORDER BY saved DESC LIMIT 2000")else businessSelection(area,now()).let {rows("SELECT payload"+it.tail,it.args)}
+        return businessValues(values,area)
     }
-    @Synchronized fun events(saved:Boolean=false):List<LocalEvent> = (if(saved)rows("SELECT payload FROM copies WHERE kind='event' ORDER BY saved DESC LIMIT 2000")else rows("SELECT payload FROM records WHERE kind='event' AND expires>? ORDER BY checked DESC LIMIT 5000",arrayOf(now().toString())))
-        .mapNotNull {runCatching {gson.fromJson(it,LocalEvent::class.java)}.getOrNull()}
+    @Synchronized fun events(saved:Boolean=false):List<LocalEvent> = eventValues(if(saved)rows("SELECT payload FROM copies WHERE kind='event' ORDER BY saved DESC LIMIT 2000")else eventSelection(now()).let {rows("SELECT payload"+it.tail,it.args)})
     @Synchronized fun announcements(area:LocalArea):List<LocalAnnouncementCandidate> = rows("SELECT payload FROM records WHERE kind='announcement' AND expires>? ORDER BY checked DESC LIMIT 200",arrayOf(now().toString()))
         .mapNotNull {runCatching {gson.fromJson(it,LocalAnnouncementCandidate::class.java)}.getOrNull()}
         .filter {candidate->business(candidate.publisherId)?.let {LocalDiscoveryFilter.business(LocalDiscoveryQuery(area),it)}==true}
@@ -123,53 +151,70 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     }
     /** Reconcile cached occurrences too; saved snapshot bytes remain untouched. */
     @Synchronized fun reconcileEvents():Boolean {
-        val saved=savedIds();val original=events().sortedBy {if(it.id in saved)0 else 1}
-        val merged=LocalDiscoveryMerge.events(original)
-        if(merged.size==original.size)return false
-        val retained=merged.mapTo(mutableSetOf()){it.id}
-        val expiry=mutableMapOf<String,Long>()
-        readableDatabase.rawQuery("SELECT id,expires FROM records WHERE kind='event'",null).use {c->while(c.moveToNext())expiry[c.getString(0)]=c.getLong(1)}
-        val db=writableDatabase;db.beginTransaction()
+        val db=writableDatabase;val outer=db.inTransaction();val selection=eventSelection(now())
+        var repaired=false;var receipt:ByteArray?=null
+        db.beginTransactionNonExclusive()
         try {
-            original.filter {it.id !in retained}.forEach {old->db.delete("records","id=?",arrayOf(old.id));db.delete("search","id=?",arrayOf(old.id))}
-            merged.forEach {event->
-                // Reconciliation is not a refresh and cannot renew stale data.
-                val expires=expiry[event.id] ?: now()
-                put(event.id,"event",gson.toJson(event),event.point,event.checkedAt,expires,event.title+" "+event.description+" "+event.venue+" "+event.locality)
+            val saved=savedIds();val input=reconciliationInput(db,selection,saved)
+            if(!input.signature.contentEquals(reconciledEvents)) {
+                val original=eventValues(input.payloads).sortedBy {if(it.id in saved)0 else 1}
+                val merged=LocalDiscoveryMerge.events(original)
+                if(merged.size!=original.size) {
+                    val retained=merged.mapTo(mutableSetOf()){it.id};val expiry=mutableMapOf<String,Long>()
+                    db.rawQuery("SELECT id,expires FROM records WHERE kind='event'",null).use {c->while(c.moveToNext())expiry[c.getString(0)]=c.getLong(1)}
+                    original.filter {it.id !in retained}.forEach {old->db.delete("records","id=?",arrayOf(old.id));db.delete("search","id=?",arrayOf(old.id))}
+                    merged.forEach {event->
+                        // Reconciliation is not a refresh and cannot renew stale data.
+                        put(event.id,"event",gson.toJson(event),event.point,event.checkedAt,expiry[event.id] ?: now(),event.title+" "+event.description+" "+event.venue+" "+event.locality)
+                    }
+                    repaired=true
+                }
             }
+            receipt=if(repaired)reconciliationInput(db,selection,saved,false).signature else input.signature
             db.setTransactionSuccessful()
         }finally {db.endTransaction()}
-        return true
+        // A nested caller may still roll back its outer transaction.
+        if(!outer)reconciledEvents=receipt
+        return repaired
     }
     /** Repair earlier ordinary records without rewriting protected saved copies. */
     @Synchronized fun reconcile(area:LocalArea):Boolean {
-        val saved=savedIds();val original=businesses(area).sortedBy {if(it.id in saved)0 else 1}
-        val merged=LocalDiscoveryMerge.businesses(original)
-        if(merged.size==original.size)return false
-        val retained=merged.associateBy {it.id};val prepared=merged.associate {it.id to LocalBusinessIdentity.prepare(it)}
-        val winners=original.associate {old->
-            val winner=retained[old.id]?.id ?: LocalBusinessIdentity.prepare(old).let {identity->merged.firstOrNull {LocalBusinessIdentity.same(prepared.getValue(it.id),identity)}?.id} ?: old.id
-            old.id to winner
-        }
-        val db=writableDatabase;db.beginTransaction()
+        val db=writableDatabase;val outer=db.inTransaction();val selection=businessSelection(area,now())
+        var repaired=false;var receipt:ByteArray?=null
+        db.beginTransactionNonExclusive()
         try {
-            winners.filter {it.key!=it.value}.forEach {(old,winner)->
-                db.delete("records","id=?",arrayOf(old));db.delete("search","id=?",arrayOf(old));db.execSQL("UPDATE aliases SET owner=? WHERE owner=?",arrayOf(winner,old))
+            val saved=savedIds();val input=reconciliationInput(db,selection,saved)
+            if(reconciledBusinesses?.first!=area||!input.signature.contentEquals(reconciledBusinesses?.second)) {
+                val original=businessValues(input.payloads,area).sortedBy {if(it.id in saved)0 else 1}
+                val merged=LocalDiscoveryMerge.businesses(original)
+                if(merged.size!=original.size) {
+                    val retained=merged.associateBy {it.id};val prepared=merged.associate {it.id to LocalBusinessIdentity.prepare(it)}
+                    val winners=original.associate {old->
+                        val winner=retained[old.id]?.id ?: LocalBusinessIdentity.prepare(old).let {identity->merged.firstOrNull {LocalBusinessIdentity.same(prepared.getValue(it.id),identity)}?.id} ?: old.id
+                        old.id to winner
+                    }
+                    winners.filter {it.key!=it.value}.forEach {(old,winner)->
+                        db.delete("records","id=?",arrayOf(old));db.delete("search","id=?",arrayOf(old));db.execSQL("UPDATE aliases SET owner=? WHERE owner=?",arrayOf(winner,old))
+                    }
+                    merged.forEach {place->
+                        put(place.id,"business",gson.toJson(place),place.point,place.checkedAt,now()+30L*86400000,LocalBusinessRouting.text(place))
+                        place.sourceIds.forEach {key->db.insertWithOnConflict("aliases",null,ContentValues().apply {put("alias",key);put("owner",place.id)},SQLiteDatabase.CONFLICT_REPLACE)}
+                    }
+                    val updates=mutableListOf<Triple<String,String,String>>()
+                    db.rawQuery("SELECT url,area,payload FROM sources",null).use {cursor->while(cursor.moveToNext()) {
+                        val source=runCatching {gson.fromJson(cursor.getString(2),LocalPublisherSource::class.java)}.getOrNull() ?: continue
+                        val winner=winners[source.businessId] ?: continue
+                        if(winner!=source.businessId)updates+=Triple(cursor.getString(0),cursor.getString(1),gson.toJson(source.copy(businessId=winner)))
+                    }}
+                    updates.forEach {(url,region,payload)->db.update("sources",ContentValues().apply {put("payload",payload)},"url=? AND area=?",arrayOf(url,region))}
+                    repaired=true
+                }
             }
-            merged.forEach {place->
-                put(place.id,"business",gson.toJson(place),place.point,place.checkedAt,now()+30L*86400000,LocalBusinessRouting.text(place))
-                place.sourceIds.forEach {key->db.insertWithOnConflict("aliases",null,ContentValues().apply {put("alias",key);put("owner",place.id)},SQLiteDatabase.CONFLICT_REPLACE)}
-            }
-            val updates=mutableListOf<Triple<String,String,String>>()
-            db.rawQuery("SELECT url,area,payload FROM sources",null).use {cursor->while(cursor.moveToNext()) {
-                val source=runCatching {gson.fromJson(cursor.getString(2),LocalPublisherSource::class.java)}.getOrNull() ?: continue
-                val winner=winners[source.businessId] ?: continue
-                if(winner!=source.businessId)updates+=Triple(cursor.getString(0),cursor.getString(1),gson.toJson(source.copy(businessId=winner)))
-            }}
-            updates.forEach {(url,region,payload)->db.update("sources",ContentValues().apply {put("payload",payload)},"url=? AND area=?",arrayOf(url,region))}
+            receipt=if(repaired)reconciliationInput(db,selection,saved,false).signature else input.signature
             db.setTransactionSuccessful()
         }finally {db.endTransaction()}
-        return true
+        if(!outer)reconciledBusinesses=area to requireNotNull(receipt)
+        return repaired
     }
     /** Generation admission runs after acquiring the store monitor and again
      * at commit. A callback waiting behind another write cannot revive itself

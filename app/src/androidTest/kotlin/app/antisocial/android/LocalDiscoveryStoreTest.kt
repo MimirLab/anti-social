@@ -95,6 +95,75 @@ class LocalDiscoveryStoreTest {
         val current=store.businesses(area).single()
         assertEquals(fresh.id,current.id);assertTrue(current.phones.isEmpty());assertEquals(saved,payloads("copies"))
     }
+    @Test fun unchangedReconciliationStillNoticesSameLengthEditsFromAnotherConnection() {
+        val secondEvent=event.copy(id="fixture-event-copy",title="Another workshop session",sourceIds=listOf("fixture-other-event"))
+        val secondBusiness=business.copy(id="fixture-business-copy",name="Another workshop",address="9 Other Street",sourceIds=listOf("fixture-other-business"))
+        raw(event.id,"event",event);raw(secondEvent.id,"event",secondEvent)
+        raw(business.id,"business",business);raw(secondBusiness.id,"business",secondBusiness)
+        store.save(event);store.save(business);val saved=payloads("copies");val revision=store.revision.value
+        assertFalse(store.reconcileEvents());assertFalse(store.reconcile(area))
+        assertFalse(store.reconcileEvents());assertFalse(store.reconcile(area))
+        // No revision, row count or checked-time update in this store. The
+        // replacement has exactly the same serialized length as its predecessor.
+        LocalDiscoveryStore(context,{now},name).use {writer->
+            val changedEvent=event.copy(id=secondEvent.id,sourceIds=secondEvent.sourceIds)
+            val changedBusiness=business.copy(id=secondBusiness.id,sourceIds=secondBusiness.sourceIds)
+            fun edit(id:String,value:Any) {
+                val json=gson.toJson(value);val old=payloads("records").getValue(id)
+                // Padding a JSON document is valid and equalizes byte length.
+                val size=maxOf(json.length,old.length)
+                writer.writableDatabase.execSQL("UPDATE records SET payload=? WHERE id=?",arrayOf(old.padEnd(size),id))
+                assertFalse(if(value is LocalEvent)store.reconcileEvents()else store.reconcile(area))
+                writer.writableDatabase.execSQL("UPDATE records SET payload=? WHERE id=?",arrayOf(json.padEnd(size),id))
+                assertEquals(size,payloads("records").getValue(id).length)
+            }
+            edit(secondEvent.id,changedEvent);edit(secondBusiness.id,changedBusiness)
+        }
+        assertTrue(store.reconcileEvents());assertTrue(store.reconcile(area))
+        assertEquals(event.id,store.events().single().id);assertEquals(business.id,store.businesses(area).single().id)
+        assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
+        assertFalse(store.reconcileEvents());assertFalse(store.reconcile(area))
+    }
+    @Test fun reconciliationNoticesNewlyActiveRowsAndDoesNotRenewEventExpiry() {
+        raw(event.id,"event",event)
+        val other=event.copy(id="fixture-event-copy",sourceIds=listOf("fixture-other-event"))
+        raw(other.id,"event",other)
+        val db=store.writableDatabase
+        db.execSQL("UPDATE records SET expires=? WHERE id=?",arrayOf(now,other.id))
+        assertFalse(store.reconcileEvents())
+        db.execSQL("UPDATE records SET expires=? WHERE id=?",arrayOf(now+86400000,other.id))
+        assertTrue(store.reconcileEvents());assertFalse(store.reconcileEvents())
+        now+=86400001;assertTrue(store.events().isEmpty());assertFalse(store.reconcileEvents())
+    }
+    @Test fun businessReconciliationRetainsTheCompleteGeographicScope() {
+        val regional=business.copy(point=null,locality="Other Example City",address="1 Other Example City Street")
+        raw(regional.id,"business",regional)
+        raw("fixture-other-business","business",regional.copy(id="fixture-other-business",sourceIds=listOf("fixture-other-business")))
+        assertTrue(store.businesses(area).isEmpty());assertFalse(store.reconcile(area))
+        val otherArea=area.copy(name="Other Example City",label="Other Example City, Test Region")
+        // Same bounding-box rows, radius and center; only the locality evidence
+        // changes which coordinate-less records can actually be admitted.
+        assertEquals(2,store.businesses(otherArea).size)
+        assertTrue(store.reconcile(otherArea));assertEquals(1,store.businesses(otherArea).size)
+        assertFalse(store.reconcile(otherArea))
+    }
+    @Test fun aFailedOrOuterRolledBackRepairCannotCertifyUncommittedRecords() {
+        raw(event.id,"event",event);store.save(event);val saved=payloads("copies")
+        assertFalse(store.reconcileEvents())
+        val other=event.copy(id="fixture-event-copy",sourceIds=listOf("fixture-other-event"))
+        raw(other.id,"event",other)
+        val db=store.writableDatabase
+        db.execSQL("CREATE TRIGGER fixture_abort_repair BEFORE DELETE ON records BEGIN SELECT RAISE(ABORT,'fixture rollback');END")
+        try {store.reconcileEvents();fail("The repair should roll back")}
+        catch(_:android.database.sqlite.SQLiteException){}
+        db.execSQL("DROP TRIGGER fixture_abort_repair")
+        assertEquals(2,store.events().size)
+        db.beginTransaction()
+        try {assertTrue(store.reconcileEvents());assertEquals(1,store.events().size)}finally {db.endTransaction()}
+        assertEquals(2,store.events().size)
+        assertTrue(store.reconcileEvents());assertFalse(store.reconcileEvents())
+        assertEquals(event.id,store.events().single().id);assertEquals(saved,payloads("copies"))
+    }
     @Test fun aRevokedBatchRollsBackFactsAndPublisherHintsBeforeCommit() {
         store.save(business);val saved=payloads("copies");val revision=store.revision.value
         val source=LocalPublisherSource("https://publisher.fixture.invalid/calendar")

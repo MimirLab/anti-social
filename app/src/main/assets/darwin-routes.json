@@ -831,6 +831,16 @@
       "frontend": "4get",
       "root": "https://4get.canine.tools",
       "curated": true
+    },
+    {
+      "frontend": "4get",
+      "root": "https://4get.dcs0.hu",
+      "curated": true
+    },
+    {
+      "frontend": "4get",
+      "root": "https://4get.edmateo.site",
+      "curated": true
     }
   ]
 }

@@ -25,6 +25,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
     private val permits=Semaphore(3)
     private val htmlOnly=linkedMapOf<String,Long>()
     private data class Candidate(val source:Source,val api:Boolean)
+    private data class RankedSource(val source:Source,val recent:Boolean,val score:Double,val unproven:Boolean)
     @Synchronized private fun prefersHtml(source:Source)=(htmlOnly[source.root] ?: 0)>clock()
     @Synchronized private fun rememberHtml(source:Source) {
         htmlOnly.remove(source.root);htmlOnly[source.root]=clock()+6*3_600_000L
@@ -84,9 +85,15 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                 if(source.frontend=="librey"){if(candidate.api)"&t=0&nf=1&ns=1&nfb=1"else "&t=0&nf=1&ns=1"}else ""
         }
         fun target(candidate:Candidate)=Target(candidate.source.platform,TargetKind.SEARCH,query,address(candidate))
-        val ordered=sources.sortedWith(
-            compareBy<Source> {learning.get(it,Capability.SEARCH,true)?.lastSuccessAt?.let {at->clock()-at in 0..86_400_000L}!=true}
-                .thenBy {learning.score(it,Capability.SEARCH,true)})
+        val ranked=sources.map {source->val stats=learning.get(source,Capability.SEARCH,true)
+            RankedSource(source,stats?.lastSuccessAt?.let {clock()-it in 0..86_400_000L}==true,learning.score(source,Capability.SEARCH,true),stats==null)}
+            .sortedWith(compareBy<RankedSource> {!it.recent}.thenBy {it.score})
+        // Keep learned winners in place. Only unproven slots rotate methods,
+        // so three unknown mirrors cannot exhaust the whole request allowance
+        // before an eligible different parser gets a chance to deliver.
+        val methods=ranked.filter {it.unproven}.groupBy {it.source.frontend}.values.toList()
+        val unproven=buildList {for(i in 0 until (methods.maxOfOrNull {it.size} ?: 0))for(method in methods)method.getOrNull(i)?.let {add(it.source)}}.iterator()
+        val ordered=ranked.map {if(it.unproven)unproven.next()else it.source}
         // Cheap structured reads precede a retained HTML/server-assisted path.
         // Both representations spend the SAME three-attempt allowance.
         val primary=ordered.map {Candidate(it,it.frontend=="4get"||it.root.trimEnd('/') in routes.searchJsonApis&&!prefersHtml(it))}

@@ -9,6 +9,83 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.51 publisher route diversity and repeated reconciliation
+
+Reviewed against v0.38.50 (`dda1ee7`) on October 27. This increment changes
+`LocalWebDiscovery.kt`, its routing regressions, `darwin-routes.json`,
+`LocalDiscoveryStore.kt` and its native store regressions. No model, permission,
+production dependency, database migration or new background poller is added.
+Darwin remains the routing donor. The new paths discover publisher links; search
+snippets do not become business/event facts or hydrated social posts.
+
+A controlled Gateway/SOCKS counterexample failed on unchanged scheduling: four
+untried mirrors preceded a different working protocol, and the three-attempt
+budget never reached it. The test timed out. The corrected ordering snapshots
+observations once and interleaves methods only in unproven slots. The same check
+now reaches the different method second, while the first remains held. A second
+control retains two recently useful mirrors ahead of unknown methods. Existing
+cases cover three shared permits/attempts, selected-provider confinement, source
+refusals, cancellation, session round trips, endpoint-specific learning and the
+retained LibreY HTML path. These are deterministic routing changes, not a claim
+that different frontends have independent upstream indexes.
+
+Eight newly inspected published 4get roots were read through Android Gateway/Tor
+using a generic query. Two returned explicit successful JSON with organic links;
+the others returned two timeouts, one HTTP 500, one refused cross-origin redirect,
+one challenge page and one HTTP-200 JSON failure. Only `4get.dcs0.hu` and
+`4get.edmateo.site` enter the bank. A separate production-parser native check on
+each returned ten links in **3.430 s** and **3.385 s** after transport readiness.
+Together with the retained qualified endpoint these provide three configured
+4get alternatives, alongside LibreY. These are dated successful reads, not proof
+of continued availability, complete regional coverage or independent operators.
+The [protocol and current inventory](LOCAL_DISCOVERY_ROUTING.md#publisher-method-diversity-and-unchanged-cache-work-03851)
+describe the remaining limits and an inactive Mwmbl research lead.
+
+The store previously repeated full JSON decoding and matching on unchanged
+publication inputs. Two small in-memory receipts now identify the exact bounded
+active inputs with framed SHA-256, including expiry, saved-ID preference and the
+complete business scope. Fingerprinting and repair use one database transaction;
+only committed results are remembered. A miss decodes the payloads from the same
+scan rather than reading them twice. There is no persistent duplicate record
+cache, change to saved bytes or shortcut based on row count/checked time alone.
+
+`LocalDiscoveryStoreTest` exercises unchanged reads followed by same-length edits
+from a second connection, newly active rows, event expiry without renewal,
+coordinate-less records with different locality scope, a forced SQLite abort and
+an outer rollback. Existing admission, cache/saved-record and factual-revision
+checks remain. These native controls passed alongside the opt-in synthetic
+preparation benchmark; final shipping selection is recorded below.
+
+The API 35 emulator measured the same synthetic 1,200-business/2,500-event pool
+in the old and candidate **release** builds, each with three operation samples.
+No other build/test was running during these release measurements. A saved
+business snapshot remained unchanged as a record; separate store controls compare
+protected payload bytes. Timings below concern reconciliation
+alone, excluding network, subsequent record reads, relevance and card drawing.
+
+| Operation | v0.38.50 first sample | Candidate first sample | v0.38.50 subsequent samples | Candidate subsequent samples |
+| --- | ---: | ---: | --- | --- |
+| Business reconciliation | 218.1 ms | 253.4 ms | 215.0 / 210.0 ms | 34.3 / 36.5 ms |
+| Event reconciliation | 335.3 ms | 355.9 ms | 341.5 / 332.9 ms | 131.7 / 124.3 ms |
+
+The first pass still performs complete matching and has measured overhead.
+Repeated unchanged work is substantially cheaper on this fixture. Matching debug
+builds independently showed the same direction. An earlier debug-candidate versus
+release-baseline comparison was not used to claim a speedup. These observations
+are not physical-phone end-to-end latency, p95, memory or battery qualification.
+
+The complete JVM run covers **2,452 cases: 2,450 passes, zero failures/errors and
+two optional skips** (private cross-post packet and optional native embedding).
+An initial private business replay failed exact membership because its captured
+rows were paired with an incomplete expected-member set. The retained baseline
+capture and its reviewed expected set pass together; no product matching rule was
+changed to resolve that engineering-input error. The failed run remains external
+evidence. Release lint passed. The signed candidate passed **81 business/event,
+store, menu and Library native checks with zero failures or skips**. Its business
+and event screens were inspected, including the single 25-location chain card.
+The same native selection is repeated against the frozen clean-commit artifact
+before publication, with source/signing and retained-preview-state verification.
+
 ## 0.38.50 chain grouping before website enrichment
 
 The reported taco-search flood exposed a generic alias-compilation defect in
