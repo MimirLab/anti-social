@@ -113,6 +113,19 @@ when one edition adds a known opaque campaign link; its complete link inventory
 remains available. This closes a mismatch where grouping succeeded but the card
 could fall back to one edition's attachments because caption composition failed.
 
+Already admitted editions of one announcement now share a gallery root. Its
+bounded observed slots can prove a child even when the slots are distributed
+across those editions. An independent gallery still creates ambiguity. The
+self-contained save/composition validator additionally requires pairwise
+same-caption gallery editions with an actually shared picture before using their
+union; disjoint galleries and transitive stock-picture chains do not supply that
+proof. The union is a private comparison projection, never a rewritten original.
+
+A short complete gallery caption can also use the existing colon-versus-downward
+pointer convention. Publisher, time, claim and destination checks remain in the
+post matcher. This collects the editions without asserting that their different
+attachments are duplicates.
+
 An observed still matching a playable video's poster no longer loses its source
 when removed from the picture inventory. The existing media label distinguishes
 “Video from …” from “preview from …”; a still does not establish that its platform

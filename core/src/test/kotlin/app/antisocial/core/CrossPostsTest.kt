@@ -31,6 +31,30 @@ class CrossPostsTest {
     }
     private val linked=listOf(account(Platform.X),account(Platform.BLUESKY),account(Platform.THREADS))
 
+    @Test fun aDeclaredInstagramAuthorKeepsShortEditionsLinkedWithoutAFeedMembership() {
+        val text="Our workshop is open. 🛠"
+        val x=post(Platform.X,text).copy(media=listOf(Media("https://images.example.org/one.jpg")))
+        val instagram=post(Platform.INSTAGRAM,text,at=time+120_000).copy(
+            media=listOf(Media("https://images.example.org/two.jpg")),authorAccount=PostAuthorAccounts.instagram("fixture"))
+        val accounts=listOf(account(Platform.X),account(Platform.INSTAGRAM))
+        assertEquals(1,CrossPosts.group(listOf(x,instagram),accounts).size)
+        assertEquals(2,CrossPosts.group(listOf(x,instagram.copy(authorAccount=PostAuthorAccounts.instagram("someoneelse"))),accounts).size)
+        assertEquals(2,CrossPosts.group(listOf(x,instagram.copy(authorAccount=null)),accounts).size)
+    }
+
+    @Test fun duplicateAccountAliasesCannotMakeOwnershipDependOnFollowOrder() {
+        val text="Our workshop is open. 🛠"
+        val x=post(Platform.X,text).copy(media=listOf(Media("https://images.example.org/one.jpg")))
+        val b=post(Platform.BLUESKY,text,at=time+120_000).copy(media=listOf(Media("https://images.example.org/two.jpg")))
+        val original=account(Platform.X)
+        val alias=original.copy(id="legacy-case-alias",target=original.target.copy(identity="FIXTURE",canonicalUrl="https://x.com/FIXTURE"),personId="separate-bundle")
+        val membership=mapOf(CrossPosts.originalKey(x) to setOf(original.id))
+        for(accounts in listOf(listOf(alias)+linked,linked+alias)) {
+            assertEquals(1,CrossPosts.group(listOf(x,b),accounts,membership).size)
+            assertEquals("An unresolved conflicting bundle must not be selected by list order",2,CrossPosts.group(listOf(x,b),accounts).size)
+        }
+    }
+
     @Test fun aFeedEnclosureLinkToItsOwnPostCannotSplitThreePlatformEditions() {
         // RSS-Bridge includes a slash-suffixed self permalink; the stored
         // canonical Instagram URL has no slash. The caption also names a site.

@@ -10,25 +10,30 @@ internal object AttachmentCaptions {
     private data class Marked(val text:String,val key:String,val colon:Boolean)
     private val pointer=Regex("(?:[⬇↓↘👇][\\uFE0E\\uFE0F]?){1,4}\\s*$")
     private val words=Regex("[\\p{L}\\p{N}]+")
-    private fun marked(post:Post):Marked? {
+    private fun marked(post:Post,gallery:Boolean=false):Marked? {
         if(post.preview||post.body.length.toLong()+post.title.length>16_384||post.media.isEmpty()||post.media.any {it.type!="image"})return null
         val text=PostPresentation.content(post).trimEnd()
         var decoded=text;repeat(2){decoded=Parser.unescapeEntities(decoded,false)}
         val colon=decoded.endsWith(':')
         val end=if(colon)decoded.length-1 else pointer.find(decoded)?.range?.first ?: return null
         val prefix=TextWhitespace.collapse(decoded.take(end)).trim().lowercase(Locale.ROOT)
-        if(prefix.length<80)return null
+        if(prefix.length<if(gallery)48 else 80)return null
         val tokens=words.findAll(prefix).take(1025).map {it.value}.toList()
-        if(tokens.size !in 12..1024||tokens.distinct().size<8)return null
+        if(tokens.size !in (if(gallery)8 else 12)..1024||tokens.distinct().size<8)return null
         return Marked(text,prefix,colon)
     }
     fun equivalent(first:Post,second:Post):Boolean {
-        val a=marked(first) ?: return false;val b=marked(second) ?: return false
+        // A complete short gallery heading can use the same layout convention.
+        // CrossPosts still requires the publisher/time/content proof. This
+        // collects announcements; it never declares their pictures identical.
+        val gallery=first.media.size>1||second.media.size>1
+        val a=marked(first,gallery) ?: return false;val b=marked(second,gallery) ?: return false
         return a.colon!=b.colon&&a.key==b.key
     }
     fun compose(posts:List<Post>):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
-        val values=posts.map {marked(it) ?: return null}
+        val gallery=posts.any {it.media.size>1}
+        val values=posts.map {marked(it,gallery) ?: return null}
         if(values.map {it.key}.distinct().size!=1||values.map {it.colon}.distinct().size!=2)return null
         return PostFusion(listOf(FusionSegment(values.first {it.colon}.text,posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
     }

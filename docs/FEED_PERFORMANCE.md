@@ -1,5 +1,35 @@
 # Feed performance qualification
 
+## 0.38.48: initial delivery and collection-cost control
+
+An empty source window now publishes its first coherent Room rows and follow
+memberships before a bounded initial coverage pass. Four opt-in native refreshes
+against existing public subscriptions delivered their first nonempty snapshot in
+0.637–0.808 seconds after ordinary-cache purge. Full source checks took roughly
+50–90 seconds, including unavailable routes. These are emulator Room-observation
+times, not first paint, physical-phone latency or guaranteed provider performance.
+The first two candidates still stopped before a required counterpart; the later
+five-page Facebook bound recovered it. All intermediate evidence is retained.
+
+The gallery/ownership fixes were also compared with 0.38.47 using the same private
+738-post, 25-source snapshot and exact memberships. Three process-restarted,
+untraced samples per APK ran serially on the same API 35 emulator, without a
+concurrent compiler. No posts were imported into Room or fetched by this CPU
+diagnostic; every original remained represented.
+
+| Local grouping stage | 0.38.47 | Candidate |
+| --- | ---: | ---: |
+| Three samples | 10.860 / 10.796 / 10.834 s | 11.209 / 11.332 / 10.834 s |
+| Median | 10.834 s | 11.209 s |
+| Complete groups | 619 | 618 |
+
+This workload costs about 3.5% more grouping time and collects an additional
+announcement. It does not establish faster large-pool preparation or scrolling.
+The new delivery path addresses acquisition blocking independently of that
+existing local CPU cost. It adds no database, model or network call to individual
+post comparisons. Raw measurements and source-review captures stay external under
+`evidence/cold-feed-recovery-20261027`.
+
 ## 0.38.28: faster reading-signature preparation with identical results
 
 The current 0.38.27 observation-stage trace still attributes most sampled work

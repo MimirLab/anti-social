@@ -66,6 +66,44 @@ class FeedCatchUpTest {
         assertNull(result.page.next)
     }
 
+    @Test fun aShallowInitialWindowStreamsItsHeadBeforeBoundedSourceOwnedHistory():Unit=runBlocking {
+        val first=page(post("106"),post("105"),next="owned-page-2")
+        val events=mutableListOf<String>()
+        val result=FeedCatchUp(initialPages=3,initialPosts=6).collect(Platform.X,emptySet(),first={first},next={previous->
+            assertEquals("head",events.first());events+=previous.next!!
+            when(previous.next){"owned-page-2"->page(post("104"),post("103"),next="owned-page-3")
+                "owned-page-3"->page(post("102"),post("101"),next="must-not-crawl")
+                else->error("Only source-owned cursors within the initial budget")}
+        },onInitialPage={assertEquals(first,it);events+="head"})
+        assertEquals(listOf("head","owned-page-2","owned-page-3"),events)
+        assertEquals(6,result.page.posts.size);assertEquals(3,result.pages);assertNull(result.pendingReason)
+    }
+
+    @Test fun aPopulatedInitialWindowAndAWarmRefreshDoNotRequestExtraHistory():Unit=runBlocking {
+        val first=page(post("106"),post("105"),next="unused-cursor")
+        var streamed=0
+        for(head in listOf(emptySet(),setOf(key(first.posts.last())))) {
+            val result=FeedCatchUp(initialPages=3,initialPosts=2).collect(Platform.X,head,first={first},
+                next={error("The required window is already present")},onInitialPage={streamed++})
+            assertEquals(1,result.pages)
+        }
+        assertEquals(1,streamed)
+    }
+
+    @Test fun initialCoverageStopsAtOldHistoryButOnePinnedPostDoesNotEndIt():Unit=runBlocking {
+        val now=1_800_000_000_000L
+        val recent=post("106",now);val pin=post("100",now-10*86_400_000L)
+        val first=page(recent,pin,next="owned-history")
+        val continued=FeedCatchUp(initialPages=3).collect(Platform.X,emptySet(),first={first},next={
+            page(post("105",now-60_000),post("99",now-11*86_400_000L),next="too-old")
+        })
+        assertEquals(2,continued.pages);assertEquals(4,continued.page.posts.size)
+        val inactive=FeedCatchUp(initialPages=3).collect(Platform.X,emptySet(),first={
+            page(recent,pin,post("99",now-11*86_400_000L),next="too-old")
+        },next={error("Old public history already bounds this initial window")})
+        assertEquals(1,inactive.pages)
+    }
+
     @Test fun anOldPinnedCachedPostIsNotThePreviouslyNewestHeadFrontier(): Unit=runBlocking {
         val pinned=post("1")
         val previousNewest=post("100")

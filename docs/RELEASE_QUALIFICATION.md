@@ -9,6 +9,72 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.48 cold-source coverage and complete gallery roots
+
+Qualified on 2026-10-27. The owner's immediate phone feedback after 0.38.47
+showed that its warmed-cache inspection did not establish a good cold experience.
+This increment separates acquisition, account ownership, grouping and visible
+presentation. Public subscriptions were made through the actual Subscribe all
+interface on a disposable API 35 emulator; live refreshes injected no posts or
+fingerprints. The retained API 29 laptop preview was also reviewed directly.
+
+Cold retrieval exposed different source windows: one Facebook response supplied
+three entries and the working Instagram feeds supplied six without a cursor.
+The old first-subscription stop left a counterpart outside the acquired window.
+An empty feed now publishes its first coherent rows and source memberships
+immediately, then follows bounded source-owned initial history: up to three pages,
+or five for Facebook, stopping earlier at 24 posts or two sufficiently old
+entries. RSS keeps one initial window; warm catch-up retains its original gap
+and completed-generation transaction. An unreadable legacy wrapper cannot define
+the previous frontier. Four real refreshes observed first Room delivery in
+0.637–0.808 seconds while complete source checks continued for roughly 50–90
+seconds. These are emulator observations, not phone or paint measurements.
+
+Two independent ownership controls failed before correction: a validated
+Instagram author declaration was not used by linked-account matching, and
+conflicting legacy account aliases could select an owner by list order. Actual
+follow memberships now disambiguate the latter; unresolved conflicts remain
+unqualified. Display-name similarity does not establish ownership. The reported
+short-caption family already grouped in the initial cold replay, so this record
+does not claim that its exact handset failure was independently reproduced.
+
+Native scrolling also found a gallery beside its repeated singleton pictures.
+Already admitted gallery editions now share one announcement root, with a bounded
+union of observed slots for child proof. Save/composition validation independently
+requires pairwise matching captions and an actually shared picture before using
+that union. An independent gallery remains ambiguous; stock-photo chains do not
+authorize transitive collection. The existing colon/downward-pointer convention
+also accepts a complete, distinctive shorter gallery heading. Original records,
+unique pictures, additional sentences and source attribution remain intact.
+
+Direct visual review covered 90 scrolling frames of one warmed public bundle,
+100 of another and 165 of the cold public feed. The inspected short-caption
+family appears once with three platforms; the gallery appears once with five
+originals and five distinct portraits. The cold arcade announcement now includes
+X/Facebook; the warmed cache retains all three previously acquired platforms.
+The six-entry Instagram feed still withholds that older counterpart. These
+windows are the scope of the review, not a claim that every future or unavailable
+edition is covered. Distinct lunar photographs, portraits and document pages
+remain distinct. Private captures and reader records stay outside the checkout.
+
+The full JVM suite passed **2,435 cases, zero failures/errors, three optional
+skips**. The isolated API 35 native selection passed **131 methods, zero failures
+or skips**, including first-page publication, legacy-wrapper recovery, complete
+gallery saving, image-cache evidence, late arrivals, reading locks, cache purge
+and subscriptions. An earlier 130/131 run exposed a test selecting the Search
+platform instead of the actual Following tab; its setup now uses the native tab.
+A repeat with unrelated live-review records present failed six screen-wide
+fixture assertions. That run is retained as failed; the clean disposable-fixture
+batch is the 131-method passing record. The live laptop preview was never reset.
+
+Three untraced native samples per APK over the same private 738-post pool show a
+grouping median of 10.834 seconds before and 11.209 seconds after, about 3.5%
+more CPU time while retaining every original and collecting one more family.
+See [performance scope](FEED_PERFORMANCE.md). No database migration, permission,
+production dependency, model, native runtime or per-comparison network lookup is
+added. Source/tag, signed shipping artifact and permanent-download qualification
+are performed separately during publication.
+
 ## 0.38.47 native feed inspection and refresh-stable collections
 
 Qualified on 2026-10-27. Repeated inspection of actual native subscription feeds

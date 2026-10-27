@@ -238,6 +238,14 @@ This uses [the existing source pool within the refresh limits](FEED_COVERAGE.md#
 without giving a saved Page its own networking authority or adding a background
 crawler. Exhausted routes leave the missing interval visibly pending.
 
+An empty social source window can publish its first coherent page before the
+bounded initial coverage pass finishes. Warm catch-up retains its completed
+generation transaction. Both paths store each post with its supplying follow
+membership: linked-account ownership is local evidence consumed by grouping,
+not a network lookup per post comparison. Validated Instagram author declarations
+also identify their account directly; ambiguous legacy account aliases require
+membership disambiguation rather than selecting the first matching subscription.
+
 The [attachment collection record](ATTACHMENT_COLLECTIONS.md) explains source-specific
 image aliases, evidence retained after a duplicate is removed, pixel-conflict guards
 and response-scoped Nitter rendering identities. Those operations do not authorize

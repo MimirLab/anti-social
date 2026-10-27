@@ -141,6 +141,45 @@ class RepositoryFeedCatchUpTest {
             assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[follow.id]?.status)
         }finally {release.complete(Page(emptyList()));collector.cancelAndJoin()}
     }
+
+    @Test fun anEmptyFeedPublishesItsFirstPageWhileInitialCoverageIsStillLoading()=runBlocking {
+        val first=post(3);val older=post(2)
+        val continuing=CompletableDeferred<Unit>();val release=CompletableDeferred<Page>()
+        repo.followLoader={page(listOf(first),next="owned-initial-cursor")}
+        repo.followPageLoader={account,previous->
+            assertEquals(follow.id,account.id);assertEquals("owned-initial-cursor",previous.next)
+            continuing.complete(Unit);release.await()
+        }
+        val refresh=async(Dispatchers.IO){repo.refresh(personId=person)}
+        try {
+            awaitStage("initial source-owned continuation starts"){continuing.isCompleted}
+            assertTrue(repo.feedRefresh.value.running)
+            val visible=withTimeout(5_000){repo.followedSnapshot(personId=person).first {it.posts.any {p->repo.key(p)==repo.key(first)}}}
+            assertEquals(setOf(follow.id),visible.memberships[repo.key(first)])
+            assertFalse("The later page has not been supplied",visible.posts.any {repo.key(it)==repo.key(older)})
+            release.complete(page(listOf(older)));refresh.await()
+            val complete=withTimeout(5_000){repo.followedSnapshot(personId=person).first {it.posts.size==2&&!repo.feedRefresh.value.running}}
+            assertEquals(setOf(repo.key(first),repo.key(older)),complete.posts.map(repo::key).toSet())
+        }finally {release.complete(page(listOf(older)));refresh.cancelAndJoin()}
+    }
+
+    @Test fun anUnreadableLegacyWrapperCannotBecomeTheCatchUpFrontier()=runBlocking {
+        val wrapper=post(20).copy(author=follow.target.identity,body="",title="Post by @${follow.target.identity}: …")
+        val first=post(3);val older=post(2)
+        repo.store(page(listOf(wrapper)),follow.id,true)
+        assertFalse(FeedRefresh.readable(wrapper))
+        val continuing=CompletableDeferred<Unit>();val release=CompletableDeferred<Page>()
+        repo.followLoader={page(listOf(first),next="owned-initial-cursor")}
+        repo.followPageLoader={_,previous->assertEquals("owned-initial-cursor",previous.next);continuing.complete(Unit);release.await()}
+        val refresh=async(Dispatchers.IO){repo.refresh(personId=person)}
+        try {
+            awaitStage("legacy wrapper does not block initial source coverage"){continuing.isCompleted}
+            val visible=withTimeout(5_000){repo.followedSnapshot(personId=person).first {it.posts.any {p->repo.key(p)==repo.key(first)}}}
+            assertFalse(visible.posts.any {repo.key(it)==repo.key(wrapper)})
+            release.complete(page(listOf(older)));refresh.await()
+            assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[follow.id]?.status)
+        }finally {release.complete(page(listOf(older)));refresh.cancelAndJoin()}
+    }
     @Test fun aRepeatedCursorPublishesAvailablePostsButKeepsThatGenerationPending()=runBlocking {
         val known=post(0);val newer=listOf(post(1),post(2));repo.store(page(listOf(known)),follow.id,true)
         val earlier=repo.feedMemory.begin(listOf(follow.id));repo.feedMemory.success(follow.id,earlier,now-60_000)

@@ -38,6 +38,36 @@ class GalleryCaptionCopiesTest {
             assertTrue(fusion.segments.last().shared)
         }
     }
+    @Test fun anAlreadyCollectedAnnouncementSharesGallerySlotsAcrossItsEditions() {
+        val instagram=gallery().copy(media=gallery().media.take(2))
+        val facebook=instagram.copy(id="456",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/workshop/posts/456",
+            media=listOf(Media("https://images.example/third.jpg"),Media("https://images.example/fourth.jpg")))
+        val child=part().copy(media=listOf(instagram.media[1],facebook.media[0]))
+        val follows=listOf(Follow("ig",Target(Platform.INSTAGRAM,TargetKind.PROFILE,"workshop","https://www.instagram.com/workshop"),"Workshop",personId="workshop"),
+            Follow("fb",Target(Platform.FACEBOOK,TargetKind.PROFILE,"workshop","https://www.facebook.com/workshop"),"Workshop",personId="workshop"),
+            Follow("x",Target(Platform.X,TargetKind.PROFILE,"workshop","https://x.com/workshop"),"Workshop",personId="workshop"))
+        val membership=mapOf(instagram.identityKey to setOf("ig"))
+        for(input in listOf(listOf(instagram,facebook,child),listOf(child,facebook,instagram))) {
+            val grouped=CrossPosts.group(input,follows,membership)
+            assertEquals("Two admitted gallery editions are one announcement, not competing roots",1,grouped.size)
+            assertEquals(input.toSet(),grouped.single().posts.toSet())
+        }
+        val unrelated=gallery("Other").copy(body="Another workshop opens. $heading:",media=child.media)
+        assertEquals("An independent gallery still makes the child ambiguous",3,
+            CrossPosts.group(listOf(instagram,facebook,child,unrelated),follows,membership).size)
+    }
+    @Test fun overlappingGalleryEditionsHaveASelfContainedUnionForPresentationAndSaving() {
+        val first=gallery().copy(media=gallery().media.take(2))
+        val second=first.copy(id="456",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/workshop/posts/456",
+            media=listOf(first.media[1],Media("https://images.example/third.jpg")))
+        val child=part().copy(media=listOf(first.media[0],second.media[1]))
+        val posts=listOf(first,second,child)
+        assertTrue(CrossPosts.galleryCollection(posts))
+        assertTrue(CrossPosts.sameContentCopies(posts))
+        val fusion=CrossPostFusion.composeMedia(posts)!!
+        assertEquals(listOf(intro,heading),fusion.segments.map {it.text})
+        assertFalse(CrossPosts.galleryCollection(listOf(first,second.copy(body="Another workshop opens. $heading:"),child)))
+    }
     @Test fun pictureProofTimingAndWholeCaptionBoundariesRemainMandatory() {
         val full=gallery();val short=part()
         for(other in listOf(short.copy(media=listOf(Media("https://images.example/different.jpg"))),

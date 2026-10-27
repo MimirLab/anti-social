@@ -259,9 +259,25 @@ object CrossPosts {
     /** A complete gallery can prove that separately published, captionless
      * pictures are already present. Compare actual images, never their common
      * template, account name or publication time alone. No transitive chains. */
-    fun galleryCollection(posts: List<Post>,sameMedia: (Post,Post)->Boolean={_,_->false}): Boolean =
-        posts.size in 2..MAX_EDITIONS&&posts.map(::originalKey).distinct().size==posts.size&&
-            posts.any {anchor->galleryAnchor(anchor)&&posts.all {galleryMember(anchor,it,posts,sameMedia)}}
+    fun galleryCollection(posts: List<Post>,sameMedia: (Post,Post)->Boolean={_,_->false}): Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
+        val anchors=posts.filter(::galleryAnchor)
+        if(anchors.any {anchor->posts.all {galleryMember(anchor,it,posts,sameMedia)}})return true
+        // Independent validation for saves/composition has no local follow
+        // database. Union only pairwise proven, same-caption gallery editions
+        // with an actually shared picture. This does not trust a shared slogan,
+        // complementary disjoint galleries or a transitive stock-photo chain.
+        fun overlap(a:Post,b:Post)=GalleryCaptionCopies.contains(a,b)&&GalleryCaptionCopies.contains(b,a)&&
+            b.media.any {image->galleryContains(a,b.copy(media=listOf(image)),sameMedia)}
+        for(anchor in anchors) {
+            val peers=anchors.filter {it===anchor||overlap(anchor,it)}
+            if(peers.size<2||peers.indices.any {i->(i+1 until peers.size).any {j->!overlap(peers[i],peers[j])}})continue
+            val images=peers.flatMap {it.media}.distinctBy {it.url}
+            if(images.size>48)continue
+            if(peers.any {edition->val proof=edition.copy(media=images);posts.all {galleryMember(proof,it,posts,sameMedia)}})return true
+        }
+        return false
+    }
     private fun imageEcho(post:Post):Boolean {
         if(post.body.length.toLong()+post.title.length>MAX_TEXT||post.media.size!=1||post.media.single().type!="image")return false
         val text=decoded(PostPresentation.content(post))
@@ -353,10 +369,28 @@ object CrossPosts {
         val scope=groups.flatMap {it.posts}
         val anchors=scope.filter(::galleryAnchor).sortedWith(compareByDescending<Post> {it.media.size}.thenBy(::originalKey))
         if(anchors.size>MAX_CANDIDATES)return groups
-        val roots=mutableListOf<Post>()
-        for(anchor in anchors)if(roots.none {galleryContains(it,anchor,sameMedia)})roots+=anchor
+        // Already admitted editions belong to one announcement even when each
+        // supplies a different gallery or one rendition has not decoded yet.
+        // They must not become competing roots for their own proven children.
+        val owners=groups.flatMapIndexed {index,group->group.posts.map {originalKey(it) to index}}.toMap()
+        data class Root(val owner:Int,val proofs:List<Post>)
+        val roots=mutableListOf<Root>()
+        for(anchor in anchors) {
+            val owner=owners.getValue(originalKey(anchor))
+            if(roots.any {it.owner==owner||it.proofs.any {proof->galleryContains(proof,anchor,sameMedia)}})continue
+            val editions=anchors.filter {owners[originalKey(it)]==owner}
+            val observed=editions.flatMap {it.media}.distinctBy {it.url}
+            // A bounded, private proof projection only. Source records and the
+            // presentation inventory retain every original attachment/URL.
+            val proofs=if(observed.size<=48)editions.map {it.copy(media=observed)}else editions
+            roots+=Root(owner,proofs)
+        }
         if(roots.isEmpty())return groups
-        val assignments=groups.map {group->roots.indices.filter {index->group.posts.all {galleryMember(roots[index],it,scope,sameMedia)}}.singleOrNull()}
+        val assignments=groups.mapIndexed {owner,group->
+            roots.indices.firstOrNull {roots[it].owner==owner} ?: roots.indices.filter {index->
+                group.posts.all {post->roots[index].proofs.any {galleryMember(it,post,scope,sameMedia)}}
+            }.singleOrNull()
+        }
         val joined=linkedMapOf<Int,MutableList<Post>>()
         val unchanged=mutableListOf<PostGroup>()
         groups.forEachIndexed {index,group->
@@ -382,6 +416,7 @@ object CrossPosts {
         fun same(a: String?,b: String)=b.isNotBlank()&&a?.removePrefix("@").equals(b,true)
         // A display name is never proof for an opaque post ID.
         return when(post.platform) {
+            Platform.INSTAGRAM -> PostAuthorAccounts.target(post)?.identity?.equals(named,true)==true
             Platform.X -> parts.size>=3&&parts[1] in setOf("status","statuses")&&same(parts[0],named)
             Platform.BLUESKY -> parts.size==4&&parts[0]=="profile"&&parts[2]=="post"&&profile.size==2&&same(parts[1],profile[1])
             Platform.THREADS -> parts.size>=3&&parts[1] in setOf("post","t")&&same(parts[0],named)
@@ -455,7 +490,7 @@ object CrossPosts {
     internal fun originalLink(value:String,post:Post)=linksToOriginal(value,post)
     private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
         val eligible=accounts[post.platform].orEmpty()
-        val pathOwner=eligible.firstOrNull {own(post,it.second)}?.first
+        val pathOwners=eligible.filter {own(post,it.second)}.map {it.first}.distinct()
         val sources=memberships[originalKey(post)].orEmpty()
         // An opaque post ID cannot name its author. Exact local subscription
         // memberships can still prove which explicitly linked feed supplied it;
@@ -467,7 +502,15 @@ object CrossPosts {
             }else SocialLinkHosts.platform(post.canonicalUrl)==post.platform
             follow.target.kind==TargetKind.PROFILE&&follow.id in sources&&validOrigin
         }.map {it.first}.distinct()
-        val owner=pathOwner ?: sourceOwners.singleOrNull()
+        // Legacy/case-alias subscriptions may name the same public account in
+        // different local bundles. A list's first entry is not identity proof.
+        // Its actual feed membership can disambiguate those matching accounts;
+        // a curator's feed must never override an independently named author.
+        val owner=when(pathOwners.size) {
+            0->sourceOwners.singleOrNull()
+            1->pathOwners.single()
+            else->pathOwners.intersect(sourceOwners.toSet()).singleOrNull()
+        }
         val bounded=post.body.length.toLong()+post.title.length<=MAX_TEXT
         val content=if(bounded) {
             val body=decoded(post.body);val title=decoded(post.title)

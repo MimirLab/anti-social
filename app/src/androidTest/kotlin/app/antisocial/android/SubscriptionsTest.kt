@@ -84,7 +84,11 @@ class SubscriptionsTest {
         custom=vm;ui.runOnUiThread {ui.activity.setContent {AntiSocialApp(vm)};vm.combined()};return vm
     }
     @Test fun platformTabsUseAccessibleLargeLogosAndIncludeACombinedFeed() {
-        val vm=model();ui.runOnIdle {vm.platform(Platform.X,false);vm.following()}
+        val vm=model();ui.runOnIdle {vm.following()}
+        // Select the actual Following tab. platform(..., false) changes a
+        // search surface and deliberately preserves the prior Following choice,
+        // which need not be X on an existing reader installation.
+        ui.onNodeWithTag("Platform tab twitter").performScrollTo().performClick()
         ui.onNodeWithTag("Platform tab twitter").assertIsSelected()
         ui.onNodeWithTag("Platform tab twitter").assert(hasContentDescription("X"))
         // Attribution may say X inside a post; the tab itself stays logo-only.

@@ -277,6 +277,39 @@ class FusionFeedTest {
         evidence("cold-gallery-short-heading-and-source-context")
     }
 
+    @Test fun complementaryGalleryEditionsCollectTheirChildrenAndSaveEverySource() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val heading="REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT";val intro="Work will continue."
+        fun image(lane:String,index:Int)=Media("https://union-$lane-$suffix.invalid/picture-$index.png",description="Union gallery picture $index")
+        val instagram=oldInstagram.copy(body="$intro $heading:",media=listOf(image("ig",1),image("ig",2)))
+        val fbId="97${suffix}1002"
+        val facebook=instagram.copy(id=fbId,platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/$fbId",
+            publishedAt=now-58_000,media=listOf(image("fb",2),image("fb",3)))
+        val x=oldX.copy(body=heading,media=listOf(image("x",1),image("x",3)))
+        records+=listOf(x,instagram,facebook)
+        store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM));store(facebook,follow(Platform.FACEBOOK))
+        for(post in records)post.media.forEach {cacheGalleryPicture(it.url,it.description.last().digitToInt())}
+        repo.images.identities.clear();seed("all",records);val vm=model();show(vm,all=true)
+        ui.waitUntil(15_000){
+            ui.onAllNodesWithTag("Feed row ${repo.key(x)}").fetchSemanticsNodes().isNotEmpty()&&
+                ui.onAllNodesWithTag("Feed row ${repo.key(instagram)}").fetchSemanticsNodes().isEmpty()&&
+                ui.onAllNodesWithTag("Feed row ${repo.key(facebook)}").fetchSemanticsNodes().isEmpty()
+        }
+        ui.onNodeWithTag("Jump to newest").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Fusion shared text").fetchSemanticsNodes().any {node->
+            node.config.getOrNull(SemanticsProperties.Text)?.any {it.text==heading}==true}}
+        ui.onNodeWithTag("Fusion shared text").assertTextEquals(heading)
+        ui.onNodeWithTag("Fusion context 0").assertTextEquals(intro)
+        val captured=records.map(repo.images.identities::captured)
+        assertEquals(3,collectedAttachments(captured).size)
+        runBlocking {repo.library.save(captured.first(),emptyList(),fusionRoots=captured)}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertEquals(records.map(repo::key).toSet(),saved.map(repo::key).toSet())
+        assertEquals(records.flatMap {it.media}.map {it.url}.toSet(),saved.flatMap {it.media}.map {it.url}.toSet())
+        assertEquals(listOf(intro,heading),collectedPostFusion(saved)!!.segments.map {it.text})
+        evidence("complementary-gallery-children-saved-with-all-originals")
+    }
+
     @Test fun aShortCaptionWithAnOpaqueLinkKeepsEveryDistinctAttachmentInTheNativeCard() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val caption="Workshop repairs are ready. 🛠"

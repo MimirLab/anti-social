@@ -777,14 +777,28 @@ class Repository(val context: Context) {
                 publish(status,"Updating ${follow.name}")
                 try {
                     if(!staging.acceptsMore)throw java.io.IOException("Refresh staging is full; this subscription will be checked later")
-                    val known=dao.followedPosts(listOf(follow.id)).first()
+                    // Legacy empty frontend wrappers cannot be a catch-up
+                    // frontier: no genuine timeline can reach their invented
+                    // generation date. Refill an entirely unreadable window as
+                    // an initial feed while retaining its subscription/state.
+                    val known=dao.followedPosts(listOf(follow.id)).first().filter {row->
+                        runCatching {gson.fromJson(row.payload,Post::class.java)}.getOrNull()?.let(FeedRefresh::readable)==true
+                    }
                     val newest=known.mapNotNull {it.publishedAt}.maxOrNull()
                     val cachedHead=known.filter {newest==null||it.publishedAt==newest}.take(8).map {it.key}
                     // Failed partial windows must not redefine the frontier: a
                     // retry still has to bridge the last unfinished gap.
                     feedMemory.catchUpHead(follow.id,token,cachedHead)
                     val head=feedMemory.refresh.value[follow.id]?.catchUpHead.orEmpty().toSet()
-                    val fetched=FeedCatchUp(timeoutMillis=if(prefs.tor)90_000L else 45_000L).collect(follow.target.platform,head,first={followLoader(follow)},next={followPageLoader(follow,it)})
+                    val fetched=FeedCatchUp(timeoutMillis=if(prefs.tor)90_000L else 45_000L,
+                        initialPages=when(follow.target.platform){Platform.RSS->1;Platform.FACEBOOK->5;else->3}).collect(follow.target.platform,head,
+                        first={followLoader(follow)},next={followPageLoader(follow,it)},onInitialPage={page->
+                            // Only an empty source window enters this callback.
+                            // Publish its coherent rows/memberships immediately;
+                            // slower linked accounts and bounded initial history
+                            // must not hold the first usable deck hostage.
+                            db.withTransaction {rememberAccountNames(page);storeRows(page,follow.id)}
+                        })
                     val job=currentCoroutineContext()
                     staging.write(follow.id,fetched.page,fetched.pendingReason){job.ensureActive()}
                 }catch(e: TimeoutCancellationException){

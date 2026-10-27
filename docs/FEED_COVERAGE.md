@@ -10,8 +10,24 @@ useful new posts while leaving the missing interval visibly pending.
 Generic social RSS, RSSHub/RSS-Bridge, protocol syndication backups, Mastodon
 RSS, Pixelfed Atom and Telegram RSS retain `limitedTimeline` through their
 source-specific filtering and Page reconstruction. An absent cursor cannot clear
-an unbridged interval. First subscriptions still take one window; overlapping
-heads finish without requesting unrelated history.
+an unbridged interval. Overlapping heads finish without requesting unrelated
+history.
+
+An empty native social feed publishes its first usable page, with its exact
+source memberships, before a bounded initial coverage pass. That pass admits
+up to three completed pages, or five for Facebook's small public page windows,
+inside the existing source deadline and post/storage limits. It stops sooner
+at 24 collected posts or after observing two entries more than 48 hours behind
+the newest returned post. One older pinned entry cannot alone end the pass.
+Ordinary RSS subscriptions retain their single initial window. A first page
+does not wait for other subscribed accounts to finish their network checks.
+
+This initial pass follows source-owned cursors and the existing qualified
+native-history routes. It does not search for guessed counterpart posts or
+claim complete platform coverage. A finite six-entry feed can still omit a
+counterpart which another platform exposes. Existing cached editions are not
+deleted merely because they are absent from that shorter response. Legacy
+unreadable wrappers are excluded when choosing the previous catch-up head.
 
 Sotwe's public account API also supplies a finite window: its adapter explicitly
 has no qualified older-page operation. That response now carries the same flag;

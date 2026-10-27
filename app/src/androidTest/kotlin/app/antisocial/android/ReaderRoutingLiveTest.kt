@@ -52,9 +52,12 @@ class ReaderRoutingLiveTest {
                         }}
                     }else {
                         val feed=spec["feed"]?.asBoolean ?: false
-                        val source=spec["sourceRoot"]?.asString?.let {root->repo.routes.sources.single {it.platform==platform&&it.root==root}}
+                        val source=spec["sourceRoot"]?.asString?.let {root->
+                            val pathways=PublicPathways(JsonParser.parseReader(context.assets.open("public-pathways.json").reader()).asJsonObject)
+                            (repo.routes.sources+pathways.sources(target)).distinctBy {it.key}.single {it.platform==platform&&it.root==root}
+                        }
                         val page=if(source==null)repo.pool.load(target,feed=feed,progress={row.addProperty("progress",it);save()})
-                            else FrontendAdapter(source,repo.gateway,repo.routes).let {if(feed)it.feed(target)else it.fetch(target)}
+                            else (publicFeedPathwayAdapter(source,repo.gateway,repo.routes) ?: FrontendAdapter(source,repo.gateway,repo.routes)).let {if(feed)it.feed(target)else it.fetch(target)}
                         row.add("page",gson.toJsonTree(page))
                     }
                     row.addProperty("completed",true)
