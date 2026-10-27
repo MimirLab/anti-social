@@ -53,9 +53,9 @@ object LocalBusinessDeck {
             b.related.orEmpty().filter {it.role=="brand"}.map {it.name}+listOfNotNull(legacy)).map {it.trim().take(300)}.filter {it.isNotBlank()}
             .distinctBy {LocalDiscoveryMerge.businessName(it)}.associateBy {LocalDiscoveryMerge.businessName(it)}.filterKeys(String::isNotBlank)
         val label=label(b)
-        val catalog=if(declaredIds.isEmpty()&&declaredBrands.isEmpty())KnownPlaceBrands.match(label,b.category,country,b.point)else null
+        val catalog=if(declaredIds.isEmpty())KnownPlaceBrands.match(label,b.category,country,b.point)?.takeIf {candidate->declaredBrands.keys.all {it in candidate.aliases}}else null
         val ids=declaredIds+listOfNotNull(catalog?.id)
-        val brands=declaredBrands+listOfNotNull(catalog?.let {LocalDiscoveryMerge.businessName(it.name) to it.name}).toMap()
+        val brands=listOfNotNull(catalog?.let {LocalDiscoveryMerge.businessName(it.name) to it.name}).toMap()+declaredBrands
         val boundHosts=declared.filter {it.field in setOf("website","websites")}.flatMap {LocalDiscoveryIdentity.urls(it.value)}
             .mapNotNull {it.toHttpUrlOrNull()?.host?.removePrefix("www.")}.toSet()
         val sites=b.websites.mapNotNull {raw->raw.toHttpUrlOrNull()?.host?.removePrefix("www.")?.takeIf {

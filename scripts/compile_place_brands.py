@@ -61,13 +61,20 @@ with tarfile.open(args.archive)as archive:
                 if isinstance(x,str):return re.fullmatch(r'(?:[a-z]{2}|001)',x)is not None
                 return isinstance(x,list)and len(x)in (2,3) and all(isinstance(n,(int,float))and not isinstance(n,bool)for n in x)and -180<=x[0]<=180 and -90<=x[1]<=90 and (len(x)==2 or 0<x[2]<=10000)
             if not include or not all(supported(x)for x in include+exclude):continue
-            aliases=[v for k,v in tags.items()if k=='name'or k=='brand'or k.startswith('name:')or k.startswith('brand:')and k!='brand:wikidata']+item.get('matchNames',[])
-            aliases=sorted(set(name_key(x.strip())for x in aliases if isinstance(x,str)and 3<=len(x.strip())<=150 and not any(ord(c)<32 for c in x)))
+            names=[v for k,v in tags.items()if k=='name'or k.startswith('name:')]+item.get('matchNames',[])
+            labels=[v for k,v in tags.items()if k=='brand'or k.startswith('brand:')and k!='brand:wikidata']
+            def normalized(values):return set(name_key(x.strip())for x in values if isinstance(x,str)and 3<=len(x.strip())<=150 and not any(ord(c)<32 for c in x))
+            storefronts=normalized(names)
+            aliases=sorted(storefronts|normalized(labels))
             if not aliases:continue
-            rows.append([identity,name,aliases,sorted(include,key=lambda x:json.dumps(x)),sorted(exclude,key=lambda x:json.dumps(x)),key,value])
+            display=tags.get('name')
+            if not isinstance(display,str)or not 3<=len(display.strip())<=150 or any(ord(c)<32 for c in display):display=name
+            # Keep the alias's role. A shared parent-brand label cannot make a
+            # different storefront format compete with the exact ordinary name.
+            rows.append([identity,display.strip(),aliases,sorted(include,key=lambda x:json.dumps(x)),sorted(exclude,key=lambda x:json.dumps(x)),key,value,[i for i,a in enumerate(aliases)if a in storefronts]])
     license_member=next(m for m in archive.getmembers()if m.name.count('/')==1 and m.name.endswith('/LICENSE.md'))
     license_bytes=archive.extractfile(license_member).read()
-payload={'schema':1,'source':'osmlab/name-suggestion-index','commit':PIN,'archiveSha256':SHA256,'brands':rows}
+payload={'schema':2,'source':'osmlab/name-suggestion-index','commit':PIN,'archiveSha256':SHA256,'brands':rows}
 data=(json.dumps(payload,ensure_ascii=False,separators=(',',':'))+'\n').encode()
 target=pathlib.Path('core/src/main/resources/place-brands.json');notice=pathlib.Path('licenses/name-suggestion-index.txt');runtime_notice=pathlib.Path('core/src/main/resources/place-brands-LICENSE.txt')
 if args.verify:

@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.50 chain grouping before website enrichment
+
+The reported taco-search flood exposed a generic alias-compilation defect in
+v0.38.49 (`b2489c5`). The pinned NSI data has separate ordinary and Cantina
+storefront records sharing the parent label Taco Bell. Our compiler flattened
+`name`, localized names, `matchNames` and parent-brand labels into one list.
+The exact ordinary name then appeared to have conflicting IDs, so the catalog
+correctly refused to guess from that damaged representation. A second gap skipped
+the catalog whenever a directory supplied any brand label, even without an ID.
+
+The compiler now preserves storefront/explicit matching aliases separately from
+parent labels, using compact alias indexes in the same offline resource. Lookup
+first applies the existing country, exception and category rules, then prefers an
+exact storefront alias. Two genuinely conflicting exact names remain unresolved.
+Compatible published brand labels may use the catalog; explicit IDs and conflicting
+brand declarations cannot be overridden. Canonical storefront names also keep
+qualified variants distinguishable. There are no brand-specific code branches.
+
+Changed paths are `scripts/compile_place_brands.py`, the pinned compiled
+`place-brands.json`, `KnownPlaceBrands.kt` and the reading projection in
+`LocalDiscoveryPresentation.kt`. The same 14,259 catalog rows are retained; the
+raw resource grows from 1,285,502 to 1,360,421 bytes. There is no added request,
+model, permission, dependency, background worker or database migration. Saved and
+live branch records remain separate; the change groups reading cards. Locations
+retain their names, addresses, phones, source evidence and distance order.
+The compiler reproduces the resource from the existing archive hash and preserves
+its BSD notices. [Pinned upstream records](https://github.com/osmlab/name-suggestion-index/blob/c2b5ff98903a8dce2d9c75e9b358fb3a6f8ae024/data/brands/amenity/fast_food.json)
+remain the source, rather than an app-maintained special case for one chain.
+
+Two focused JVM controls failed on unchanged production: bare ordinary branches
+and brand-labelled branches spanning official site variants. The corrected tests
+also retain distinct formats, different explicit IDs, incompatible categories,
+country exceptions and genuine same-name conflicts. `LocalBusinessDeckTest` and
+`KnownPlaceBrandsTest` verify unchanged location facts.
+
+A frozen v0.38.49 debug build failed the new native control with **25 cards
+instead of two**: 24 bare Taco Bell branches plus one independent restaurant.
+The candidate passes the same control with two cards, a visible **24 nearby
+locations** counter, unchanged addresses/phones and a stable chain key after
+brand/website details stream in. Both native viewports were inspected directly.
+The baseline debug catalog was byte-verified against the official APK. An initial
+attempt pairing debug instrumentation with the release module hit an internal
+method-name mismatch before the fixture; it is retained as an engineering
+failure, not a functional counterexample.
+
+A completed live search on the unchanged official release already grouped ten
+records named Taco Bell and two records with generic titles but explicit scoped
+brand relationships into one card after enrichment. This does not
+reproduce the reported flood at that completed stage. It demonstrates why testing
+only the final search state misses the sparse first-deck failure. Those real
+records are replayed privately to verify that qualified grouping and every field
+remain intact. The first replay assumed every member had the literal brand name
+and failed its membership assertion. The expected record IDs now come from
+reviewed name/brand/first-party source fields, independently of the grouping
+output; all membership and field-preservation assertions remain. No reader area, address, source packet or screenshot is published.
+
+The complete JVM run passed **2,446 cases, zero failures/errors and two optional
+skips (2,448 cases total)**, including the private full-record replay. Optional
+skips are the private cross-post packet and native embedding check. Broader
+business/event/menu/library native qualification passed **77 methods with zero
+failures or skips**. The signed shipping artifact repeats that selection before
+publication.
+
+The final APK/source, signer, preview-state preservation and anonymous permanent
+URL are verified separately during publication. Physical-phone performance is
+not inferred from these emulator checks. Unknown or contradictory business
+identities remain separate; this is not permission to collapse unrelated places
+merely because their names resemble one another.
+
 ## 0.38.49 independent-review correctness pass
 
 Reviewed on 2026-10-27 against **315e896 (v0.38.48)**, rather than assuming the

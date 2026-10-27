@@ -114,4 +114,14 @@ class LocalBusinessDeckTest {
         assertTrue(rows.all {b->b.evidence.any {it.field=="brand"&&it.value=="Cobalt Burger"}})
         assertEquals("Cobalt Burger",LocalBusinessDeck.groups(rows).single().title)
     }
+    @Test fun aScopedCatalogCanQualifyCompatibleDeclaredBrandsAcrossOfficialSiteVariants() {
+        val origin=LocalPoint(40.0,-100.0)
+        val rows=(1..12).map {n->LocalBusiness("taco-declared-$n","Taco Bell",category="restaurant",address="$n Example St",point=LocalPoint(40+n*.001,-100.0),
+            websites=listOf(if(n%2==0)"https://locations.tacobell.com/branch$n"else "https://www.tacobell.com/branch$n"),phones=listOf("+1202555${n.toString().padStart(4,'0')}"),evidence=listOf(claim("brand","Taco Bell")))}
+        val groups=LocalBusinessDeck.groupsForArea(rows,origin,"US")
+        assertEquals(1,groups.size);assertEquals(rows,groups.single().locations)
+        assertEquals(2,LocalBusinessDeck.groupsForArea(rows.take(1)+rows[1].copy(evidence=listOf(claim("brand id","Q12345678902"),claim("brand","Taco Bell"))),origin,"US").size)
+        assertEquals(2,LocalBusinessDeck.groupsForArea(rows.take(1)+rows[1].copy(evidence=listOf(claim("brand","Unrelated Tacos"))),origin,"US").size)
+    }
+
 }

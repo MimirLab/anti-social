@@ -54,6 +54,17 @@ Published brand-location downloads have one separate slot, so they cannot hold t
 light contact-search slot. Late initial discoveries trigger another bounded pass;
 there is no unbounded rescan or background subscription.
 
+### Exact storefront aliases and parent brands (0.38.50)
+
+The offline brand index retains the distinction between a storefront name and a
+shared parent-brand label. Geographic/category admission happens before choosing
+an exact storefront alias; genuine competing exact names remain ambiguous.
+Compatible scoped brand labels can use this hint even when the directory omits
+the brand ID. Explicit conflicting IDs are preserved. This prevents known chains
+from flooding the first deck while website enrichment is still pending, without
+combining branch facts or issuing additional requests. See the
+[qualification and source record](RELEASE_QUALIFICATION.md#03850-chain-grouping-before-website-enrichment).
+
 ### Sparse records and established chains (0.38.41)
 
 Many name-directory results contain only a name, address and coordinates. They

@@ -31,4 +31,31 @@ class KnownPlaceBrandsTest {
         assertEquals(1,groups.size);assertEquals(rows,groups.single().locations)
         assertTrue(rows.all {it.evidence.isEmpty()&&it.websites.isEmpty()})
     }
+    @Test fun specificStorefrontNamesDisambiguateSharedParentBrandLabels() {
+        val point=LocalPoint(40.0,-100.0)
+        assertEquals("Q752941",KnownPlaceBrands.match("Taco Bell","restaurant","US",point)?.id)
+        assertEquals("Q111972226",KnownPlaceBrands.match("Taco Bell Cantina","restaurant","US",point)?.id)
+        val rows=(1..24).map {n->LocalBusiness("taco-$n","Taco Bell",category="mexican restaurant",address="$n Example St",point=LocalPoint(40+n*.001,-100.0))}
+        val groups=LocalBusinessDeck.groupsForArea(rows,point,"US")
+        assertEquals(1,groups.size);assertEquals(rows,groups.single().locations)
+        val variants=rows.take(2).map {it.copy(id="cantina-"+it.id,name="Taco Bell Cantina")}
+        val formats=LocalBusinessDeck.groupsForArea(rows+variants,point,"US")
+        assertEquals(setOf("Taco Bell","Taco Bell Cantina"),formats.map {it.title}.toSet())
+        assertEquals((rows+variants).toSet(),formats.flatMap {it.locations}.toSet())
+    }
+
+    @Test fun storefrontSpecificityPreservesScopeAndGenuineIdentityConflicts() {
+        val rows="""["Q12345678901","Aster Bowl",["aster bowl"],["us"],[],"amenity","fast_food",[0]],["Q12345678902","Aster Bowl Express",["aster bowl","aster bowl express"],["us","ca"],[],"amenity","fast_food",[1]]"""
+        val index=PlaceBrandIndex("""{"schema":2,"brands":[$rows]}""")
+        val point=LocalPoint(40.0,-100.0)
+        assertEquals("Q12345678901",index.match("Aster Bowl","restaurant","us",point)?.id)
+        assertEquals("Q12345678902",index.match("Aster Bowl Express","restaurant","us",point)?.id)
+        assertEquals("Q12345678902",index.match("Aster Bowl","restaurant","ca",point)?.id)
+        assertNull(index.match("Aster Bowl","hardware store","us",point))
+        assertNull(index.match("Aster Bowl","restaurant","fr",point))
+        assertNull(index.match("Aster Bowl Extra","restaurant","us",point))
+        val conflicting=PlaceBrandIndex("""{"schema":2,"brands":[$rows,["Q12345678903","Aster Bowl",["aster bowl"],["us"],[],"amenity","fast_food",[0]]]}""")
+        assertNull(conflicting.match("Aster Bowl","restaurant","us",point))
+    }
+
 }

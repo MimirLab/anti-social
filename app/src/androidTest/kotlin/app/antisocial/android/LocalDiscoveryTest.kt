@@ -699,6 +699,36 @@ class LocalDiscoveryTest {
         ui.onNodeWithText("24 nearby locations").assertIsDisplayed();evidence("bare-known-chain-first-deck")
     }
 
+
+    @Test fun tacosShareOneChainCardBeforeAndAfterBrandDetailsStreamIn() {
+        val region=firstDeckArea.copy(point=LocalPoint(40.0,-100.0),countryCode="US")
+        val branches=(1..24).map {n->place.copy(id="fixture-taco-chain-$n",name="Taco Bell",category="mexican restaurant",address="$n Example St",locality=region.name,
+            point=LocalPoint(40+n*.001,-100.0),websites=emptyList(),socials=emptyList(),evidence=emptyList(),keywords=emptyList(),related=null,
+            phones=listOf("+1202555${n.toString().padStart(4,'0')}"),sourceIds=listOf("fixture-taco-chain-$n"))}
+        val independent=branches.first().copy(id="fixture-independent-tacos",name="Marigold Tacos",address="100 Side St",sourceIds=listOf("fixture-independent-tacos"))
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true));model.localSearch.area(region);model.localSearch.text("taco")}
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=branches+independent),region)}
+        show();ui.waitUntil(15_000){model.localSearch.state.value.businesses.size==25}
+        var groups=model.localSearch.state.value.groups
+        ui.onNodeWithTag("Local discovery results").performScrollToIndex(1)
+        evidence("taco-chain-first-deck")
+        assertEquals(2,groups.size)
+        val original=groups.single {it.title=="Taco Bell"}.id
+        assertEquals(branches.map {it.id}.toSet(),groups.single {it.title=="Taco Bell"}.locations.map {it.id}.toSet())
+        ui.onNodeWithText("24 nearby locations").assertIsDisplayed()
+        val enriched=branches.mapIndexed {i,b->val site=if(i%2==0)"https://locations.tacobell.com/branch$i"else "https://www.tacobell.com/branch$i"
+            b.copy(websites=listOf(site),evidence=listOf(LocalDiscoveryIdentity.evidence("brand","Taco Bell",site,200,LocalEvidenceKind.DIRECTORY)))}
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=enriched),region)}
+        ui.waitUntil(15_000){model.localSearch.state.value.businesses.count {it.websites.isNotEmpty()}==24}
+        groups=model.localSearch.state.value.groups
+        assertEquals(2,groups.size)
+        val chain=groups.single {it.title=="Taco Bell"}
+        assertEquals(original,chain.id);assertEquals(branches.map {it.phones}.toSet(),chain.locations.map {it.phones}.toSet())
+        assertEquals(branches.map {it.address},chain.locations.map {it.address})
+        assertEquals(independent.id,groups.single {it.title==independent.name}.primary.id)
+        ui.onNodeWithText("24 nearby locations").assertIsDisplayed();evidence("taco-chain-streamed-details")
+    }
+
     @Test fun sparsePlaceRowsJoinAnEstablishedChainAsWebsiteEvidenceStreamsIn() {
         ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(validEmpty=true))}
         fun location(n:Int,site:Boolean)=place.copy(id="fixture-sparse-chain-$n",name="Cobalt Burger",category=if(site)"restaurant"else "",address="${n+100} Sample St",point=LocalPoint(area.point.latitude+n*.001,area.point.longitude),

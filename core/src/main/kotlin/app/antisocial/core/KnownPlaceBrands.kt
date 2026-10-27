@@ -8,15 +8,17 @@ import com.google.gson.JsonParser
 /** Offline lookup hints for reading groups. Never modifies a location record,
  * supplies business facts or proves control of a website/social account. */
 internal class PlaceBrandIndex(text:String) {
-    data class Brand(val id:String,val name:String,val aliases:List<String>,val include:List<JsonElement>,val exclude:List<JsonElement>,val key:String,val value:String)
+    data class Brand(val id:String,val name:String,val aliases:List<String>,val include:List<JsonElement>,val exclude:List<JsonElement>,val key:String,val value:String,val storefronts:Set<String>)
     private val byName:Map<String,List<Brand>>
     init {
         require(text.length<=2*1024*1024)
-        val data=JsonParser.parseString(text).asJsonObject;require(data["schema"].asInt==1)
+        val data=JsonParser.parseString(text).asJsonObject;val schema=data["schema"].asInt;require(schema in 1..2)
         val rows=data.getAsJsonArray("brands");require(rows.size()<=20000)
-        val brands=rows.map {raw->val row=raw.asJsonArray;require(row.size()==7)
+        val brands=rows.map {raw->val row=raw.asJsonArray;require(row.size()==if(schema==1)7 else 8)
+            val aliases=row[2].asJsonArray.map {it.asString}
             Brand(row[0].asString.also {require(it.matches(Regex("Q[1-9][0-9]{0,18}")))},row[1].asString,
-                row[2].asJsonArray.map {it.asString},row[3].asJsonArray.toList(),row[4].asJsonArray.toList(),row[5].asString,row[6].asString)}
+                aliases,row[3].asJsonArray.toList(),row[4].asJsonArray.toList(),row[5].asString,row[6].asString,
+                if(schema==1)emptySet()else row[7].asJsonArray.map {aliases[it.asInt]}.toSet())}
         byName=buildMap<String,MutableList<Brand>> {brands.forEach {b->b.aliases.distinct().filter {it.length>=3}.forEach {getOrPut(it){mutableListOf()}.add(b)}}}
     }
     private fun scope(value:JsonElement,country:String?,point:LocalPoint?):Boolean? {
@@ -29,7 +31,8 @@ internal class PlaceBrandIndex(text:String) {
     }
     private val food=setOf("restaurant","fast_food","cafe","bar","pub","ice_cream","food_court")
     fun match(name:String,category:String,country:String?,point:LocalPoint?):Brand? {
-        val candidates=byName[LocalDiscoveryMerge.businessName(name)].orEmpty()
+        val alias=LocalDiscoveryMerge.businessName(name)
+        val candidates=byName[alias].orEmpty()
         if(candidates.isEmpty())return null
         val classification=SearchText.normalized(LocalBusinessContact.category(category))
         val concepts=if(classification.isBlank())emptyList()else PlaceSearchVocabulary.parse(classification).concepts
@@ -38,8 +41,11 @@ internal class PlaceBrandIndex(text:String) {
             b.include.any {scope(it,country,point)==true}&&b.exclude.all {scope(it,country,point)==false}&&
                 (classification.isBlank()||classification==SearchText.normalized(b.value.replace('_',' '))||b.key=="amenity"&&b.value in food&&PlaceCategoryFamilies.food(classification,concepts)||tags.any {it[b.key]==b.value})
         }
-        if(matches.map {it.id}.distinct().size!=1)return null
-        return matches.firstOrNull()
+        // Prefer an actual published storefront name to a shared parent label,
+        // after geographic/category admission. Genuine competing names stay unknown.
+        val specific=matches.filter {alias in it.storefronts}.ifEmpty {matches}
+        if(specific.map {it.id}.distinct().size!=1)return null
+        return specific.firstOrNull()
     }
 }
 
