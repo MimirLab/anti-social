@@ -13,7 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -37,6 +37,9 @@ import kotlin.math.sin
  */
 @RunWith(AndroidJUnit4::class)
 class FusionFeedTest {
+    // Queue recomposition on the controlled UI clock, as in production. The
+    // legacy unconfined rule can resume a recomposer on an IO/Default publisher
+    // when a saved-copy or image observation arrives during a frame.
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
     private val suffix=System.nanoTime().toString().takeLast(10)

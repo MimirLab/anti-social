@@ -12,6 +12,23 @@ class PostPresentationTest {
     private val cleaner=UrlCleaner(asset("clean-links.json"))
     private val routes=DarwinRoutes(asset("darwin-routes.json"),cleaner)
     private val source=routes.sources.first {it.frontend=="nitter"}
+    @Test fun aGeneratedRepostHeadingExpandsItsShortenedWwwLabelWithoutRepeatingTheProse() {
+        val link="https://www.archive.example/updates/2026/complete-workshop-notes"
+        val body="$caption Read archive.example/updates/2…"
+        val value=post.copy(author="@WorkshopCrew",title="RT by @Fixture: $caption Read $link",body=body,provenance=Provenance(source,1,source.root+"/Fixture/rss"))
+        val shown=PostPresentation.text(value)
+        assertEquals("",shown.title);assertEquals("$caption Read $link",shown.body);assertEquals("Reposted by @Fixture",shown.attribution)
+        assertEquals(body,value.body)
+        val extra=value.copy(body=body+" Additional access notes: https://access.example/entrance")
+        assertEquals("$caption Read $link Additional access notes: https://access.example/entrance",PostPresentation.text(extra).body)
+    }
+    @Test fun aSchemeLessFeedLabelCanRetainItsSuppliedHttpDestinationButCannotRewriteAnExplicitScheme() {
+        val link="http://archive.example/Updates?mode=New#Latest"
+        val value=post.copy(author="@WorkshopCrew",title="RT by @Fixture: $caption Read $link",body="$caption Read archive.example/Updates?mode=New#Latest",provenance=Provenance(source,1,source.root+"/Fixture/rss"))
+        assertEquals("",PostPresentation.text(value).title);assertEquals("$caption Read $link",PostPresentation.text(value).body)
+        for(body in listOf("$caption Read https://archive.example/Updates?mode=New#Latest","$caption Read archive.example/Updates?mode=Other#Latest","$caption Read archive.example/Updates?mode=New#Other"))
+            assertEquals(value.title,PostPresentation.text(value.copy(body=body)).title)
+    }
 
     @Test fun whiteHouseRssRepostKeepsAttributionWithoutRepeatingTheOriginalAuthorsCaption() {
         val body="ONE OF THE LARGEST INVESTMENTS IN UTAH HISTORY 🚨 Texas Instruments is building an $11 billion semiconductor wafer fabrication plant in Lehi, creating jobs and reshoring production. President Trump’s America First policies are fueling our industrial insurgence as companies are incentivized to invest and build on U.S. soil."

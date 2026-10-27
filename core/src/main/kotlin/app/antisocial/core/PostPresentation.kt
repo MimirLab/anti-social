@@ -82,7 +82,9 @@ object PostPresentation {
                 (heading.trimEnd('"','\'','’','”').lastOrNull() in listOf('.','!','?')||heading==repostCaption)
             return heading.isNotEmpty()&&(heading==body||truncatedEcho||fullPrefix)
         }
-        val shortenedEcho=repost!=null&&post.provenance?.source?.frontend=="nitter"&&shortenedRssEcho(repost.groupValues[2],presentedBody)
+        val expanded=if(repost!=null&&nitter)expandedRssBody(repost.groupValues[2],presentedBody)else null
+        val shortenedEcho=expanded!=null
+        if(expanded!=null)presentedBody=expanded
         val bridgeTitleEcho=sourceBody!=post.body&&captionWords.findAll(title).count()>=3&&body.startsWith("$title ")
         val redundant=headings.any(::echo)||shortenedEcho||bridgeTitleEcho
         val attribution=if(repost!=null&&repostCaption!=null&&(echo(repostCaption)||shortenedEcho))"Reposted by ${repost.groupValues[1]}"else null
@@ -100,23 +102,34 @@ object PostPresentation {
 
     /** A Nitter RSS heading has full destinations where its caption has shortened
      * labels. Compare every destination in order before omitting that heading. */
-    private fun shortenedRssEcho(heading:String,body:String):Boolean {
+    private fun expandedRssBody(heading:String,body:String):String? {
         val full=visibleUrl.findAll(heading).toList()
         val labels=visibleUrl.findAll(body).toList()
-        if(full.isEmpty()||full.size>PostLinks.MAX_LINKS||labels.size<full.size)return false
+        if(full.isEmpty()||full.size>PostLinks.MAX_LINKS||labels.size<full.size)return null
         if(!full.zip(labels).all {(a,b)->
-            val original=runCatching {URI(if(a.value.startsWith("https://"))a.value else "https://"+a.value)}.getOrNull()
-            val label=runCatching {URI(if(b.value.startsWith("https://"))b.value else "https://"+b.value)}.getOrNull()
-            if(original==null||label==null)false else {
+            fun explicit(value:String)=value.startsWith("https://",true)||value.startsWith("http://",true)
+            val original=runCatching {URI(if(explicit(a.value))a.value else "https://"+a.value)}.getOrNull()
+            val label=runCatching {URI(if(explicit(b.value))b.value else "https://"+b.value)}.getOrNull()
+            if(original?.host==null||label?.host==null||original.userInfo!=null||label.userInfo!=null||original.port!=label.port||
+                explicit(b.value)&&original.scheme!=label.scheme)false else {
                 val path=label.rawPath.orEmpty()
                 val shortened=path.endsWith("…")||path.endsWith("...")
-                val sameHost=original.host.equals(label.host,true)||original.host in setOf("x.com","twitter.com")&&label.host.orEmpty().startsWith("nitter.")
-                sameHost&&if(shortened)original.rawPath.orEmpty().startsWith(path.removeSuffix("…").removeSuffix("..."))else original.rawPath==path
+                val sameHost=original.host.equals(label.host,true)||!explicit(b.value)&&original.host.removePrefix("www.").equals(label.host.removePrefix("www."),true)||
+                    original.host in setOf("x.com","twitter.com")&&label.host.orEmpty().startsWith("nitter.")
+                sameHost&&if(shortened)label.rawQuery==null&&label.rawFragment==null&&original.rawPath.orEmpty().startsWith(path.removeSuffix("…").removeSuffix("..."))
+                    else original.rawPath==path&&original.rawQuery==label.rawQuery&&original.rawFragment==label.rawFragment
             }
-        })return false
+        })return null
         fun caption(text:String)=TextWhitespace.collapse(visibleUrl.replace(text," LINK ")).trim().lowercase(Locale.ROOT)
         val first=caption(heading);val second=caption(body)
-        return second==first||second.startsWith(first+" ")
+        if(second!=first&&!second.startsWith(first+" "))return null
+        // Use only URLs actually supplied in the generated heading. Preserve
+        // the body's exact prose and any additional material after that echo.
+        return buildString {
+            var end=0
+            full.zip(labels).forEach {(original,label)->append(body.substring(end,label.range.first));append(original.value);end=label.range.last+1}
+            append(body.substring(end))
+        }
     }
 
     /** Whole-presentation identity for rendering already-grouped editions. Keep
