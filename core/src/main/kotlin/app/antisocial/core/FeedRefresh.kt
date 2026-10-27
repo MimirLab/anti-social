@@ -3,6 +3,9 @@ package app.antisocial.core
 
 /** A reachable source is not evidence that a subscription was checked successfully. */
 object FeedRefresh {
+    fun exhausted(page:Page,platform:Platform)=page.historyExhausted==true&&!page.limitedTimeline&&page.next.isNullOrBlank()&&page.continuationIssue.isNullOrBlank()&&page.provenance?.let {p->
+        p.source.platform==platform&&!p.cached&&p.source.role!=SourceRole.CACHE&&p.source.frontend !in PublicSearchAdapter.frontends
+    }==true
     private val generatedHeading=Regex("^Post by @?([^:]{1,100}):\\s*(.*)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     /** Keep empty frontend wrappers out of the reader without deleting source
      * records or changing explicitly saved copies. Older Kittygram Atom entries

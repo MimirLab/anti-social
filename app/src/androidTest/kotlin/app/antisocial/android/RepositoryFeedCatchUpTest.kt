@@ -180,6 +180,19 @@ class RepositoryFeedCatchUpTest {
             assertEquals(FollowRefreshStatus.SUCCESS,repo.feedMemory.refresh.value[follow.id]?.status)
         }finally {release.complete(page(listOf(older)));refresh.cancelAndJoin()}
     }
+    @Test fun anAmbiguousCursorlessPageKeepsItsPreviousGapRetryable()=runBlocking {
+        val previous=post(0);val recent=post(3);repo.store(page(listOf(previous)),follow.id,true)
+        val earlier=repo.feedMemory.begin(listOf(follow.id));repo.feedMemory.success(follow.id,earlier,now-60000)
+        var attempts=0;repo.followLoader={attempts++;page(listOf(recent))};repo.followPageLoader={_,_->error("A cursor must not be invented")}
+        repeat(2) {
+            repo.refresh(personId=person)
+            assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[follow.id]?.status)
+            assertEquals(now-60000,repo.feedMemory.refresh.value[follow.id]?.lastSuccessAt)
+            assertEquals(listOf(repo.key(previous)),repo.feedMemory.refresh.value[follow.id]?.catchUpHead)
+            assertNotNull(repo.dao.post(repo.key(recent)))
+        }
+        assertEquals(2,attempts)
+    }
     @Test fun aRepeatedCursorPublishesAvailablePostsButKeepsThatGenerationPending()=runBlocking {
         val known=post(0);val newer=listOf(post(1),post(2));repo.store(page(listOf(known)),follow.id,true)
         val earlier=repo.feedMemory.begin(listOf(follow.id));repo.feedMemory.success(follow.id,earlier,now-60_000)
@@ -277,7 +290,10 @@ class RepositoryFeedCatchUpTest {
         val known=post(0);val newer=post(1);repo.store(page(listOf(known)),follow.id,true)
         val other=Follow("$person:slow",follow.target.copy(identity="slow$suffix",canonicalUrl="https://x.com/slow$suffix"),"Slow source",personId=person)
         repo.dao.putFollow(FollowRow(other.id,other.target.platform.id,repo.gson.toJson(other)))
-        repo.feedMemory.syncFollows(listOf(follow.id,other.id))
+        // Let the actual Room observer admit both sources before seeding its
+        // prior success; an earlier queued one-source snapshot must not race
+        // this fixture's manual ledger initialization.
+        awaitStage("both fixture sources are observed"){repo.feedMemory.refresh.value.keys.containsAll(listOf(follow.id,other.id))}
         val previous=repo.feedMemory.begin(listOf(other.id));repo.feedMemory.success(other.id,previous,now-60_000)
         val waiting=CompletableDeferred<Unit>()
         repo.followLoader={source->if(source.id==follow.id)page(listOf(newer,known))else {waiting.complete(Unit);awaitCancellation()}}

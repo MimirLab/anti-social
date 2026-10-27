@@ -5,6 +5,26 @@ import kotlin.test.*
 
 class LocalEventIntentTest {
     private fun event(title:String,age:String="",description:String="",price:String="")=LocalEvent("e",title,LocalEventTime("2026-10-24",allDay=true),age=age,description=description,price=price)
+    @Test fun compoundSubjectsAndMinusExclusionsSurviveRetrievalAndAdmission() {
+        val intent=LocalEventIntent.parse("rocket launches -cancelled")
+        assertTrue(intent.match(event("Spaceflight demonstration")).matches)
+        assertFalse(intent.match(event("Cancelled spaceflight demonstration")).matches)
+        assertFalse(intent.match(event("Rocket sculpture exhibition")).matches)
+        assertFalse(intent.match(event("Launch of a new software product")).matches)
+        val area=LocalArea("fixture","Example City","Example City, Test Region",LocalPoint(10.0,20.0),25,"UTC",countryCode="ZZ")
+        val queries=LocalBusinessRouting.queries(LocalDiscoveryQuery(area,"rocket launches -cancelled",LocalSearchMode.EVENTS))
+        assertTrue(queries.all {"-cancelled" in it})
+        assertTrue(queries.any {"spaceflight" in it})
+        assertTrue(LocalEventIntent.parse("\"rocket launch\" -cancelled").match(event("Rocket launch viewing")).matches)
+        assertFalse(LocalEventIntent.parse("\"rocket launch\" -cancelled").match(event("Spaceflight viewing")).matches)
+        assertFalse(LocalEventIntent.parse("rocket launch -\"private viewing\"").match(event("Spaceflight private viewing")).matches)
+        assertFalse(LocalEventIntent.parse("rocket launch without \"private viewing\"").match(event("Spaceflight private viewing")).matches)
+        assertTrue(LocalEventIntent.parse("rocket launch without \"private viewing\"").match(event("Spaceflight public viewing")).matches)
+        assertTrue(LocalEventIntent.parse("ice cream class").match(event("Gelato workshop")).matches)
+        assertFalse(LocalEventIntent.parse("ice cream class").match(event("Class for ice sculptors with cream teas")).matches)
+        assertTrue(LocalEventIntent.parse("\"James's workshop\"").match(event("James's workshop")).matches)
+        assertFalse(LocalEventIntent.parse("\"James's workshop\"").match(event("James workshop")).matches)
+    }
     @Test fun readerLanguageMatchesBroaderFamilyNatureWalkWithoutInventingAge() {
         val intent=LocalEventIntent.parse("something outdoors for toddlers this weekend")
         assertTrue(intent.family);assertEquals(LocalEventWindow.WEEKEND,intent.window)

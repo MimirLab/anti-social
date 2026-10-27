@@ -77,7 +77,10 @@ data class Page(val posts: List<Post>, val next: String? = null, val profile: Pr
     val continuationSource:Source?=null,
     /** A locally validated checkpoint advanced, but supplied no new cards.
      * This is navigation progress, never evidence of working new content. */
-    val continuationProgress:Boolean=false)
+    val continuationProgress:Boolean=false,
+    /** A recognized chronological protocol explicitly reports its terminal
+     * page. Missing cursors and generic extraction never supply this proof. */
+    val historyExhausted:Boolean?=null)
 data class ProbeResult(val source: Source, val capability: Capability, val status: HealthStatus, val latencyMs: Long, val checkedAt: Long, val tor: Boolean, val detail: String = "",val retryAfterMs: Long?=null)
 data class Follow(val id: String, val target: Target, val name: String, val group: String = "", val enabled: Boolean = true, val feedUrl: String? = null, val personId: String? = null, val personName: String? = null)
 data class CacheEntry(val key: String, val bytes: Long, val createdAt: Long, val lastViewedAt: Long?, val saved: Boolean, val active: Boolean = false)

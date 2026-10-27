@@ -7,7 +7,17 @@ data class LocalEventMatch(val matches:Boolean,val unknowns:List<String> = empty
 data class LocalEventIntent(val topics:List<String>,val audience:String?=null,val outdoors:Boolean=false,
     val free:Boolean=false,val exclusions:List<String> = emptyList(),val window:LocalEventWindow?=null,val phrases:List<SearchClause> = emptyList()) {
     val family:Boolean get()=audience in setOf("baby","toddler","preschool","children","teen")
-    val discoveryText:String get()=(topics+phrases.map {(if(it.excluded)"-"else "")+"\""+it.words.joinToString(" ")+"\""}+listOfNotNull(if(family)"children"else audience,if(outdoors)"outdoors"else null,if(free)"free"else null)).joinToString(" ")
+    private val subjectPlans by lazy {SearchMeaning.variants(SearchIntent.parse(topics.joinToString(" "),conversational=false))}
+    private val routingConstraints get()=phrases.map {(if(it.excluded)"-"else "")+"\""+it.words.joinToString(" ")+"\""}+listOfNotNull(if(family)"children"else audience,if(outdoors)"outdoors"else null,if(free)"free"else null)+exclusions.map {"-$it"}
+    val discoveryText:String get()=(topics+routingConstraints).joinToString(" ")
+    /** One complete alternate path; operators and quoted phrases stay intact. */
+    val discoveryAlternative:String? get() {
+        if(topics.isEmpty())return null
+        val negatives=SearchIntent("",phrases.filter {it.excluded}+exclusions.map {SearchClause(listOf(it),excluded=true)})
+        val alternative=subjectPlans.drop(1).map {path->path.clauses.joinToString(" "){c->if(c.quoted||c.words.size>1)"\""+c.words.joinToString(" ")+"\""else c.words.joinToString(" ")}}
+            .firstOrNull {negatives.matches(it)} ?: return null
+        return (listOf(alternative)+routingConstraints).joinToString(" ")
+    }
     fun publisherAffinity(business:LocalBusiness):Int {
         val category=LocalDiscoveryIdentity.name(business.category)
         return when {
@@ -23,7 +33,10 @@ data class LocalEventIntent(val topics:List<String>,val audience:String?=null,va
         if(phrases.any {!SearchIntent("",listOf(it)).matches(content)})return LocalEventMatch(false)
         val text=LocalDiscoveryIdentity.name(content);val words=LocalDiscoveryIdentity.words(text).toSet()
         if(exclusions.any {it in words||it.removeSuffix("s") in words||(it+"s") in words})return LocalEventMatch(false)
-        if(topics.any {!topic(it,words)})return LocalEventMatch(false)
+        if(topics.isNotEmpty()&&!subjectPlans.any {path->path.clauses.all {clause->
+            if(clause.quoted||clause.protected||clause.words.size>1)SearchIntent("",listOf(clause)).matches(content)
+            else topic(clause.words.single(),words)
+        }})return LocalEventMatch(false)
         val unknown=mutableListOf<String>();val reasons=mutableListOf<String>()
         if(audience!=null) {
             val range=ageRange(if(age.isNotBlank())age else content,age.isNotBlank())
@@ -53,11 +66,18 @@ data class LocalEventIntent(val topics:List<String>,val audience:String?=null,va
         private val groups=listOf(setOf("nature","wildlife","birdwatching","ecology","environment"),setOf("walk","walks","walking","hike","hikes","hiking"),setOf("art","arts","craft","crafts","crafting"),setOf("music","concert","concerts","gig","gigs"),setOf("workshop","workshops","class","classes","lesson","lessons","training"),setOf("repair","repairs","fix","fixing"))
         private fun topic(term:String,words:Set<String>)=(groups.firstOrNull {term in it} ?: setOf(term,term+"s")).any {it in words}||LocalDiscoveryFilter.matches(term,words.joinToString(" "))
         fun parse(value:String):LocalEventIntent {
-            val phrases=SearchIntent.parse(value,conversational=false).clauses.filter {it.quoted}
-            val unquoted=value.replace(Regex("[\"“][^\"”]+[\"”]")," ")
-            val words=LocalDiscoveryIdentity.words(LocalDiscoveryFilter.normalizedQuery(unquoted.replace(Regex("['’]s\\b"),"")))
+            val clauses=SearchIntent.parse(value,conversational=false).clauses
+            val phrases=mutableListOf<SearchClause>()
             val negative=mutableListOf<String>();val positive=mutableListOf<String>();var exclude=false
-            words.forEach {word->when {word in setOf("not","without","exclude","excluding","except","no")->exclude=true;word=="but"->exclude=false;exclude&&word !in filler->negative+=word;!exclude->positive+=word}}
+            clauses.forEach {clause->
+                if(clause.quoted)phrases+=clause.copy(excluded=clause.excluded||exclude)
+                else LocalDiscoveryIdentity.words(LocalDiscoveryFilter.normalizedQuery(clause.words.joinToString(" "))).forEach {word->when {
+                    !clause.excluded&&word in setOf("not","without","exclude","excluding","except","no")->exclude=true
+                    !clause.excluded&&word=="but"->exclude=false
+                    (clause.excluded||exclude)&&word !in filler->negative+=word
+                    !clause.excluded&&!exclude->positive+=word
+                }}
+            }
             val audience=positive.firstNotNullOfOrNull {audiences[it]}
             return LocalEventIntent(positive.filterNot {it in filler||it in audiences||it in setOf("outdoor","outdoors","outside","free")}.distinct().take(12),audience,
                 positive.any {it in setOf("outdoor","outdoors","outside")},"free" in positive,negative.distinct().take(8),when {

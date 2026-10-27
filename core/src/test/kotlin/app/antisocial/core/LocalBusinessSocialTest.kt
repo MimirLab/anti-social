@@ -11,6 +11,43 @@ class LocalBusinessSocialTest {
     private val owner=LocalBusiness("coffee","Example Coffee",category="Cafe",address="2112A Example Rd, Sampleton",locality="Sampleton",phones=listOf("2025550101"),socials=listOf("https://www.facebook.com/examplecoffee"))
     private fun profile(body:String,links:List<String> = emptyList())=Profile(routes.recognize(owner.socials.single())!!,"Example Coffee",body,links=links,displayNameSupplied=true)
 
+    @Test fun aCityMentionDoesNotAssignCorporateHoursToEitherLocalBranch() {
+        val corporate=profile("Serving Sampleton\nHours: Daily 9am - 5pm",listOf("https://examplecoffee.test/locations"))
+        val branches=listOf(owner.copy(hours="Monday 6am - 2pm"),owner.copy(id="other-branch",address="900 Other Road, Sampleton",hours="Monday 10am - 8pm"))
+        branches.forEach {branch->
+            val result=LocalBusinessSocial.profile(branch,corporate,routes,at).businesses.single()
+            assertEquals(branch.hours,result.hours);assertEquals(branch.socials,result.socials)
+            assertTrue(result.evidence.none {it.field=="hours"})
+            assertTrue(result.description.isBlank());assertTrue(result.evidence.any {it.field=="account description"&&it.value.contains("9am")})
+            assertFalse(LocalBusinessSocial.branch(branch,corporate))
+        }
+        val local=corporate.copy(description="2112A Example Road, Sampleton\nHours: Monday 7am - 3pm")
+        assertEquals("Hours: Monday 7am - 3pm",LocalBusinessSocial.profile(branches[0],local,routes,at).businesses.single().hours)
+        assertEquals(branches[1].hours,LocalBusinessSocial.profile(branches[1],local,routes,at).businesses.single().hours)
+        branches.forEach {branch->
+            val shared=LocalBusinessSocial.profile(branch,local,routes,at,shared=true).businesses.single()
+            assertEquals(branch.hours,shared.hours);assertEquals(branch.socials,shared.socials)
+        }
+    }
+    @Test fun aSharedBuildingOrAnotherPublishedAddressCannotStandInForTheBranch() {
+        val first=owner.copy(address="12 Main Street, Unit A, Sampleton",phones=emptyList(),hours="Monday 6am - 2pm")
+        val second=first.copy(id="second-unit",address="12 Main Street, Unit B, Sampleton",hours="Monday 10am - 8pm")
+        val local=profile("12 Main Street, Unit A, Sampleton\nHours: Monday 7am - 3pm")
+        assertEquals("Hours: Monday 7am - 3pm",LocalBusinessSocial.profile(first,local,routes,at).businesses.single().hours)
+        val repeated=local.copy(description="12 Main Street, Sampleton\n12 Main Street, Unit A, Sampleton\nHours: Monday 7am - 3pm")
+        assertEquals("Hours: Monday 7am - 3pm",LocalBusinessSocial.profile(first,repeated,routes,at).businesses.single().hours)
+        val multiline=local.copy(description="12 Main Street\nUnit A\nSampleton\nHours: Monday 7am - 3pm")
+        assertEquals("Hours: Monday 7am - 3pm",LocalBusinessSocial.profile(first,multiline,routes,at).businesses.single().hours)
+        assertEquals(second.hours,LocalBusinessSocial.profile(second,multiline,routes,at).businesses.single().hours)
+        assertEquals(second.hours,LocalBusinessSocial.profile(second,local,routes,at).businesses.single().hours)
+        val building=local.copy(description="12 Main Street, Sampleton\nHours: Monday 7am - 3pm")
+        for(branch in listOf(first,second))assertEquals(branch.hours,LocalBusinessSocial.profile(branch,building,routes,at).businesses.single().hours)
+        val multiple=local.copy(description="12 Main Street, Unit A, Sampleton\n12 Main Street, Unit B, Sampleton\nHours: Monday 7am - 3pm")
+        for(branch in listOf(first,second))assertEquals(branch.hours,LocalBusinessSocial.profile(branch,multiple,routes,at).businesses.single().hours)
+        val conflicting=profile("900 Other Road, Sampleton\nPhone: 2025550101\nHours: Daily 9am - 5pm")
+        assertFalse(LocalBusinessSocial.branch(owner,conflicting))
+    }
+
     @Test fun taggedAccountsKeepNumericFacebookAndNormalizeOnlyExplicitPlatformHandles() {
         assertEquals(listOf("https://www.facebook.com/123456789"),LocalBusinessSocial.accounts("facebook","123456789"))
         assertEquals(listOf("https://www.instagram.com/example"),LocalBusinessSocial.accounts("instagram","@example"))

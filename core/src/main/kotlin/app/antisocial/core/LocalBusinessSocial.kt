@@ -61,6 +61,32 @@ object LocalBusinessSocial {
     private val phone=Regex("(?<![\\p{L}\\d])\\+?\\d[\\d() .-]{7,25}\\d(?![\\p{L}\\d])")
     private val email=Regex("[A-Za-z0-9.!#$%&'*+/=_`{|}~-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,63}")
     private val hours=Regex("(?i)^(?:(?:opening|business|store|cafe|coffeehouse|roastery)\\s+)?hours\\s*[:：]\\s*(.{3,400})$|^(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|daily|every day)\\b.{2,400}$",RegexOption.IGNORE_CASE)
+    private val branchUnit=Regex("(?<![\\p{L}\\p{N}])(?:suite\\b|ste\\b|unit\\b|#)\\s*([a-z0-9-]+)",RegexOption.IGNORE_CASE)
+    /** Published ownership and a city name do not identify one branch. */
+    fun branch(b:LocalBusiness,profile:Profile,shared:Boolean=false):Boolean {
+        val body=LocalDocumentWashing.lines(profile.description,8000)
+        val phones=phone.findAll(body).mapNotNull {LocalBusinessContact.phone(it.value)}.toList()
+        return branch(b,profile,body,phones,shared)
+    }
+    private fun branch(b:LocalBusiness,profile:Profile,body:String,phones:List<String>,shared:Boolean):Boolean {
+        if(shared||!LocalBusinessOwnership.sameBrand(b.name,profile.name))return false
+        val phoneMatches=phones.any {p->b.phones.any {LocalBusinessContact.phoneKey(it)==LocalBusinessContact.phoneKey(p)}}
+        if(phones.isNotEmpty()&&b.phones.isNotEmpty()&&!phoneMatches)return false
+        val locality=LocalDiscoveryIdentity.name(b.locality)
+        val location=locality.isNotBlank()&&(" "+LocalDiscoveryIdentity.name(profile.name+" "+body+" "+profile.target.identity)+" ").contains(" $locality ")
+        val street=LocalDiscoveryMerge.street(b.address)
+        val unit=branchUnit.find(b.address)?.groupValues?.get(1)?.lowercase(java.util.Locale.ROOT)
+        val lines=body.lines()
+        val addresses=lines.mapIndexedNotNull {index,line->LocalDiscoveryMerge.street(line)?.let {road->
+            val adjacent=lines.getOrNull(index+1)?.trim()?.trimEnd(',')?.let {branchUnit.matchEntire(it)}?.groupValues?.get(1)
+            road to (branchUnit.find(line)?.groupValues?.get(1) ?: adjacent)?.lowercase(java.util.Locale.ROOT)
+        }}.distinct()
+        // This extractor cannot assign one global hours block among several
+        // published branches, or let a shared call centre overrule an address.
+        val streets=addresses.map {it.first}.distinct();val units=addresses.mapNotNull {it.second}.distinct()
+        if(streets.size>1||units.size>1||street!=null&&streets.any {it!=street}||unit!=null&&units.any {it!=unit})return false
+        return phoneMatches||location&&street!=null&&streets.singleOrNull()==street&&(unit==null||units.singleOrNull()==unit)
+    }
     /** Only an already attached, identity-matched profile may contribute. A
      * shared brand account cannot supply branch-specific phones/hours/menus. */
     fun profile(b:LocalBusiness,profile:Profile,routes:DarwinRoutes,at:Long,shared:Boolean=false):LocalExtraction {
@@ -71,18 +97,15 @@ object LocalBusinessSocial {
         val body=LocalDocumentWashing.lines(profile.description,8000)
         val phones=phone.findAll(body).mapNotNull {LocalBusinessContact.phone(it.value)}.distinctBy(LocalBusinessContact::phoneKey).take(4).toList()
         val nameMatches=LocalBusinessOwnership.sameBrand(b.name,profile.name)
-        val locality=LocalDiscoveryIdentity.name(b.locality)
-        val location=nameMatches&&locality.isNotBlank()&&(" "+LocalDiscoveryIdentity.name(profile.name+" "+body+" "+profile.target.identity)+" ").contains(" $locality ")
-        val phoneMatches=phones.any {p->b.phones.any {LocalBusinessContact.phoneKey(it)==LocalBusinessContact.phoneKey(p)}}
-        val phoneConflict=phones.isNotEmpty()&&b.phones.isNotEmpty()&&!phoneMatches
-        val branch=!shared&&nameMatches&&!phoneConflict&&(location||phoneMatches)
+        val branch=branch(b,profile,body,phones,shared)
         if(!attached&&!(nameMatches&&branch))return LocalExtraction(businesses=listOf(b),validEmpty=true)
         val supplied=(profile.links.orEmpty()+Subscriptions.urls(profile.description.take(8000))).mapNotNull {LocalDiscoveryIdentity.url(it)}.distinct().take(24)
         val linked=AccountLinkage.profiles(supplied,routes,AccountLinkKind.PROFILE,profile.target.canonicalUrl,at,"Published business profile").map {it.target.canonicalUrl}
         val website=supplied.filter {SocialLinkHosts.platform(it)==null}
         val fields=mutableListOf<LocalFieldEvidence>()
         fun add(field:String,value:String){if(value.isNotBlank())fields+=LocalDiscoveryIdentity.evidence(field,value,profile.target.canonicalUrl,at,if(branch)LocalEvidenceKind.PUBLISHER else LocalEvidenceKind.PUBLIC_POST)}
-        val description=if(nameMatches&&b.description.isBlank())LocalDocumentWashing.text(profile.description,2000)else b.description
+        val description=if(branch&&b.description.isBlank())LocalDocumentWashing.text(profile.description,2000)else b.description
+        if(nameMatches&&!branch)add("account description",LocalDocumentWashing.text(profile.description,2000))
         if(description!=b.description)add("description",description)
         val ownAccounts=if(!attached)listOf(profile.target.canonicalUrl)else emptyList()
         if(ownAccounts.isNotEmpty())add("business accounts",ownAccounts.joinToString(" · "))

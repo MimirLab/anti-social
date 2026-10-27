@@ -43,6 +43,10 @@ class FeedCatchUp(private val maxPages: Int=8,private val maxPosts: Int=300,priv
                     if(id in retained){if(!recovering)retained[id]=post}
                     else if(retained.size<maxPosts)retained[id]=post else truncated=true
                 }
+                val exhausted=FeedRefresh.exhausted(page,platform)
+                // An explicit terminal continuation can be empty. An empty
+                // head, cached page or unrecognized shell remains pending.
+                if(exhausted&&page.posts.isEmpty()&&pages>1&&retained.isNotEmpty()){problem=null;break}
                 val invalid=FeedRefresh.pendingReason(page,platform)
                 if(invalid!=null){val replacement=recover(invalid);if(replacement!=null){page=replacement;continue};break}
                 if(knownHead.isEmpty()&&pages==1)onInitialPage(page.copy(posts=readable))
@@ -60,11 +64,11 @@ class FeedCatchUp(private val maxPages: Int=8,private val maxPosts: Int=300,priv
                 if(initial&&(pages>=initialPages||retained.size>=minOf(initialPosts,maxPosts)||oldEntries>=2)||!initial&&readable.any {key(it) in knownHead}){problem=null;break}
                 val cursor=page.next?.takeIf(String::isNotBlank)
                 if(cursor==null) {
-                    if(page.limitedTimeline||recovering) {
-                        val replacement=recover("This source's limited public window could not reach the previous reading window; this subscription is still pending.")
+                    if(!exhausted) {
+                        val replacement=recover("This source did not establish the end of its history or reach the previous reading window; this subscription is still pending.")
                         if(replacement!=null){page=replacement;continue}
                     }
-                    if(initial)problem=null // a finite public window is not an unbridged old head
+                    if(initial||exhausted)problem=null // an initial window has no old gap to bridge
                     break
                 }
                 if(!cursors.add(page.provenance?.source?.key.orEmpty()+"\n"+cursor)) {

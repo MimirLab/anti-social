@@ -22,7 +22,8 @@ object LocalBusinessRouting {
         val area=query.area.label.replace(Regex(",?\\s*United States(?: of America)?$",RegexOption.IGNORE_CASE),"").trim()
         val topic=(if(query.mode==LocalSearchMode.EVENTS)LocalDiscoveryFilter.eventQuery(query.text)else LocalDiscoveryFilter.normalizedQuery(query.text)).ifBlank {if(query.mode==LocalSearchMode.EVENTS)"community"else "local businesses"}
         if(query.mode==LocalSearchMode.BUSINESSES&&SearchIntent.parse(query.text).clauses.any {it.quoted})return listOf("${query.text.trim()} $area","${query.text.trim()} $area website address contact").map {it.take(512)}
-        return if(query.mode==LocalSearchMode.EVENTS)listOf("$topic $area events ${query.dates().first} calendar",LocalOpportunityRouting.focus(query)?.let {"$area $it"} ?: "$topic $area public calendar")
+        return if(query.mode==LocalSearchMode.EVENTS)listOf("$topic $area events ${query.dates().first} calendar",
+            LocalEventIntent.parse(query.text).discoveryAlternative?.let {"$it $area public calendar"} ?: LocalOpportunityRouting.focus(query)?.let {"$topic $area $it"} ?: "$topic $area public calendar")
         else when(topic) {
             "taco"->listOf("tacos $area","Mexican restaurants $area menus")
             "burger"->listOf("burgers $area","burger restaurants $area")

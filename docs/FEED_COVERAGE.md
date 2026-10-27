@@ -13,6 +13,14 @@ source-specific filtering and Page reconstruction. An absent cursor cannot clear
 an unbridged interval. Overlapping heads finish without requesting unrelated
 history.
 
+Warm catch-up also requires explicit terminal evidence when a generic/native
+page lacks a cursor. `Page.historyExhausted` is supplied only by qualified
+terminal readers: a complete selected Reddit Listing, a source-owned Nitter
+end footer or the feed-level RFC 5005 declaration below. Unknown empty pages,
+invalid rows, cache/index fallbacks and generic HTML cannot close an old gap.
+A qualified empty continuation can end a nonempty traversal. See the
+[0.38.49 controls](RELEASE_QUALIFICATION.md#03849-independent-review-correctness-pass).
+
 An empty native social feed publishes its first usable page, with its exact
 source memberships, before a bounded initial coverage pass. That pass admits
 up to three completed pages, or five for Facebook's small public page windows,

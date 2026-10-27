@@ -104,5 +104,23 @@ class LocalDiscoveryStoreTest {
         assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
         checks=0;store.offerSources(area,listOf(source)){++checks<2}
         assertTrue(store.sources(area).isEmpty());assertEquals(saved,payloads("copies"))
+        val outcome=LocalRouteYield(checkedAt=now,nextAt=now+60000)
+        checks=0;store.sourceResult(area,source,outcome){++checks<2}
+        assertTrue(store.sources(area).isEmpty());assertNull(store.cache(LocalBusinessEnrichment.key(source)))
+        assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
+        store.sourceResult(area,source,outcome){true}
+        assertEquals(source,store.sources(area).single());assertNotNull(store.cache(LocalBusinessEnrichment.key(source)))
+        assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
+        val account=source.copy(url="https://publisher.fixture.invalid/profile")
+        checks=0;store.sourceResult(area,account,projectionKey="fixture-profile-projection"){++checks<2}
+        assertNull(store.cache("fixture-profile-projection"));assertEquals(listOf(source),store.sources(area))
+        store.sourceResult(area,account,projectionKey="fixture-profile-projection"){true}
+        assertEquals("read",store.cache("fixture-profile-projection"));assertTrue(account in store.sources(area))
+        assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
+        checks=0;store.cache("fixture-query-completed","ok",60000){++checks<2}
+        assertNull(store.cache("fixture-query-completed"))
+        store.cache("fixture-query-completed","ok",60000){true}
+        assertEquals("ok",store.cache("fixture-query-completed"))
+        assertEquals(saved,payloads("copies"));assertEquals(revision,store.revision.value)
     }
 }

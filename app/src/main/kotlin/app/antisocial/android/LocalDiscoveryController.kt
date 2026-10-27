@@ -137,12 +137,10 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
             val known=business ?: return LocalExtraction(sources=profile?.links.orEmpty().mapNotNull {LocalDiscoveryIdentity.url(it)}.take(4).map {LocalPublisherSource(it,label=profile?.name.orEmpty())})
             if((known.socials+known.related.orEmpty().filter {it.role=="linked account"}.flatMap {it.accounts}).none {url->repo.routes.recognize(url)?.let {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}==true})throw SourceFailure(HealthStatus.UNSUPPORTED,"This account is not identified as the business account")
             val at=System.currentTimeMillis()
-            val description=LocalDocumentWashing.text(profile?.description.orEmpty())
             val posts=if(query.mode==LocalSearchMode.EVENTS)page.posts.take(20).filter(LocalAnnouncements::likely)else emptyList()
-            val location=LocalDiscoveryIdentity.name(known.locality)
             val sharedBranch=repo.localDiscovery.businesses(query.area).any {peer->!LocalDiscoveryMerge.sameBusiness(peer,known)&&peer.socials.any {url->
                 repo.routes.recognize(url)?.let {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}==true}}
-            val publisherLocationVerified=!sharedBranch&&location.isNotBlank()&&LocalDiscoveryIdentity.name(profile?.name.orEmpty()+" "+description+" "+target.identity).contains(location)
+            val publisherLocationVerified=profile?.let {LocalBusinessSocial.branch(known,it,sharedBranch)}==true
             val announcements=posts.map {LocalAnnouncements.extract(it,known,query.area,at,publisherLocationVerified=publisherLocationVerified)}
             val social=profile?.let {LocalBusinessSocial.profile(known,it,repo.routes,at,sharedBranch)} ?: LocalExtraction(businesses=listOf(known),validEmpty=true)
             return social.copy(events=announcements.flatMap {it.events},announcements=announcements.flatMap {it.announcements},
@@ -195,7 +193,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
     val state=MutableStateFlow(LocalDiscoveryState(areas=initialAreas,area=initialAreas.firstOrNull {it.id==repo.prefs.localArea} ?: initialAreas.firstOrNull(),unit=repo.prefs.localDistanceUnit))
     private var request:Job?=null;private var lookup:Job?=null;@Volatile private var generation=0
     private var menuRequest:Job?=null
-    private var menuGeneration=0
+    @Volatile private var menuGeneration=0
     private val readAdmission=LocalDiscoveryReadAdmission()
     private val accountPermits=Semaphore(2)
     private val enrichmentPermits=Semaphore(1)
@@ -238,6 +236,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
         val area=state.value.area ?: return
         if(menuRequest?.isActive==true&&state.value.menuLoading==value.id)return
         stopMenu();val bound=generation;val menuBound=menuGeneration
+        fun current()=bound==generation&&menuBound==menuGeneration
         menuRequest=scope.launch {
             val activity=repo.cardWork.begin(listOf(businessWorkKey(value.id)),"Menu")
             state.update {it.copy(menuLoading=value.id)}
@@ -257,16 +256,15 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         val before=System.currentTimeMillis()
                         val data=withTimeout(14_000){backend.read(source,LocalDiscoveryQuery(area),owner)}
                         if(data.businesses.isEmpty()&&data.sources.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"No readable menu was supplied")
-                        currentCoroutineContext().ensureActive();if(bound!=generation)return@withContext
-                        store.ingest(data,area)
+                        currentCoroutineContext().ensureActive();if(!current())return@withContext
+                        store.ingest(data,area,::current)
                         val observed=LocalBusinessEnrichment.observe(old,data,System.currentTimeMillis()-before,System.currentTimeMillis())
-                        store.cache(LocalBusinessEnrichment.key(source),gson.toJson(observed),14L*86400000)
-                        store.source(area,source.copy(checkedAt=observed.checkedAt,nextCheckAt=observed.nextAt))
+                        store.sourceResult(area,source.copy(checkedAt=observed.checkedAt,nextCheckAt=observed.nextAt),observed,admit=::current)
                         publish()
                         if(data.businesses.flatMap {it.menus.orEmpty()}.any {m->m.title!="Menu highlights"&&(m.items.isNotEmpty()||m.text.isNotBlank())&&(m.sourceUrl==source.url||m.checkedAt>=before)})return@withContext
-                    }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();store.cache(LocalBusinessEnrichment.key(source),gson.toJson(LocalBusinessEnrichment.failed(old,System.currentTimeMillis())),14L*86400000)}
+                    }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();store.sourceResult(area,source,LocalBusinessEnrichment.failed(old,System.currentTimeMillis()),saveHint=false,admit=::current)}
                     catch(e:CancellationException){throw e}
-                    catch(_:Exception){store.cache(LocalBusinessEnrichment.key(source),gson.toJson(LocalBusinessEnrichment.failed(old,System.currentTimeMillis())),14L*86400000)}
+                    catch(_:Exception){store.sourceResult(area,source,LocalBusinessEnrichment.failed(old,System.currentTimeMillis()),saveHint=false,admit=::current)}
                 }
             }}}catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive()}
             catch(e:CancellationException){throw e}
@@ -382,7 +380,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                             if(query.mode==LocalSearchMode.BUSINESSES)sources+=LocalMenuRouting.known(owner)
                             sources+=LocalBusinessSocial.sources(owner).take(if(query.mode==LocalSearchMode.EVENTS)1 else 2)
                         }
-                        store.offerSources(area,sources)
+                        store.offerSources(area,sources,::current)
                     }
                     suspend fun checkAccounts()=coroutineScope {
                         val accountOwners=relevant().take(12)
@@ -404,7 +402,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                 if(social!=null&&!visited.add(url))return@withPermit
                                 fun unavailable(ttl:Long) {
                                     store.cache(key,"unavailable",ttl)
-                                    social?.let {store.source(area,it.copy(nextCheckAt=System.currentTimeMillis()+ttl,failures=1))}
+                                    social?.let {store.sourceResult(area,it.copy(nextCheckAt=System.currentTimeMillis()+ttl,failures=1),admit=::current)}
                                 }
                                 try {
                                     val usable=withTimeout(16_000) {
@@ -413,8 +411,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                             val data=backend.read(source,query,owner)
                                             ingest(data);data.sources.forEach {currentSources.add(it.url)}
                                             val at=System.currentTimeMillis()
-                                            store.source(area,source.copy(checkedAt=at,nextCheckAt=at+6*3600000))
-                                            store.cache(projectionKey,"read",6*3600000)
+                                            store.sourceResult(area,source.copy(checkedAt=at,nextCheckAt=at+6*3600000),projectionKey=projectionKey,admit=::current)
                                             true
                                         }
                                     }
@@ -473,11 +470,10 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                     // can be read in this same bounded request.
                                     data.sources.forEach {currentSources.add(it.url)}
                                     val observed=LocalBusinessEnrichment.observe(previous,data,System.currentTimeMillis()-before,System.currentTimeMillis(),calendar=query.mode==LocalSearchMode.EVENTS)
-                                    store.cache(LocalBusinessEnrichment.key(source),gson.toJson(observed),14L*86400000)
-                                    store.source(area,source.copy(checkedAt=observed.checkedAt,nextCheckAt=observed.nextAt,failures=0,window=LocalCalendarPlatforms.window(source,query)))
-                                }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.cache(LocalBusinessEnrichment.key(source),gson.toJson(failed),14L*86400000);store.source(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures));throw SourceFailure(HealthStatus.UNAVAILABLE,"This source timed out")}
+                                    store.sourceResult(area,source.copy(checkedAt=observed.checkedAt,nextCheckAt=observed.nextAt,failures=0,window=LocalCalendarPlatforms.window(source,query)),observed,admit=::current)
+                                }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.sourceResult(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures),failed,admit=::current);throw SourceFailure(HealthStatus.UNAVAILABLE,"This source timed out")}
                                 catch(e:CancellationException){throw e}
-                                catch(e:Exception){val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.cache(LocalBusinessEnrichment.key(source),gson.toJson(failed),14L*86400000);store.source(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures));throw e}
+                                catch(e:Exception){val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.sourceResult(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures),failed,admit=::current);throw e}
                                 finally {val read=reads.incrementAndGet();if(current())state.update {it.copy(checked=read)}}
                             }
                         }}}}.joinAll()}
@@ -485,12 +481,12 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                     suspend fun overtureAt(point:LocalPoint)=lane("Overture business links") {
                         val key="overture:${kotlin.math.round(point.latitude*1000)},${kotlin.math.round(point.longitude*1000)}"
                         if(identityChecks.size<3&&identityChecks.add(key)&&(force||store.cache(key)==null)) {
-                            val data=withTimeout(35_000){backend.identities(point)};ingest(data);store.cache(key,"ok",if(data.businesses.isEmpty())6*3600000 else 14L*86400000)
+                            val data=withTimeout(35_000){backend.identities(point)};ingest(data);store.cache(key,"ok",if(data.businesses.isEmpty())6*3600000 else 14L*86400000,::current)
                             queueRelevant();readSources(3)
                         }
                     }
                     queueRelevant()
-                    LocalOpportunityRouting.seeds(query).forEach {source->store.offerSource(area,source);currentSources.add(source.url)}
+                    store.offerSources(area,LocalOpportunityRouting.seeds(query).onEach {currentSources.add(it.url)},::current)
                     coroutineScope {
                       launch {try {coroutineScope {
                         launch {readSources(3)}
@@ -498,7 +494,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         if(!more&&query.text.length>=2)launch {lane("Public name search") {
                             val key="photon:v2:"+LocalDiscoveryIdentity.hash(area.cacheKey+LocalDiscoveryFilter.normalizedQuery(query.text))
                             if(force||store.cache(key)==null) {
-                                val data=withTimeout(18_000){backend.places(query)};ingest(data);store.cache(key,"ok",6*3600000)
+                                val data=withTimeout(18_000){backend.places(query)};ingest(data);store.cache(key,"ok",6*3600000,::current)
                                 // A precise result supplies a geographic bridge to
                                 // Overture's websites/socials outside the city centre.
                                 coroutineScope {relevant().mapNotNull {it.point}.take(2).map {point->launch {overtureAt(point)}}.joinAll()}
@@ -507,7 +503,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                         if(!more)launch {lane("Place directory") {
                             val version=if(snapshot.mode==LocalSearchMode.EVENTS)4 else 6
                             val key="directory:v$version:${area.cacheKey}:${snapshot.mode==LocalSearchMode.EVENTS}:${LocalDiscoveryIdentity.hash(PlaceSearchVocabulary.parse(query.text).fingerprint)}"
-                            if(force||store.cache(key)==null){ingest(withTimeout(50_000){backend.directory(query)});store.cache(key,"ok",86400000)}
+                            if(force||store.cache(key)==null){ingest(withTimeout(50_000){backend.directory(query)});store.cache(key,"ok",86400000,::current)}
                             queueRelevant();readSources(3)
                         }}
                         if(!more)launch {lane("Publisher search") {
@@ -524,7 +520,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                     val source=LocalPublisherSource(url,if(target!=null)LocalSourceKind.SOCIAL else LocalCalendarPlatforms.kind(url) ?: LocalSourceKind.WEB,label=hit.title)
                                     if(LocalOpportunityRouting.allowed(source,query))offered+=source
                                 }
-                                store.offerSources(area,offered)
+                                store.offerSources(area,offered,::current)
                                 while(current()) {
                                     val before=attempts.get()
                                     readSources(6)
@@ -581,7 +577,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                       val associated=owner.websites.any {it.toHttpUrlOrNull()?.host==host&&!LocalBusinessOwnership.directoryLink(owner,it)}
                                       currentSources.add(url)
                                       detailSources.add(url)
-                                      store.offerSource(area,LocalPublisherSource(url,if(repo.routes.recognize(url)!=null)LocalSourceKind.SOCIAL else LocalSourceKind.WEB,owner.id.takeIf {associated},hit.title))
+                                      store.offerSources(area,listOf(LocalPublisherSource(url,if(repo.routes.recognize(url)!=null)LocalSourceKind.SOCIAL else LocalSourceKind.WEB,owner.id.takeIf {associated},hit.title)),::current)
                                     }
                                     readSources(3,deep=true)
                                   }

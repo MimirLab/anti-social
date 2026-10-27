@@ -9,6 +9,141 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.49 independent-review correctness pass
+
+Reviewed on 2026-10-27 against **315e896 (v0.38.48)**, rather than assuming the
+packet's older v0.38.38 findings still applied. The fixes and regression sources
+are identified by the immutable **v0.38.49** source tag. This is a targeted pass:
+no model, permission, production dependency, database migration, additional
+crawler or speculative public endpoint was introduced. Darwin remains the routing
+donor. Saved records, source provenance and source-owned continuation remain intact.
+
+| Finding | Disposition | Evidence and correction |
+| --- | --- | --- |
+| 1. False historical completion | **CONFIRMED AND FIXED** | Generic dated HTML with no continuation previously cleared an absent retained head. `FeedCompletionTest` reproduces this before correction. `Page.historyExhausted`, `FeedRefresh.exhausted`, `FeedCatchUp` and the qualified readers now require explicit terminal evidence or actual overlap with the previous head. |
+| 2. Stale publisher hints | **CONFIRMED AND FIXED** | A native controller callback blocked behind the store monitor committed an obsolete hint on unchanged v0.38.48. All query-owned source offers now carry admission; source outcomes and menu writes also check their generation at the database boundary. |
+| 3. Event compounds and exclusions | **CONFIRMED AND FIXED** | `rocket launches -cancelled` failed compound-alternative admission; minus operators were lost. `LocalEventIntent` now carries bounded whole-subject paths, quoted phrases and exclusions into both publisher queries and final admission. |
+| 4. Corporate facts assigned to a branch | **CONFIRMED AND FIXED** | City-only corporate descriptions could supply local hours. `LocalBusinessSocial.branch` requires matching branch evidence; a second reproduced control separates units in one building. Shared corporate relationships remain available. |
+| 5. Physical-device performance matrix | **QUALIFICATION INCOMPLETE** | Only API 29/API 35 emulators were attached. No controlled physical-phone end-to-end median/p95, sustained CPU, memory or battery matrix was collected. Emulator tests and owner phone feedback do not establish those figures. |
+| 6. Independent endpoint resilience | **QUALIFICATION INCOMPLETE** | Bounded failure/stall controls passed and the one configured 4get endpoint returned useful links through Android Gateway/Tor. Production routing already had the necessary budgets and per-source isolation. A single independently hosted endpoint still does not establish a redundant live inventory. |
+
+### Historical coverage
+
+Changed sources: `core/.../Models.kt`, `FeedRefresh.kt`, `FeedCatchUp.kt`,
+`Extraction.kt`, `RssSources.kt`; native persistence coverage is in
+`RepositoryFeedCatchUpTest`. Unknown terminal state is nullable and omitted from
+ordinary serialized Pages; absence of a cursor is not positive evidence. Generic
+pages, empty heads, unknown empty responses, failed/limited/cached/index-backed
+responses and unsupported terminal claims leave an old gap retryable. Useful
+new rows remain readable and the previous successful frontier is retained.
+
+The qualified terminal readers recognize a selected Reddit Listing's explicit
+`after:null`, an exact source-owned Nitter `No more items` footer, or the existing
+RSS/Atom feed-level RFC 5005 complete declaration. Dropped or malformed rows, and undated social timeline
+rows, cannot authorize completion. RSS retains its existing readable undated
+entries; a complete declaration describes the logical feed's supplied entries. Nitter's `Load newest` is not an older-page
+cursor; wrong-account paths, unrelated filters and duplicate cursor parameters
+cannot certify that account's end. An empty qualified terminal continuation may
+finish after a nonempty page; an empty first response may not. Initial bounded
+subscription coverage has no previous gap and retains its existing behavior.
+
+These are format declarations, not proof of all material ever published on a
+website. See the [Nitter renderer](https://github.com/zedeus/nitter/blob/master/src/views/timeline.nim),
+[Reddit listings](https://www.reddit.com/dev/api/#listings) and
+[RFC 5005](https://www.rfc-editor.org/rfc/rfc5005.html).
+`FeedCompletionTest` covers generic retry, explicit/absent Listing ends, empty
+terminal continuation, invalid rows and complete/ordinary/wrong-namespace RSS.
+The RSS compatibility control failed on the intermediate fix before being repaired.
+
+### Generation boundaries
+
+Changed sources: `app/.../LocalDiscoveryController.kt`, `LocalDiscoveryStore.kt`.
+The two reported `offerSources` calls were unguarded. The audit also found
+query-owned seed/refinement offers, account-projection receipts, route-yield
+updates, ingestion-completion receipts and menu ingestion that
+needed the same boundary. They now check admission after taking the existing
+store monitor and before transaction commit. Hint and scheduling observations
+commit together, without invoking factual reconciliation. Menu admission binds
+both query and menu generations, including visibility across worker threads.
+Public response bodies and account-reachability caches retain their reusable
+source/query keys; a receipt claiming facts were projected or ingested is
+generation-owned. Explicit imports remain independent of a search generation.
+
+`LocalDiscoveryTest.queryChangeRejectsPublisherHintsAlreadyWaitingForTheStore`
+reproduces the blocked obsolete callback and verifies a current callback still
+commits. `closingAMenuRejectsFactsAlreadyWaitingForTheStore` revokes only the menu
+generation. `LocalDiscoveryStoreTest.aRevokedBatchRollsBackFactsAndPublisherHintsBeforeCommit`
+checks rollback of facts, hints and route-yield observations, unchanged saved
+payloads and factual revisions. No global serialization or delivery delay was added.
+
+### Meaning and branch attribution
+
+Changed sources: `core/.../LocalEventIntent.kt`, `LocalBusinessRouting.kt`,
+`LocalBusinessSocial.kt`, plus the controller's announcement-location check.
+Event search still issues two publisher queries. One useful whole-subject alias
+may occupy the second branch; audience-only synonyms cannot displace its existing
+targeted publisher route. Exclusions and quoted phrases accompany both branches.
+Search plans are memoized per immutable intent. Regressions cover spaceflight,
+compound morphology, minus/quoted exclusions, quoted possessives and unrelated
+near-matches. A native Events search renders the useful alternative while
+rejecting the cancelled and unrelated records.
+
+Branch evidence requires the matching brand plus a known phone or matching street
+and locality; conflicting phones, streets or units reject attribution. An
+address-only match for a known unit must identify that unit. One global hours
+block cannot be assigned among several published addresses. Unqualified account
+descriptions remain sourced account evidence, rather than becoming branch facts.
+The same qualifier governs whether an announcement may borrow the branch location.
+Controls include two branches with different hours, city-only corporate text,
+matching branch addresses, conflicting/shared profiles, same-building units,
+and repeated or multiline valid addresses. This reproduced defect was in the
+profile pathway; it does not imply every existing website extractor was defective.
+
+### Qualification scope and retained failures
+
+The final JVM selection contains **2,442 passes, zero failures/errors and three optional
+skips (2,445 cases)**. Optional skips are the
+private business packet, private cross-post packet and pinned native embedding
+check. The isolated API 35 native debug selection passed **211 methods, zero failures
+and one optional mixed-network live-Tor skip (212 methods total)**. Native scope covers feed coverage/catch-up,
+streaming/reading locks, collection/save/media preservation, subscriptions,
+discovery/menu/announcement flows, library migration and search privacy. Actual
+native screens were inspected, including first-card delivery, streamed social
+business details and compound-event results; synthetic fixtures disclose no
+reader location or private state.
+
+Retained failures matter: the initial focused JVM run failed four cases on the
+unchanged baseline; the native stale-hint race also failed before correction.
+The first full candidate JVM run failed two existing controls: serializing a
+false completion flag changed a Page quota, and an audience-only alias displaced
+a targeted query. Nullable unknown state and subject-only alternates repaired
+those regressions. A subsequent same-building branch control exposed the unit
+ambiguity and failed before its correction. The broader native candidate had
+208 passes, three failures and one optional skip: one old fixture expected hours
+from city-only evidence; another sampled its revision before legitimate work
+reached the barrier; a cancellation fixture seeded a follow before its Room
+observer admitted it. Their preconditions were repaired while retaining the
+assertions. An earlier focused native current-offer control required overriding
+the streaming callback, rather than only its delegated nonstream counterpart.
+An added RSS control initially assumed undated RSS entries were unsupported;
+the existing RSS policy deliberately retains them. Its malformed-row control
+now checks a dropped empty item without changing that date policy. These failed
+runs are retained as failed, not counted as passes.
+
+`LocalWebDiscoveryRoutingTest` adds failed/stalled prioritized-4get controls:
+an eligible alternate still delivers within existing hedging/attempt/concurrency
+budgets, cancellation does not train a source outage, and a 503 does not poison
+its peer or trigger speculative HTML retries. Existing selected-provider and Tor
+controls remain in the full suite. No production routing change was needed for
+this finding. A separate opt-in native check returned ten publisher links from
+`4get.canine.tools` in 2.023 seconds after Tor readiness. That single index
+operation is not a complete-deck benchmark or a p95. An initial engineering command
+quoting error ran zero methods and is not counted as a provider failure or pass.
+
+Source/tag, signed shipping artifact, protected preview-state promotion and
+permanent-download integrity are qualified separately during publication. Private
+logs, fixtures, backups and screen captures remain outside the public checkout.
+
 ## 0.38.48 cold-source coverage and complete gallery roots
 
 Qualified on 2026-10-27. The owner's immediate phone feedback after 0.38.47

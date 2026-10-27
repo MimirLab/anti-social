@@ -63,7 +63,7 @@ object Extraction {
             else -> html(body,target,provenance,routes,publicSearchQuery,publicSearchEntitiesOnly)
         }
         val indexContinuation=target.kind==TargetKind.SEARCH&&actual.frontend in PublicSearchAdapter.frontends&&page.next!=null
-        if(!indexContinuation&&page.posts.isEmpty() && page.collections.none {!it.navigation} && page.accounts.isEmpty() && (page.profile==null||target.kind !in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)))throw SourceFailure(HealthStatus.EMPTY,"The source returned no recognizable content")
+        if(!indexContinuation&&!FeedRefresh.exhausted(page.copy(provenance=provenance),target.platform)&&page.posts.isEmpty() && page.collections.none {!it.navigation} && page.accounts.isEmpty() && (page.profile==null||target.kind !in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)))throw SourceFailure(HealthStatus.EMPTY,"The source returned no recognizable content")
         val labeled=PlatformAiLabels.attach(page.posts,payload,target,provenance)
         return page.copy(provenance=provenance,profile=page.profile?.let {it.copy(links=(it.links.orEmpty()+Subscriptions.urls(it.description)).filter(Subscriptions::publicHttps).distinct().take(24))},posts=labeled.map {post->
             val inText=if(post.platform==Platform.X&&!post.links.isNullOrEmpty())emptyList()else Regex("https://[^\\s<>]+",RegexOption.IGNORE_CASE).findAll(post.body).map {it.value.trimEnd('.',',',')',']','}','>',';','\"')}.toList()
@@ -338,7 +338,11 @@ object Extraction {
             o.entrySet().forEach { (_,child)->if(child.isJsonArray || child.isJsonObject)walk(child,depth+1) }
         }
         walk(value)
-        return Page(StructuredAiMetadata.mergeExactPosts(posts).map {post->post.copy(parentId=identities[post.parentId] ?: post.parentId)},next,profile,accounts=accounts)
+        val listing=value.takeIf {it.isJsonObject}?.asJsonObject?.takeIf {text(it,"kind")=="Listing"}?.get("data")?.takeIf {it.isJsonObject}?.asJsonObject
+        val end=target.platform==Platform.REDDIT&&provenance.source.frontend in setOf("original","redlib","libreddit","teddit")&&target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)&&
+            listing?.get("children")?.isJsonArray==true&&listing.has("after")&&listing["after"].isJsonNull&&next==null&&
+            listing["children"].asJsonArray.size()==posts.size&&FeedRefresh.posts(Page(posts,provenance=provenance),target.platform).size==posts.size
+        return Page(StructuredAiMetadata.mergeExactPosts(posts).map {post->post.copy(parentId=identities[post.parentId] ?: post.parentId)},next,profile,accounts=accounts,historyExhausted=end.takeIf {it})
     }
     fun html(body: String, target: Target, provenance: Provenance, routes: DarwinRoutes,publicSearchQuery: String?=null,publicSearchEntitiesOnly: Boolean=false): Page {
         HtmlAdmission.check(body)
@@ -441,7 +445,7 @@ object Extraction {
             val current=DarwinRoutes.queryValue(URI(provenance.finalUrl),"pn")?.toIntOrNull() ?: 1
             d.select(".paginator a[href]").mapNotNull {node->val url=node.absUrl("href");val number=runCatching {DarwinRoutes.queryValue(URI(url),"pn")?.toIntOrNull()}.getOrNull();if(number==current+1)url else null}.firstOrNull()
         }else null
-        val nextSelector=if(sourceFrontend(provenance)=="nitter"&&target.kind==TargetKind.POST)".replies .show-more a"else ".show-more a,a[rel=next],a.next,a.next-page,a[accesskey=N],.pagination a.next,a.next-button,.pagination-container a,a.button.is-success[href*=cursor]:not([disabled])"
+        val nextSelector=if(sourceFrontend(provenance)=="nitter")if(target.kind==TargetKind.POST)".replies .show-more a"else ".show-more:not(.timeline-item) a"else ".show-more a,a[rel=next],a.next,a.next-page,a[accesskey=N],.pagination a.next,a.next-button,.pagination-container a,a.button.is-success[href*=cursor]:not([disabled])"
         val next=(d.selectFirst(nextSelector)?.absUrl("href") ?: numericNext)?.takeIf { it.startsWith("https://") }
         val collections=if(target.platform==Platform.PINTEREST)d.select(".boards-grid > a[href]").mapNotNull {node->
             val link=safe(node.attr("href"),provenance.finalUrl) ?: return@mapNotNull null
@@ -467,7 +471,15 @@ object Extraction {
                 Profile(selected,node.selectFirst(".search_subreddit_name")!!.text(),node.selectFirst(".search_subreddit_description")?.text().orEmpty(),node.selectFirst(".search_subreddit_left img[src]")?.attr("src")?.let {safe(it,provenance.finalUrl)})
             }.distinctBy {PublicSearchAdapter.entityKey(it.target)}.take(30)
         }else emptyList()
-        return Page(StructuredAiMetadata.mergeExactPosts(posts),next,profile?.let {it.copy(links=(it.links.orEmpty()+Subscriptions.profileLinks(body,provenance.finalUrl)).distinct().take(24))},collections=views+if(nativeAccounts.isNotEmpty())emptyList()else collections,accounts=nativeAccounts)
+        val end=target.platform==Platform.X&&sourceFrontend(provenance)=="nitter"&&target.kind in setOf(TargetKind.PROFILE,TargetKind.COMMUNITY)&&next==null&&
+            FeedRefresh.posts(Page(posts,provenance=provenance),target.platform).size==posts.size&&
+            d.selectFirst(".timeline > .timeline-footer > .timeline-end")?.text()=="No more items"&&runCatching {
+                val expected=routes.convert(target,provenance.source).toHttpUrlOrNull()!!;val actual=provenance.finalUrl.toHttpUrlOrNull()!!
+                actual.scheme==expected.scheme&&actual.host==expected.host&&actual.port==expected.port&&actual.username.isEmpty()&&actual.password.isEmpty()&&
+                    actual.encodedPath.trimEnd('/')==expected.encodedPath.trimEnd('/')&&actual.queryParameterValues("cursor").size<=1&&actual.queryParameterNames.all {it=="cursor"||it in expected.queryParameterNames}&&
+                    expected.queryParameterNames.all {actual.queryParameterValues(it)==expected.queryParameterValues(it)}
+            }.getOrDefault(false)
+        return Page(StructuredAiMetadata.mergeExactPosts(posts),next,profile?.let {it.copy(links=(it.links.orEmpty()+Subscriptions.profileLinks(body,provenance.finalUrl)).distinct().take(24))},collections=views+if(nativeAccounts.isNotEmpty())emptyList()else collections,accounts=nativeAccounts,historyExhausted=end.takeIf {it})
     }
     private fun sourceFrontend(p: Provenance)=p.source.frontend
 }

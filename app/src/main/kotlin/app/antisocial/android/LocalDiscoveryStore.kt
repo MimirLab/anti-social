@@ -41,6 +41,12 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
     private fun rows(sql:String,args:Array<String> = emptyArray()):List<String> = readableDatabase.rawQuery(sql,args).use {c->buildList {while(c.moveToNext())add(c.getString(0))}}
     @Synchronized fun cache(key:String):String?=rows("SELECT payload FROM cache WHERE id=? AND expires>?",arrayOf(key,now().toString())).firstOrNull()
     @Synchronized fun cache(key:String,value:String,ttl:Long) {require(value.length<=256*1024);writableDatabase.insertWithOnConflict("cache",null,ContentValues().apply {put("id",key);put("payload",value);put("expires",now()+ttl)},SQLiteDatabase.CONFLICT_REPLACE);trimCache()}
+    /** A completion receipt must not outlive rejection of its query's facts. */
+    @Synchronized fun cache(key:String,value:String,ttl:Long,admit:()->Boolean) {
+        if(!admit())return
+        val db=writableDatabase;db.beginTransaction()
+        try {cache(key,value,ttl);if(admit())db.setTransactionSuccessful()}finally {db.endTransaction()}
+    }
     @Synchronized fun businesses(area:LocalArea?,saved:Boolean=false):List<LocalBusiness> {
         val values=if(saved)rows("SELECT payload FROM copies WHERE kind='business' ORDER BY saved DESC LIMIT 2000")else if(area==null)rows("SELECT payload FROM records WHERE kind='business' AND expires>? ORDER BY checked DESC LIMIT 2000",arrayOf(now().toString()))else {
             val lat=area.radiusKm/110.0+.01;val lon=lat/kotlin.math.cos(Math.toRadians(area.point.latitude)).coerceAtLeast(.1)
@@ -93,6 +99,18 @@ internal class LocalDiscoveryStore(context:Context,private val now:()->Long=Syst
         val old=rows("SELECT payload FROM sources WHERE url=? AND area=? AND expires>?",arrayOf(source.url,area.cacheKey,now().toString())).firstOrNull()?.let {runCatching {gson.fromJson(it,LocalPublisherSource::class.java)}.getOrNull()}
         if(old==null)source(area,source)else if(source.businessId!=null&&(old.businessId==null||business(old.businessId)==null||source.kind==LocalSourceKind.MENU&&(old.kind!=LocalSourceKind.MENU||source.menuBranch==true&&old.menuBranch!=true)))
             source(area,old.copy(businessId=source.businessId,kind=source.kind,label=source.label.ifBlank {old.label},discoveredFrom=source.discoveredFrom ?: old.discoveredFrom,menuBranch=source.menuBranch ?: old.menuBranch,nextCheckAt=if(source.kind!=old.kind&&old.failures==0)0 else old.nextCheckAt))
+    }
+    /** Query-owned route outcomes recheck admission after acquiring this monitor
+     * and before committing either the hint or its scheduling observation. */
+    @Synchronized fun sourceResult(area:LocalArea,source:LocalPublisherSource,observed:LocalRouteYield?=null,saveHint:Boolean=true,projectionKey:String?=null,admit:()->Boolean) {
+        if(!admit())return
+        val db=writableDatabase;db.beginTransaction()
+        try {
+            if(observed!=null)cache(LocalBusinessEnrichment.key(source),gson.toJson(observed),14L*86400000)
+            if(saveHint)source(area,source)
+            if(projectionKey!=null)cache(projectionKey,"read",6*3600000)
+            if(admit())db.setTransactionSuccessful()
+        }finally {db.endTransaction()}
     }
     @Synchronized fun source(area:LocalArea,source:LocalPublisherSource) {
         val payload=gson.toJson(source);require(payload.length<=16*1024)

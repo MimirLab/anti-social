@@ -249,6 +249,32 @@ class LocalWebDiscoveryRoutingTest {
             assertEquals(1,f.requests.size)
         }
     }
+    @Test fun aHeldIndependentEndpointCannotMonopolizeAUsableAlternate():Unit=runBlocking {
+        val hosts=listOf("independent.fixture.invalid","alternate.fixture.invalid")
+        Fixture(hosts,fourget=setOf(hosts[0])).use {f->
+            val independent=f.routes.publisherSearchSources.first {it.frontend=="4get"}
+            f.learning.observe(ProbeResult(independent,Capability.SEARCH,HealthStatus.HEALTHY,1,f.now,true,"Qualified fixture"))
+            f.respond={r->if(r.host==hosts[0]){check(f.release.await(8,TimeUnit.SECONDS));Reply("""{"status":"ok","web":[]}""")}else Reply(html())}
+            assertEquals(1,withTimeout(3500){f.engine.search("community workshop",SearchProvider.DARWIN,false)}.size)
+            assertEquals(1L,f.release.count);assertEquals(hosts,f.requests.map {it.host});assertTrue(f.requests.size<=3)
+            assertTrue(f.learning.get(independent,Capability.SEARCH,true)!!.lastSuccessAt>0)
+            assertEquals("Cancelling the losing hedge must not train an outage",1,f.learning.get(independent,Capability.SEARCH,true)!!.samples)
+        }
+    }
+    @Test fun independentEndpointFailureDoesNotPoisonItsUsablePeer():Unit=runBlocking {
+        val hosts=listOf("independent.fixture.invalid","alternate.fixture.invalid")
+        Fixture(hosts,fourget=setOf(hosts[0])).use {f->
+            val preferred=f.routes.publisherSearchSources.first {it.frontend=="4get"}
+            f.learning.observe(ProbeResult(preferred,Capability.SEARCH,HealthStatus.HEALTHY,1,f.now,true,"Qualified fixture"))
+            f.respond={r->if(r.host==hosts[0])Reply(code=503)else Reply(html())}
+            assertEquals(1,withTimeout(3500){f.engine.search("community workshop",SearchProvider.DARWIN,false)}.size)
+            val independent=f.routes.publisherSearchSources.first {it.frontend=="4get"}
+            val alternate=f.routes.publisherSearchSources.first {it.root.endsWith(hosts[1])}
+            assertFalse(f.learning.eligible(independent,Capability.SEARCH,true))
+            assertTrue(f.learning.eligible(alternate,Capability.SEARCH,true));assertTrue(f.requests.size<=3)
+            assertTrue(f.requests.none {it.host==hosts[0]&&!it.path.startsWith("/api/v1/web?")})
+        }
+    }
     @Test fun anEmptyStructuredReadKeepsItsHtmlCoverageAheadOfNewCandidates():Unit=runBlocking {
         val hosts=listOf("index.fixture.invalid","independent.fixture.invalid")
         Fixture(hosts,setOf(hosts[0]),setOf(hosts[1])).use {f->

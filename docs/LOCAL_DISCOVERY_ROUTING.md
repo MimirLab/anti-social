@@ -26,7 +26,10 @@ a search snippet is never a business fact or proof of account ownership.
 Supplemental traffic uses NetworkGateway's cancellable deferred child, yielding to
 foreground navigation and media. A cancelled read is not a source failure. Leaving
 Search, changing its query/area/mode or pausing details cancels the search generation;
-late callbacks cannot write into the next request. There is no recurring enrichment
+late callbacks cannot write into the next request. Query-owned source hints,
+route-yield scheduling and menu facts recheck their generation after acquiring
+the store monitor and again at commit. Closing a menu also revokes its separate
+generation. Source-only updates do not perform factual reconciliation. There is no recurring enrichment
 worker or idle crawl. The existing adaptive social heartbeat remains separate.
 
 Public-account validation starts alongside supplemental page enrichment, with its

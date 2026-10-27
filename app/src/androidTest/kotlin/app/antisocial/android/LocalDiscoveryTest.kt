@@ -101,7 +101,7 @@ class LocalDiscoveryTest {
                 calls.computeIfAbsent(source.url){java.util.concurrent.atomic.AtomicInteger()}.incrementAndGet()
                 if(source.kind!=LocalSourceKind.SOCIAL)return LocalExtraction(validEmpty=true)
                 first.complete(Unit);release.await()
-                val profile=Profile(repo.routes.recognize(source.url)!!,social.name,"Sampleton\nHours: Monday - Friday 9am - 5pm\nEmail: hello@library.fixture.invalid",links=listOf("https://www.instagram.com/library_fixture/"),displayNameSupplied=true)
+                val profile=Profile(repo.routes.recognize(source.url)!!,social.name,"${social.address}\nHours: Monday - Friday 9am - 5pm\nEmail: hello@library.fixture.invalid",links=listOf("https://www.instagram.com/library_fixture/"),displayNameSupplied=true)
                 return LocalBusinessSocial.profile(business!!,profile,repo.routes,System.currentTimeMillis())
             }
         }}
@@ -394,6 +394,72 @@ class LocalDiscoveryTest {
             runBlocking {withTimeout(3000){finished.await()}}
             runBlocking(Dispatchers.IO){assertNull("A batch queued before cancellation must recheck at the store boundary",repo.localDiscovery.business(late.id))}
         }finally {unlock.countDown();deliver.complete(Unit);worker.shutdownNow();assertTrue(worker.awaitTermination(3,java.util.concurrent.TimeUnit.SECONDS))}
+    }
+    @Test fun queryChangeRejectsPublisherHintsAlreadyWaitingForTheStore() {
+        val started=CompletableDeferred<Unit>();val deliver=CompletableDeferred<Unit>();val finished=CompletableDeferred<Unit>()
+        val waiter=java.util.concurrent.atomic.AtomicReference<Thread?>()
+        val held=java.util.concurrent.CountDownLatch(1);val unlock=java.util.concurrent.CountDownLatch(1)
+        val worker=java.util.concurrent.Executors.newSingleThreadExecutor()
+        val stale="https://stale-publisher.fixture.invalid/calendar";val fresh="https://current-publisher.fixture.invalid/calendar"
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(place)),area);repo.localDiscovery.save(place)}
+        val before=java.util.concurrent.atomic.AtomicReference<LocalBusiness?>()
+        val revision=java.util.concurrent.atomic.AtomicLong(-1)
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+            override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit) {
+                started.complete(Unit);withContext(NonCancellable+Dispatchers.IO){deliver.await();waiter.set(Thread.currentThread());try {onHits(listOf(LocalWebHit(stale,"Old calendar")))}finally {finished.complete(Unit)}}
+            }
+        };model.localSearch.search(force=true)}
+        try {
+            ui.waitUntil(10_000){started.isCompleted};ui.waitForIdle()
+            worker.submit {synchronized(repo.localDiscovery){before.set(repo.localDiscovery.business(place.id));revision.set(repo.localDiscovery.revision.value);held.countDown();check(unlock.await(8,java.util.concurrent.TimeUnit.SECONDS))}}
+            assertTrue(held.await(2,java.util.concurrent.TimeUnit.SECONDS));deliver.complete(Unit)
+            ui.waitUntil(3000){waiter.get()?.let {t->t.state==Thread.State.BLOCKED&&t.stackTrace.any {it.className==LocalDiscoveryStore::class.java.name&&it.methodName=="offerSources"}}==true}
+            ui.runOnIdle {model.localSearch.text("new query")};unlock.countDown();runBlocking {withTimeout(3000){finished.await()}}
+            runBlocking(Dispatchers.IO) {
+                assertTrue("An obsolete source-only callback must not commit",repo.localDiscovery.sources(area).none {it.url==stale})
+                assertEquals(before.get(),repo.localDiscovery.business(place.id));assertEquals(revision.get(),repo.localDiscovery.revision.value)
+                assertTrue(place.id in repo.localDiscovery.savedIds())
+            }
+            ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+                override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit){onHits(listOf(LocalWebHit(fresh,"Current calendar")))}
+            };model.localSearch.search(force=true)}
+            ui.waitUntil(5000){repo.localDiscovery.sources(area).any {it.url==fresh}}
+        }finally {unlock.countDown();deliver.complete(Unit);worker.shutdownNow();assertTrue(worker.awaitTermination(3,java.util.concurrent.TimeUnit.SECONDS))}
+    }
+    @Test fun closingAMenuRejectsFactsAlreadyWaitingForTheStore() {
+        val owner=place.copy(category="restaurant",hours="Monday 9am - 5pm")
+        val changed=owner.copy(hours="Monday 1am - 11pm",checkedAt=owner.checkedAt+1000,evidence=listOf(LocalDiscoveryIdentity.evidence("hours","Monday 1am - 11pm",owner.websites.single(),owner.checkedAt+1000,LocalEvidenceKind.PUBLISHER)))
+        runBlocking(Dispatchers.IO){repo.localDiscovery.ingest(LocalExtraction(businesses=listOf(owner)),area);repo.localDiscovery.save(owner)}
+        val before=runBlocking(Dispatchers.IO){repo.localDiscovery.business(owner.id)}
+        val started=CompletableDeferred<Unit>();val deliver=CompletableDeferred<Unit>()
+        val waiter=java.util.concurrent.atomic.AtomicReference<Thread?>()
+        val held=java.util.concurrent.CountDownLatch(1);val unlock=java.util.concurrent.CountDownLatch(1)
+        val worker=java.util.concurrent.Executors.newSingleThreadExecutor()
+        ui.runOnIdle {model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+            override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                started.complete(Unit);withContext(NonCancellable+Dispatchers.IO){deliver.await()};return LocalExtraction(businesses=listOf(changed))
+            }
+        };model.localSearch.menu(owner)}
+        try {
+            ui.waitUntil(5000){started.isCompleted}
+            worker.submit {synchronized(repo.localDiscovery){held.countDown();check(unlock.await(8,java.util.concurrent.TimeUnit.SECONDS))}}
+            assertTrue(held.await(2,java.util.concurrent.TimeUnit.SECONDS));deliver.complete(Unit)
+            ui.waitUntil(3000){Thread.getAllStackTraces().entries.firstOrNull {(t,frames)->t.state==Thread.State.BLOCKED&&frames.any {it.className==LocalDiscoveryStore::class.java.name&&it.methodName=="ingest"}}?.key?.also {waiter.set(it)}!=null}
+            ui.runOnIdle {model.localSearch.stopMenu()};unlock.countDown()
+            ui.waitUntil(5000){waiter.get()?.state!=Thread.State.BLOCKED}
+            runBlocking(Dispatchers.IO){assertEquals(before,repo.localDiscovery.business(owner.id));assertTrue(owner.id in repo.localDiscovery.savedIds())}
+            assertNull(model.localSearch.state.value.menuLoading)
+        }finally {unlock.countDown();deliver.complete(Unit);worker.shutdownNow();assertTrue(worker.awaitTermination(3,java.util.concurrent.TimeUnit.SECONDS))}
+    }
+    @Test fun compoundEventSearchRendersItsUsefulAlternativeAndExcludesCancelledRecords() {
+        val positive=LocalEvent("fixture-flight","Spaceflight viewing",LocalEventTime(area.today().plusDays(1).toString(),allDay=true),address=place.address,locality=area.name,point=area.point)
+        val cancelled=positive.copy(id="fixture-cancelled",title="Cancelled spaceflight viewing")
+        val unrelated=positive.copy(id="fixture-unrelated",title="Rocket sculpture exhibition")
+        ui.runOnIdle {model.localSearch.backend=fixture(LocalExtraction(events=listOf(positive,cancelled,unrelated)));model.localSearch.mode(LocalSearchMode.EVENTS);model.localSearch.text("rocket launches -cancelled");model.localSearch.search(force=true)}
+        ui.waitUntil(8000){model.localSearch.state.value.events.isNotEmpty()}
+        assertEquals(listOf(positive.id),model.localSearch.state.value.events.map {it.id})
+        ui.onNodeWithText(positive.title).assertIsDisplayed();ui.onNodeWithText(cancelled.title).assertDoesNotExist();ui.onNodeWithText(unrelated.title).assertDoesNotExist()
+        evidence("compound-event-subject-and-minus-exclusion")
     }
     @Test fun aWiderCalendarWindowRefetchesAHealthyRangeLimitedSource() {
         val calendar=LocalPublisherSource("https://calendar.fixture.invalid/api/2/events",LocalSourceKind.LOCALIST,label="Library events")

@@ -167,7 +167,8 @@ object RssSources {
         val next=if(rawNext?.host?.let(BloggerFeedHistory::host)==true)blogger else declared?.let {resolve(xmlAttr(it,"href"),base(it,finalUrl))}
             ?.takeIf {feedUrl(it)!=null&&sameOrigin(it,finalUrl)&&AutomaticLinks.mayRead(it.toHttpUrlOrNull()!!)}
         val complete=declared==null&&nodes.size<=MAX_ITEMS&&channel.children().any {it.tagName().substringAfter(':')=="complete"&&namespace(it)==HISTORY&&it.children().isEmpty()&&it.wholeText().isBlank()}
-        return Page(posts,next=next,profile=Profile(target,feedName,description),provenance=provenance,limitedTimeline=!complete,syndicationId=syndicationId,
+        val exhausted=complete&&nodes.size==posts.size&&FeedRefresh.posts(Page(posts,provenance=provenance),Platform.RSS).size==posts.size
+        return Page(posts,next=next,profile=Profile(target,feedName,description),provenance=provenance,limitedTimeline=!complete,syndicationId=syndicationId,historyExhausted=exhausted.takeIf {it},
             notice="Showing the text and media supplied by this feed; full articles may contain more.")
     }
 }
