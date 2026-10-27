@@ -9,6 +9,72 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.47 native feed inspection and refresh-stable collections
+
+Qualified on 2026-10-27. Repeated inspection of actual native subscription feeds
+found failures that captured grouping tests alone had missed. Intermediate
+candidates were installed into the live laptop preview after native regression
+checks, with private state backups and retained-file hash verification. The
+inspection followed rendered cards through scrolling, source refresh, late media
+observations and deliberate Newest adoption; private source records and screen
+captures stay outside the public checkout.
+
+The fixes cover empty generated feed wrappers with misleading update dates,
+generated author/title echoes, source transport-escaping artifacts, compact
+proper-name references, cover-backed announcement headings, same-feed caption-only
+reel counterparts and publisher-authored thread supplements. Distinct wording,
+reaction text, pictures, recordings, source links and discussion roots remain in
+the collection. One video per source edition uses a selectable player slot rather
+than a repeated row of players. Multiple recordings from one original stay
+separate. These paths extend the existing detectors and literal fusion routes.
+
+Late counterpart delivery now coalesces fully qualified overlapping feed rows
+while retaining the visible card's body/key and established ordering timestamp.
+Automatic adoption cannot move an already displayed announcement farther down
+the same scroll. Partial overlap does not authorize joining unrelated groups.
+Explicit Newest adoption can establish a fresh chronology.
+
+A later native pass still found one announcement twice despite its private
+replay passing. The live source had renewed four signed image URLs. Its frozen
+body retained earlier media while current grouping lost the corresponding pixel
+observations. Replaying that precise URL change reproduced two groups. The image
+bank now reuses compatible observations through the existing strict CDN object
+identity, with exact observations taking precedence and contrary decoded copies
+blocking alias fallback. Expiry, eviction and clearing remove this evidence.
+No files, hashes, AI declarations or cryptographic validation are transferred.
+The actual Android decoder/refreshed-source replay then produces one group.
+
+Recorded-input checks cover ten announcement families and 33 selected originals
+inside a 738-record corpus with actual subscription memberships, in both input
+orders. They retain every selected original and check named common passages
+appear once. Separate Android decoding checks exercised six refreshed-image
+reads, smaller cache-restoration renditions and the signed-URL transition. Sixty-four
+mixed-resolution combinations also passed; resolution differences were ruled out
+before the URL change was isolated. Six recorded repost examples verify one
+caption with supplied full destinations and unchanged raw records.
+
+The full JVM suite passed **2,425 cases, zero failures/errors, three optional
+skips**. The broader intermediate API 35 native selection passed **176 methods,
+zero failed, one optional live-Tor skip**. After the signed-URL fix, all **68
+focused native methods passed**, including contrary-image, unsupported-transform,
+expiry and eviction controls. Debug/test assembly and release lint pass.
+
+One intermediate native run caught a fixture publishing a media file outside
+the repository's lease, allowing startup orphan maintenance to race its database
+registration. The fixture now uses the production lease. Another exposed the
+legacy test scheduler resuming Compose recomposition on a worker; this suite now
+uses the queued v2 rule already in the pinned dependencies. Production coroutine
+dispatchers and cache cleanup were not weakened to obtain passing checks. Failed
+runs remain in the private evidence record.
+
+There is no new production dependency, permission, model, network transport,
+database migration or native runtime. No extra crawl or whole-video download is
+introduced. The bounded visual alias index owns references to the existing image
+observations and expires with them. Public fixtures use synthetic inputs and the
+private reproduction-string audit reports zero findings. These checks qualify
+the inspected source windows and retained cases; they do not establish perfect
+matching for arbitrary future posts or withheld source content.
+
 ## 0.38.46 complete collected posts and bounded candidate recovery
 
 Qualified on 2026-10-26. This increment retains the existing detectors,
