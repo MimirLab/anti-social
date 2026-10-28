@@ -22,12 +22,12 @@ class LocalLibrary(private val repo: Repository) {
     val revision=MutableStateFlow(0)
     val collections=dao.collections()
     fun notifyChanged(){revision.update {it+1}}
-    private fun sourceRecord(post: Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null)})
+    private fun sourceRecord(post: Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null,videoFootage=null)})
     /** Retain the first captured edition verbatim; supplement only its missing
      * local image observation from an otherwise identical source snapshot. */
     private fun capturedEditions(editions: List<Post>): List<Post> = editions.groupBy(repo::key).values.map {copies->
         val first=copies.first();val compatible=copies.filter {sourceRecord(it)==sourceRecord(first)}
-        first.copy(media=first.media.mapIndexed {index,media->media.copy(visualFingerprint=media.visualFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].visualFingerprint},attachmentFingerprint=media.attachmentFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].attachmentFingerprint})})
+        first.copy(media=first.media.mapIndexed {index,media->media.copy(visualFingerprint=media.visualFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].visualFingerprint},attachmentFingerprint=media.attachmentFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].attachmentFingerprint},videoFootage=media.videoFootage ?: compatible.firstNotNullOfOrNull {it.media[index].videoFootage})})
     }
     private fun parse(payload: String): Post?=runCatching {gson.fromJson(payload,Post::class.java)}.getOrNull()?.takeIf {validMedia(it)&&(it.recoveredArchive==null||RecoveredArchives.valid(it))}?.let {it.copy(archivedVersion=repo.archiveVersion(it))}
     suspend fun details(key: String): SavedCopyDetails?=withContext(Dispatchers.IO) {dao.savedDetail(key)?.let {runCatching {gson.fromJson(it.payload,SavedCopyDetails::class.java)}.getOrNull()}}
@@ -82,12 +82,13 @@ class LocalLibrary(private val repo: Repository) {
         (listOf(root)+incoming).forEach {p->
             require(validMedia(p)&&(p.recoveredArchive==null||RecoveredArchives.valid(p))&&(p.archivedVersion==null||repo.archiveVersion(p)==p.archivedVersion)){"Invalid paired source archive"}
         }
-        val observedRoot=root.copy(media=root.media.mapIndexed {i,m->m.copy(visualFingerprint=primary.media[i].visualFingerprint ?: m.visualFingerprint,attachmentFingerprint=primary.media[i].attachmentFingerprint ?: m.attachmentFingerprint)})
+        val observedRoot=root.copy(media=root.media.mapIndexed {i,m->m.copy(visualFingerprint=primary.media[i].visualFingerprint ?: m.visualFingerprint,attachmentFingerprint=primary.media[i].attachmentFingerprint ?: m.attachmentFingerprint,videoFootage=primary.media[i].videoFootage ?: m.videoFootage)})
         val pairedRoot=if(root.archivedVersion==null&&primary.archivedVersion!=null)observedRoot.copy(archivedVersion=primary.archivedVersion)else observedRoot
         val roots=(listOf(pairedRoot)+incoming).distinctBy(repo::key)
         require(roots.size<=CrossPosts.MAX_EDITIONS){"This fused copy contains too many source editions"}
         if(roots.size<2)return emptyList()
         val contentCopies=CrossPosts.sameContentCopies(roots,repo.images.identities::same)
+        val footage by lazy(LazyThreadSafetyMode.NONE){VideoFootage.collection(roots)}
         val gallery=CrossPosts.galleryCollection(roots,repo.images.identities::same)
         roots.forEach {p->
             val target=repo.postTarget(p)
@@ -98,10 +99,10 @@ class LocalLibrary(private val repo: Repository) {
         val times=roots.mapNotNull {it.publishedAt}
         require(contentCopies||times.max()-times.min()<=48*60*60*1000L){"Captured source editions are too far apart"}
         roots.groupBy {it.platform}.values.filter {it.size>1}.forEach {repeated->
-            require(contentCopies||CrossPosts.sameSourceRepeats(repeated,repo.images.identities::same)||CrossPosts.sameContentCopies(repeated,repo.images.identities::same)){"Repeated source editions need matching content and a proven shared account or reposting source"}
+            require(contentCopies||CrossPosts.sameSourceRepeats(repeated,repo.images.identities::same)||CrossPosts.sameContentCopies(repeated,repo.images.identities::same)||footage){"Repeated source editions need matching content and a proven shared account or reposting source"}
         }
         val repeatedOnly=contentCopies||roots.map {it.platform}.distinct().size==1&&CrossPosts.sameSourceRepeats(roots,repo.images.identities::same)
-        require(repeatedOnly||CrossPostFusion.composeCollectedEditions(roots)!=null||CrossPostFusion.compose(roots)!=null||CrossPostFusion.compose(fusionCaptionRoots(roots))!=null){"Captured source editions do not share a substantial caption"}
+        require(repeatedOnly||CrossPostFusion.composeCollectedEditions(roots)!=null||CrossPostFusion.compose(roots)!=null||CrossPostFusion.compose(fusionCaptionRoots(roots))!=null||footage){"Captured source editions do not share a substantial caption or sampled footage"}
         return roots
     }
     fun mergeThreads(previous: List<CapturedThread>,incoming: List<CapturedThread>): List<CapturedThread> {
@@ -352,7 +353,7 @@ class LocalLibrary(private val repo: Repository) {
     companion object {
         private fun safeUrl(url: String)=url.length<=16*1024&&url.none {it<=' '||it=='\\'}&&runCatching {java.net.URI(url).let {it.scheme in setOf("http","https")&&!it.host.isNullOrBlank()&&it.userInfo==null}}.getOrDefault(false)
         private fun validMedia(post: Post): Boolean=PublicRelations.valid(post)&&PublicContextNotes.valid(post)&&PostAuthorAccounts.valid(post)&&post.media.size<=256&&post.media.all {m->safeUrl(m.url)&&(m.preview?.let(::safeUrl) ?: true)&&
-            VisualFrames.valid(m.visualFingerprint)&&VisualFrames.valid(m.attachmentFingerprint)&&
+            VisualFrames.valid(m.visualFingerprint)&&VisualFrames.valid(m.attachmentFingerprint)&&VideoFootage.valid(m)&&
             (m.audioUrl?.let(::safeUrl) ?: true)&&(m.audioUrl==null||m.type=="video")&&
             (m.audioMimeType?.let {mime->m.audioUrl!=null&&mime.length<=256&&mime.startsWith("audio/")} ?: true)}
     }

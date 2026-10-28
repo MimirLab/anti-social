@@ -177,7 +177,10 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         repo.images.identities.matchingSnapshots(candidates).collect {evidence->
             value=withContext(Dispatchers.Default) {
                 val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
-                    CrossPosts.groupCancellable(evidence.posts,accounts,matchingMemberships,evidence::same)
+                    val context=currentCoroutineContext()
+                    CrossPosts.groupWithVideoFootage(evidence.posts,accounts,matchingMemberships,evidence::same) {a,b->
+                        VideoFootage.related(a,b){context.ensureActive()}
+                    }
                 }.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap()
                 KnownPostGroups(candidates,accounts,matchingMemberships,groups)
             }

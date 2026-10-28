@@ -211,7 +211,7 @@ object CrossPosts {
     fun relatedVisualUpdates(posts: List<Post>): Boolean=posts.size in 2..MAX_EDITIONS&&posts.map(::originalKey).distinct().size==posts.size&&
         posts.indices.all {i->(i+1 until posts.size).all {j->relatedVisualPair(posts[i],posts[j])}}
     private fun clipIds(post: Post)=post.media.mapNotNull {media->
-        val url=media.url.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in setOf("pbs.twimg.com","video.twimg.com")} ?: return@mapNotNull null
+        val url=media.url.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in setOf("pbs.twimg.com","video.twimg.com","video-s.twimg.com")} ?: return@mapNotNull null
         val match=Regex("^/(amplify_video|ext_tw_video)(?:_thumb)?/([0-9]{1,40})/").find(url.encodedPath) ?: return@mapNotNull null
         match.groupValues[1]+":"+match.groupValues[2]
     }.toSet()
@@ -848,6 +848,12 @@ object CrossPosts {
         val context=currentCoroutineContext()
         return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia){context.ensureActive()}}
     }
+    /** Footage proofs are completed worker results, not cover-image matches.
+     * Keep the established public entry points and their trailing lambdas intact. */
+    suspend fun groupWithVideoFootage(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap(),sameMedia:(Post,Post)->Boolean={_,_->false},sharedFootage:(Post,Post)->SharedVideoFootage?):List<PostGroup> {
+        val context=currentCoroutineContext()
+        return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia,sharedFootage){context.ensureActive()}}
+    }
     /** Reconcile overlapping extractions inside one input batch. Never union
      * attachments across historical revisions or rewrite a source record. */
     fun originalSnapshots(posts:List<Post>):List<Post> = CrossPostFusion.withPrepared {originalSnapshots(posts){}}
@@ -862,7 +868,7 @@ object CrossPosts {
         posts.forEach {post->checkpoint();val key=originalKey(post);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
         return unique.values.toList()
     }
-    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,checkpoint:()->Unit={}):List<PostGroup> {
+    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,sharedFootage:((Post,Post)->SharedVideoFootage?)?=null,checkpoint:()->Unit={}):List<PostGroup> {
         val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
         val postOrder=compareByDescending<Post> {it.publishedAt ?: Long.MIN_VALUE}.thenBy(::originalKey)
         val prepared=originalSnapshots(posts,checkpoint).sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
@@ -978,8 +984,9 @@ object CrossPosts {
         }
         checkpoint()
         val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia))
-        return AnnouncementCollections.collect(established,ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}},
-            {a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
+        val owners=ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}}
+        val announcements=AnnouncementCollections.collect(established,owners,{a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
+        return (if(sharedFootage==null)announcements else SharedVideoCollections.collect(announcements,owners,sharedFootage,checkpoint))
             .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
 }

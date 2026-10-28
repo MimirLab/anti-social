@@ -7,11 +7,39 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.IOException
+import java.io.File
+import java.nio.file.Files
 
 /** An enrichment helper must not replace the allowance of the search that called it. */
 class NestedGatewayBudgetTest {
     private val cleaner=UrlCleaner(JsonParser.parseReader(javaClass.getResourceAsStream("/clean-links.json")!!.reader()).asJsonObject)
     private val permit=object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)}
+    @Test fun streamedFilesShareTheirParentsAggregateByteAllowanceAndDiscardPartialOutput()=runBlocking {
+        val directory=Files.createTempDirectory("download-budget-").toFile()
+        try {MockWebServer().use {server->server.start();repeat(3){server.enqueue(MockResponse().setChunkedBody("a".repeat(700),100))}
+            val gateway=NetworkGateway(cleaner,permit,true);val url=server.url("/recording").toString()
+            val first=File(directory,"first");val second=File(directory,"second")
+            assertThrows(IOException::class.java){runBlocking {gateway.boundedMediaRead(maxBytes=1024,maxRequests=4) {
+                gateway.download(url,url,first,maxBytes=2048)
+                gateway.boundedMediaRead(maxBytes=4096){gateway.download(url,url,second,maxBytes=2048)}
+            }}}
+            assertEquals(700,first.length());assertFalse(second.exists())
+            assertEquals(2,server.requestCount)
+            val fresh=File(directory,"fresh")
+            assertEquals(700,gateway.download(url,url,fresh,maxBytes=2048));assertEquals(700,fresh.length())
+        }}finally {directory.deleteRecursively()}
+    }
+    @Test fun streamedFileRedirectsCannotEscapeTheRequestAllowance()=runBlocking {
+        val directory=Files.createTempDirectory("download-redirect-").toFile()
+        try {MockWebServer().use {server->server.start()
+            server.enqueue(MockResponse().setResponseCode(302).setHeader("Location","/recording"))
+            server.enqueue(MockResponse().setBody("complete"))
+            val gateway=NetworkGateway(cleaner,permit,true);val url=server.url("/redirect").toString()
+            val file=File(directory,"recording")
+            assertThrows(IOException::class.java){runBlocking {gateway.boundedMediaRead(maxRequests=1){gateway.download(url,url,file)}}}
+            assertEquals(1,server.requestCount);assertFalse(file.exists())
+        }}finally {directory.deleteRecursively()}
+    }
     @Test fun separateNestedLookupsShareTheParentRequestLimit()=runBlocking {
         MockWebServer().use {server->server.start();repeat(5){server.enqueue(MockResponse().setBody("{}"))}
             val gateway=NetworkGateway(cleaner,permit,true);val url=server.url("/identity").toString()

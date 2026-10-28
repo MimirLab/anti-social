@@ -30,6 +30,9 @@ object VisualFrames {
         Frame(aspect,contrast,p[3].toULong(16).toLong(),p[4].toULong(16).toLong(),p[5].chunked(2).map {it.toInt(16)},detail)
     }.getOrNull()
     fun valid(raw: String?)=raw==null||decode(raw,withDetail=true)!=null
+    /** Read-only pixels for a separately qualified sampled-video comparison.
+     * This does not relax still-picture equivalence or certify a recording. */
+    internal fun sampledRaster(raw:String):Frame?=decode(raw,withDetail=true)?.takeIf {it.detail!=null}
 
     /** Gallery equivalence has a separate job from finding related posts. A
      * fine local raster tolerates reencoding while preserving changed regions

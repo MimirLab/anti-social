@@ -271,7 +271,7 @@ class FusionFeedTest {
         }
         val spaces=Regex("[\\s\\p{Z}]+")
         fun compact(value:String)=value.replace(spaces," ").trim().lowercase()
-        val groups=runBlocking(Dispatchers.Default){CrossPosts.groupCancellable(records.map(repo.images.identities::captured),accounts,memberships,repo.images.identities::same)}
+        val groups=runBlocking(Dispatchers.Default){CrossPosts.groupWithVideoFootage(records.map(repo.images.identities::captured),accounts,memberships,repo.images.identities::same) {a,b->VideoFootage.related(a,b)}}
         val reports=cases.mapIndexed {index,value->
             val spec=value.asJsonObject;val keys=spec.getAsJsonArray("posts").map {repo.key(repo.gson.fromJson(it,Post::class.java))}.toSet()
             val shown=seen.filterKeys {it in keys};val passage=compact(spec["once"].asString)
@@ -312,6 +312,14 @@ class FusionFeedTest {
             ui.waitForIdle()
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             File(output,"card-$index-top.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+            val spec=cases.map {it.asJsonObject}.firstOrNull {candidate->candidate.getAsJsonArray("posts").any {repo.key(repo.gson.fromJson(it,Post::class.java))==repo.key(group.primary)}}
+            if(spec!=null) {
+                val caption=hasText(spec["once"].asString,substring=true,ignoreCase=true)
+                revealCombinedControl(caption)
+                ui.waitForIdle()
+                val captionBitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                File(output,"card-$index-caption.png").outputStream().use {captionBitmap.compress(Bitmap.CompressFormat.PNG,100,it)};captionBitmap.recycle()
+            }
         }
         assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
     }

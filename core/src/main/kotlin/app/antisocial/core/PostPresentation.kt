@@ -13,7 +13,25 @@ data class PostTextPresentation(val title: String,val body: String,val attributi
  * only a redundant heading when presenting either fresh or already-cached posts.
  */
 object PostPresentation {
-    private val visibleUrl=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\\s<>]*)?",RegexOption.IGNORE_CASE)
+    private val visibleUrl=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:xn--[a-z0-9-]{2,59}|[a-z]{2,63})(?![a-z0-9-])(?::[0-9]{1,5})?(?:[/?#][^\\s<>]*)?",RegexOption.IGNORE_CASE)
+    private val topLevelDomains by lazy {
+        requireNotNull(PostPresentation::class.java.getResourceAsStream("/iana-tlds.txt")).bufferedReader().use {reader->
+            reader.lineSequence().filter {it.isNotBlank()&&!it.startsWith('#')}.toSet()+setOf("example","test","invalid")
+        }
+    }
+    /** Bare dotted prose is not automatically a web destination. Explicit URL
+     * schemes retain their original meaning, including newly introduced TLDs;
+     * scheme-less labels use the bundled IANA root vocabulary. No DNS request. */
+    internal fun urlMatches(value:String)=visibleUrl.findAll(value).filter {match->
+        val raw=match.value
+        raw.startsWith("http://",true)||raw.startsWith("https://",true)||
+            raw.substringBefore('/').substringBefore('?').substringBefore('#').substringBefore(':').substringAfterLast('.').lowercase(Locale.ROOT) in topLevelDomains
+    }
+    private fun replaceUrls(value:String,replacement:String)=buildString {
+        var end=0
+        urlMatches(value).forEach {match->append(value.substring(end,match.range.first));append(replacement);end=match.range.last+1}
+        append(value.substring(end))
+    }
     private val repostHeading=Regex("^RT by (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val alternateRepostHeading=Regex("^RT (@[a-zA-Z0-9_]{1,15}) \\(by (@[a-zA-Z0-9_]{1,15})\\):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
@@ -105,9 +123,9 @@ object PostPresentation {
 
     /** Matching may normalize further, but each meaningful field participates once. */
     fun content(post: Post): String=text(post).let {listOf(it.title,it.body).filter(String::isNotBlank).joinToString("\n")}
-    internal fun proseWithoutLinks(value:String)=visibleUrl.replace(value," ")
+    internal fun proseWithoutLinks(value:String)=replaceUrls(value," ")
     internal fun referenceFreeCaption(value:String)=comparison(inlineHashtag.replace(proseWithoutLinks(value),"")).trimEnd('.', ' ')
-    internal fun destinationLabels(value:String)=visibleUrl.findAll(value).take(16).map {match->
+    internal fun destinationLabels(value:String)=urlMatches(value).take(16).map {match->
         val literal=match.value.trimEnd('.',',',')',']','}',';')
         if(literal.startsWith("https://",true)||literal.startsWith("http://",true))literal else "https://$literal"
     }
@@ -115,8 +133,8 @@ object PostPresentation {
     /** A Nitter RSS heading has full destinations where its caption has shortened
      * labels. Compare every destination in order before omitting that heading. */
     private fun expandedRssBody(heading:String,body:String):String? {
-        val full=visibleUrl.findAll(heading).toList()
-        val labels=visibleUrl.findAll(body).toList()
+        val full=urlMatches(heading).toList()
+        val labels=urlMatches(body).toList()
         if(full.isEmpty()||full.size>PostLinks.MAX_LINKS||labels.size<full.size)return null
         if(!full.zip(labels).all {(a,b)->
             fun explicit(value:String)=value.startsWith("https://",true)||value.startsWith("http://",true)
@@ -132,7 +150,7 @@ object PostPresentation {
                     else original.rawPath==path&&original.rawQuery==label.rawQuery&&original.rawFragment==label.rawFragment
             }
         })return null
-        fun caption(text:String)=TextWhitespace.collapse(visibleUrl.replace(text," LINK ")).trim().lowercase(Locale.ROOT)
+        fun caption(text:String)=TextWhitespace.collapse(replaceUrls(text," LINK ")).trim().lowercase(Locale.ROOT)
         val first=caption(heading);val second=caption(body)
         if(second!=first&&!second.startsWith(first+" "))return null
         // Use only URLs actually supplied in the generated heading. Preserve
@@ -157,7 +175,7 @@ object PostPresentation {
         // an explicit HTTP URL still differs from an explicit HTTPS URL.
         return buildString {
             var end=0
-            visibleUrl.findAll(normalized).forEach {match->
+            urlMatches(normalized).forEach {match->
                 append(normalized.substring(end,match.range.first).lowercase(Locale.ROOT))
                 val raw=match.value
                 val parsed=runCatching {URI(if(raw.startsWith("https://",true)||raw.startsWith("http://",true))raw else "https://$raw")}.getOrNull()

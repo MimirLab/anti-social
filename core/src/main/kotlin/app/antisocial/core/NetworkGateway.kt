@@ -723,6 +723,54 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         }
     }
     suspend fun sample(url: String,sourceUrl: String=url,type: String="media",limit: Int=64*1024,range: Boolean=true): ByteArray=samplePayload(url,sourceUrl,type,limit,range).bytes
+    /** Short-lived video sampling only. Every block shares one privacy session,
+     * request/byte allowance. Default reads require a strong validator. Explicit
+     * observation-only sampling can instead recheck its initial bytes; it must
+     * not claim complete recording identity or publish an offline file.
+     * Unsupported ranges never trigger a whole-file fallback. */
+    suspend fun mediaRanges(url:String,sourceUrl:String=url,observationOnly:Boolean=false):GatewayMediaRanges=withContext(Dispatchers.IO) {
+        val session=sessionFor(url)
+        val budget=TextReadBudget(java.util.concurrent.atomic.AtomicLong(4L*1024*1024),java.util.concurrent.atomic.AtomicInteger(16),kotlinx.coroutines.currentCoroutineContext()[TextReadBudget])
+        val block=256*1024
+        data class Identity(val final:String,val total:Long,val validator:String?)
+        var identity:Identity?=null
+        val started=System.nanoTime()
+        suspend fun fetch(offset:Long,size:Int):ByteArray=withContext(Dispatchers.IO) {
+            if(System.nanoTime()-started>45_000_000_000L)throw IOException("Recording sampling window expired")
+            val expected=identity
+            execute(Request.Builder().url(url).tag(NetworkSession::class.java,session).tag(TextReadBudget::class.java,budget)
+                .tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(FetchPurpose::class.java,FetchPurpose.MEDIA)
+                .tag(RequestContext::class.java,RequestContext(sourceUrl,"video"))
+                .header("Accept-Encoding","identity").header("Range","bytes=$offset-${offset+size-1}")
+                .apply {expected?.validator?.let {header("If-Range",it)}}.build(),15_000) {response->
+                if(response.code!=206)throw IOException("Recording does not supply bounded byte ranges")
+                if(response.header("Content-Encoding")?.let {it!="identity"}==true)throw IOException("Encoded recording range was rejected")
+                val range=response.header("Content-Range")?.let {Regex("bytes ([0-9]+)-([0-9]+)/([0-9]+)").matchEntire(it)} ?: throw IOException("Missing recording byte range")
+                val start=range.groupValues[1].toLongOrNull();val end=range.groupValues[2].toLongOrNull() ?: throw IOException("Invalid recording range end");val total=range.groupValues[3].toLongOrNull()
+                if(total==null||total !in 1..128L*1024*1024||start!=offset||end!=minOf(offset+size-1,total-1))throw IOException("Recording byte range does not match the request")
+                val modified=response.header("Last-Modified")
+                fun instant(value:String?)=value?.let {runCatching {java.time.ZonedDateTime.parse(it,java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()}.getOrNull()}
+                val oldDate=instant(modified)?.let {last->instant(response.header("Date"))?.let {now->now-last>=60_000}}==true
+                val validator=response.header("ETag")?.takeIf {it.length in 2..512&&it.startsWith('"')&&it.endsWith('"')}
+                    ?: modified?.takeIf {oldDate}
+                if(validator==null&&!observationOnly)throw IOException("Recording has no strong range validator")
+                val observed=Identity(response.request.url.toString(),total,validator)
+                if(expected!=null&&expected!=observed)throw IOException("Recording changed during sampling")
+                val count=(end-offset+1).toInt();val body=response.body ?: throw IOException("Empty recording range")
+                if(body.contentLength()>=0&&body.contentLength()!=count.toLong())throw IOException("Recording range length does not match")
+                if(count>budget.available())throw IOException("Recording exceeds the sampling budget")
+                val bytes=ByteArray(count)
+                body.byteStream().use {stream->
+                    var read=0
+                    while(read<count){val n=stream.read(bytes,read,count-read);if(n<0)throw IOException("Truncated recording range");budget.received(n);read+=n}
+                    if(stream.read()!=-1){budget.received(1);throw IOException("Recording exceeded its byte range")}
+                }
+                identity=observed;bytes
+            }
+        }
+        val first=fetch(0,block)
+        GatewayMediaRanges(requireNotNull(identity).total,block,first,::fetch,requireNotNull(identity).validator==null)
+    }
     /** A redirect-aware bounded prefix proves that a recovery URL really leads
      * to the selected recording, without downloading an entire video. */
     suspend fun samplePayload(url: String,sourceUrl: String=url,type: String="media",limit: Int=64*1024,range: Boolean=true): MediaPrefix=withContext(Dispatchers.IO) {
@@ -786,14 +834,16 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         }
     }
     suspend fun download(url: String, sourceUrl: String, file: java.io.File, type: String="media", maxBytes: Long=256L*1024*1024,purpose:FetchPurpose=FetchPurpose.MEDIA): Long = withContext(Dispatchers.IO) {
+        val budget=kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]
         withTimeout(if(currentPolicy().tor)600_000L else 300_000L) {
-        execute(Request.Builder().url(url).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).build()) { response ->
+        execute(Request.Builder().url(url).tag(TextReadBudget::class.java,budget).tag(FetchPurpose::class.java,purpose).tag(AllowedOrigins::class.java,requestOrigins(sourceUrl)).tag(RequestContext::class.java,RequestContext(sourceUrl,type)).build()) { response ->
             if(!response.isSuccessful)throw IOException("Download returned ${response.code}")
             val body=response.body ?: throw IOException("Empty media")
             if(body.contentLength()>maxBytes)throw IOException("Download exceeds its size limit")
+            if(budget!=null&&body.contentLength()>budget.available())throw IOException("Response exceeds the health-check budget")
             if(type=="media" && body.contentType()?.toString()?.contains("mpegurl",true)==true)throw IOException("Offline playlists are not yet supported")
             var total=0L
-            try {file.outputStream().use {output->body.byteStream().use {input->val buffer=ByteArray(8192);while(true){val count=input.read(buffer);if(count<0)break;total+=count;if(total>maxBytes)throw IOException("Download exceeds its size limit");output.write(buffer,0,count)}}}}catch(e: Exception){file.delete();throw e}
+            try {file.outputStream().use {output->body.byteStream().use {input->val buffer=ByteArray(8192);while(true){val count=input.read(buffer);if(count<0)break;total+=count;if(total>maxBytes)throw IOException("Download exceeds its size limit");budget?.received(count);output.write(buffer,0,count)}}}}catch(e: Exception){file.delete();throw e}
             total
         }
         }

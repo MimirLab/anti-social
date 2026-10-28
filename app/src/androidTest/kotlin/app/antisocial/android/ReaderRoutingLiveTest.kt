@@ -27,7 +27,9 @@ class ReaderRoutingLiveTest {
         require(requests.size() in 1..8)
         val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
         val before=repo.prefs.export().toString()
-        val output=File(context.getExternalFilesDir("validation"),"reader-routing-live").apply {mkdirs()}
+        val output=File(context.getExternalFilesDir("validation"),"reader-routing-live").apply {
+            require(!exists()||deleteRecursively());require(mkdirs())
+        }
         val runs=JsonArray();val gson=GsonBuilder().setPrettyPrinting().create()
         try {
             repo.prefs.originalFallback=true;repo.prefs.intervalMinutes=0
@@ -37,14 +39,22 @@ class ReaderRoutingLiveTest {
                 val target=if(spec["kind"].asString=="search")repo.routes.search(platform,spec["value"].asString)else requireNotNull(repo.routes.recognize(spec["value"].asString,platform))
                 val responses=CopyOnWriteArrayList<Map<String,Any?>>()
                 repo.gateway.onTextResponse={p->
+                    synchronized(responses) {
                     val n=responses.size
                     responses+=mapOf("url" to p.finalUrl,"status" to p.status,"characters" to p.text.length)
                     if(n<32&&p.text.length<=2*1024*1024)File(output,"$index-response-$n.txt").writeText(p.text)
+                    }
                 }
                 val start=System.nanoTime();val row=JsonObject().apply {add("request",item)};runs.add(row)
                 fun save(){row.addProperty("elapsedMs",(System.nanoTime()-start)/1_000_000);row.add("responses",gson.toJsonTree(responses));row.add("health",gson.toJsonTree(repo.pool.results(platform)));File(output,"runs.json").writeText(gson.toJson(runs))}
                 try {withTimeout(120_000) {
-                    if(target.kind==TargetKind.SEARCH) {
+                    val document=spec["publicDocumentUrl"]?.asString
+                    if(document!=null) {
+                        val payload=repo.gateway.boundedHealthRead(maxBytes=512L*1024,maxRequests=2){repo.gateway.extractorDocument(document,sourceUrl=target.canonicalUrl,maxBytes=512L*1024)}
+                        row.addProperty("documentFetched",true);row.addProperty("documentCharacters",payload.text.length)
+                        row.addProperty("documentStatus",payload.status)
+                        File(output,"$index-document.txt").writeText(payload.text)
+                    }else if(target.kind==TargetKind.SEARCH) {
                         val feed=repo.searchFeed(target)
                         repeat(2) {feed.loadNext {state->
                             if(state.page.posts.isNotEmpty()&&!row.has("firstPostMs"))row.addProperty("firstPostMs",(System.nanoTime()-start)/1_000_000)
@@ -57,7 +67,10 @@ class ReaderRoutingLiveTest {
                             (repo.routes.sources+pathways.sources(target)).distinctBy {it.key}.single {it.platform==platform&&it.root==root}
                         }
                         val page=if(source==null)repo.pool.load(target,feed=feed,progress={row.addProperty("progress",it);save()})
-                            else (publicFeedPathwayAdapter(source,repo.gateway,repo.routes) ?: FrontendAdapter(source,repo.gateway,repo.routes)).let {if(feed)it.feed(target)else it.fetch(target)}
+                            else repo.pool.sourceReader(source).let {reader->
+                                if(!reader.accepts(target))throw SourceFailure(HealthStatus.UNSUPPORTED,"The selected method does not serve this target")
+                                if(feed)reader.feed(target)else reader.fetch(target)
+                            }
                         row.add("page",gson.toJsonTree(page))
                     }
                     row.addProperty("completed",true)

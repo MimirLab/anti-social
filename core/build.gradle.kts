@@ -26,7 +26,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
-tasks.test { systemProperty("antisocial.native.path", "${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so") }
+tasks.test {
+    systemProperty("antisocial.native.path", "${providers.gradleProperty("antisocialBuildRoot").get()}/native-host/libantisocial_filter.so")
+    providers.gradleProperty("antisocialVideoFootageInput").orNull?.let {systemProperty("antisocial.videoFootageInput",it)}
+    providers.gradleProperty("antisocialVideoFootageExpectedScenes").orNull?.let {systemProperty("antisocial.videoFootageExpectedScenes",it)}
+}
 tasks.register<JavaExec>("nitterFeedAudit") {
     dependsOn(tasks.testClasses)
     classpath=sourceSets.test.get().runtimeClasspath

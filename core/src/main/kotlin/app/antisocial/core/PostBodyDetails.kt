@@ -21,6 +21,16 @@ object PostBodyDetails {
         """https?://[^\s<>]+|www\.[^\s<>]+|(?<![\p{L}\p{N}_@.])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\s<>]*)?|(?<![\p{L}\p{N}_@])@[\p{L}\p{N}_][\p{L}\p{N}_.-]{0,255}(?:@[a-z0-9.-]{1,253})?|(?<![\p{L}\p{N}_#])#[\p{L}\p{N}_]+""",
         RegexOption.IGNORE_CASE,
     )
+    private fun references(value:String)=reference.findAll(value).filter {match->
+        val raw=match.value
+        raw.startsWith('@')||raw.startsWith('#')||raw.startsWith("http://",true)||raw.startsWith("https://",true)||
+            PostPresentation.urlMatches(raw).singleOrNull()?.range==raw.indices
+    }
+    private fun withoutReferences(value:String)=buildString {
+        var end=0
+        references(value).forEach {match->append(value.substring(end,match.range.first));end=match.range.last+1}
+        append(value.substring(end))
+    }
     private val word=Regex("[\\p{L}\\p{N}]+")
     private val punctuation=",;:|•·/\\-—–()[]{}<>\"'“”‘’.!?…".toSet()
     private val tailLabel=Regex(
@@ -29,12 +39,12 @@ object PostBodyDetails {
     )
     private fun separator(value: String)=value.all {it.isWhitespace()||Character.isSpaceChar(it)||it in punctuation}
     private fun substantive(value: String): Boolean {
-        val prose=reference.replace(value,"")
+        val prose=withoutReferences(value)
         return prose.count(Char::isLetter)>=32&&word.findAll(prose).take(6).count()>=6
     }
     fun split(value: String,allowStandalone: Boolean=false): PostBodySplit {
         if(value.isBlank()||value.length>MAX_TEXT)return PostBodySplit(value)
-        val references=reference.findAll(value).take(MAX_REFERENCES+1).toList()
+        val references=references(value).take(MAX_REFERENCES+1).toList()
         if(references.isEmpty()||references.size>MAX_REFERENCES)return PostBodySplit(value)
         val head=leadingInventoryEnd(value)
         val leading=value.substring(0,head).trimEnd()
@@ -43,7 +53,7 @@ object PostBodyDetails {
         if(leading.isEmpty())return trailing
         return trailing.copy(
             details=listOf(leading,trailing.details).filter(String::isNotEmpty).joinToString("\n\n"),
-            referenceCount=reference.findAll(leading).count()+trailing.referenceCount,
+            referenceCount=references(leading).count()+trailing.referenceCount,
             leadingDetails=leading,leadingSeparator=leadingSeparator,trailingDetails=trailing.details,
         )
     }
@@ -56,7 +66,7 @@ object PostBodyDetails {
             val newline=value.indexOf('\n',offset)
             if(newline<0)break
             val line=value.substring(offset,newline)
-            val refs=reference.findAll(line).toList()
+            val refs=references(line).toList()
             if(refs.isEmpty()) {
                 if(line.isNotBlank()&&!tailLabel.matches(line.trim()))break
             } else {
@@ -72,7 +82,7 @@ object PostBodyDetails {
     }
     private fun trailing(value: String,allowStandalone: Boolean): PostBodySplit {
         namedInventory(value)?.let {return it}
-        val references=reference.findAll(value).toList()
+        val references=references(value).toList()
         if(references.isEmpty())return PostBodySplit(value)
         if(!separator(value.substring(references.last().range.last+1)))return PostBodySplit(value)
         var first=references.lastIndex
@@ -110,13 +120,13 @@ object PostBodyDetails {
      * whole labelled list after a real introductory sentence folds; ordinary
      * linked explanations and their surrounding sentences stay on screen. */
     private fun namedInventory(value:String):PostBodySplit? {
-        val urls=reference.findAll(value).filter {!it.value.startsWith('@')&&!it.value.startsWith('#')}.toList()
+        val urls=references(value).filter {!it.value.startsWith('@')&&!it.value.startsWith('#')}.toList()
         if(urls.size<3)return null
         if(!separator(value.substring(urls.last().range.last+1)))return null
         fun label(text:String):Boolean {
             val clean=text.trim()
             if(clean.length !in 2..120||clean.last() !in setOf(':','—','–','-'))return false
-            val words=word.findAll(reference.replace(clean,"")).map {it.value}.toList()
+            val words=word.findAll(withoutReferences(clean)).map {it.value}.toList()
             return words.size<=6&&words.none {it.lowercase() in setOf("is","are","was","were","must","should","because","before","after","says","said","explains","reports","think","thinks")}
         }
         if(urls.zipWithNext().any {(a,b)->!label(value.substring(a.range.last+1,b.range.first))})return null
@@ -125,7 +135,7 @@ object PostBodyDetails {
         val start=boundary.range.last+1
         if(!label(before.substring(start))||!substantive(before.substring(0,start)))return null
         val body=value.substring(0,start).trimEnd()
-        return PostBodySplit(body,value.substring(start),value.substring(body.length,start),reference.findAll(value.substring(start)).count())
+        return PostBodySplit(body,value.substring(start),value.substring(body.length,start),references(value.substring(start)).count())
     }
     private fun completedSentence(value: String)=value.trimEnd().trimEnd('"','\'','”','’',')',']').lastOrNull() in setOf('.','!','?','…')
 }

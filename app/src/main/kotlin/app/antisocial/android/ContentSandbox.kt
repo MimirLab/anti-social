@@ -38,6 +38,7 @@ internal object ContentWire {
     const val PDF_OCR_PAGE=8
     const val IMAGE_BOUNDS=9
     const val ANNOUNCEMENT=10
+    const val VIDEO_SCENES=11
     const val PROBE=100
     const val STALL=101
     const val MAGIC=0x41535231
@@ -124,6 +125,7 @@ open class ContentSandboxService:Service() {
                         ContentWire.OCR_IMAGE->{val (image,scaled)=ocrImage(fd);image.useBitmap {pixels(it,out,scaled)}}
                         ContentWire.IMAGE_BOUNDS->{val bounds=BitmapFactory.Options().apply {inJustDecodeBounds=true};fileDecode(fd,bounds)
                             out.writeInt(ContentWire.MAGIC);out.writeInt(bounds.outWidth);out.writeInt(bounds.outHeight)}
+                        ContentWire.VIDEO_SCENES->text(Gson().toJson(videoScenes(fd)),out)
                         ContentWire.PROBE->{check(BuildConfig.DEBUG);val path=FileInputStream(fd.fileDescriptor).bufferedReader().readText().take(2048)
                             out.writeInt(ContentWire.MAGIC);out.writeInt(Process.myUid());out.writeBoolean(checkSelfPermission(android.Manifest.permission.INTERNET)==android.content.pm.PackageManager.PERMISSION_GRANTED)
                             out.writeBoolean(runCatching {FileInputStream(path).use {it.read()};true}.getOrDefault(false))
@@ -141,6 +143,33 @@ open class ContentSandboxService:Service() {
         }
     }
     private inline fun <T> Bitmap.useBitmap(block:(Bitmap)->T):T=try {block(this)}finally {recycle()}
+    private fun videoScenes(fd:ParcelFileDescriptor):SampledVideoFrames {
+        require(android.system.Os.fstat(fd.fileDescriptor).st_size in 1..128L*1024*1024)
+        val decoder=android.media.MediaMetadataRetriever()
+        try {
+            decoder.setDataSource(fd.fileDescriptor)
+            fun value(key:Int)=decoder.extractMetadata(key)?.toLongOrNull()
+            val duration=requireNotNull(value(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION))
+            val width=requireNotNull(value(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH))
+            val height=requireNotNull(value(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT))
+            require(duration in 2_000..VideoFootage.MAX_DURATION_MS&&width in 1..8192&&height in 1..8192)
+            // API26 has no scaled frame API: admit only a bounded native raster.
+            require(Build.VERSION.SDK_INT>=27||width*height<=ContentWire.MAX_PIXELS)
+            val w=if(width>=height)320 else maxOf(64,(width*320/height).toInt())
+            val h=if(height>=width)320 else maxOf(64,(height*320/width).toInt())
+            val bank=MediaIdentityStore(maxEntries=1)
+            val scenes=(0 until VideoFootage.POSITIONS).mapNotNull {position->
+                val time=VideoFootage.requestedAt(duration,position)*1000
+                // A missing or budget-limited position stays missing. Native
+                // decoder errors do not manufacture a neighboring frame.
+                val frame=try {if(Build.VERSION.SDK_INT>=27)decoder.getScaledFrameAtTime(time,android.media.MediaMetadataRetriever.OPTION_CLOSEST,w,h)
+                    else decoder.getFrameAtTime(time,android.media.MediaMetadataRetriever.OPTION_CLOSEST)}catch(_:RuntimeException){null}
+                frame?.useBitmap {bitmap->bank.sampledFingerprint(bitmap)?.let {SampledVideoScene(position,it)}}
+            }
+            require(scenes.isNotEmpty())
+            return SampledVideoFrames(duration,scenes)
+        }finally {decoder.release()}
+    }
     private fun ocrImage(fd:ParcelFileDescriptor):Pair<Bitmap,Boolean> {
         val bounds=BitmapFactory.Options().apply {inJustDecodeBounds=true};BitmapFactory.decodeFileDescriptor(fd.fileDescriptor,null,bounds)
         require(bounds.outWidth>0&&bounds.outHeight>0&&bounds.outWidth.toLong()*bounds.outHeight<500_000_000L)
@@ -238,6 +267,13 @@ class PlatformImageService:ContentSandboxService() {
     override fun accepts(operation:Int)=operation in setOf(ContentWire.IMAGE,ContentWire.IMAGE_BOUNDS,ContentWire.OCR_IMAGE)
 }
 
+/** Android's media retriever cannot be obtained by the permissionless worker.
+ * This explicit compatibility lane has app authority, receives only one
+ * read-only recording and has the same independent killable deadline. */
+class PlatformVideoService:ContentSandboxService() {
+    override fun accepts(operation:Int)=operation==ContentWire.VIDEO_SCENES
+}
+
 internal class ContentSandbox(private val context:Context,private val service:Class<out Service> = ContentSandboxService::class.java) {
     private val mutex=Mutex()
     private var connection:ServiceConnection?=null
@@ -265,7 +301,9 @@ internal class ContentSandbox(private val context:Context,private val service:Cl
         try {withTimeout(15_000){ready.await()}}catch(e:Throwable){disconnect();throw e}
     }
     private inline fun <T> Parcel.useParcel(block:(Parcel)->T):T=try {block(this)}finally {recycle()}
-    private suspend fun <T> read(file:File,operation:Int,parameter:Int=0,deadlineMs:Long=15_000,decode:(DataInputStream)->T):T=mutex.withLock {
+    private suspend fun <T> read(file:File,operation:Int,parameter:Int=0,deadlineMs:Long=15_000,decode:(DataInputStream)->T):T=
+        readInput({ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY)},operation,parameter,deadlineMs,decode)
+    private suspend fun <T> readInput(open:()->ParcelFileDescriptor,operation:Int,parameter:Int=0,deadlineMs:Long=15_000,decode:(DataInputStream)->T):T=mutex.withLock {
         withContext(Dispatchers.IO) {
             val remote=connect();val pipes=ParcelFileDescriptor.createPipe()
             // Independent timer: native decoder work need not cooperate with
@@ -274,7 +312,7 @@ internal class ContentSandbox(private val context:Context,private val service:Cl
             main.postDelayed(stop,deadlineMs+1000)
 
             try {
-                ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use {input->
+                open().use {input->
                     pipes[1].use {output->Parcel.obtain().useParcel {p->
                         p.writeInterfaceToken(ContentWire.DESCRIPTOR);p.writeInt(operation);p.writeInt(parameter);p.writeLong(deadlineMs)
                         input.writeToParcel(p,0);output.writeToParcel(p,0)
@@ -334,9 +372,22 @@ internal class ContentSandbox(private val context:Context,private val service:Cl
     suspend fun ocrImage(file:File):Raster=if(platformImage(file))platform().ocrImage(file)else read(file,ContentWire.OCR_IMAGE,decode=::bitmap)
     suspend fun pdfOcrPage(file:File,index:Int)=read(file,ContentWire.PDF_OCR_PAGE,index,decode=::bitmap).bitmap
     suspend fun imageBounds(file:File):Pair<Int,Int> = if(platformImage(file))platform().imageBounds(file)else read(file,ContentWire.IMAGE_BOUNDS){it.readInt() to it.readInt()}
+    internal suspend fun sampledVideo(file:File,platform:Boolean=true):SampledVideoFrames {
+        if(platform&&service!=PlatformVideoService::class.java)return video().sampledVideo(file)
+        return read(file,ContentWire.VIDEO_SCENES,deadlineMs=10_000){stream->
+            videoFrames(stream)
+        }
+    }
+    internal suspend fun sampledVideo(input:ParcelFileDescriptor):SampledVideoFrames=
+        video().readInput({ParcelFileDescriptor.dup(input.fileDescriptor)},ContentWire.VIDEO_SCENES,deadlineMs=10_000,decode=::videoFrames)
+    private fun videoFrames(stream:DataInputStream):SampledVideoFrames {
+        val result=Gson().fromJson(json(stream,64*1024),SampledVideoFrames::class.java)
+        require(VideoFootage.valid(VideoFootageEvidence("https://sample.fixture.invalid/recording",result.durationMs,1,result.scenes)))
+        return result
+    }
     suspend fun pdfEmbedded(file:File,index:Int)=read(file,ContentWire.PDF_EMBEDDED,index){stream->ContentOutput.pdf(json(stream)).also {result->require(result.pageIndex==index&&result.pageCount>index&&result.text.length<=80_000&&!result.ocr)}}
-    private fun json(stream:DataInputStream):String {
-        val size=stream.readInt();require(size in 0..4*1024*1024)
+    private fun json(stream:DataInputStream,limit:Int=4*1024*1024):String {
+        val size=stream.readInt();require(size in 0..limit)
         val bytes=ByteArray(size);stream.readFully(bytes);val text=bytes.toString(Charsets.UTF_8)
         // Validate nesting before the app deserializes a worker response.
         var depth=0;var quoted=false;var escaped=false
@@ -371,6 +422,7 @@ internal class ContentSandbox(private val context:Context,private val service:Cl
         private val articleInputs=Semaphore(2)
         private val activeInputs=HashSet<String>()
         private var platformWorker:ContentSandbox?=null
+        private var videoWorker:ContentSandbox?=null
         private val imageBrands=setOf("avif","avis","heic","heix","hevc","hevx","heim","heis","hevm","hevs","mif1","msf1")
         /** Container identity, never filename, extension, URL or parse failure. */
         internal fun needsPlatform(file:File):Boolean=file.inputStream().use {input->
@@ -399,5 +451,6 @@ internal class ContentSandbox(private val context:Context,private val service:Cl
     }
     private fun platformImage(file:File)=service!=PlatformImageService::class.java&&needsPlatform(file)
     private fun platform():ContentSandbox=synchronized(Companion){platformWorker ?: ContentSandbox(context.applicationContext,PlatformImageService::class.java).also {platformWorker=it}}
+    private fun video():ContentSandbox=synchronized(Companion){videoWorker ?: ContentSandbox(context.applicationContext,PlatformVideoService::class.java).also {videoWorker=it}}
     suspend fun close()=withContext(Dispatchers.Main.immediate){mutex.withLock {disconnect();reader.shutdownNow()}}
 }

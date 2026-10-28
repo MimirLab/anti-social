@@ -50,6 +50,10 @@ class MediaIdentityStore(
     private val changes=MutableStateFlow(0L)
     val revision: StateFlow<Long> = changes.asStateFlow()
 
+    /** Decoder-worker use: derive one bounded sample without retaining a URL,
+     * file or bitmap in this bank. The caller owns the bitmap lifecycle. */
+    internal fun sampledFingerprint(bitmap:Bitmap):String?=fingerprint(bitmap)?.encoded
+
     /** A global image decode is not necessarily new evidence for this deck.
      * Compare the exact effective fingerprints used by same()/captured(),
      * including alias conflicts and expiry. Observation times alone cannot

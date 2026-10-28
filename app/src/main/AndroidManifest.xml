@@ -19,6 +19,9 @@
         <service android:name=".LocalAiService" android:process=":local_ai" android:exported="false" />
         <service android:name=".ContextMediaService" android:process=":context_media" android:exported="false" />
         <service android:name=".LanguageService" android:process=":languages" android:exported="false" />
+        <!-- Android's video retriever is unavailable to isolated UIDs. This
+             descriptor-only, disposable decoder shares app authority. -->
+        <service android:name=".PlatformVideoService" android:process=":video_samples" android:exported="false" />
         <service android:name=".ContextJobService" android:exported="false" android:foregroundServiceType="dataSync" />
         <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:foregroundServiceType="dataSync" tools:node="merge" />
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop" android:windowSoftInputMode="adjustResize">

@@ -12,6 +12,24 @@ class PostPresentationTest {
     private val cleaner=UrlCleaner(asset("clean-links.json"))
     private val routes=DarwinRoutes(asset("darwin-routes.json"),cleaner)
     private val source=routes.sources.first {it.frontend=="nitter"}
+    @Test fun dottedOrdinaryWordsRemainCaptionTextRatherThanAnInventedWebsite() {
+        val text="BUILDING.A.BETTER.NEIGHBORHOOD."
+        assertEquals(text,PostPresentation.proseWithoutLinks(text))
+        assertTrue(PostPresentation.destinationLabels(text).toList().isEmpty())
+        assertEquals(text.lowercase(),PostPresentation.comparableContent(post.copy(title="",body=text)))
+        val standalone=PostBodyDetails.split(text,allowStandalone=true)
+        assertEquals(text,standalone.body);assertFalse(standalone.hasDetails);assertEquals(text,standalone.originalText())
+        val closing="Everyone can read the complete public workshop announcement below.\n$text"
+        assertEquals(closing,PostBodyDetails.split(closing).body)
+        assertEquals("building a better neighborhood",PostPresentation.proseWithoutLinks("building a better neighborhood"))
+    }
+    @Test fun realBareDomainsAndExplicitUnlistedDomainsStillKeepTheirDestinations() {
+        val text="Read EXAMPLE.COM, example.dev/Guide?mode=New and https://future.unlistedfixture/Path."
+        val labels=PostPresentation.destinationLabels(text).toList()
+        assertEquals(listOf("https://EXAMPLE.COM","https://example.dev/Guide?mode=New","https://future.unlistedfixture/Path"),labels)
+        assertEquals("Read  ,   and  ",PostPresentation.proseWithoutLinks(text))
+        assertEquals(listOf("https://example.xn--p1ai/path"),PostPresentation.destinationLabels("example.xn--p1ai/path").toList())
+    }
     @Test fun aFacebookAttachedStoryLabelRetainsAttributionOutsideItsAuthoredCaption() {
         val p=Provenance(Source(Platform.FACEBOOK,"original","https://www.facebook.com",role=SourceRole.ORIGINAL),1,"https://www.facebook.com/api/graphql/")
         val shared=post.copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/123456789/posts/987654321",title="",body="Shared from Space Workshop:\n$caption",provenance=p)

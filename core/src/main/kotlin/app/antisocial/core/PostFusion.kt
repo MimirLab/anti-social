@@ -103,7 +103,6 @@ object CrossPostFusion {
     private val truncatedCaption=Regex("(?:…|\\.\\.\\.)\\s*$")
     private val terminalExclamation=Regex("(?<=[\\p{L}\\p{N}])!(?=\\s|$)")
     private val explicitUrl=Regex("https?://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
-    private val visibleUrl=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}(?::[0-9]{1,5})?(?:[/?#][^\\s<>]*)?",RegexOption.IGNORE_CASE)
     private val mention=Regex("@[\\p{L}\\p{N}_][\\p{L}\\p{N}_.-]{0,255}")
     private val abbreviations=setOf("dr","mr","mrs","ms","prof","st","jr","sr","vs","etc","inc","fig","no","ep")
     private val quotedEnd=Regex("[,;][\"”’']")
@@ -126,7 +125,7 @@ object CrossPostFusion {
 
     private fun prepare(text: String,fieldBreak: Int?=null,links: List<String> = emptyList()): Prepared? {
         if(text.isBlank()||text.length>MAX_TEXT)return null
-        val urls=visibleUrl.findAll(text).take(17).map {it.range}.toList()
+        val urls=PostPresentation.urlMatches(text).take(17).map {it.range}.toList()
         if(urls.size>16)return null
         val mentions=mention.findAll(text).take(65).map {match->
             match.range.first until match.range.last+1-match.value.takeLastWhile {it=='.'}.length
@@ -236,7 +235,7 @@ object CrossPostFusion {
     private fun linkKey(label: String,supplied: List<String>): String? {
         if(supplied.isEmpty())return null
         val value=label.trim()
-        if(!visibleUrl.matches(value))return null
+        if(PostPresentation.urlMatches(value).singleOrNull()?.range!=value.indices)return null
         val exact=canonicalLink(value)
         if(exact!=null&&exact in supplied)return exact
         val short=value.endsWith("...")||value.endsWith('…')
@@ -330,7 +329,7 @@ object CrossPostFusion {
         // Reject conflicting additions before scanning the shared passage again.
         // Both guards remain mandatory; this only orders their pure work.
         val common=matches.joinToString(" "){a.text.substring(a.parts[it.a].start,a.parts[it.a].end)}
-        val prose=visibleUrl.replace(common," ")
+        val prose=PostPresentation.proseWithoutLinks(common)
         if(prose.length<(if(mediaConfirmed)70 else MIN_CHARS)||contextWords(prose).distinct().size<(if(mediaConfirmed)8 else 12))return null
         return matches
     }
@@ -382,9 +381,9 @@ object CrossPostFusion {
      * accounts are identical. The ordinary aligner retains every changed span. */
     private fun mentionOnlyVariant(first:String,second:String):Boolean {
         if('@' !in first||'@' !in second)return false
-        if(visibleUrl.findAll(first).map {it.value}.toList()!=visibleUrl.findAll(second).map {it.value}.toList())return false
+        if(PostPresentation.urlMatches(first).map {it.value}.toList()!=PostPresentation.urlMatches(second).map {it.value}.toList())return false
         fun template(text:String):Pair<String,List<String>>? {
-            val urls=visibleUrl.findAll(text).map {it.range}.toList()
+            val urls=PostPresentation.urlMatches(text).map {it.range}.toList()
             val matches=mention.findAll(text).filter {match->
                 (match.range.first==0||text[match.range.first-1].let {!it.isLetterOrDigit()&&it !in "_./:@"})&&urls.none {match.range.first in it}
             }.take(9).toList()
@@ -497,7 +496,7 @@ object CrossPostFusion {
         val firstWords=first.words.count {!it.url};val secondWords=second.words.count {!it.url}
         if(shared<24||shared<maxOf(firstWords,secondWords)*.70)return false
         val common=matched.joinToString(" "){first.text.substring(first.parts[it.a].start,first.parts[it.a].end)}
-        val prose=visibleUrl.replace(common," ")
+        val prose=PostPresentation.proseWithoutLinks(common)
         if(prose.length<160||contextWords(prose).distinct().size<12)return false
         return compatibleContext(first,second,matched)
     }
@@ -541,7 +540,7 @@ object CrossPostFusion {
             PostPresentation.content(post)
         }
         if(complete.any {word.findAll(it).take(MAX_WORDS+1).count()>MAX_WORDS})return null
-        val prose=mention.replace(visibleUrl.replace(complete.first()," ")," ").trim()
+        val prose=mention.replace(PostPresentation.proseWithoutLinks(complete.first())," ").trim()
         val proseWords=word.findAll(prose).take(MAX_WORDS+1).map {it.value.lowercase(Locale.ROOT)}.toList()
         if(posts.none {it.preview}&&complete.none {truncatedCaption.containsMatchIn(it)}&&prose.length>=12&&
             proseWords.size in 3..MAX_WORDS&&proseWords.distinct().size>=3) {

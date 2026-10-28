@@ -9,6 +9,14 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## Development checkpoint after 0.38.55: video scenes and dotted captions
+
+[Scope and dated evidence](VIDEO_FOOTAGE.md) distinguish supplied-sample native
+collection/save checks, separately bounded live range probes, and the automatic
+scheduling/cache integration that remains unqualified. The checkpoint passes
+2,511 JVM checks / four optional skips and 131 native feed/Library checks / one
+opt-in skip, with zero final failures. No new official APK has been published.
+
 ## 0.38.55 public-timeline sharing attribution
 
 A native source audit reproduced missing repost attribution: an admitted HTML
