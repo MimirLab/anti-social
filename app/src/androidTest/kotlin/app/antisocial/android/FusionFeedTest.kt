@@ -299,6 +299,16 @@ class FusionFeedTest {
         // full-screen media renditions even though semantics retain its text.
         groups.forEachIndexed {index,group->
             ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(group.primary)}"))
+            // A tall card can already intersect the viewport at its last
+            // picture. ScrollToNode then does nothing; explicitly align its
+            // beginning so this evidence actually includes the caption.
+            val list=ui.onNodeWithTag("Combined feed")
+            val row=ui.onNodeWithTag("Feed row ${repo.key(group.primary)}",useUnmergedTree=true)
+            repeat(3) {
+                ui.waitForIdle()
+                val delta=row.fetchSemanticsNode().positionInRoot.y-list.fetchSemanticsNode().positionInRoot.y
+                if(kotlin.math.abs(delta)>2f)list.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){scroll->scroll(0f,delta)}
+            }
             ui.waitForIdle()
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             File(output,"card-$index-top.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()

@@ -20,7 +20,9 @@ object PostPresentation {
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
 
-    fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).also {CrossPostFusion.rememberPresentation(post,it)}
+    fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).let {text->
+        if(text.attribution!=null)text else NitterReposts.handle(post)?.let {text.copy(attribution="Reposted by @$it")} ?: text
+    }.also {CrossPostFusion.rememberPresentation(post,it)}
     /** RSS-Bridge's Bluesky renderer adds its author/posted header before the
      * authored text (getPostDescription in bridges/BlueskyBridge.php). Remove
      * exactly that root header, scoped to its source and canonical handle.

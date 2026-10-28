@@ -75,6 +75,15 @@ object AdjacentDiscovery {
             targets.forEach {target->result+=AdjacentObservation(Profile(target,target.identity,displayNameSupplied=false),AdjacentEvidence(AdjacentKind.MENTIONED,owner.target,post.canonicalUrl,at,records=listOf(post.canonicalUrl),detail="An explicit account link; this does not imply agreement"))}
             post.publicRelations.orEmpty().filter {it.kind in PublicRelationKind.entries}.take(16).forEach {relation->
                 val target=routes.recognize(relation.url)?.takeIf(::valid) ?: return@forEach
+                if(relation.kind==PublicRelationKind.REPOSTED_BY) {
+                    // This role points to the sharer; recommendations from that
+                    // account point in the other direction, to the original author.
+                    if(NitterReposts.handle(post)!=null&&key(target)==key(owner.target))author(post,routes)?.takeIf {key(it)!=key(owner.target)}?.let {original->
+                        result+=AdjacentObservation(Profile(original,original.identity,displayNameSupplied=false),AdjacentEvidence(AdjacentKind.FORWARDED,owner.target,
+                            owner.target.canonicalUrl,at,records=listOf(post.canonicalUrl),detail="A repost observed on this account's public timeline"))
+                    }
+                    return@forEach
+                }
                 if(key(target)!=key(owner.target))result+=AdjacentObservation(Profile(target,relation.name.ifBlank {target.identity},displayNameSupplied=relation.name.isNotBlank()),AdjacentEvidence(when(relation.kind){PublicRelationKind.FORWARD->AdjacentKind.FORWARDED;PublicRelationKind.COLLABORATOR->AdjacentKind.COLLABORATION;else->AdjacentKind.MENTIONED},owner.target,post.canonicalUrl,at,records=listOf(post.canonicalUrl)))
             }
         }

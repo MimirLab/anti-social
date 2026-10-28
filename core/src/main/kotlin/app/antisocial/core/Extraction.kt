@@ -376,6 +376,7 @@ object Extraction {
         }
         val selected=d.select(selectors)
         val selectedNodes=selected.toHashSet()
+        val curator=NitterReposts.curator(d,target,provenance,routes)
         val posts=selected.mapNotNull { node ->
             // The whole document was previously queried once for every ancestor
             // of every card. Reuse the selected nodes for nested-card detection.
@@ -405,7 +406,8 @@ object Extraction {
             // It does not expose every immediate parent ID; retain the known conversation root.
             val parent=if(nitterReply)target.canonicalUrl else if(floor!=null&&floor!="1")thread else node.parents().firstOrNull {it.hasClass("comment")}?.selectFirst("a.comment_permalink,a[href*=comments]")?.absUrl("href")?.let {routes.recognize(it)?.canonicalUrl ?: it} ?: target.canonicalUrl.takeIf {node.hasClass("comment")&&target.kind==TargetKind.POST}
             Post(canonical,target.platform,canonical,author.ifBlank { if(target.kind==TargetKind.PROFILE)target.identity.removePrefix("@") else "" },content,title,published,avatar,media.distinctBy {it.url},parentId=parent,provenance=provenance,links=textNode?.select("a[href]")?.mapNotNull {safe(it.attr("href"),provenance.finalUrl)},
-                conversationId=target.canonicalUrl.takeIf {nitterReply},extractionCoverage=if(nitterReply)ExtractionCoverage(text=if(content.isNotBlank()||title.isNotBlank())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,attachments=if(media.isNotEmpty())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,replyParent=ExtractionStatus.UNAVAILABLE)else null)
+                conversationId=target.canonicalUrl.takeIf {nitterReply},extractionCoverage=if(nitterReply)ExtractionCoverage(text=if(content.isNotBlank()||title.isNotBlank())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,attachments=if(media.isNotEmpty())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,replyParent=ExtractionStatus.UNAVAILABLE)else null,
+                publicRelations=curator?.relation(copy))
         }.toMutableList()
         posts+=embedded
         if(target.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&posts.none {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}) {

@@ -9,6 +9,53 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.55 public-timeline sharing attribution
+
+A native source audit reproduced missing repost attribution: an admitted HTML
+profile contained nine explicit repost headers but none survived extraction.
+The reader now binds those plain names to the requested profile's own linked
+name/username, then retains a separate sharing role. A fresh routed native read
+returned 19 posts and retained all nine supplied headers. This is a dated
+single-source observation, not global availability or historical coverage.
+
+Original authors, canonical post URLs, captions, timestamps, attachments and
+links remain unchanged. Existing single, fused and saved readers render the
+sharing label outside the caption. Snapshot serialization retains it even when
+the current representation uses another source. Passive adjacent discovery
+points from the sharing account to the original author, without asserting common
+control. [The connection contract](ADJACENT_DISCOVERY.md#reposts-retained-from-public-timelines-03855)
+links the public renderer definitions used to qualify this independent parser.
+
+The full JVM selection covers **2,485 cases: 2,482 passes, zero failures/errors
+and three optional skips**. Six synthetic controls exercise source/profile
+binding, cursors, nested and conflicting headers, unchanged source fields,
+meaningful titles, snapshot retention and discovery direction. Release lint
+passes. The change adds no acquisition request, model, native library,
+dependency, permission, database migration or matching-threshold adjustment.
+
+Native qualification covers the existing feed, collection, image identity,
+reading memory, Library and migration selection, plus a new fused/saved-reader
+control. The new control checks one displayed caption, sharing attribution,
+original authorship and complete saved source records with networking paused.
+Initial assertions were corrected for the existing native name substitution and
+the test API's explicit substring option; production presentation and matching
+rules were not loosened to satisfy them. External evidence retains both failed
+fixture attempts and their corrected run separately.
+
+The candidate also repeats **16 captured announcement families and 49 originals**
+through native scrolling and protected saves. Each checked case retains one
+reading row and one checked common passage, its expected distinct media and all
+captured source text/media. Native screens were inspected. The private replay
+harness now aligns an oversized card's beginning explicitly before its dedicated
+screenshot; an already-intersecting final picture was not sufficient evidence
+of the caption's appearance. Real source captures remain outside public source.
+
+This increment has no new physical-phone latency or battery measurements and
+makes no end-to-end speed claim. Cached posts lacking the declaration need an
+ordinary fresh source read; the app does not infer a missing repost from a feed
+membership alone. Substantially different captions on independently encoded
+videos remain a separate media-identity investigation.
+
 ## 0.38.54 image-evidence preparation and scoped matching
 
 This increment reduces repeated local comparison work behind the existing routed

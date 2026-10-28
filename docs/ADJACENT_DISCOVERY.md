@@ -14,6 +14,29 @@ their evidence. Further bounded graph blocks run automatically; visible bridge
 neighbors trigger their social-account lookup. Closing the deck cancels its work.
 The reading feed stays chronological.
 
+## Reposts retained from public timelines, 0.38.55
+
+The Nitter HTML reader now retains the explicit repost header already present in
+an admitted profile page. Its plain name is bound to the requested profile's
+linked username and name; a nested quote, unrelated profile, ambiguous header or
+unqualified response cannot supply that binding. The original author, original
+post URL, caption, media and publication date stay intact. The small sharing
+label uses the existing attribution display and survives protected source copies.
+It is outside caption comparison, so it cannot create another copy of the text.
+
+Passive discovery follows this relationship from the sharing account toward the
+original author. It records a timeline observation, not common control,
+agreement, a new publishing date or a complete list of reposts. This pass reuses
+the downloaded document and the existing optional relationship record; it adds
+no acquisition request, model, permission or database migration. Existing routed
+RSS attribution remains supported. Old cached records without the declaration
+need an ordinary fresh read to obtain it.
+
+The independently implemented reader follows the published DOM contracts in
+[Nitter's tweet renderer](https://github.com/zedeus/nitter/blob/master/src/views/tweet.nim)
+and [profile renderer](https://github.com/zedeus/nitter/blob/master/src/views/profile.nim).
+The original project retains its own license; no renderer code is bundled here.
+
 ## What establishes a connection
 
 - Creator-selected featured accounts and published reading lists.

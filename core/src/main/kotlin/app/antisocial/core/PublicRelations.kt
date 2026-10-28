@@ -7,14 +7,15 @@ import org.jsoup.nodes.Element
 import org.jsoup.parser.Parser
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-enum class PublicRelationKind { FORWARD, COLLABORATOR, TAGGED, SPONSOR }
+enum class PublicRelationKind { FORWARD, COLLABORATOR, TAGGED, SPONSOR, REPOSTED_BY }
 data class PublicRelation(val kind:PublicRelationKind,val url:String,val name:String="")
 data class PublisherLinks(val feeds:List<Pair<String,String>> = emptyList(),val blogrolls:List<String> = emptyList(),val recommendations:List<Pair<String,String>> = emptyList(),val ghost:Boolean=false)
 
 /** Pure bounded extraction. No browser, scripting, assets, file retention or I/O. */
 object PublicRelations {
     const val MAX_DOCUMENT=512*1024
-    fun valid(post:Post)=post.publicRelations.orEmpty().let {items->items.size<=16&&items.all {it.kind in PublicRelationKind.entries&&it.name.length<=160&&it.url.length<=8192&&RssSources.feedUrl(it.url)!=null}}
+    fun valid(post:Post)=post.publicRelations.orEmpty().let {items->items.size<=16&&items.all {it.kind in PublicRelationKind.entries&&it.name.length<=160&&it.url.length<=8192&&RssSources.feedUrl(it.url)!=null}&&
+        (items.none {it.kind==PublicRelationKind.REPOSTED_BY}||NitterReposts.handle(post)!=null)}
     fun url(raw:String,base:String):String?=raw.takeIf {it.isNotBlank()&&it.length<=8192}?.let {runCatching {base.toHttpUrlOrNull()?.resolve(it)?.newBuilder()?.fragment(null)?.build()?.toString()?.let(RssSources::feedUrl)}.getOrNull()}
     fun json(body:String):JsonElement {
         if(body.length>MAX_DOCUMENT)throw SourceFailure(HealthStatus.UNSUPPORTED,"Relationship data exceeds its reading allowance")

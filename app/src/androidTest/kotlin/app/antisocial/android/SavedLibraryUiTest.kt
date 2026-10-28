@@ -162,6 +162,37 @@ class SavedLibraryUiTest {
         ui.onNodeWithTag("Local copy reader").assertExists();ui.onNodeWithText(history.body).assertIsDisplayed()
         assertEquals(0,opened);evidence("retained-history-local-native")
     }
+    @Test fun aPublicTimelineRepostKeepsItsOriginalAuthorAndSharingLabelInTheFusedAndSavedReader() {
+        val selected=repo.routes.sources.first {it.frontend=="nitter"}
+        val target=repo.routes.target(Platform.X,"Workshop")
+        val shared="The community repair workshop published the complete equipment list and the next session's practical instructions."
+        val id="99${suffix}301"
+        val html="""<div class="profile-card"><a class="profile-card-fullname" href="/Workshop">Community Workshop</a><a class="profile-card-username" href="/Workshop">@Workshop</a></div>
+            <div class="timeline-item"><a class="tweet-link" href="/RepairCrew/status/$id"></a><div class="tweet-body"><div><div class="retweet-header">Community Workshop retweeted</div><div class="tweet-header"><a class="username" href="/RepairCrew">@RepairCrew</a><span class="tweet-date"><a title="2026-01-09T12:00:00Z">Jan 9</a></span></div></div><div class="tweet-content">$shared</div></div></div>"""
+        val root=Extraction.parse(Payload(html,repo.routes.convert(target,selected),"text/html",200),target,selected,repo.routes).posts.single().also {posts+=it}
+        val other=Post("LocalRepost$suffix",Platform.INSTAGRAM,"https://www.instagram.com/p/LocalRepost$suffix/","repaircrew",shared,publishedAt=root.publishedAt).also {posts+=it}
+        assertEquals("twitter:repaircrew",CrossPosts.originalAccount(root))
+        assertEquals("Reposted by @Workshop",PostPresentation.text(root).attribution)
+        val roots=listOf(root,other);val fusion=requireNotNull(CrossPostFusion.compose(roots))
+        ui.runOnIdle {ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()){Surface {FusedPostText(fusion,roots=roots,repo=repo,networkAllowed=false)}}}}
+        ui.onNodeWithTag("Post attribution").assertTextContains("Reposted by",substring=true).assertTextContains("Workshop",substring=true)
+        ui.onAllNodesWithText(shared).assertCountEquals(1)
+        evidence("repost-fused-native")
+        val saved=runBlocking {repo.library.save(root,emptyList(),fusionRoots=roots).also {repo.library.cancel(it)}}
+        val copy=runBlocking {repo.library.copy(saved)}!!
+        assertEquals(roots,copy.details!!.fusionRoots)
+        library()
+        ui.waitUntil(5_000){ui.onAllNodesWithTag("Library entry ${repo.key(root)}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library entry ${repo.key(root)}").performClick()
+        ui.waitUntil(5_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Post attribution").assertTextContains("Reposted by",substring=true).assertTextContains("Workshop",substring=true)
+        ui.onAllNodesWithText(shared).assertCountEquals(1)
+        evidence("repost-saved-native")
+        ui.onNodeWithTag("Local source edition twitter").performClick()
+        ui.onNodeWithTag("Post attribution").assertTextContains("Reposted by",substring=true).assertTextContains("Workshop",substring=true)
+        ui.onNodeWithText(shared).assertExists()
+        assertTrue(repo.gateway.currentPolicy().tor)
+    }
     @Test fun fusedLocalCopyKeepsSharedTextOnceAndEveryOriginalEditionAvailableOffline() {
         val photo=image("fused-workshop")
         val shared="At this community repair workshop, neighbors learned how to replace a laptop battery, organize all the screws, disconnect the old pack, and safely fit the replacement before closing the cover."

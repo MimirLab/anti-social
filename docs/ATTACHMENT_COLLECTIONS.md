@@ -326,3 +326,12 @@ pictures and both original comment streams; its viewer and All-comments screens
 were inspected. Full dated gates are in [release qualification](RELEASE_QUALIFICATION.md).
 Raw captures, private inputs, failed/passing checks, frozen APKs and screens remain
 outside release assets under `evidence/gallery-members-20261025`.
+
+## Public HTML sharing attribution, 0.38.55
+
+A qualified Nitter profile's explicit repost header is retained separately from
+its original author's text. [Adjacent discovery](ADJACENT_DISCOVERY.md#reposts-retained-from-public-timelines-03855)
+describes the binding and direction of that observation. Feed and fused readers
+reuse the existing attribution component; saved source records and snapshots
+retain the optional relationship. This changes no comparison threshold, media
+identity rule, source author or recording selection.
