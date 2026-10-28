@@ -47,6 +47,7 @@ object VideoFormats {
     }.getOrNull()
     fun adaptive(mime: String?)=normalize(mime) in setOf(HLS,DASH)
     fun sniff(prefix: ByteArray): String? {
+        VideoContainerHints.sniff(prefix)?.let {return it}
         var text=String(prefix.take(4096).toByteArray(),Charsets.UTF_8).trimStart('\uFEFF',' ','\t','\r','\n')
         if(text.startsWith("#EXTM3U"))return HLS
         text=text.replaceFirst(Regex("^<\\?xml[^>]*>\\s*",RegexOption.IGNORE_CASE),"")

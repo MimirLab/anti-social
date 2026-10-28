@@ -14,6 +14,7 @@ class MediaDurationTest {
         Platform.REDDIT->"https://www.reddit.com/r/test/comments/abc/a_post/"
         Platform.INSTAGRAM->"https://www.instagram.com/p/first/"
         Platform.THREADS->"https://www.threads.net/@fixture/post/first"
+        Platform.TIKTOK->"https://www.tiktok.com/@fixture/video/123"
         else->"https://x.com/fixture/status/123"
     })!!
     private fun parse(platform: Platform,raw: String): Page {
@@ -37,6 +38,24 @@ class MediaDurationTest {
         }
         assertNull(MediaDuration.milliseconds(JsonParser.parseString("9223372036854775807")))
         assertNull(MediaDuration.seconds("9".repeat(65)))
+    }
+
+    @Test fun tikTokWebRuntimeStaysWithItsVideoInsteadOfTheMusicOrSibling() {
+        val raw="""[{"id":"123","desc":"Public video","author":{"uniqueId":"fixture"},"video":{"playAddr":"https://media.example/opaque","duration":145.25},"music":{"duration":600}},{"id":"124","desc":"Another video","author":{"uniqueId":"fixture"},"video":{"playAddr":"https://media.example/other"},"duration":999,"music":{"duration":600}}]"""
+        val posts=parse(Platform.TIKTOK,raw).posts.associateBy {it.canonicalUrl.substringAfterLast('/')}
+        assertEquals(145250L,posts.getValue("123").media.single().durationMs)
+        assertNull(posts.getValue("124").media.single().durationMs)
+        assertEquals("https://media.example/opaque",posts.getValue("123").media.single().url)
+    }
+
+    @Test fun tikWmRuntimeStaysWithTheClipAndNeverBecomesAPhotoDuration() {
+        val target=target(Platform.TIKTOK);val source=Source(Platform.TIKTOK,"tikwm","https://www.tikwm.com")
+        fun payload(duration:String,images:String="[]")=Payload("""{"code":0,"data":{"id":"123","title":"Public clip","duration":$duration,"music_info":{"duration":999},"author":{"unique_id":"fixture"},"wmplay":"https://media.example/opaque","images":$images}}""",source.root+"/api/","application/json",200)
+        val post=LargePlatformDiscoveryParsing.tikWm(payload("145.25"),target,source).posts.single()
+        assertEquals(145250L,post.media.single().durationMs)
+        assertEquals("https://media.example/opaque",post.media.single().url)
+        for(value in listOf("null","true","-1","0","1e1000000","\"not a runtime\""))assertNull(LargePlatformDiscoveryParsing.tikWm(payload(value),target,source).posts.single().media.single().durationMs)
+        assertNull(LargePlatformDiscoveryParsing.tikWm(payload("145","[\"https://media.example/photo.jpg\"]"),target,source).posts.single().media.single().durationMs)
     }
 
     @Test fun redditRuntimeBelongsToTheSelectedPlayableContainer() {

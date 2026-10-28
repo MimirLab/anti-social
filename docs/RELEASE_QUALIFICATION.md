@@ -9,6 +9,53 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.57: recovered fifth video edition and extensionless recordings
+
+The [video-scene follow-up](VIDEO_FOOTAGE.md#follow-up-qualification-03857)
+records the acquisition and comparison boundaries. Existing TikTok routes now
+canonicalize request-handle casing and preserve supplied clip runtimes. A bounded
+MP4/WebM prefix reader lets already-nominated extensionless videos reach the
+existing sampler, using its initial range block without another request.
+Known adaptive aliases are excluded from smaller progressive-rendition selection.
+Playback URLs, source ownership checks, chronological coverage semantics,
+selected-provider/Tor policy and all sampling budgets remain intact.
+
+The full JVM run covers **2,530 cases: 2,526 passes, zero failures/errors and four
+optional skips**. New synthetic controls cover prefix truncation/oversized boxes,
+image/audio containers, WebM declarations, a bounded Gateway playback probe,
+runtime field scope/units, ambiguous creator scopes, canonical request paths,
+unknown-video nomination and adaptive rendition rejection.
+
+The API 35 native release selection covers **146 named checks: 145 passes,
+zero failures and one opt-in skip**. An initial selector omitted eleven intended
+methods; the remaining eleven passed separately, and the combined named coverage
+matches the preceding release selection. No omitted method is counted as passed.
+
+The automatic private five-platform replay passes its native card, caption,
+attachment and protected-save assertions starting without scene observations.
+It preserves five originals, three distinct captions and four selectable video
+editions in one card. Real bounded reads supply the comparison evidence; no
+fake samples or full recordings are injected. Native top/caption screens were
+inspected. Early harness failures and their corrections are described in the
+video contract and remain in external private evidence.
+
+Five further native packet runs cover **16 captured announcement families and
+49 originals**, with one displayed common passage per family and complete
+attachment/source-save preservation. Representative native cards were inspected.
+On a dedicated API 26 emulator, all six cache/recovery checks pass. Its first
+extensionless-recording probe timed out during startup; a subsequent warm probe
+returned four actual scenes in 8,626 ms using 3,670,016 bytes and fourteen range
+requests. The initial timeout remains a failed acquisition observation even
+though the diagnostic method itself completed. This does not qualify cold-start
+reliability or physical-phone performance.
+
+One normal production-pool observation returned ten dated TikTok entries through
+an existing RSS method. An exact-post route retained its supplied 145-second
+runtime. A creator embed still returned HTTP 429, and challenged feed-API
+responses remained failures. These observations establish useful existing-route
+recovery, not universal access, quota evasion or newly independent providers.
+The change adds no model, permission, native dependency or database migration.
+
 ## 0.38.56: shared footage with different captions
 
 [The video-scene contract](VIDEO_FOOTAGE.md) describes the bounded sampler,

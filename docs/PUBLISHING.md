@@ -92,6 +92,9 @@ Opt-in `ReaderRoutingLiveTest` and `ReaderSearchLiveNativeTest` likewise require
 explicit private `files/reader-routing-live.json` on an isolated test device, plus
 their named live/isolation flags. They record dated production-route and actual
 Search-tab behavior without embedding an owner's queries or reader state in source.
+For a source-specific routing observation, optional `sourceFrontend` disambiguates
+multiple installed methods sharing `sourceRoot`; both must match the existing
+source inventory. Omitting `sourceRoot` exercises the normal production pool.
 
 `CollectedMediaPacketTest` additionally accepts an explicit private
 `files/collected-media-packet/input.json` with up to eight cases, each containing

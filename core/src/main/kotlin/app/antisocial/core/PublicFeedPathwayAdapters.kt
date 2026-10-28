@@ -43,7 +43,9 @@ internal object PublicFeedPathways {
         val parsed=url(target.canonicalUrl) ?: return null
         if(profileKey(target.platform,target.canonicalUrl)==null)return null
         if(target.platform in federated&&server(target)==null)return null
-        val name=localUsername(target)
+        // TikTok's public embed representation is keyed by its canonical
+        // lowercase handle. Preserve the selected target and other platforms.
+        val name=localUsername(target)?.let {if(target.platform==Platform.TIKTOK)it.lowercase()else it}
         if(source.frontend=="rsshub") {
             val path=when(target.platform) {
                 Platform.X -> name?.let {"/twitter/user/${DarwinRoutes.encode(it)}"}

@@ -53,6 +53,7 @@ class FusionFeedTest {
     private val packetMedia=mutableMapOf<String,MediaRow?>()
     private val packetFiles=mutableListOf<File>()
     private val calls=CopyOnWriteArrayList<String>()
+    private var originalVideoSampler:(suspend (Media,String)->GatewayVideoSampler.Result)?=null
     private lateinit var preferences: String
     private lateinit var originalMemory: FeedMemoryStore
     private lateinit var originalLoader: suspend (Target,(String)->Unit)->Page
@@ -106,6 +107,7 @@ class FusionFeedTest {
             packetFiles.forEach {it.delete()}
         }
         repo.images.clear()
+        originalVideoSampler?.let {repo.videos.sample=it};originalVideoSampler=null
         repo.videos.cleanup(true)
         listOf(memoryFile,File(memoryFile.path+".bak"),File(memoryFile.path+".new")).forEach {it.delete()}
         ui.runOnIdle {
@@ -235,6 +237,21 @@ class FusionFeedTest {
         cases.forEach {value->val posts=value.asJsonObject.getAsJsonArray("posts");require(posts.size() in 1..12);records+=posts.map {repo.gson.fromJson(it,Post::class.java)}}
         require(records.size<=64&&records.map(repo::key).distinct().size==records.size)
         val output=File(ui.activity.getExternalFilesDir("validation"),"collected-feed-packet").apply {mkdirs()}
+        if(automatic) {
+            val sample=repo.videos.sample;originalVideoSampler=sample
+            val attempts=CopyOnWriteArrayList<Map<String,Any?>>()
+            repo.videos.sample={media,source->
+                val started=android.os.SystemClock.elapsedRealtime()
+                fun record(vararg values:Pair<String,Any?>) {
+                    attempts+=mapOf("urlHash" to Repository.hash(media.url),"platform" to records.firstOrNull {post->post.media.any {it.url==media.url}}?.platform?.id,
+                        "elapsedMs" to android.os.SystemClock.elapsedRealtime()-started)+values.toMap()
+                    File(output,"automatic-samples.json").writeText(repo.gson.toJson(attempts))
+                }
+                record("state" to "started")
+                try {sample(media,source).also {result->record("state" to "completed","bytes" to result.fetchedBytes,"blocks" to result.fetchedBlocks,"scenes" to result.frames.scenes.size)}}
+                catch(failure:Exception){record("state" to "failed","error" to failure.toString().take(500));throw failure}
+            }
+        }
         runBlocking {
             accounts.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
             for(post in records) {
@@ -260,7 +277,10 @@ class FusionFeedTest {
             val nested=node.children.flatMap(::words)
             return nested.ifEmpty {node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}}
         }
-        val rows=SemanticsMatcher("Collected feed rows"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Feed row ")==true}
+        val originalKeys=records.mapTo(hashSetOf(),repo::key)
+        val rows=SemanticsMatcher("Collected feed rows"){
+            it.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Feed row ") in originalKeys
+        }
         // The deck container precedes its asynchronous first frozen batch.
         // Begin inspection at the first actual card, not the empty startup
         // placeholder; otherwise an early gesture can skip the newest row.
@@ -268,10 +288,30 @@ class FusionFeedTest {
         val firstVisibleMs=android.os.SystemClock.elapsedRealtime()-presentationStart
         ui.onNodeWithTag("Combined feed").performScrollToIndex(0)
         if(automatic) {
-            val clips=records.filter {post->post.media.any {it.type=="video"&&VideoFormats.mime(it) in setOf("video/mp4","video/webm")}}
+            // Only the nominated representatives require new observations.
+            // A caption-equivalent edition can have an opaque video URL too,
+            // without needing another network read to join the collection.
+            val initial=CrossPosts.group(records,accounts,memberships,repo.images.identities::same)
+            val plans=CrossPosts.videoFootageRequests(initial,accounts,memberships)
+            val clips=plans.flatMap {listOf(it.first,it.second)}.distinctBy(repo::key)
             require(clips.size in 2..4)
-            ui.waitUntil(90_000){clips.all {post->repo.videos.captured(post).media.any {it.videoFootage?.scenes?.size?.let {count->count>=3}==true}}}
-            ui.waitUntil(30_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().size==1}
+            try {
+                ui.waitUntil(90_000){clips.all {post->repo.videos.captured(post).media.any {it.videoFootage?.scenes?.size?.let {count->count>=3}==true}}}
+                ui.waitUntil(30_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().size==1}
+            }catch(failure:Throwable) {
+                runCatching {
+                    val observed=records.map(repo.videos::captured)
+                    val groups=runBlocking {CrossPosts.groupWithVideoFootage(observed,accounts,memberships,repo.images.identities::same) {a,b->VideoFootage.related(a,b)}}
+                    val memory=android.app.ActivityManager.MemoryInfo();ui.activity.getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(memory)
+                    File(output,"automatic-state.json").writeText(repo.gson.toJson(mapOf("posts" to observed,"groups" to groups,"requests" to CrossPosts.videoFootageRequests(groups,accounts,memberships),
+                        "activeWork" to repo.cardWork.active.value,"availableMemory" to memory.availMem,"lowMemory" to memory.lowMemory,
+                        "powerSave" to ui.activity.getSystemService(android.os.PowerManager::class.java).isPowerSaveMode)))
+                    File(output,"automatic-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
+                    val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                    try {File(output,"automatic-failure.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}}finally {bitmap.recycle()}
+                }
+                throw failure
+            }
         }
         File(output,"timings.json").writeText(repo.gson.toJson(mapOf("automaticVideoEvidence" to automatic,"firstVisibleMs" to firstVisibleMs,"settledMs" to (android.os.SystemClock.elapsedRealtime()-presentationStart))))
         var previous:Map<String,Int>?=null;var unchanged=0

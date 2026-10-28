@@ -6,6 +6,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 /** Qualifies renditions of one supplied clip; never uses a caption, account,
  * thumbnail or an arbitrary query-bearing website as a video identifier. */
 object VideoAssetIdentity {
+    private fun progressiveCandidate(raw:String)=VideoFormats.mime(Media(raw,"video")) in setOf(null,"video/mp4","video/webm")
     private val twitter=Regex("^/(amplify_video|ext_tw_video)/([0-9]{1,40})/(?:vid|pl)/")
     fun key(raw:String):String? {
         val url=raw.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()} ?: return null
@@ -22,11 +23,11 @@ object VideoAssetIdentity {
      * The selected playback URL and every playable edition remain unchanged. */
     fun smallRendition(playback:String,candidates:List<Pair<String,Long>>):String? {
         val clip=key(playback) ?: return null
-        return candidates.filter {it.second>0&&it.first.length<=8192&&key(it.first)==clip}.minByOrNull {it.second}?.first
+        return candidates.filter {it.second>0&&it.first.length<=8192&&key(it.first)==clip&&progressiveCandidate(it.first)}.minByOrNull {it.second}?.first
     }
     fun validSampling(media:Media):Boolean {
         val candidate=media.samplingUrl ?: return true
-        return media.type=="video"&&candidate.length<=8192&&key(media.url)?.let {it==key(candidate)}==true
+        return media.type=="video"&&candidate.length<=8192&&progressiveCandidate(candidate)&&key(media.url)?.let {it==key(candidate)}==true
     }
     fun sampleUrl(media:Media)=media.samplingUrl?.takeIf {validSampling(media)} ?: media.url
 }

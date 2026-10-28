@@ -28,7 +28,9 @@ internal object SharedVideoCollections {
         if(groups.size<2)return emptyList()
         val candidates=rows(groups,owners,checkpoint).sortedByDescending {it.last}.take(128)
         fun selected(group:PostGroup)=group.posts.filter {post->
-            post.media.any {it.type=="video"&&it.audioUrl==null&&(it.durationMs==null||it.durationMs in 2_000..VideoFootage.MAX_DURATION_MS)&&VideoFormats.mime(it) in setOf("video/mp4","video/webm")&&VideoAssetIdentity.validSampling(it)}
+            // An opaque URL can be nominated by the same runtime/rendition
+            // evidence; the sampler checks its already fetched prefix first.
+            post.media.any {it.type=="video"&&it.audioUrl==null&&(it.durationMs==null||it.durationMs in 2_000..VideoFootage.MAX_DURATION_MS)&&VideoFormats.mime(it) in setOf(null,"video/mp4","video/webm")&&VideoAssetIdentity.validSampling(it)}
         }.minWithOrNull(compareBy<Post> {post->post.media.none {it.type=="video"&&it.samplingUrl!=null}}.thenBy(CrossPosts::originalKey))
         val selected=candidates.associate {it.index to selected(it.group)}
         val plans=mutableListOf<Pair<Long,VideoFootageRequest>>()

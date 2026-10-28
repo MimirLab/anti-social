@@ -64,7 +64,7 @@ private class TikTokCreatorEmbedAdapter(override val source: Source,private val 
     override suspend fun profile(target: Target)=read(target,true)
     private suspend fun read(target: Target,profileOnly: Boolean): Page {
         if(!accepts(target))throw SourceFailure(HealthStatus.UNSUPPORTED,"This route reads public TikTok creator profiles")
-        val username=target.identity.removePrefix("@")
+        val username=target.identity.removePrefix("@").lowercase()
         val payload=gateway.text(source.root.trimEnd('/')+"/embed/@"+DarwinRoutes.encode(username),target.canonicalUrl,maxBytes=1024L*1024,headers=mapOf("Accept-Language" to "en-US"))
         LargePlatformDiscoveryParsing.requireSource(payload,source)
         return LargePlatformDiscoveryParsing.tikTokCreatorEmbed(payload,target,source,profileOnly)
@@ -274,7 +274,7 @@ object LargePlatformDiscoveryParsing {
         if(!username.equals(owner(target),true))fail(payload,"This source returned a different TikTok author")
         val images=data.a("images").take(32).mapNotNull {safe(it.value())}.map {Media(it)}
         val cover=safe(data.s("origin_cover").ifBlank {data.s("cover")})
-        val media=images.ifEmpty {listOfNotNull(safe(data.s("wmplay").ifBlank {data.s("play")})?.let {Media(it,"video",cover)})}
+        val media=images.ifEmpty {listOfNotNull(safe(data.s("wmplay").ifBlank {data.s("play")})?.let {Media(it,"video",cover,durationMs=MediaDuration.seconds(data["duration"]))})}
         val body=plain(data.s("title"))
         if(body.isBlank()&&media.isEmpty())fail(payload,"This source returned no readable TikTok post content")
         val provenance=Provenance(source,System.currentTimeMillis(),payload.finalUrl)
@@ -397,7 +397,8 @@ object LargePlatformDiscoveryParsing {
         val document=Jsoup.parse(payload.text,payload.finalUrl)
         val script=document.selectFirst("script#__FRONTITY_CONNECT_STATE__[type=application/json]")?.data().orEmpty()
         val state=runCatching {JsonParser.parseString(script).asJsonObject}.getOrNull() ?: fail(payload,"This embed did not supply its public creator snapshot")
-        val data=state.o("source")?.o("data")?.o("/embed/@$username") ?: fail(payload,"The embed does not identify the selected creator")
+        val data=state.o("source")?.o("data")?.entrySet()?.filter {it.key.equals("/embed/@$username",ignoreCase=true)}
+            ?.singleOrNull()?.value?.obj() ?: fail(payload,"The embed does not identify the selected creator")
         val user=data.o("userInfo") ?: fail(payload,"This embed did not return a public creator")
         if(!user.s("uniqueId").equals(username,true))fail(payload,"The embed returned another creator")
         if(user.s("privateAccount")=="true")throw SourceFailure(HealthStatus.LOGIN_REQUIRED,"This creator is not available as a public embed")

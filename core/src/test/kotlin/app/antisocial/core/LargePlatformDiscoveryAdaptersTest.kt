@@ -148,6 +148,29 @@ class LargePlatformDiscoveryAdaptersTest {
         assertNull(page.posts.single().publishedAt);assertNull(page.next)
         assertTrue(page.notice!!.contains("publication dates"))
     }
+    @Test fun creatorEmbedCanonicalizesTheRequestPathWhileKeepingTheSelectedIdentity():Unit=runBlocking {
+        MockWebServer().use {server->
+            server.start();server.enqueue(MockResponse().setBody(creatorEmbed(owner="Mixed.Creator",itemOwner="Mixed.Creator").replace("/embed/@tiktok","/embed/@mixed.creator")))
+            val (routes,gateway)=routes()
+            val source=source(Platform.TIKTOK,"tiktok-creator-embed").copy(root=server.url("/").toString().trimEnd('/'))
+            val target=tikTokProfile.copy(identity="Mixed.Creator",canonicalUrl="https://www.tiktok.com/@Mixed.Creator")
+            val page=largePlatformDiscoveryAdapter(source,gateway,routes)!!.fetch(target)
+            assertEquals("/embed/@mixed.creator",server.takeRequest().path)
+            assertEquals(target,page.profile!!.target);assertEquals("https://www.tiktok.com/@Mixed.Creator/video/12345",page.posts.single().canonicalUrl)
+            assertNull(page.posts.single().publishedAt)
+        }
+    }
+    @Test fun creatorEmbedRequiresOneCaseEquivalentScopeAndStillRejectsAnotherOwner() {
+        val target=tikTokProfile.copy(identity="Mixed.Creator",canonicalUrl="https://www.tiktok.com/@Mixed.Creator")
+        val source=source(Platform.TIKTOK,"tiktok-creator-embed")
+        val body=creatorEmbed(owner="Mixed.Creator",itemOwner="Mixed.Creator").replace("/embed/@tiktok","/embed/@mixed.creator")
+        assertEquals(1,LargePlatformDiscoveryParsing.tikTokCreatorEmbed(payload(body),target,source).posts.size)
+        assertThrows(SourceFailure::class.java){LargePlatformDiscoveryParsing.tikTokCreatorEmbed(payload(body.replace("\"uniqueId\":\"Mixed.Creator\"","\"uniqueId\":\"Different\"")),target,source)}
+        val json=JsonParser.parseString(body.substringAfter('>').substringBefore("</script>")).asJsonObject
+        val data=json.getAsJsonObject("source").getAsJsonObject("data")
+        data.add("/embed/@Mixed.Creator",data["/embed/@mixed.creator"].deepCopy())
+        assertThrows(SourceFailure::class.java){LargePlatformDiscoveryParsing.tikTokCreatorEmbed(payload("<script id=\"__FRONTITY_CONNECT_STATE__\" type=\"application/json\">$json</script>"),target,source)}
+    }
     @Test fun creatorEmbedRejectsWrongCreatorPrivateAndRecommendedPosts() {
         val source=source(Platform.TIKTOK,"tiktok-creator-embed")
         assertThrows(SourceFailure::class.java){LargePlatformDiscoveryParsing.tikTokCreatorEmbed(payload(creatorEmbed(owner="unrelated")),tikTokProfile,source)}

@@ -69,6 +69,14 @@ class VideoFootageTest {
         assertFalse(VideoFootage.valid(media.copy(type="image")))
         assertNull(VideoAssetIdentity.smallRendition("https://example.org/player.mp4",listOf(small to 100L)))
     }
+    @Test fun aSamplingAliasCannotSwitchAnMp4RecordingToAnAdaptivePlaylist() {
+        val url="https://video.twimg.com/amplify_video/710001/vid/1280x720/main.mp4"
+        val playlist="https://video.twimg.com/amplify_video/710001/pl/master.m3u8"
+        val media=Media(url,"video",mimeType="video/mp4",samplingUrl=playlist)
+        assertFalse(VideoAssetIdentity.validSampling(media));assertFalse(VideoFootage.valid(media))
+        assertEquals(url,VideoAssetIdentity.sampleUrl(media))
+        assertNull(VideoAssetIdentity.smallRendition(url,listOf(playlist to 100L)))
+    }
     @Test fun panningPortraitCropsShareFootageWithoutBecomingIdenticalPictures() {
         val p=source;val a=evidence(p.map(::frame));val b=evidence(cropped(p))
         assertTrue(VideoFootage.valid(a));assertTrue(VideoFootage.valid(b))

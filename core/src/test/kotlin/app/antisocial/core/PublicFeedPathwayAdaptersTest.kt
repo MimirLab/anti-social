@@ -18,6 +18,19 @@ class PublicFeedPathwayAdaptersTest {
     private fun reader(server: MockWebServer,p: Platform=Platform.X,f: String="rsshub")=publicFeedPathwayAdapter(source(p,f,server.url("/").toString()),gateway(),routes)!!
     private fun rss(link: String,items: String)="""<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>NASA</title><link>$link</link>$items</channel></rss>"""
     private fun item(url: String,body: String="Public caption",date: String="Fri, 16 Oct 2026 12:00:00 +0000",author: String="NASA")="""<item><link>$url</link><description>$body</description><pubDate>$date</pubDate><dc:creator>$author</dc:creator></item>"""
+    @Test fun tikTokUsesCanonicalRequestCasingWithoutChangingItsScopedIdentity():Unit=runBlocking {
+        val t=target(Platform.TIKTOK,"https://www.tiktok.com/@Mixed.Creator")
+        assertEquals("https://feed.example/tiktok/user/%40mixed.creator/false",PublicFeedPathways.request(source(Platform.TIKTOK,"rsshub"),t))
+        assertEquals("@mixed.creator",PublicFeedPathways.request(source(Platform.TIKTOK,"rss-bridge"),t)!!.toHttpUrlOrNull()!!.queryParameter("username"))
+        MockWebServer().use {server->
+            server.start();val adapter=reader(server,Platform.TIKTOK)
+            server.enqueue(MockResponse().setBody(rss("https://www.tiktok.com/@mixed.creator",item("https://www.tiktok.com/@Mixed.Creator/video/710001",author="Mixed.Creator"))))
+            val page=adapter.feed(t)
+            assertEquals("/tiktok/user/%40mixed.creator/false",server.takeRequest().path)
+            assertEquals("https://www.tiktok.com/@Mixed.Creator/video/710001",page.posts.single().canonicalUrl)
+            assertEquals("https://www.tiktok.com/@Mixed.Creator",t.canonicalUrl)
+        }
+    }
     @Test fun rsshubContractsUseOnlyExistingPublicRouteFamiliesAndChronologicalLemmy() {
         val rows=listOf(
             Triple(Platform.X,"https://x.com/NASA","/twitter/user/NASA"),Triple(Platform.BLUESKY,"https://bsky.app/profile/bsky.app","/bsky/profile/bsky.app"),

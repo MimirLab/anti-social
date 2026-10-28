@@ -110,4 +110,14 @@ class SharedVideoCollectionsTest {
         val many=(0..30).map {PostGroup(listOf(post(Platform.X,"Different source wording $it.",id="7100${it+100}",minute=it.toLong())))}
         assertEquals(12,CrossPosts.videoFootageRequests(many,accounts).size)
     }
+    @Test fun compatibleRuntimesCanNominateExtensionlessVideosWithoutScanningUnknownOrAdaptiveMedia() {
+        val a=post(Platform.X,"First clip.").copy(media=listOf(Media("https://media.example.org/first","video",durationMs=120_000)))
+        val b=post(Platform.TIKTOK,"Another caption.").copy(media=listOf(Media("https://media.example.org/second","video",durationMs=120_100)))
+        fun plans(first:Post=a,second:Post=b)=CrossPosts.videoFootageRequests(listOf(PostGroup(listOf(first)),PostGroup(listOf(second))),accounts)
+        assertEquals(1,plans().size)
+        assertTrue(plans(second=b.copy(media=b.media.map {it.copy(durationMs=null)})).isEmpty())
+        assertTrue(plans(second=b.copy(media=b.media.map {it.copy(mimeType=VideoFormats.HLS)})).isEmpty())
+        assertTrue(plans(second=b.copy(media=b.media.map {it.copy(mimeType="video/x-matroska")})).isEmpty())
+        assertTrue(plans(second=b.copy(media=b.media.map {it.copy(durationMs=5000)})).isEmpty())
+    }
 }

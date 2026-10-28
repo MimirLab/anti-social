@@ -33,8 +33,11 @@ They are local observations, not cryptographic authentication of a source.
 
 The request planner uses existing local publisher/account membership. It offers
 at most twelve pairs from the newest 128 eligible groups, with compatible declared
-runtimes or an advertised smaller rendition. Unknown videos, adaptive playlists,
-split audio and multi-clip originals do not initiate this route. No fresh account
+runtimes or an advertised smaller rendition. Since 0.38.57, an extensionless video
+can use that same nomination rule; its already-fetched first four KiB must identify
+an MP4 or WebM container before decoding. An unknown URL alone still cannot
+initiate work. Adaptive playlists, split audio and multi-clip originals remain
+outside this sampler. No fresh account
 lookup or guessed rendition URL is needed. Playback keeps its existing URL;
 sampling can use a smaller rendition explicitly advertised for the same clip.
 
@@ -123,6 +126,41 @@ The final selection is recorded in [release qualification](RELEASE_QUALIFICATION
 Initial failing probes and corrected runs remain in the private external evidence
 area. This does not claim that all video duplicates are solved.
 
+### Follow-up qualification, 0.38.57
+
+The previously unacquired fifth edition was recovered through an existing
+TikTok RSS route. Its supplied video URL had neither a file extension nor a
+declared container/runtime. Bounded header recognition now lets that recording
+participate when the existing pair has sufficient runtime/rendition evidence.
+The sampler reads the prefix from its existing range block, adding no exchange.
+It retains the same per-recording and enclosing pair allowances. Header hints
+select a decoder; they do not authenticate the recording or establish a video
+track. The worker still validates the actual media.
+
+Two public TikTok JSON representations also supplied clip duration in seconds,
+which the parser previously omitted. Those fields now survive normalization;
+music duration and photo slides remain separate. The existing creator embed and
+RSS request builders canonicalize TikTok handle casing without changing stored
+targets, profile ownership checks, source inventory or retry/refusal policy.
+One observed lowercase RSS request returned ten dated posts, while a creator
+embed still returned HTTP 429. Challenged feed-API responses remain failures;
+no new provider or quota-cycling mechanism was activated.
+
+An automatic five-edition replay starts without video observations, uses real
+Gateway range reads, and yields one native card with all five originals, three
+distinct source captions and four selectable playable editions. Saving retains
+all originals. Initial and caption screens were inspected. One API 35 emulator
+observation was 660 ms to the first cached card and 14,867 ms to the settled
+collection, including a background request yielding to foreground traffic.
+Those are single mixed cached/live measurements, not physical-phone or cold-feed
+performance claims.
+
+Early replay attempts exposed two harness errors: requiring observations for an
+already caption-matched copy, and counting the nested unread-status label as
+another card. They are retained as failed instrumentation attempts. The corrected
+test checks nominated comparison representatives and actual original-key rows;
+its existing content, attachment and protected-save assertions remain required.
+
 ## Primary references
 
 - [Normalized template correlation](https://docs.opencv.org/4.13.0/de/da9/tutorial_template_matching.html)
@@ -132,3 +170,9 @@ area. This does not claim that all video duplicates are solved.
 - [HTTP validator semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.2).
 - [IANA root-zone vocabulary](https://data.iana.org/TLD/tlds-alpha-by-domain.txt),
   version 2026102800, compiled into `core/src/main/resources/iana-tlds.txt`.
+- [WebM container structure](https://www.webmproject.org/docs/container/) and
+  [ISO BMFF file-type boxes](https://www.loc.gov/preservation/digital/formats/fdd/fdd000155.shtml):
+  references for the independent bounded Kotlin header reader.
+- [TikWM response fields](https://github.com/mehanon/tikwm/blob/master/tt/types.go)
+  and [TikTok representation parsing](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/tiktok.py):
+  references checked against actual responses; no runtime dependency imported.

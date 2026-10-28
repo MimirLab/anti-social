@@ -293,7 +293,7 @@ object Extraction {
             if(target.platform==Platform.TIKTOK && o["video"]?.isJsonObject==true && o.has("desc") && o.has("id")) {
                 val author=o.get("author")?.takeIf { it.isJsonObject }?.asJsonObject
                 val handle=author?.let { text(it,"uniqueId","nickname") }.orEmpty()
-                val video=o.getAsJsonObject("video");val media=text(video,"playAddr","downloadAddr").takeIf { it.startsWith("https://") }?.let { listOf(Media(it,"video",text(video,"cover"))) } ?: emptyList()
+                val video=o.getAsJsonObject("video");val media=text(video,"playAddr","downloadAddr").takeIf { it.startsWith("https://") }?.let { listOf(Media(it,"video",text(video,"cover"),durationMs=MediaDuration.seconds(video["duration"]))) } ?: emptyList()
                 val link="https://www.tiktok.com/@$handle/video/${text(o,"id")}"
                 posts+=Post(link,target.platform,link,handle,text(o,"desc"),publishedAt=timestamp(text(o,"createTime")),media=media,provenance=provenance)
             }

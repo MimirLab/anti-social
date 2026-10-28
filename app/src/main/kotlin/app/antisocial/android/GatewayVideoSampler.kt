@@ -22,6 +22,12 @@ internal class GatewayVideoSampler(private val repo:Repository) {
         require(VideoAssetIdentity.validSampling(media))
         val selected=VideoAssetIdentity.sampleUrl(media)
         val ranges=repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null)
+        // The range view already owns its initial block. Classifying an
+        // extensionless recording adds no exchange and never hands an HTML,
+        // image, unknown or adaptive response to this video worker.
+        val selectedMime=VideoFormats.mime(if(selected==media.url)media else Media(selected,"video"))
+        if(selectedMime==null&&VideoFormats.sniff(ranges.read(0,4096)) !in setOf("video/mp4","video/webm"))
+            throw IOException("Unsupported recording container")
         val scope=currentCoroutineContext()
         val thread=HandlerThread("anti social video bytes").apply {start()}
         try {

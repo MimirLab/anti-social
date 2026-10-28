@@ -62,9 +62,11 @@ class ReaderRoutingLiveTest {
                         }}
                     }else {
                         val feed=spec["feed"]?.asBoolean ?: false
+                        val frontend=spec["sourceFrontend"]?.asString
+                        require(frontend==null||frontend.matches(Regex("[A-Za-z0-9._-]{1,80}")))
                         val source=spec["sourceRoot"]?.asString?.let {root->
                             val pathways=PublicPathways(JsonParser.parseReader(context.assets.open("public-pathways.json").reader()).asJsonObject)
-                            (repo.routes.sources+pathways.sources(target)).distinctBy {it.key}.single {it.platform==platform&&it.root==root}
+                            (repo.routes.sources+pathways.sources(target)).distinctBy {it.key}.single {it.platform==platform&&it.root==root&&(frontend==null||it.frontend==frontend)}
                         }
                         val page=if(source==null)repo.pool.load(target,feed=feed,progress={row.addProperty("progress",it);save()})
                             else repo.pool.sourceReader(source).let {reader->
