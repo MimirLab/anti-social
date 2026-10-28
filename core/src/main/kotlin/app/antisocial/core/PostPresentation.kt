@@ -35,11 +35,14 @@ object PostPresentation {
     private val repostHeading=Regex("^RT by (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val alternateRepostHeading=Regex("^RT (@[a-zA-Z0-9_]{1,15}) \\(by (@[a-zA-Z0-9_]{1,15})\\):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
+    private val shortenedHostLabel=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9-]+(?:…|\\.\\.\\.)(?!\\S)")
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
 
     fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).let {text->
-        if(text.attribution!=null)text else NitterReposts.handle(post)?.let {text.copy(attribution="Reposted by @$it")} ?: text
+        if(text.attribution!=null)text else NitterReposts.handle(post)?.let {
+            text.copy(title=if(NitterReposts.emptyMediaHeading(post,it))""else text.title,attribution="Reposted by @$it")
+        } ?: text
     }.also {CrossPostFusion.rememberPresentation(post,it)}
     /** RSS-Bridge's Bluesky renderer adds its author/posted header before the
      * authored text (getPostDescription in bridges/BlueskyBridge.php). Remove
@@ -112,9 +115,17 @@ object PostPresentation {
                 (heading.trimEnd('"','\'','’','”').lastOrNull() in listOf('.','!','?')||heading==repostCaption)
             return heading.isNotEmpty()&&(heading==body||truncatedEcho||fullPrefix)
         }
-        val expanded=if(repost!=null&&nitter)expandedRssBody(repost.groupValues[2],presentedBody)else null
+        val expanded=if(repost!=null&&nitter)expandedRssBody(repost.groupValues[2],presentedBody,post.links.orEmpty())else null
         val shortenedEcho=expanded!=null
-        if(expanded!=null)presentedBody=expanded
+        if(expanded!=null) {
+            presentedBody=expanded
+            // A shortened host can prevent the earlier media-label echo check.
+            // Recheck only after the source-supplied destination is restored.
+            videoLabel.find(expanded)?.takeIf {post.media.isNotEmpty()}?.let {label->
+                val without=expanded.substring(0,label.range.first).trimEnd()
+                if(headings.any {it==comparison(without)})presentedBody=without
+            }
+        }
         val bridgeTitleEcho=sourceBody!=post.body&&captionWords.findAll(title).count()>=3&&body.startsWith("$title ")
         val redundant=headings.any(::echo)||shortenedEcho||bridgeTitleEcho
         val attribution=if(repost!=null&&repostCaption!=null&&(echo(repostCaption)||shortenedEcho))"Reposted by ${repost.groupValues[1]}"else null
@@ -132,12 +143,22 @@ object PostPresentation {
 
     /** A Nitter RSS heading has full destinations where its caption has shortened
      * labels. Compare every destination in order before omitting that heading. */
-    private fun expandedRssBody(heading:String,body:String):String? {
+    private fun expandedRssBody(heading:String,body:String,sourceLinks:List<String>):String? {
         val full=urlMatches(heading).toList()
-        val labels=urlMatches(body).toList()
+        val ordinary=urlMatches(body).toList()
+        // Nitter can truncate inside the TLD itself. Such a label is not a
+        // destination; qualify its prefix against the exact href retained from
+        // this response before using it as a generated caption echo.
+        val short=shortenedHostLabel.findAll(body).filter {label->ordinary.none {it.range.first<=label.range.last&&label.range.first<=it.range.last}}.toList()
+        val labels=(ordinary+short).sortedBy {it.range.first}
         if(full.isEmpty()||full.size>PostLinks.MAX_LINKS||labels.size<full.size)return null
         if(!full.zip(labels).all {(a,b)->
             fun explicit(value:String)=value.startsWith("https://",true)||value.startsWith("http://",true)
+            if(b in short) {
+                val prefix=b.value.removeSuffix("…").removeSuffix("...")
+                val original=if(explicit(b.value))a.value else a.value.removePrefix("https://").removePrefix("http://")
+                return@all prefix.length>=12&&a.value in sourceLinks&&original.startsWith(prefix)
+            }
             val original=runCatching {URI(if(explicit(a.value))a.value else "https://"+a.value)}.getOrNull()
             val label=runCatching {URI(if(explicit(b.value))b.value else "https://"+b.value)}.getOrNull()
             if(original?.host==null||label?.host==null||original.userInfo!=null||label.userInfo!=null||original.port!=label.port||
@@ -150,8 +171,12 @@ object PostPresentation {
                     else original.rawPath==path&&original.rawQuery==label.rawQuery&&original.rawFragment==label.rawFragment
             }
         })return null
-        fun caption(text:String)=TextWhitespace.collapse(replaceUrls(text," LINK ")).trim().lowercase(Locale.ROOT)
-        val first=caption(heading);val second=caption(body)
+        fun caption(text:String,matches:List<MatchResult>)=TextWhitespace.collapse(buildString {
+            var end=0
+            matches.forEach {append(text.substring(end,it.range.first));append(" LINK ");end=it.range.last+1}
+            append(text.substring(end))
+        }).trim().lowercase(Locale.ROOT)
+        val first=caption(heading,full);val second=caption(body,labels)
         if(second!=first&&!second.startsWith(first+" "))return null
         // Use only URLs actually supplied in the generated heading. Preserve
         // the body's exact prose and any additional material after that echo.

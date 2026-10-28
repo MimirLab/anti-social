@@ -13,6 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import app.antisocial.core.Target
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -27,7 +28,10 @@ class AdjacentDiscoveryNativeTest {
     @Before fun prepare() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         runBlocking {repo.awaitReady()};scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
-        ui.runOnIdle {ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java].viewModelScope.cancel()}
+        ui.runOnIdle {
+            ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java].viewModelScope.cancel()
+            ui.activity.setContent {androidx.compose.material3.Text("Preparing discovery fixtures")}
+        }
     }
     @After fun cleanup(){if(::scope.isInitialized)scope.cancel()}
     private fun card(name:String="Useful workshop",platform:Platform=Platform.X,handle:String="other_fixture"):AdjacentCard {
@@ -35,10 +39,163 @@ class AdjacentDiscoveryNativeTest {
         return AdjacentCard(AdjacentDiscovery.key(p.target),p,listOf(AdjacentEvidence(AdjacentKind.FEATURED,seed.target,seed.target.canonicalUrl,System.currentTimeMillis())),100.0)
     }
     private fun evidence(name:String) {
-        ui.waitForIdle();InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        // Semantics can be ready before the modal surface's first compositor
+        // frame. Let the entry animation settle before recording native pixels.
+        ui.mainClock.advanceTimeBy(500);ui.waitForIdle();Thread.sleep(200)
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         val file=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"adjacent-discovery/$name.png").apply {parentFile!!.mkdirs()}
         val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         file.outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+    }
+    @Test fun subscriptionFeedSharingSeedsDiscoveryBeforeAnyProfileOrNetworkRead()=runBlocking {
+        val suffix=System.nanoTime().toString().takeLast(9)
+        val owner=Profile(repo.routes.target(Platform.X,"cache_$suffix"),"Community workshop")
+        val author="crew_$suffix";val id="99${suffix}71"
+        val source=Source(Platform.X,"nitter","https://reader.example")
+        val caption="The repair crew published a complete equipment list for the next public workshop."
+        val rss="""<rss xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><link>${source.root}/${owner.target.identity}</link><item><title>RT by @${owner.target.identity}: $caption</title><dc:creator>@$author</dc:creator><guid>$id</guid><link>${source.root}/$author/status/$id</link><description>$caption</description></item></channel></rss>"""
+        val page=Extraction.parse(Payload(rss,"${source.root}/${owner.target.identity}/rss","application/rss+xml",200),owner.target,source,repo.routes)
+        val follow=Follow("${owner.target.platform.id}:${owner.target.canonicalUrl}",owner.target,owner.name)
+        val previous=repo.gateway.onNetworkEvent;val requests=java.util.concurrent.atomic.AtomicInteger()
+        try {
+            repo.dao.putFollow(FollowRow(follow.id,follow.target.platform.id,repo.gson.toJson(follow)))
+            repo.store(page,follow.id,true)
+            assertNull(repo.cachedPage(owner.target))
+            repo.gateway.onNetworkEvent={if(it.stage=="start")requests.incrementAndGet()}
+            val started=android.os.SystemClock.elapsedRealtime()
+            val runtime=repo.adjacentSession(owner)
+            val snapshot=runtime.session.current();val cards=snapshot.cards
+            val readyMs=android.os.SystemClock.elapsedRealtime()-started
+            assertTrue("Cached feed relationships never reached the initial discovery deck",cards.any {it.profile.target.identity==author&&it.evidence.any {e->e.kind==AdjacentKind.FORWARDED}})
+            assertEquals(0,requests.get())
+            ui.runOnIdle {ui.activity.setContent {MaterialTheme {AdjacentSheet(repo,AdjacentUiState(owner,snapshot=snapshot),{},{},{},{},{},{})}}}
+            ui.onNodeWithText(author).assertIsDisplayed()
+            val visibleMs=android.os.SystemClock.elapsedRealtime()-started
+            evidence("cached-feed-sharing-initial-deck")
+            val out=File(ui.activity.getExternalFilesDir("validation"),"adjacent-discovery/cached-feed-seed-timing.json")
+            out.writeText(repo.gson.toJson(mapOf("sessionReadyMs" to readyMs,"firstCardMs" to visibleMs,"requestStarts" to requests.get())))
+        }finally {
+            repo.gateway.onNetworkEvent=previous
+            repo.dao.removePosts(page.posts.map(repo::key));repo.dao.removeFollow(follow.id)
+        }
+    }
+    @Test fun aFacebookSeedStreamsCachedConnectionsFromItsLinkedXAccountWithoutNetworkReads()=runBlocking {
+        val suffix=System.nanoTime().toString().takeLast(9)
+        val owner=Profile(repo.routes.target(Platform.FACEBOOK,"987$suffix"),"Community workshop")
+        val linked=repo.routes.target(Platform.X,"hop_$suffix");val author="peer_$suffix";val id="99${suffix}73"
+        val bundle="cached-bundle-$suffix"
+        val follows=listOf(owner.target,linked).map {Follow("${it.platform.id}:${it.canonicalUrl}",it,it.identity,personId=bundle)}
+        val now=System.currentTimeMillis()
+        val post=Post(id,Platform.X,"https://x.com/$author/status/$id",author,"A public workshop announcement",publishedAt=now,
+            provenance=Provenance(Source(Platform.X,"nitter","https://reader.example"),now,"https://reader.example/${linked.identity}/rss"),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,linked.canonicalUrl)))
+        val controller=AdjacentController(repo,scope,
+            identities={p->AccountDiscovery(p.name,listOf(AccountCandidate(p.target,"Entered",AccountLinkKind.ENTERED)))},
+            next={runtime,update->runtime.session.current().copy(hasMore=false,complete=true).also(update)},
+            bridge={account,_,_->BridgePage(account)})
+        val previous=repo.gateway.onNetworkEvent;val requests=java.util.concurrent.atomic.AtomicInteger()
+        try {
+            follows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
+            repo.store(Page(listOf(post)),follows.single {it.target==linked}.id,true)
+            repo.gateway.onNetworkEvent={if(it.stage=="start")requests.incrementAndGet()}
+            ui.runOnIdle {controller.start(owner)}
+            ui.waitUntil(5_000){controller.state.value.snapshot.cards.any {it.profile.target.identity==author}}
+            val card=controller.state.value.snapshot.cards.single {it.profile.target.identity==author}
+            assertEquals(linked,card.evidence.single().owner);assertEquals(AdjacentKind.FORWARDED,card.evidence.single().kind)
+            ui.runOnIdle {ui.activity.setContent {MaterialTheme {AdjacentSheet(repo,controller.state.collectAsState().value,{},{},{},{},{},{})}}}
+            ui.onNodeWithText(author).assertIsDisplayed();assertEquals(0,requests.get())
+            evidence("cross-platform-cached-feed-seed")
+        }finally {
+            ui.runOnIdle {controller.stop()};repo.gateway.onNetworkEvent=previous
+            repo.dao.removePosts(listOf(repo.key(post)));follows.forEach {repo.dao.removeFollow(it.id)}
+        }
+    }
+    @Test fun cachedDiscoveryIsBoundedToTheExactEnabledAccountAndUnexpiredSmallRecords()=runBlocking {
+        val suffix=System.nanoTime().toString().takeLast(9);val owner=Profile(repo.routes.target(Platform.X,"cache_$suffix"),"Workshop")
+        val follow=Follow("${owner.target.platform.id}:${owner.target.canonicalUrl}",owner.target,owner.name)
+        val other=Follow("foreign-$suffix",repo.routes.target(Platform.X,"other_$suffix"),"Unrelated")
+        val now=System.currentTimeMillis();val keys=mutableListOf<String>();val days=repo.prefs.unseenDays;val viewedDays=repo.prefs.viewedDays
+        val damagedBookmark="damaged-cache-$suffix";var savedKey:String?=null
+        suspend fun put(index:Int,source:Follow=follow,age:Long=0,body:String="A public workshop announcement",payload:String?=null,viewedAgo:Long?=null):Post {
+            val id="99${suffix}${100+index}";val author="peer${index}_${suffix.takeLast(8)}"
+            val post=Post(id,Platform.X,"https://x.com/$author/status/$id",author,body,publishedAt=now-(if(index>=90)index else 10_000+index),
+                provenance=Provenance(Source(Platform.X,"nitter","https://reader.example"),now,"https://reader.example/${owner.target.identity}/rss"),
+                publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,owner.target.canonicalUrl)))
+            val key=repo.key(post);keys+=key
+            // A deliberately wrong size hint must not defeat the SQL byte cap.
+            repo.dao.putPost(PostRow(key,post.platform.id,payload ?: repo.gson.toJson(post),post.publishedAt,now-age,lastViewedAt=viewedAgo?.let {now-it},bytes=1,followId=source.id))
+            return post
+        }
+        try {
+            repo.prefs.unseenDays=1;repo.prefs.viewedDays=1
+            for(f in listOf(follow,other))repo.dao.putFollow(FollowRow(f.id,f.target.platform.id,repo.gson.toJson(f)))
+            val ordinary=(0..80).map {put(it)}
+            val foreign=put(90,other);val expired=put(91,age=2*CachePolicy.DAY);val oversized=put(92,body="x".repeat(40*1024));put(93,payload="{}")
+            val expiredViewed=put(94,viewedAgo=2*CachePolicy.DAY)
+            // The real reader must keep serving good records while the cache
+            // contains the same malformed candidate seen by local discovery.
+            val reader=withTimeout(5_000){repo.posts(Platform.X).first {it.any {post->post.canonicalUrl==ordinary.first().canonicalUrl}}}
+            assertTrue(reader.any {it.canonicalUrl==ordinary.first().canonicalUrl})
+            savedKey=repo.key(ordinary.first())
+            repo.dao.putBookmark(BookmarkRow(savedKey,Platform.X.id,repo.gson.toJson(ordinary.first()),now))
+            repo.dao.putBookmark(BookmarkRow(damagedBookmark,Platform.X.id,"{broken",now))
+            val saved=withTimeout(5_000){repo.bookmarks.first {it.any {post->post.canonicalUrl==ordinary.first().canonicalUrl}}}
+            assertTrue(saved.any {it.canonicalUrl==ordinary.first().canonicalUrl})
+            assertEquals("{broken",repo.dao.allBookmarks().single {it.key==damagedBookmark}.payload)
+            val values=repo.cachedAdjacentObservations(owner)
+            val captured=values.flatMap {it.evidence.records}.toSet()
+            // One malformed candidate consumes a bounded slot but supplies no
+            // invented connection. The observer does not expand its allowance.
+            assertEquals(79,captured.size);assertTrue(captured.all {url->ordinary.any {it.canonicalUrl==url}})
+            assertTrue(listOf(foreign,expired,expiredViewed,oversized).none {it.canonicalUrl in captured})
+            val plan=repo.db.query(androidx.sqlite.db.SimpleSQLiteQuery("EXPLAIN QUERY PLAN "+CACHED_DISCOVERY_POSTS_SQL,
+                arrayOf<Any?>(follow.id,Platform.X.id,now-CachePolicy.DAY,now-CachePolicy.DAY,32*1024,80))).use {cursor->
+                buildList {while(cursor.moveToNext())add(cursor.getString(3))}
+            }
+            assertTrue(plan.toString(),plan.any {it.contains("post_follows")&&it.contains("followId")})
+            assertTrue(plan.toString(),plan.any {it.contains("key=?")})
+            assertFalse(plan.toString(),plan.any {it.contains("index_posts_platform")||it.startsWith("SCAN p ")})
+            File(ui.activity.getExternalFilesDir("validation"),"adjacent-discovery/cache-query-plan.txt").apply {parentFile!!.mkdirs();writeText(plan.joinToString("\n"))}
+            repo.dao.putFollow(FollowRow(follow.id,follow.target.platform.id,repo.gson.toJson(follow.copy(enabled=false))))
+            assertTrue(repo.cachedAdjacentObservations(owner).isEmpty())
+        }finally {
+            repo.prefs.unseenDays=days;repo.prefs.viewedDays=viewedDays;repo.dao.removePosts(keys)
+            repo.dao.removeBookmark(damagedBookmark);savedKey?.let {repo.dao.removeBookmark(it)}
+            repo.dao.removeFollow(follow.id);repo.dao.removeFollow(other.id)
+        }
+    }
+    @Test fun aManualPurgeCannotSeedOrReviveAnOldDiscoverySessionAndKeepsSavedState()=runBlocking {
+        val suffix=System.nanoTime().toString().takeLast(9);val owner=Profile(repo.routes.target(Platform.X,"cache_$suffix"),"Workshop")
+        val follow=Follow("${owner.target.platform.id}:${owner.target.canonicalUrl}",owner.target,owner.name)
+        val id="99${suffix}72";val now=System.currentTimeMillis()
+        val post=Post(id,Platform.X,"https://x.com/repair_peer/status/$id","repair_peer","A public workshop announcement",publishedAt=now,
+            provenance=Provenance(Source(Platform.X,"nitter","https://reader.example"),now,"https://reader.example/${owner.target.identity}/rss"),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,owner.target.canonicalUrl)))
+        val key=repo.key(post);val payload=repo.gson.toJson(post);var held=false;var clearing:Job?=null
+        val previous=repo.gateway.onNetworkEvent;val requests=java.util.concurrent.atomic.AtomicInteger()
+        try {
+            repo.dao.putFollow(FollowRow(follow.id,follow.target.platform.id,repo.gson.toJson(follow)))
+            repo.store(Page(listOf(post)),follow.id,true);repo.dao.putBookmark(BookmarkRow(key,post.platform.id,payload,now))
+            val runtime=repo.adjacentSession(owner);assertTrue(runtime.session.current().cards.isNotEmpty())
+            repo.mediaMutex.lock();held=true
+            val epoch=repo.adjacentStore.epoch();clearing=launch(Dispatchers.IO){repo.cleanup(true)}
+            withTimeout(10_000){while(repo.adjacentStore.epoch()==epoch)delay(10)}
+            repo.gateway.onNetworkEvent={if(it.stage=="start")requests.incrementAndGet()}
+            assertTrue(repo.cachedAdjacentObservations(owner).isEmpty())
+            try {withTimeout(2_000){repo.adjacentSession(owner)};fail("Discovery admitted ordinary data during a purge")}
+            catch(e:SourceFailure){assertEquals(HealthStatus.UNKNOWN,e.status)}
+            try {repo.adjacentNext(runtime){};fail("An old discovery session restarted after its cache was cleared")}
+            catch(e:SourceFailure){assertEquals(HealthStatus.UNKNOWN,e.status)}
+            repo.mediaMutex.unlock();held=false;withTimeout(30_000){clearing.join()}
+            assertEquals(payload,repo.dao.allBookmarks().single {it.key==key}.payload)
+            assertTrue(repo.dao.allFollows().any {it.id==follow.id})
+            assertTrue(repo.adjacentSession(owner).session.current().cards.isEmpty());assertEquals(0,requests.get())
+        }finally {
+            if(held)repo.mediaMutex.unlock();repo.gateway.onNetworkEvent=previous
+            withContext(NonCancellable) {
+                clearing?.cancelAndJoin();repo.dao.removeBookmark(key);repo.dao.removePosts(listOf(key));repo.dao.removeFollow(follow.id)
+            }
+        }
     }
     @Test fun nativeCardsFilterByPlatformAndTextAndKeepActionsAndReasonsAvailable() {
         val first=card();val second=card("Library maker group",Platform.BLUESKY,"library.test")

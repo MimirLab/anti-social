@@ -193,6 +193,28 @@ class SavedLibraryUiTest {
         ui.onNodeWithText(shared).assertExists()
         assertTrue(repo.gateway.currentPolicy().tor)
     }
+    @Test fun anRssPictureOnlyRepostKeepsItsSharingRoleAndBlankCaptionInTheSavedReader() {
+        val selected=repo.routes.sources.first {it.frontend=="nitter"}
+        val target=repo.routes.target(Platform.X,"Workshop")
+        val id="99${suffix}302";val picture=image("rss-repost")
+        val render=selected.root.trimEnd('/')
+        val title="RT by @Workshop: Image"
+        val rss="""<rss xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><link>$render/Workshop</link><item><title>$title</title><dc:creator>@RepairCrew</dc:creator><guid>$id</guid><link>$render/RepairCrew/status/$id#m</link><description><![CDATA[<img src="$picture"/>]]></description></item></channel></rss>"""
+        val page=Extraction.parse(Payload(rss,"$render/Workshop/rss","application/rss+xml",200),target,selected,repo.routes)
+        val root=page.posts.single().also {posts+=it}
+        assertEquals("",root.body);assertEquals(title,root.title)
+        assertEquals(1,AdjacentDiscovery.observed(Profile(target,"Community Workshop"),page,repo.routes,now).count {it.evidence.kind==AdjacentKind.FORWARDED})
+        val saved=runBlocking {repo.library.save(root,emptyList()).also {repo.library.cancel(it)}}
+        val copy=runBlocking {repo.library.copy(saved)}!!
+        assertEquals(root.publicRelations,copy.post.publicRelations);assertEquals(root.body,copy.post.body);assertEquals(root.title,copy.post.title)
+        library();ui.waitUntil(5_000){ui.onAllNodesWithTag("Library entry ${repo.key(root)}").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library entry ${repo.key(root)}").performClick()
+        ui.waitUntil(5_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Post attribution").assertTextContains("Reposted by",substring=true).assertTextContains("Workshop",substring=true)
+        ui.onNodeWithText(title).assertDoesNotExist()
+        assertTrue(repo.gateway.currentPolicy().tor)
+        evidence("rss-picture-repost-saved-native")
+    }
     @Test fun fusedLocalCopyKeepsSharedTextOnceAndEveryOriginalEditionAvailableOffline() {
         val photo=image("fused-workshop")
         val shared="At this community repair workshop, neighbors learned how to replace a laptop battery, organize all the screws, disconnect the old pack, and safely fit the replacement before closing the cover."

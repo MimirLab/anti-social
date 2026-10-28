@@ -44,4 +44,4 @@ internal class AdjacentStore(private val directory:File,private val clock:()->Lo
     @Synchronized fun bytes()=directory.listFiles().orEmpty().sumOf {it.length()}
 }
 
-internal data class AdjacentRuntime(val session:AdjacentSession,val key:String,val epoch:Long,val policy:NetworkPolicy,val fresh:Boolean,val named:MutableSet<String> = HashSet())
+internal data class AdjacentRuntime(val session:AdjacentSession,val key:String,val epoch:Long,val policy:NetworkPolicy,val fresh:Boolean,val named:MutableSet<String> = HashSet(),val followIds:Map<String,List<String>> = emptyMap())

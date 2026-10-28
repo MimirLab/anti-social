@@ -112,7 +112,16 @@ object Extraction {
             }?.let {url->
                 val match=Regex("/([A-Za-z0-9_]{1,15})/status/([0-9]{1,40})").matchEntire(url.encodedPath) ?: return@let null
                 val handle=match.groupValues[1];val id=match.groupValues[2]
-                if(tag("dc:creator").removePrefix("@").equals(handle,true)&&tag("guid")==id)Platform.X.origin+url.encodedPath else null
+                // Nitter switched from rendering URLs to numeric GUIDs in
+                // December 2025. Either representation must identify this
+                // exact creator/status on the already scoped render origin.
+                val guids=e.children().filter {it.normalName()=="guid"}
+                val creators=e.children().filter {it.normalName()=="dc:creator"}
+                if(guids.size!=1||creators.size!=1)return@let null
+                val guid=guids.single().wholeText().trim()
+                val legacy=guid.takeIf {it.length<=8192}?.toHttpUrlOrNull()?.takeIf {it.fragment in setOf(null,"m")}
+                val sameGuid=guid==id||legacy?.newBuilder()?.fragment(null)?.build()==url.newBuilder().fragment(null).build()
+                if(creators.single().wholeText().trim().removePrefix("@").equals(handle,true)&&sameGuid)Platform.X.origin+url.encodedPath else null
             }
             val canonical=renderPost ?: safe(raw,provenance.finalUrl)?.let {routes.recognize(it)?.canonicalUrl ?: it} ?: return@mapNotNull null
             val ownLegacy=renderPost!=null&&renderOrigin?.scheme=="http"
@@ -139,7 +148,8 @@ object Extraction {
             // feed generation, including years-old posts. Keep that observation
             // separate from publication; undated seeds must not win FEED routing.
             val date=timestamp(if(provenance.source.frontend=="kittygram")tag("pubDate","published")else tag("pubDate","published","updated"))
-            Post(canonical,target.platform,canonical,tag("dc:creator","name","author").ifBlank { if(target.kind==TargetKind.PROFILE)target.identity else "" },plain(content),tag("title"),date,media=media,provenance=provenance,links=markup.select("a[href]").mapNotNull {safe(it.attr("href"),provenance.finalUrl)}.filter {it!=canonical})
+            val post=Post(canonical,target.platform,canonical,tag("dc:creator","name","author").ifBlank { if(target.kind==TargetKind.PROFILE)target.identity else "" },plain(content),tag("title"),date,media=media,provenance=provenance,links=markup.select("a[href]").mapNotNull {safe(it.attr("href"),provenance.finalUrl)}.filter {it!=canonical})
+            if(renderPost==null)post else NitterReposts.rssRelation(post,target,routes)?.let {post.copy(publicRelations=it)} ?: post
         }
         val next=document.getAllElements().firstOrNull {local(it)=="link"&&it.attr("rel")=="next"&&it.parent()?.let {parent->local(parent) in setOf("feed","channel")}==true}?.attr("href")?.let {safe(it,provenance.finalUrl)}
         return Page(posts,next=next,limitedTimeline=true)

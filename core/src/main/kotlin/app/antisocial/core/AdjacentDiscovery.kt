@@ -116,11 +116,13 @@ class AdjacentSession(private val seed:Profile,private val routes:DarwinRoutes,
         if(queue.size<192&&request.depth<=2&&request.endpoints.isNotEmpty()&&queued.add(request.key))queue.addLast(request)
     }
     suspend fun addBridge(profile:Profile,observed:List<AdjacentObservation> = emptyList(),onUpdate:(AdjacentSnapshot)->Unit={})=lock.withLock {
-        if(AdjacentDiscovery.valid(profile.target)&&owners.size<40&&owners.add(AdjacentDiscovery.key(profile.target))) {
+        if(AdjacentDiscovery.valid(profile.target)&&(AdjacentDiscovery.key(profile.target) in owners||owners.size<40)) {
+            val added=owners.add(AdjacentDiscovery.key(profile.target))
             ownerIds+=AdjacentDiscovery.profileKey(profile)
             order.removeAll {observations[it]?.firstOrNull()?.profile?.let {p->AdjacentDiscovery.key(p.target) in owners||AdjacentDiscovery.profileKey(p) in ownerIds}==true}
             observed.forEach(::accept)
-            AdjacentSources.plan(profile,routes).forEach(::enqueue);onUpdate(snapshot(false))
+            if(added)AdjacentSources.plan(profile,routes).forEach(::enqueue)
+            if(added||observed.isNotEmpty())onUpdate(snapshot(false))
         }
     }
     private fun accept(value:AdjacentObservation) {

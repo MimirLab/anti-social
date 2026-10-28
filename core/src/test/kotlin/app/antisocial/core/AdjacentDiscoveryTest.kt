@@ -13,6 +13,21 @@ class AdjacentDiscoveryTest {
     private fun person(handle:String)= """{"screen_name":"$handle","name":"Workshop $handle","id":"$handle","following":30}"""
     private fun list(vararg people:String,cursor:String="")="""{"code":200,"results":[${people.joinToString(","){person(it)}}],"cursor":"$cursor"}"""
     private fun document(text:String,url:String)=AdjacentDocument(Payload(text,url,"application/json",200))
+    @Test fun anAlreadyRegisteredBridgeCanStreamCachedConnectionsWithoutReorderingOrDuplicatingThem()=runBlocking {
+        val first=Profile(routes.target(Platform.X,"first_peer"),"First peer")
+        val bridge=Profile(routes.target(Platform.BLUESKY,"workshop.test"),"Workshop")
+        val second=Profile(routes.target(Platform.BLUESKY,"repair.test"),"Repair notes")
+        val initial=AdjacentObservation(first,AdjacentEvidence(AdjacentKind.FEATURED,seed.target,seed.target.canonicalUrl,123))
+        var requests=0
+        val session=AdjacentSession(seed,routes,initial=listOf(initial),read={requests++;error("A cached observation must not fetch")})
+        session.addBridge(bridge)
+        val observation=AdjacentObservation(second,AdjacentEvidence(AdjacentKind.FORWARDED,bridge.target,bridge.target.canonicalUrl,124,records=listOf("https://bsky.app/profile/repair.test/post/fixture")))
+        session.addBridge(bridge,listOf(observation));session.addBridge(bridge,listOf(observation))
+        val cards=session.current().cards
+        assertEquals(listOf(first.target,second.target),cards.map {it.profile.target})
+        assertEquals(1,cards.last().evidence.size);assertEquals(0,requests)
+        assertFalse(cards.any {it.profile.target==bridge.target})
+    }
     @Test fun anEmptyLastPageDoesNotSuppressTheWorkingFirstPageOnTheNextSearch()=runBlocking {
         val learning=AdaptiveRouting();var firstPages=0
         suspend fun collect():AdjacentSnapshot {

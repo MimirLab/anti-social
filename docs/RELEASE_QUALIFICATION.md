@@ -9,6 +9,69 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.58: cached connections and source-bound RSS sharing
+
+[Cached account discovery](CACHED_ACCOUNT_DISCOVERY.md) describes the bounded
+subscription-cache seed, staged linked-account observations, source identity and
+cleanup admission. Existing RSS routes now retain explicit repost roles and
+exact legacy rendering-URL GUIDs. The generated-heading presentation also handles
+a hostname truncated before its TLD only when the complete destination is
+supplied in that response. Original records remain intact. No source instance,
+model, dependency, permission, native binary or database migration is added.
+
+The full JVM run covers **2,537 cases: 2,533 passes, zero failures/errors and four
+optional skips**. Synthetic controls cover both GUID forms, ambiguous/foreign
+identities, literal authored repost phrases, picture-only records, source
+snapshots, truncated-host destinations and late cached bridge observations.
+
+The API 35 release selection covers **167 named native checks: 165 passes,
+zero failures and two opt-in skips**. Named results are checked against the
+complete requested selection. This includes existing feed/Library, caption/media
+fusion, reading-position, pull-refresh, cache/video and production-worker checks,
+plus related-account cancellation, method order and refresh retention.
+
+A native counterexample first reproduced an empty initial deck despite a stored
+subscription repost. Its bounded cache seed and linked-platform streaming checks
+now pass with zero network starts. A cache stress case then exposed an actual
+asynchronous reader exception from a Gson-decoded `{}` record. The corrected
+per-record feed/bookmark admission passes while retaining protected raw bytes.
+Native expiry, actual-payload-size, exact enabled ownership and membership-first
+query-plan assertions pass. A real cleanup held at its media lock cannot revive
+an old discovery session or erase the fixture's saved record/subscription.
+
+The focused eight-case native batch passes; synthetic initial, linked-platform
+and saved-reader screens were inspected. An early modal screenshot was blank
+before its compositor frame, so the screenshot helper now settles that animation;
+product assertions were retained. One final cached fixture observation was
+5 ms to construct its session and 177 ms to its first native card, with no network
+requests. These are single emulator observations, not phone/cold-network or
+percentile measurements.
+
+Two dated native RSS observations returned 20 and 18 dated roots, preserving all
+11 and nine explicit sharing roles respectively. Before the correction, two
+earlier 20-root windows each supplied 12 repost headings and zero typed roles.
+The windows changed between reads; all tracked content fields of the 18 and
+12 overlapping originals remained unchanged. Their raw responses contained the
+same 20 and 18 items, and both pages remain limited timelines. A first corrected
+probe exposed the truncated-host edge case before the final successful read.
+These are existing-route observations, not new independent-provider coverage.
+
+Five private native packet runs pass **16 announcement families and 49 originals**,
+checking one common passage, unique attachments and protected source retention.
+The separate automatic five-platform video replay passes with real bounded
+Gateway reads, one card, five originals, three distinct captions and four
+selectable recordings. Actual card/first-caption pixels and the complete native
+text projection were inspected. Its single mixed cached/live observation was
+1,314 ms to first card and 21,042 ms to collection. This does not establish that
+every device/cache/scheduling state nominates the same editions; phone reports
+and further live-state qualification remain separate work.
+
+Private captures and failed attempts remain in the external evidence area.
+Compatible signer/source checks, clean release lint, frozen-artifact comparison,
+backed-up preview promotion and anonymous permanent-download verification follow
+the [publishing procedure](PUBLISHING.md). Physical-phone p95, battery use and
+global endpoint availability have not been measured by this increment.
+
 ## 0.38.57: recovered fifth video edition and extensionless recordings
 
 The [video-scene follow-up](VIDEO_FOOTAGE.md#follow-up-qualification-03857)

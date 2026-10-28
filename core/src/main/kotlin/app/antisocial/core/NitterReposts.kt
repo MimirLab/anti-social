@@ -11,6 +11,7 @@ import org.jsoup.nodes.Element
  */
 internal object NitterReposts {
     private val username=Regex("[A-Za-z0-9_]{1,15}")
+    private val mediaRepost=Regex("^(?:RT by @([A-Za-z0-9_]{1,15})|RT @([A-Za-z0-9_]{1,15}) \\(by @([A-Za-z0-9_]{1,15})\\)):\\s*(Image|Video|Gif|Media)$",RegexOption.IGNORE_CASE)
     data class Curator(val url:String,val name:String) {
         fun relation(card:Element):List<PublicRelation>? {
             val headers=card.select(".retweet-header").filter {header->
@@ -50,6 +51,38 @@ internal object NitterReposts {
         val name=TextWhitespace.collapse(fullname.text()).trim().takeIf {it.isNotBlank()&&it.length<=160} ?: return null
         return Curator(account.target.canonicalUrl,name)
     }
+
+    /** Called only after the RSS channel, render origin, original creator and
+     * item GUID agree. Preserve the published sharing role for the same passive
+     * discovery/snapshot consumers as HTML. It grants no ownership or fetch. */
+    fun rssRelation(post:Post,target:Target,routes:DarwinRoutes):List<PublicRelation>? {
+        val provenance=post.provenance ?: return null;val source=provenance.source
+        if(target.platform!=Platform.X||target.kind!=TargetKind.PROFILE||post.platform!=Platform.X||
+            source.platform!=Platform.X||source.frontend!="nitter"||source.role!=SourceRole.ALTERNATE||!target.identity.matches(username))return null
+        val account=MentionNames.account(target,routes) ?: return null
+        val expected=(routes.convert(target,source).substringBefore('#').substringBefore('?').trimEnd('/')+"/rss").toHttpUrlOrNull() ?: return null
+        val actual=provenance.finalUrl.toHttpUrlOrNull() ?: return null
+        if(!actual.isHttps||actual.host!=expected.host||actual.port!=expected.port||actual.username.isNotEmpty()||actual.password.isNotEmpty()||
+            actual.encodedPath!=expected.encodedPath||actual.fragment!=null||actual.query!=null&&!NitterFeedHistory.continuation(actual.toString(),target,source))return null
+        val captionBound=PostPresentation.text(post).attribution?.equals("Reposted by @${account.key.username}",true)==true
+        return if(captionBound||mediaOwner(post)?.equals(account.key.username,true)==true)
+            listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,account.target.canonicalUrl))else null
+    }
+    private fun mediaOwner(post:Post):String? {
+        if(post.media.isEmpty()||!post.body.isBlank()&&post.body.trim()!="Video")return null
+        val match=mediaRepost.matchEntire(Extraction.plain(post.title)) ?: return null
+        val original=match.groupValues[2]
+        val curator=match.groupValues[1].ifBlank {match.groupValues[3]}
+        val compatible=(original.isBlank()||original.equals(post.author.removePrefix("@"),true))&&
+            when(match.groupValues[4].lowercase()) {
+                "image"->post.media.all {it.type=="image"}
+                "video","gif"->post.media.any {it.type=="video"}||post.body.trim()=="Video"
+                "media"->true
+                else->false
+            }
+        return curator.takeIf {compatible}
+    }
+    fun emptyMediaHeading(post:Post,curator:String)=post.body.isBlank()&&mediaOwner(post)?.equals(curator,true)==true
 
     /** Data-only presentation also survives a saved snapshot read through a
      * different current source. It grants no request or account-link authority. */

@@ -258,3 +258,9 @@ Whole-feed matching also freezes its local image evidence for each pass and
 ignores unrelated image-bank updates. The linked collection contract and
 [performance qualification](FEED_PERFORMANCE.md) describe its cancellation,
 comparison-cache bounds and measured scope.
+
+[Cached account discovery](CACHED_ACCOUNT_DISCOVERY.md) connects exact enabled
+subscription memberships and retained public relationships to the initial
+discovery deck. Linked-account observations stream afterward within a shared
+local allowance. This reuses acquired evidence without adding graph requests;
+manual cache cleanup invalidates old discovery sessions and keeps protected saves.

@@ -22,6 +22,7 @@ internal class AdjacentController(private val repo:Repository,private val scope:
     private val identities:(suspend (Profile)->AccountDiscovery)?=null,
     private val next:suspend (AdjacentRuntime,(AdjacentSnapshot)->Unit)->AdjacentSnapshot=repo::adjacentNext,
     private val roots:suspend (Target)->List<Target> =repo::linkedSubscriptionAccounts,
+    private val cached:suspend (AdjacentRuntime,Profile,Int,(AdjacentSnapshot)->Unit)->Unit=repo::adjacentCached,
     private val bridge:suspend (PublicAccount,Boolean,Boolean)->BridgePage={a,related,force->repo.discoveryBridge(a,related,force)}) {
     private val mutable=MutableStateFlow(AdjacentUiState());val state=mutable.asStateFlow()
     private var owner:Job?=null;private var graph:Job?=null;private var bound=0;private var runtime:AdjacentRuntime?=null
@@ -55,6 +56,21 @@ internal class AdjacentController(private val repo:Repository,private val scope:
                 supervisorScope {
                     val rootScope=this;val providers=hashSetOf<String>();val publicSeen=hashSetOf<String>();val rootGate=Semaphore(2)
                     var pending=0
+                    // Publish the seed first. Other locally linked platforms
+                    // contribute at most eighty further cache records in total,
+                    // sharing the existing two-lane bridge scheduler.
+                    val cachedRoots=local.filter {it!=profile.target}
+                    val cacheLimit=80/cachedRoots.size.coerceAtLeast(1)
+                    cachedRoots.forEach {target->
+                        pending++
+                        rootScope.launch {
+                            try {rootGate.withPermit {
+                                cached(opened,Profile(target,profile.name,displayNameSupplied=false),cacheLimit) {snapshot->
+                                    if(generation==bound)publish(snapshot.copy(loading=state.value.snapshot.loading))
+                                }
+                            }}catch(e:CancellationException){throw e}catch(_:Exception){}finally {pending--;if(generation==bound)mutable.update {it.copy(findingBridges=pending>0)}}
+                        }
+                    }
                     lateinit var enqueue:suspend (PublicAccount)->Unit
                     enqueue={account->
                         val target=PublicAccounts.target(account,repo.routes)

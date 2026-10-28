@@ -156,6 +156,7 @@ class Repository(val context: Context) {
     private val mediaKeys=KeyedMutex<String>()
     private val mediaPermits=Semaphore(4)
     private val cleanupQueued=java.util.concurrent.atomic.AtomicBoolean()
+    private val manualCacheClears=java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var lastAutoCleanup=0L
     private val activeKeys=java.util.concurrent.ConcurrentHashMap<String,Int>()
     private var blocker: NativeFilter?=null
@@ -171,13 +172,23 @@ class Repository(val context: Context) {
     private val retainedFollows=dao.follows().map {rows->rows.map {gson.fromJson(it.payload,Follow::class.java)}}.flowOn(Dispatchers.Default)
     val follows=retainedFollows.map {list->list.filter {ReaderScope.isFeedSource(it.target.platform)}}
     val legacyVideoFollows=retainedFollows.map {list->list.filterNot {ReaderScope.isFeedSource(it.target.platform)}}
-    private fun readableRecord(post: Post): Boolean {
+    private fun readableRecord(post: Post): Boolean = runCatching {
+        // Gson can construct a record with nulls in Kotlin-required fields.
+        // Reject a damaged cache record before it reaches reader projections;
+        // ordinary/protected stored bytes remain available for recovery.
+        val media:List<Media?>?=post.media
+        if(post.platform !in Platform.entries||arrayOf<String?>(post.id,post.canonicalUrl,post.author,post.body,post.title).any {it==null}||
+            media==null||media.any {it==null||arrayOf<String?>(it.url,it.type,it.description).any {value->value==null}})return@runCatching false
+        val provenance=post.provenance;val source:Source?=provenance?.source;val links:List<String?>?=post.links
+        if(provenance!=null&&(source==null||source.platform !in Platform.entries||source.role !in SourceRole.entries||
+            arrayOf<String?>(source.root,source.frontend,provenance.finalUrl).any {it==null})||links?.any {it==null}==true||
+            post.publicRelations!=null&&!PublicRelations.valid(post))return@runCatching false
         if(post.recoveredArchive==null)return true
         if(!RecoveredArchives.valid(post))return false
         val recognized=runCatching {routes.recognize(post.canonicalUrl,post.platform)}.getOrNull() ?: return false
         return recognized.platform==post.platform&&recognized.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&ContentIdentity.key(post.platform,recognized.canonicalUrl)==ContentIdentity.key(post.platform,post.canonicalUrl)
-    }
-    val bookmarks=dao.bookmarks().map {rows->rows.map {gson.fromJson(it.payload,Post::class.java)}.filter(::readableRecord).also {registerPageOrigins(Page(it))} }.flowOn(Dispatchers.Default)
+    }.getOrDefault(false)
+    val bookmarks=dao.bookmarks().map {rows->rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)?.takeIf(::readableRecord)}.getOrNull()}.also {registerPageOrigins(Page(it))} }.flowOn(Dispatchers.Default)
     val history=dao.history()
     init {
         scope.launch {
@@ -296,7 +307,7 @@ class Repository(val context: Context) {
         if(refresh.publishing)emptyFlow()else if(ids.isEmpty())flowOf(PostWindow(emptyList(),refresh.generation)) else combine(ids.chunked(400).map {chunk->dao.followedPosts(chunk).map {rows->rows.map {FeedPostRecord(it.key,it.payload,it.publishedAt,it.createdAt)}}.distinctUntilChanged()}) {chunks->
             chunks.flatMap {it}.distinctBy {it.key}.sortedWith(compareByDescending<FeedPostRecord> {it.publishedAt ?: Long.MIN_VALUE}.thenByDescending {it.createdAt}).take(1000)
         }.distinctUntilChanged().map {rows->
-            val posts=rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.filter {readableRecord(it)&&FeedRefresh.readable(it)}.also {registerPageOrigins(Page(it))}
+            val posts=rows.mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)?.takeIf {post->readableRecord(post)&&FeedRefresh.readable(post)}}.getOrNull()}.also {registerPageOrigins(Page(it))}
             PostWindow(posts,refresh.generation)
         }
     }.flowOn(Dispatchers.Default)
@@ -551,16 +562,48 @@ class Repository(val context: Context) {
     internal val adjacentStore get()=adjacentCacheStore.value
     private val participantBankStore=lazy {PublicParticipantBank(File(context.cacheDir,"public-participants.json"),routes)}
     internal val participantBank get()=participantBankStore.value
+    private suspend fun discoveryFollowIds()=dao.allFollows().mapNotNull {row->runCatching {
+        gson.fromJson(row.payload,Follow::class.java)?.takeIf {ReaderScope.active(it)&&AdjacentDiscovery.valid(it.target)&&it.id==row.id&&it.target.platform.id==row.platform}
+            ?.let {AccountLinkage.key(it.target,routes) to row.id}
+    }.getOrNull()}.groupBy({it.first},{it.second}).mapValues {it.value.distinct().take(40)}
+    /** A small existing subscription window can seed an explicit discovery
+     * action without loading the thousand-row reader or requesting a profile.
+     * Saved material and unrelated accounts are outside this ordinary-cache read. */
+    internal suspend fun cachedAdjacentObservations(profile:Profile,epoch:Long=adjacentStore.epoch(),limit:Int=80,followIds:Map<String,List<String>>?=null):List<AdjacentObservation> = withContext(Dispatchers.IO) {
+        require(limit in 1..80)
+        if(manualCacheClears.get()>0||epoch!=adjacentStore.epoch()||!AdjacentDiscovery.valid(profile.target))return@withContext emptyList()
+        val ids=(followIds ?: discoveryFollowIds())[AccountLinkage.key(profile.target,routes)].orEmpty()
+        if(ids.isEmpty())return@withContext emptyList()
+        val now=System.currentTimeMillis()
+        // Bound actual stored UTF-8 payloads, not a possibly stale byte counter.
+        // The existing observer consumes at most eighty posts (<=2.5 MiB here).
+        val rows=dao.discoveryPosts(profile.target.platform.id,ids,now-prefs.unseenDays*CachePolicy.DAY,now-prefs.viewedDays*CachePolicy.DAY,32*1024,limit)
+        val observed=rows.flatMap {row->
+            currentCoroutineContext().ensureActive()
+            val post=runCatching {gson.fromJson(row.payload,Post::class.java)?.takeIf {it.platform==profile.target.platform&&readableRecord(it)&&FeedRefresh.readable(it)&&PublicRelations.valid(it)}}.getOrNull()
+            val at=post?.provenance?.fetchedAt ?: row.lastViewedAt ?: row.createdAt
+            if(post==null||at !in 1..now)emptyList()else AdjacentDiscovery.observed(profile,Page(listOf(post)),routes,at)
+        }
+        if(manualCacheClears.get()>0||epoch!=adjacentStore.epoch())emptyList()else observed
+    }
     internal suspend fun adjacentSession(profile:Profile,knownPage:Page?=null,force:Boolean=false):AdjacentRuntime=withContext(Dispatchers.IO) {
         require(AdjacentDiscovery.valid(profile.target)){"Open a public account, community or feed to discover connections"}
         awaitReady();gateway.originalFallback=prefs.originalFallback
+        if(manualCacheClears.get()>0)throw SourceFailure(HealthStatus.UNKNOWN,"Cache cleanup is in progress; try discovery again")
+        val epoch=adjacentStore.epoch()
+        // Reuse just these exact enabled-account memberships throughout this
+        // discovery action; sibling cache reads need not decode every follow.
+        val followIds=discoveryFollowIds()
         val policy=gateway.currentPolicy();val originals=prefs.originalFallback
         val key="v2|"+AdjacentDiscovery.key(profile.target)+"|"+policy+"|"+originals
         // Force controls acquisition, not whether already acquired evidence exists.
         // A source pause or partial first block must not blank a richer neighborhood.
         val cached=adjacentStore.get(key)
         val page=knownPage?.takeIf {it.profile?.target==profile.target} ?: cachedPage(profile.target)
-        val observed=page?.let {AdjacentDiscovery.observed(profile,it,routes,it.provenance?.fetchedAt ?: System.currentTimeMillis())}.orEmpty()+participantBank.related(profile)
+        val observed=page?.let {AdjacentDiscovery.observed(profile,it,routes,it.provenance?.fetchedAt ?: System.currentTimeMillis())}.orEmpty()+
+            cachedAdjacentObservations(profile,epoch,followIds=followIds)+participantBank.related(profile)
+        currentCoroutineContext().ensureActive()
+        if(manualCacheClears.get()>0||epoch!=adjacentStore.epoch())throw SourceFailure(HealthStatus.UNKNOWN,"The local cache changed; refresh discovery")
         val session=AdjacentSession(profile,routes,read={endpoint->
             if(policy!=gateway.currentPolicy()||originals!=prefs.originalFallback)throw SourceFailure(HealthStatus.UNKNOWN,"Connection settings changed; refresh discovery")
             if(policy.tor&&!policy.ready)throw SourceFailure(HealthStatus.UNKNOWN,"Waiting for the selected Tor connection")
@@ -578,12 +621,24 @@ class Repository(val context: Context) {
             AdjacentDocument(Payload(result.text,result.finalUrl,result.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),result.status),result.headers)
         },learning=pool.learning,tor=policy.tor,timeoutMs=if(policy.tor)28_000 else 18_000,initial=observed,cached=cached?.snapshot,
             onLearning={pool.onLearning(pool.learning.snapshot())},maxRequests=64)
-        AdjacentRuntime(session,key,adjacentStore.epoch(),policy,!force&&cached?.fresh==true)
+        if(manualCacheClears.get()>0||epoch!=adjacentStore.epoch())throw SourceFailure(HealthStatus.UNKNOWN,"The local cache changed; refresh discovery")
+        AdjacentRuntime(session,key,epoch,policy,!force&&cached?.fresh==true,followIds=followIds)
+    }
+    internal suspend fun adjacentCached(runtime:AdjacentRuntime,profile:Profile,limit:Int,onUpdate:(AdjacentSnapshot)->Unit)=withContext(Dispatchers.IO) {
+        fun current()=manualCacheClears.get()==0&&runtime.epoch==adjacentStore.epoch()&&runtime.policy==gateway.currentPolicy()
+        if(!current())return@withContext
+        val observations=cachedAdjacentObservations(profile,runtime.epoch,limit,runtime.followIds)
+        val context=currentCoroutineContext();context.ensureActive()
+        if(observations.isNotEmpty()&&current())runtime.session.addBridge(profile,observations) {snapshot->
+            context.ensureActive();if(current())onUpdate(snapshot)
+        }
     }
     internal suspend fun adjacentNext(runtime:AdjacentRuntime,onUpdate:(AdjacentSnapshot)->Unit):AdjacentSnapshot=withContext(Dispatchers.IO) {
+        if(manualCacheClears.get()>0||runtime.epoch!=adjacentStore.epoch())throw SourceFailure(HealthStatus.UNKNOWN,"The local cache changed; refresh discovery")
         check(runtime.policy==gateway.currentPolicy()){"Connection settings changed; refresh discovery"}
         val result=gateway.boundedMediaRead(maxBytes=3L*1024*1024,maxRequests=8) {
             runtime.session.loadNext {snapshot->
+                if(manualCacheClears.get()>0||runtime.epoch!=adjacentStore.epoch())throw CancellationException("Discovery cache changed")
                 check(runtime.policy==gateway.currentPolicy()){"Connection settings changed; refresh discovery"}
                 val names=snapshot.cards.map {it.profile}.filter {it.displayNameSupplied&&runtime.named.add(AdjacentDiscovery.key(it.target)+"|"+it.name)}
                 if(names.isNotEmpty())rememberAccountNames(Page(emptyList(),accounts=names))
@@ -976,6 +1031,8 @@ class Repository(val context: Context) {
         scope.launch {try {delay(1000);cleanup();lastAutoCleanup=android.os.SystemClock.elapsedRealtime()}finally {cleanupQueued.set(false)}}
     }
     suspend fun cleanup(clearAll: Boolean=false)=withContext(Dispatchers.IO) {
+        if(clearAll)manualCacheClears.incrementAndGet()
+        try {
         if(clearAll)gateway.clearFeedMemory()else gateway.cleanupFeedMemory()
         FeedRefreshStage.cleanup(File(context.cacheDir,"feed-refresh"))
         // Never sweep an in-progress writer's temporary files or delay ordinary
@@ -1022,7 +1079,9 @@ class Repository(val context: Context) {
         dao.pruneSeen(now-prefs.historyDays*CachePolicy.DAY);dao.pruneHistory(now-prefs.historyDays*CachePolicy.DAY);dao.pruneHealth(now-30*CachePolicy.DAY);library.pruneHistory()
         val known=dao.allMedia().map {it.path}.toSet();dataDir.listFiles()?.filter {it.path !in known&&!activeKeys.containsKey(it.name)}?.forEach {it.delete()}
         updateUsage()
-    }}}
+        }}
+        }finally {if(clearAll)manualCacheClears.decrementAndGet()}
+    }
     suspend fun updateUsage()=withContext(Dispatchers.IO) {
         val savedBytes=(if(localDiscoveryStore.isInitialized())localDiscovery.bytes(true)else 0)+dao.bookmarkBytes()+dao.savedDetailBytes()+dao.mediaBytes(true)+contextReader.store.logicalBytes(true)
         val videoKeys=dao.allSavedAssets().filter {it.type!="image"}.map {it.assetKey}.toSet()+dao.allBookmarks().mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.flatMap {p->(p.media+p.archivedVersion?.snapshot?.media.orEmpty()).filter {it.type!="image"}.map {hash(it.url)}}

@@ -28,6 +28,10 @@ internal fun librarySearchPaths(paths:List<String>,includeSaved:Boolean=true,inc
 @Entity(tableName="post_follows",primaryKeys=["postKey","followId"],indices=[Index("followId")],
     foreignKeys=[ForeignKey(entity=PostRow::class,parentColumns=["key"],childColumns=["postKey"],onDelete=ForeignKey.CASCADE)])
 data class PostFollowRow(val postKey: String,val followId: String)
+
+// CROSS JOIN preserves the selective membership-first plan. A platform index
+// can otherwise walk every cached account before filtering the requested one.
+internal const val CACHED_DISCOVERY_POSTS_SQL="SELECT p.* FROM (SELECT DISTINCT postKey FROM post_follows WHERE followId IN (:ids)) AS f CROSS JOIN posts AS p ON p.`key`=f.postKey WHERE p.platform=:platform AND ((p.lastViewedAt IS NULL AND p.createdAt>:unseenSince) OR p.lastViewedAt>:viewedSince) AND LENGTH(CAST(p.payload AS BLOB))<=:maxBytes ORDER BY p.publishedAt IS NULL,p.publishedAt DESC,p.createdAt DESC LIMIT :limit"
 @Entity(tableName="bookmarks") data class BookmarkRow(@PrimaryKey val key: String,val platform: String,val payload: String,val savedAt: Long)
 @Entity(tableName="saved_details",foreignKeys=[ForeignKey(entity=BookmarkRow::class,parentColumns=["key"],childColumns=["key"],onDelete=ForeignKey.CASCADE)])
 data class SavedDetailRow(@PrimaryKey val key: String,val payload: String)
@@ -67,6 +71,8 @@ data class PostCacheRow(val key: String,val bytes: Long,val createdAt: Long,val 
     @Query("SELECT * FROM posts WHERE platform=:platform ORDER BY publishedAt IS NULL,publishedAt DESC,createdAt DESC LIMIT 1000") fun posts(platform: String): Flow<List<PostRow>>
     @Query("SELECT * FROM posts WHERE platform=:platform AND EXISTS (SELECT 1 FROM post_follows WHERE postKey=posts.`key` AND followId IN (:ids)) ORDER BY publishedAt IS NULL,publishedAt DESC,createdAt DESC LIMIT 1000") fun followedPosts(platform: String,ids: List<String>): Flow<List<PostRow>>
     @Query("SELECT * FROM posts WHERE EXISTS (SELECT 1 FROM post_follows WHERE postKey=posts.`key` AND followId IN (:ids)) ORDER BY publishedAt IS NULL,publishedAt DESC,createdAt DESC LIMIT 1000") fun followedPosts(ids: List<String>): Flow<List<PostRow>>
+    @Query(CACHED_DISCOVERY_POSTS_SQL)
+    suspend fun discoveryPosts(platform:String,ids:List<String>,unseenSince:Long,viewedSince:Long,maxBytes:Int,limit:Int):List<PostRow>
     @Query("SELECT * FROM posts WHERE platform=:platform ORDER BY publishedAt DESC LIMIT 1000") suspend fun platformPosts(platform: String): List<PostRow>
     @Query("SELECT * FROM posts") suspend fun allPosts(): List<PostRow>
     @Query("SELECT * FROM posts ORDER BY createdAt DESC LIMIT 256") suspend fun filterPreviewPosts(): List<PostRow>
