@@ -7,15 +7,18 @@ import kotlin.math.abs
  * retain it so reopening an offline collection does not depend on disposable cache.
  * It is supporting presentation evidence, not a claim that a source is authentic. */
 object VisualFrames {
-    private data class Frame(val aspect: Double,val contrast: Double,val horizontal: Long,val vertical: Long,val cells: List<Int>,val detail: ByteArray?=null)
+    internal data class Frame(val aspect: Double,val contrast: Double,val horizontal: Long,val vertical: Long,val cells: List<Int>,val detail: ByteArray?=null)
     fun encode(aspect: Double,contrast: Double,horizontal: Long,vertical: Long,cells: List<Int>,detail: ByteArray?=null): String? {
         if(!aspect.isFinite()||aspect !in .05..20.0||!contrast.isFinite()||contrast !in 20.0..128.0||cells.size!=48||cells.any {it !in 0..255})return null
         if(detail!=null&&detail.size!=4096)return null
         val base=listOf(if(detail==null)"f1"else "f2",(aspect*10_000).toInt(),(contrast*100).toInt(),horizontal.toULong().toString(16),vertical.toULong().toString(16),cells.joinToString(""){it.toString(16).padStart(2,'0')}).joinToString("|")
         return if(detail==null)base else base+"|"+java.util.Base64.getEncoder().encodeToString(detail)
     }
-    private fun decode(raw: String?,withDetail: Boolean=false): Frame?=runCatching {
+    private fun decode(raw:String?,withDetail:Boolean=false):Frame? {
         if(raw==null)return null
+        return CrossPostFusion.decodedFrame(raw,withDetail){decodeUncached(raw,withDetail)}
+    }
+    private fun decodeUncached(raw: String,withDetail: Boolean): Frame?=runCatching {
         val detailed=raw.startsWith("f2|")
         if(if(detailed)raw.length !in 5577..5635 else raw.length !in 112..170)return null
         val boundary=if(detailed)raw.lastIndexOf('|')else raw.length

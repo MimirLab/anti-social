@@ -174,10 +174,10 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         // Finish the current coherent grouping rather than repeatedly cancelling
         // the first readable deck. StateFlow conflates later revisions while we
         // work; source/membership changes still cancel this whole projection.
-        repo.images.identities.revision.collect {
+        repo.images.identities.matchingSnapshots(candidates).collect {evidence->
             value=withContext(Dispatchers.Default) {
                 val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
-                    CrossPosts.groupCancellable(candidates.map(repo.images.identities::captured),accounts,matchingMemberships,repo.images.identities::same)
+                    CrossPosts.groupCancellable(evidence.posts,accounts,matchingMemberships,evidence::same)
                 }.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap()
                 KnownPostGroups(candidates,accounts,matchingMemberships,groups)
             }

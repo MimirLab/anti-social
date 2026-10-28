@@ -8,12 +8,23 @@ import app.antisocial.core.ImageAssetIdentity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
+
+/** One comparison pass uses one immutable local observation set. It cannot
+ * acquire a new image or borrow evidence learned halfway through that pass. */
+internal class MediaIdentitySnapshot(val posts:List<Post>,private val compare:(Post,Post)->Boolean) {
+    fun same(a:Post,b:Post)=compare(a,b)
+}
 
 /** Local evidence from images the reader has already decoded. This never fetches an image.
  *
@@ -39,6 +50,35 @@ class MediaIdentityStore(
     private val changes=MutableStateFlow(0L)
     val revision: StateFlow<Long> = changes.asStateFlow()
 
+    /** A global image decode is not necessarily new evidence for this deck.
+     * Compare the exact effective fingerprints used by same()/captured(),
+     * including alias conflicts and expiry. Observation times alone cannot
+     * change a comparison. Source changes start a new caller-owned collection. */
+    internal fun matchingSnapshots(posts:List<Post>):Flow<MediaIdentitySnapshot> {
+        val urls=posts.flatMap(::images).distinct()
+        return revision.map {
+            withContext(Dispatchers.Default) {
+                // Copy only bounded bank references under its monitor. URL and
+                // raster comparison can then run without holding up a visible
+                // image's own lookup/observation on another thread.
+                val bank=synchronized(observations) {
+                    if(expire(clock()))changes.value+=1
+                    if(urls.isEmpty()||observations.isEmpty())null
+                    else observations.toMap() to assetUrls.mapValues {it.value.toSet()}
+                }
+                if(bank==null)urls.associateWith {null}
+                else urls.associateWith {observedFingerprint(it,bank.first,bank.second)}
+            }
+        }.distinctUntilChanged().map {evidence->
+            withContext(Dispatchers.Default) {
+                MediaIdentitySnapshot(posts.map {capturedWith(it,evidence::get)}) {a,b->
+                    val first=images(a).mapNotNull(evidence::get);val second=images(b).mapNotNull(evidence::get)
+                    first.any {left->second.any {right->matches(left,right)}}
+                }
+            }
+        }
+    }
+
     fun knows(url: String): Boolean=synchronized(observations) {
         if(expire(clock()))changes.value+=1
         url in observations
@@ -47,13 +87,16 @@ class MediaIdentityStore(
     /** Enrich copies only. Source records, bitmap bytes and URLs are unchanged. */
     fun captured(post: Post): Post=synchronized(observations) {
         if(expire(clock()))changes.value+=1
+        capturedWith(post,::observedFingerprint)
+    }
+    private fun capturedWith(post:Post,lookup:(String)->Fingerprint?):Post {
         val media=post.media.map {item->
             val url=when(item.type){"image"->item.url;"video"->item.preview;else->null}
-            val f=url?.let(::observedFingerprint)
+            val f=url?.let(lookup)
             if(f==null)item else if(f.postMatch)item.copy(visualFingerprint=f.encoded,attachmentFingerprint=null)
             else item.copy(visualFingerprint=null,attachmentFingerprint=f.encoded)
         }
-        if(media==post.media)post else post.copy(media=media)
+        return if(media==post.media)post else post.copy(media=media)
     }
 
     /** Call on the image loader's worker dispatcher; never mutates or recycles [bitmap]. */
@@ -94,10 +137,11 @@ class MediaIdentityStore(
      * the existing qualified CDN object identity; contrary decoded copies block
      * this fallback. No cached bytes, file hashes or credentials are transferred.
      * knows() remains exact so an actual read still observes the refreshed file. */
-    private fun observedFingerprint(url:String):Fingerprint? {
-        observations[url]?.let {return it.fingerprint}
+    private fun observedFingerprint(url:String)=observedFingerprint(url,observations,assetUrls)
+    private fun observedFingerprint(url:String,known:Map<String,Observation>,aliases:Map<String,Set<String>>):Fingerprint? {
+        known[url]?.let {return it.fingerprint}
         val asset=ImageAssetIdentity.key(url) ?: return null
-        val copies=assetUrls[asset].orEmpty().mapNotNull {observations[it]?.fingerprint}
+        val copies=aliases[asset].orEmpty().mapNotNull {known[it]?.fingerprint}
         val first=copies.firstOrNull() ?: return null
         return first.takeIf {copies.all {other->other===first||VisualFrames.sameImage(first.encoded,other.encoded)}}
     }

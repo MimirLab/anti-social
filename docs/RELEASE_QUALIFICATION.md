@@ -9,6 +9,58 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.54 image-evidence preparation and scoped matching
+
+This increment reduces repeated local comparison work behind the existing routed
+reader. Darwin remains the donor. Whole-feed matching now projects relevant
+image evidence before deciding to run again, and one pass uses the same frozen
+observations for its captured fields and comparison callback. Bounded reference
+copies precede worker-side resolution outside the image-store monitor. Existing
+source/membership cancellation, latest-value conflation and full-group admission
+remain in force.
+
+Parsed frame records share the existing estimated 8 MiB operation workspace with
+text and URLs, with a 512-entry frame cap. Exact strings and detailed/coarse modes
+remain distinct. Matching thresholds, contradiction checks, recording identity,
+field/source provenance and protected saves retain their existing rules. The
+change adds no model, dependency, native library, permission, database migration
+or acquisition request.
+
+The JVM run covers **2,479 cases: 2,476 passes, zero failures/errors and three
+optional skips**. New controls compare complete coarse/detailed/malformed outcomes
+with uncached reads, exercise nested and failed-operation cleanup, and enforce
+the shared byte allowance. The private business/cross-post packets and optional
+pinned embedding check retain their explicit opt-in skips. Release lint passes.
+
+The final API 35 native selection covers **131 named checks: 130 passes, zero
+failures and one skipped opt-in private replay**. New controls check unrelated
+images, unchanged renewed observations, relevant changes, alias conflicts,
+eviction, expiry and clearing. A running snapshot retains both its captured
+fields and comparison result when the live bank changes. Detailed-only artwork
+still reaches attachment comparison without becoming general post identity.
+
+An initial new fixture expected a heavily edited picture to retain a strong
+visual fingerprint after eviction. The existing opacity/detail/color guards
+correctly retained attachment-only evidence. The expectation was corrected to
+check the exact remaining attachment observation and absent post-identity field;
+production thresholds were unchanged. The initial 129-pass/one-failure/one-skip
+run, corrected 130-pass batch, final three-control check and final complete
+131-check batch remain separately recorded in external evidence.
+
+The final candidate also repeats the preceding **16 captured announcement
+families and 49 originals** in the actual native feed and Library. Every case
+keeps one reading card, one checked shared passage, its distinct attachments and
+the full captured source text/media in saved originals. Actual screens were
+inspected. Private inputs and images remain outside corresponding source.
+
+Three serial process-restarted local CPU samples per version use the same
+765-post pool and actual prior decoded observations. All complete ordered-group
+and content-observation digests match across six runs, preserving 617 groups.
+Median grouping is 4.414 seconds on 0.38.53 and 4.207 seconds on the candidate;
+sample ranges overlap. The [performance record](FEED_PERFORMANCE.md#03854-scoped-image-updates-and-reusable-comparison-records)
+describes the workload and its limits. These component measurements do not
+establish physical-phone, end-to-end latency or battery improvements.
+
 ## 0.38.53 announcement collections and complete source presentation
 
 This increment extends the existing detectors and shared collection plan. It

@@ -1,5 +1,21 @@
 # Attachment collections
 
+## Consistent image evidence during matching (0.38.54)
+
+Whole-feed counterpart matching uses one local observation snapshot for both
+captured attachment fields and its image-comparison callback. Updates received
+during that pass belong to a later snapshot. Unrelated images and timestamp-only
+renewals do not invalidate an otherwise equal candidate projection; relevant
+alias conflicts, detailed-only observations, expiry, eviction and clearing do.
+Source/membership changes still cancel the owning projection. Snapshot resolution
+runs outside the bank monitor after a bounded copy of its references.
+
+Parsed frame reuse is limited to the existing operation workspace and its shared
+byte allowance. Exact frame strings and detailed/coarse reads remain distinct.
+This changes neither picture-equality thresholds nor recording identity, source
+attribution or file-specific validation. The [performance record](FEED_PERFORMANCE.md#03854-scoped-image-updates-and-reusable-comparison-records)
+separates matching work, complete output equality and native reading checks.
+
 ## Collected announcement editions, 0.38.53
 
 Detection, text compression and media equality remain separate decisions. This

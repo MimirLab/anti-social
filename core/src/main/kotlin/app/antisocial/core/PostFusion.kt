@@ -17,7 +17,8 @@ data class PostFusion(val segments: List<FusionSegment>,val weave:List<FusionRun
  */
 object CrossPostFusion {
     internal data class PreparationStats(val computations:Int,val hits:Int,val entries:Int,val bytes:Long,
-        val urlComputations:Int,val urlHits:Int,val urlEntries:Int)
+        val urlComputations:Int,val urlHits:Int,val urlEntries:Int,
+        val frameComputations:Int,val frameHits:Int,val frameEntries:Int)
     private class Workspace {
         val documents=java.util.IdentityHashMap<Post,Prepared?>()
         val contexts=HashMap<String,ComparisonContext>()
@@ -25,8 +26,10 @@ object CrossPostFusion {
         val comparisons=java.util.IdentityHashMap<Post,String>()
         val normalizedUrls=HashMap<String,String?>()
         val imageAssets=HashMap<String,String?>()
+        val frames=HashMap<Pair<String,Boolean>,VisualFrames.Frame?>()
         var bytes=0L;var computations=0;var hits=0
         var urlComputations=0;var urlHits=0
+        var frameComputations=0;var frameHits=0
     }
     private val workspace=ThreadLocal<Workspace>()
     /** Reuse pure caption analysis inside one synchronous operation only.
@@ -37,7 +40,22 @@ object CrossPostFusion {
         workspace.set(Workspace())
         return try {block()}finally {workspace.remove()}
     }
-    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size)}
+    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size,it.frameComputations,it.frameHits,it.frames.size)}
+    /** Parsed comparison evidence shares the existing operation's byte bound.
+     * Coarse and detailed reads remain separate: parsing a header cannot certify
+     * its raster. Nulls are reusable, but no evidence survives this operation. */
+    internal fun decodedFrame(raw:String,detail:Boolean,resolve:()->VisualFrames.Frame?):VisualFrames.Frame? {
+        val current=workspace.get() ?: return resolve()
+        val key=raw to detail
+        if(current.frames.containsKey(key)){current.frameHits++;return current.frames[key]}
+        current.frameComputations++
+        val result=resolve()
+        val bytes=2_048L+raw.length*2L+(result?.detail?.size ?: 0)
+        if(current.frames.size<512&&current.bytes+bytes<=8L*1024*1024) {
+            current.frames[key]=result;current.bytes+=bytes
+        }
+        return result
+    }
     /** Exact input strings only. Signed parameters and case stay the resolver's
      * concern; this cache neither fetches URLs nor survives the operation. */
     internal fun normalizedUrl(value:String,resolve:()->String?):String? {

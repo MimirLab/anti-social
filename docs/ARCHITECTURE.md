@@ -254,3 +254,7 @@ Its announcement-edition routes also explain how cached publisher bindings,
 frozen collection anchors and literal source paths cooperate. Text compression
 does not decide media equality; source-labelled originals and every distinct
 recording remain available to the reader and protected saves.
+Whole-feed matching also freezes its local image evidence for each pass and
+ignores unrelated image-bank updates. The linked collection contract and
+[performance qualification](FEED_PERFORMANCE.md) describe its cancellation,
+comparison-cache bounds and measured scope.

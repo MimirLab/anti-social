@@ -1,5 +1,63 @@
 # Feed performance qualification
 
+## 0.38.54: scoped image updates and reusable comparison records
+
+Native sampling of the released 0.38.53 cached-picture reader found substantial
+repeated `VisualFrames.decode` work during background matching. The global
+image revision also invalidated the whole-feed matcher for unrelated decoded
+pictures. An avatar or business image can update that bank without changing any
+image used by the feed's candidate posts.
+
+Counterpart matching now observes the effective fingerprints of its candidate
+media. Equal state is suppressed after projection, using the pinned coroutine
+library's [equality and conflation contract](https://github.com/Kotlin/kotlinx.coroutines/blob/1.10.2/kotlinx-coroutines-core/common/src/flow/StateFlow.kt).
+Relevant observations, contradictory aliases, expiry, eviction and clearing still
+update that projection. Source, follow and membership changes retain their own
+existing cancellation boundaries. No detached queue or additional polling is
+introduced.
+
+Each pass also uses one frozen observation set for both captured post fields and
+its comparison callback. A live-bank update cannot change half of a running
+pass's evidence. Only bounded bank references are copied under the image-store
+monitor; URL resolution and comparison run outside it on the worker dispatcher.
+The next pass receives the latest relevant state.
+
+Decoded comparison records reuse the existing operation-local fusion workspace.
+Exact input strings and coarse/detailed modes have separate keys. A parsed header
+cannot certify its detailed raster. Null results are reusable too. At most 512
+decoded entries share the existing estimated 8 MiB allowance with text and URL
+preparation, and are discarded on return, failure or cancellation. Comparison
+thresholds, source editions and pixel-conflict guards are unchanged. No bitmap,
+persistent cache, model, native library, permission or network call is added.
+
+Three process-restarted, untraced samples per APK used the same private 765-post,
+25-source pool on the same API 35 emulator, serially without a compiler or another
+native batch. Sixty-one attachment observations on 44 posts came from actual
+earlier decodes, transferred only by exact source URL. The diagnostic imports
+nothing into Room and enforces an unavailable Tor policy during the measured
+local stages. It performs no image download or invented pixel match.
+
+| Local grouping stage | 0.38.53 | Candidate |
+| --- | ---: | ---: |
+| Three samples | 4.484 / 4.204 / 4.414 s | 4.264 / 4.174 / 4.207 s |
+| Median | 4.414 s | 4.207 s |
+| Complete ordered groups | 617 | 617 |
+
+All six complete membership/order and content-observation digests match, and
+every original remains represented. The observed median decrease is about 4.7%;
+the sample ranges overlap. This is a small local CPU comparison, not a measured
+full-reader or physical-phone speedup. The scoped-update controls independently
+establish which unnecessary matching passes can be omitted. The exploratory
+opening/scroll traces include tracing overhead; their frame samples do not
+establish improved phone FPS. Android also distinguishes
+[first-draw frames and frame deadlines](https://developer.android.com/reference/android/view/FrameMetrics).
+
+Separate native replays preserve the preceding 16 captured announcement families
+and 49 originals, including one reading card, one checked shared passage, every
+distinct attachment and complete source text/media in Library saves. Inputs,
+screens, rejected fixture expectations and raw results remain external under
+`evidence/routing-profile-20261028`; private reader material is not bundled.
+
 ## 0.38.48: initial delivery and collection-cost control
 
 An empty source window now publishes its first coherent Room rows and follow

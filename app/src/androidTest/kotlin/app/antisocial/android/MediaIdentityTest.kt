@@ -22,10 +22,79 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import kotlin.math.sin
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
 
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun matchingChangesIgnoreUnrelatedImagesButRetainRelevantCopiesAndExpiry()=runBlocking {
+        var now=100L;val bank=MediaIdentityStore(ttlMs=10,clock={now});val picture=landscape()
+        val url="https://images.example.org/scoped-picture.jpg";val other="https://images.example.net/another-picture.jpg"
+        val changes=Channel<Unit>(Channel.UNLIMITED)
+        val reader=launch {bank.matchingSnapshots(listOf(post(url))).collect {changes.send(Unit)}}
+        suspend fun next() {withTimeout(5_000){changes.receive()}}
+        suspend fun quiet() {assertNull("An unrelated observation must not reschedule this matcher",withTimeoutOrNull(200){changes.receive()})}
+        try {
+            next()
+            bank.observe(other,picture);quiet()
+            bank.observe(url,picture);next();assertTrue(bank.knows(url))
+            now++;bank.observe(url,picture);quiet()
+            val changed=landscape().also {Canvas(it).drawRect(0f,0f,it.width*.7f,it.height.toFloat(),Paint().apply {color=Color.RED})}
+            try {bank.observe(url,changed);next()}finally {changed.recycle()}
+            now+=10;assertFalse(bank.knows(url));next()
+            bank.clear();quiet()
+        }finally {reader.cancelAndJoin();changes.close();picture.recycle()}
+    }
+
+    @Test fun matchingChangesFollowEffectiveAssetAliasesAndConflictsWithoutFetching()=runBlocking {
+        val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
+        val first="https://scontent-a.xx.fbcdn.net$path?oh=first"
+        val alias="https://scontent-b.cdninstagram.com$path?oh=second"
+        val conflicting="https://scontent-c.xx.fbcdn.net$path?oh=third"
+        val bank=MediaIdentityStore(maxEntries=2);val picture=landscape();val changes=Channel<Unit>(Channel.UNLIMITED)
+        val reader=launch {bank.matchingSnapshots(listOf(post(alias))).collect {changes.send(Unit)}}
+        suspend fun next() {withTimeout(5_000){changes.receive()}}
+        try {
+            next();bank.observe(first,picture);next()
+            assertFalse(bank.knows(alias));assertNotNull(bank.captured(post(alias)).media.single().visualFingerprint)
+            val changed=landscape().also {Canvas(it).drawRect(0f,0f,it.width*.7f,it.height.toFloat(),Paint().apply {color=Color.RED})}
+            try {bank.observe(conflicting,changed);next();assertNull(bank.captured(post(alias)).media.single().visualFingerprint)}finally {changed.recycle()}
+            // Eviction resolves the earlier ambiguity; the remaining observed
+            // copy becomes evidence and must notify the scoped matcher.
+            bank.observe("https://images.example.org/unrelated.jpg",picture);next()
+            val remaining=bank.captured(post(conflicting)).media.single()
+            val recovered=bank.captured(post(alias)).media.single()
+            assertNotNull("The edited picture retains its detailed attachment observation",remaining.attachmentFingerprint)
+            assertEquals(remaining.attachmentFingerprint,recovered.attachmentFingerprint)
+            assertNull("Weak artwork does not become general post identity",recovered.visualFingerprint)
+            bank.clear();next();assertNull(bank.captured(post(alias)).media.single().visualFingerprint)
+        }finally {reader.cancelAndJoin();changes.close();picture.recycle()}
+    }
+
+    @Test fun aMatchingPassCannotMixItsCapturedFieldsWithNewerLiveEvidence()=runBlocking {
+        val bank=MediaIdentityStore();val picture=landscape()
+        val first=post("https://images.example.org/first.jpg");val second=post("https://images.example.net/second.jpg",Platform.FACEBOOK)
+        val snapshots=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED)
+        val reader=launch {bank.matchingSnapshots(listOf(first,second)).collect {snapshots.send(it)}}
+        suspend fun next()=withTimeout(5_000){snapshots.receive()}
+        try {
+            assertFalse(next().same(first,second))
+            bank.observe(first.media.single().url,picture);assertFalse(next().same(first,second))
+            bank.observe(second.media.single().url,picture)
+            val before=next();assertTrue(before.same(first,second))
+            val oldFields=before.posts
+            val changed=landscape().also {Canvas(it).drawRect(0f,0f,it.width*.7f,it.height.toFloat(),Paint().apply {color=Color.RED})}
+            try {bank.observe(second.media.single().url,changed)}finally {changed.recycle()}
+            val after=next();assertFalse(after.same(first,second));assertFalse(bank.same(first,second))
+            assertNotNull(after.posts[1].media.single().attachmentFingerprint)
+            assertTrue("The earlier pass retains exactly its captured comparison",before.same(first,second))
+            assertEquals(oldFields,before.posts);assertNotEquals(before.posts,after.posts)
+            bank.clear();next();assertFalse(bank.same(first,second));assertTrue(before.same(first,second))
+        }finally {reader.cancelAndJoin();snapshots.close();picture.recycle()}
+    }
+
     @Test fun refreshedSignedImageUrlsRetainObservedArtworkWithoutTransferringFileValidation() {
         val path="/v/t39.30808-6/123456789_234567890_345678901_n.jpg"
         val first="https://scontent-a.xx.fbcdn.net$path?oh=old&oe=one"
