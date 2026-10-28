@@ -107,6 +107,19 @@ after those reads, allowing a signed-URL refresh to be replayed against earlier
 pixel observations. Read receipts retain the URLs actually inspected; this
 diagnostic does not authenticate replacement bytes or download them implicitly.
 
+The optional native `FusionFeedTest.suppliedPrivateEditionsRenderOneCardAndOneCommonCaptionPerAnnouncement`
+accepts `files/fusion-private-packet/input.json` only when both
+`antisocialCollectedFeedPacket=true` and
+`antisocialIsolatedFixtureDevice=true` are supplied. It requires an empty,
+separate fixture device. The private packet contains `follows`, `memberships`,
+up to eight `cases` with `posts` and a shared `once` passage, and an optional
+URL-to-local-filename `files` map. Cases can specify `expectedAttachments`.
+It uses the real native feed, actual local-byte decoding, continuous scrolling,
+individual card screenshots and Library saves. Reports check one reading row,
+one shared passage, original retention and saved-root retention. Temporary cache
+rows and fixture records are restored or removed after the check. Captured reader
+inputs, images and reports stay in the private external evidence area.
+
 Business arguments contain the initial name, address, locality, optional point,
 websites, socials, phones and source IDs needed by that check. Missing required
 inputs fail before the corresponding lookup; there is no personal-location or

@@ -41,9 +41,18 @@ internal object CaptionWeave {
         }
         return out
     }
+    private fun namedReplacements(runs:List<FusionRun>):Boolean=runs.filterNot {it.shared}.any {run->
+        val values=run.variants.filter {it.text.isNotBlank()}
+        if(values.size<2||values.any {'@' in it.text})false else {
+            val terms=values.map {tokens.findAll(it.text).map {word->key(word.value)}.toList()}
+            val smallest=terms.minBy {it.size}
+            val insertion=terms.all {long->long.windowed(smallest.size).any {it==smallest}}
+            !insertion&&values.any {Regex("[\\p{L}\\p{N}']+").findAll(it.text).any {word->word.value.firstOrNull()?.isUpperCase()==true}}
+        }
+    }
     /** Bounded candidate confirmation; caller supplies actual media and timing proof. */
     fun matches(a:Post,b:Post)=plan(listOf(a,b))!=null
-    internal fun plan(posts:List<Post>,qualified:Boolean=false):List<FusionRun>? {
+    internal fun plan(posts:List<Post>,qualified:Boolean=false,sourceMentions:Boolean=false):List<FusionRun>? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
         val docs=posts.sortedBy(CrossPosts::originalKey).map {document(it) ?: return null}
         val coverage=if(qualified).65 else .88
@@ -100,7 +109,9 @@ internal object CaptionWeave {
         // Account/name substitutions have their own qualified alias route.
         // A high-overlap caption must not turn a different mentioned subject
         // into a local editorial wording variant.
-        if(runs.filterNot {it.shared}.any {run->run.variants.any {'@' in it.text}})return null
+        if(runs.filterNot {it.shared}.any {run->run.variants.any {'@' in it.text}&&
+                (!sourceMentions||run.variants.size!=2||!CaptionAliases.correspondingNames(run.variants[0].text,run.variants[1].text))})return null
+        if(sourceMentions&&namedReplacements(runs))return null
         if(runs.filterNot {it.shared}.any {run->run.variants.any {variant->
             val words=Regex("[\\p{L}\\p{N}']+").findAll(variant.text).map {it.value}.toList()
             val sentence=variant.text.firstOrNull()?.isUpperCase()==true&&variant.text.lastOrNull() in listOf('.','!','?')
@@ -128,6 +139,10 @@ internal object CaptionWeave {
         val runs=plan(posts,qualified=true) ?: return null
         return render(posts,runs)
     }
+    /** Actual artwork and publisher/time checks belong to the caller. Name
+     * variants remain literal alternatives; this never rewrites an identity. */
+    internal fun composeSourceMentions(posts:List<Post>):PostFusion? = plan(posts,qualified=true,sourceMentions=true)?.let {render(posts,it)}
+    internal fun composeWordingEdits(posts:List<Post>):PostFusion? = plan(posts)?.takeUnless(::namedReplacements)?.let {render(posts,it)}
     private fun render(posts:List<Post>,runs:List<FusionRun>):PostFusion {
         val text=runs.joinToString(" "){run->if(run.shared)run.variants.single().text else
             run.variants.filter {it.text.isNotBlank()}.joinToString(" / ","[","]"){variant->variant.text+" — "+PlatformOrder.sort(variant.platforms).joinToString(" · "){it.label}}}

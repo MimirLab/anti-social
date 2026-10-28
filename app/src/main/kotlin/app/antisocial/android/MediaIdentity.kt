@@ -206,8 +206,9 @@ class MediaIdentityStore(
         val detail=areaLuma(bitmap)
         // Low-contrast photographs and graphic cards are useful attachment
         // comparisons even when they cannot corroborate a post relationship.
-        // Keep this observation in a separate field; core post matching never
-        // receives it as a strong visual fingerprint.
+        // Keep this observation separate from general post identity. A bounded
+        // source-qualified literal-passage route can use it as supporting
+        // artwork; that does not authenticate or erase either source's media.
         val encoded=VisualFrames.encode(aspect,contrast.coerceAtLeast(20.0),hashX,hashY,cells,detail) ?: return null
         return Fingerprint(aspect,hashX,hashY,cells,contrast,encoded,postMatch)
     }

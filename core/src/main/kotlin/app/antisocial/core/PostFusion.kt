@@ -5,7 +5,10 @@ import java.util.Locale
 import java.text.Normalizer
 
 data class FusionSegment(val text: String,val platforms: Set<Platform>,val shared: Boolean,val originalKeys: Set<String> = emptySet())
-data class FusionVariant(val text:String,val platforms:Set<Platform>,val originalKeys:Set<String>)
+data class FusionVariant(val text:String,val platforms:Set<Platform>,val originalKeys:Set<String>,val displayText:String?=null) {
+    /** Source reconstruction keeps text; link inventories keep references. */
+    val visibleText get()=displayText ?: text
+}
 data class FusionRun(val shared:Boolean,val variants:List<FusionVariant>)
 data class PostFusion(val segments: List<FusionSegment>,val weave:List<FusionRun>?=null)
 
@@ -333,6 +336,11 @@ object CrossPostFusion {
         val matched=alignment(first,second) ?: return false
         return compatibleContext(first,second,matched)
     }
+    /** The no-download wording route cannot treat editorial response framing
+     * as a cosmetic change. Reuse the same vocabulary as ordinary fusion. */
+    internal fun neutralCopyFraming(post:Post):Boolean=prepare(post)?.let {!editorial.containsMatchIn(it.text)}==true
+    internal fun compatibleIntroductions(first:String,second:String):Boolean =
+        !editorial.containsMatchIn(first)&&!editorial.containsMatchIn(second)&&!competingContext(first,second)
 
     internal fun relatedCompatible(a: Post,b: Post): Boolean {
         val first=prepare(a) ?: return false;val second=prepare(b) ?: return false
@@ -481,7 +489,20 @@ object CrossPostFusion {
      * retain their position and platform attribution. All original Post records,
      * URLs and discussion identities remain untouched.
      */
+    /** Literal compression of already collected editions. Deliberately separate
+     * from pair admission and its corroboration thresholds. */
+    fun composeCollectedEditions(posts:List<Post>):PostFusion? = AnnouncementEditions.compose(posts) ?: DecoratedPostCopies.composeShort(posts)
+        ?: if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)else null
+        ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
+
     fun compose(posts: List<Post>): PostFusion? {
+        composeOrdinary(posts)?.let {return it}
+        if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)?.let {return it}
+        if(CrossPosts.literalWordingCollection(posts))CaptionWeave.composeWordingEdits(posts)?.let {return it}
+        if(CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)?.let {return it}
+        return null
+    }
+    private fun composeOrdinary(posts:List<Post>):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
         RedditSupplements.compose(posts)?.let {return it}
         DecoratedPostCopies.compose(posts)?.let {return it}

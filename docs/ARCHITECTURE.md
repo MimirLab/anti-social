@@ -250,3 +250,7 @@ The [attachment collection record](ATTACHMENT_COLLECTIONS.md) explains source-sp
 image aliases, evidence retained after a duplicate is removed, pixel-conflict guards
 and response-scoped Nitter rendering identities. Those operations do not authorize
 additional network destinations or share exact-file validation across copies.
+Its announcement-edition routes also explain how cached publisher bindings,
+frozen collection anchors and literal source paths cooperate. Text compression
+does not decide media equality; source-labelled originals and every distinct
+recording remain available to the reader and protected saves.

@@ -21,7 +21,8 @@ internal fun orderedCollectedOriginals(posts: List<Post>): List<Post> {
 
 /** Already verified short clip quotations may not meet the full aligner's text
  * length. They remain accessible as originals; align their fullest editions. */
-internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusion.compose(posts)
+internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusion.composeCollectedEditions(posts)
+    ?: CrossPostFusion.compose(posts)
     ?: CrossPostFusion.composeMedia(posts)
     ?: CrossPostFusion.composeRelated(posts)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}

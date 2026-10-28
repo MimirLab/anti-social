@@ -28,6 +28,29 @@ internal object CaptionAliases {
         return s.trim()
     }
     private fun compact(s:String)=s.lowercase(Locale.ROOT).filter {it.isLetterOrDigit()}
+    /** Bounded literal handle/name correspondence for attributed alternatives
+     * after independent artwork proof, not a cross-platform identity assertion. */
+    internal fun correspondingNames(first:String,second:String):Boolean {
+        fun name(mention:String,prose:String):Boolean {
+            val raw=words.findAll(mention).map {it.value}.toList().dropWhile {normalize(it) in leading}.singleOrNull() ?: return false
+            if(!raw.startsWith('@')||prose.contains('@'))return false
+            val handle=compact(raw);if(handle.length<8)return false
+            val names=words.findAll(prose).map {it.value}.toList().dropWhile {normalize(it) in leading}
+            if(names.size !in 2..8||names.any {it.firstOrNull()?.isUpperCase()!=true})return false
+            val parts=names.map {normalize(it).replace('’','\'').removeSuffix("'s")}
+            if(parts.any {it in competing||it.any(Char::isDigit)})return false
+            val spelled=parts.joinToString("")
+            if(spelled.length>=8&&(handle==spelled||handle.endsWith(spelled)&&handle.length-spelled.length in 1..8))return true
+            val optional=qualifiers+"international"+"station"
+            for(mask in 1 until (1 shl parts.size)) {
+                val chosen=parts.indices.filter {mask and (1 shl it)!=0}
+                if(chosen.size<2||parts.indices.any {it !in chosen&&parts[it] !in optional})continue
+                if(chosen.joinToString(""){parts[it]}==handle)return true
+            }
+            return false
+        }
+        return name(first,second)||name(second,first)
+    }
     fun equivalent(a:Post,b:Post,mediaConfirmed:Boolean=false):Boolean {
         if('@' !in a.body&&'@' !in a.title&&'@' !in b.body&&'@' !in b.title)return false
         if(a.body.length.toLong()+a.title.length>16_384||b.body.length.toLong()+b.title.length>16_384)return false

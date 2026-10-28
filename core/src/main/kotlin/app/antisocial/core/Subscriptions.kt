@@ -245,6 +245,7 @@ object CrossPosts {
      * verify repeated originals, and no original or discussion URL is rewritten. */
     fun sameSourceRepeats(posts: List<Post>,sameMedia: (Post,Post)->Boolean={_,_->false}): Boolean {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
+        if(AnnouncementEditions.sameBroadcast(posts))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->repeatMatch(prepared[i],prepared[j],sameMedia)}}
     }
@@ -255,6 +256,53 @@ object CrossPosts {
         if(RedditSupplements.collection(posts)||galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->copyMatch(prepared[i],prepared[j],sameMedia)}}
+    }
+    /** Corroborated literal editions, not inferred ownership or equal media.
+     * Saved manifests can replay the same bounded proof without a network read. */
+    fun corroboratedPassageCollection(posts:List<Post>,sameMedia:(Post,Post)->Boolean={_,_->false}):Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        return rows.indices.all {i->(i+1 until rows.size).all {j->corroboratedPassage(rows[i],rows[j],sameMedia)}}&&AnnouncementEditions.composePassages(posts)!=null
+    }
+    /** Strict internal wording edits only; shared starts and endings exclude
+     * an unlabeled excerpt, and the existing factual guards remain mandatory. */
+    fun literalWordingCollection(posts:List<Post>):Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        return rows.indices.all {i->(i+1 until rows.size).all {j->wordingEdit(rows[i],rows[j])}}&&CaptionWeave.composeWordingEdits(posts)!=null
+    }
+    fun resourceAnnouncementCollection(posts:List<Post>):Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        return rows.indices.all {i->(i+1 until rows.size).all {j->resourceAnnouncement(rows[i],rows[j])}}&&ResourceAnnouncements.compose(posts)!=null
+    }
+    private fun resourceAnnouncement(a:Features,b:Features):Boolean {
+        if(!a.validOriginal||!b.validOriginal||a.truncated||b.truncated||!referenceIntegrity(a.post)||!referenceIntegrity(b.post))return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        if(kotlin.math.abs(x-y)>600_000||a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols||a.destinations!=b.destinations)return false
+        fun questions(post:Post)=PostPresentation.proseWithoutLinks(PostPresentation.content(post)).count {it=='?'}
+        return questions(a.post)==questions(b.post)&&CrossPostFusion.neutralCopyFraming(a.post)&&CrossPostFusion.neutralCopyFraming(b.post)&&
+            ResourceAnnouncements.key(a.post)?.let {it==ResourceAnnouncements.key(b.post)}==true&&ResourceAnnouncements.compose(listOf(a.post,b.post))!=null
+    }
+    private fun referenceIntegrity(post:Post):Boolean = PostPresentation.destinationLabels(PostPresentation.content(post)).none {
+        it.startsWith("http://",true)||it.contains("...")||it.contains('…')
+    }
+    private fun wordingEdit(a:Features,b:Features):Boolean {
+        if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated)return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        return kotlin.math.abs(x-y)<=600_000&&a.destinations==b.destinations&&a.numbers==b.numbers&&a.negatives==b.negatives&&a.symbols==b.symbols&&
+            a.tokens.take(3)==b.tokens.take(3)&&a.tokens.takeLast(3)==b.tokens.takeLast(3)&&referenceIntegrity(a.post)&&referenceIntegrity(b.post)&&
+            CrossPostFusion.neutralCopyFraming(a.post)&&CrossPostFusion.neutralCopyFraming(b.post)&&CaptionWeave.composeWordingEdits(listOf(a.post,b.post))!=null
+    }
+    private fun corroboratedPassage(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean {
+        if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated||!referenceIntegrity(a.post)||!referenceIntegrity(b.post))return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        if(kotlin.math.abs(x-y)>600_000||a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols)return false
+        fun concrete(row:Features)=row.destinations.filterNot {opaqueLink(it)||nitterMentionLink(row.post,it)}.toSet()
+        val left=concrete(a);val right=concrete(b)
+        if(left.isNotEmpty()&&right.isNotEmpty()&&left!=right)return false
+        return CrossPostFusion.neutralCopyFraming(a.post)&&CrossPostFusion.neutralCopyFraming(b.post)&&
+            sameAnnouncementArtwork(a.post,b.post,sameMedia,nearby=true)&&AnnouncementEditions.composePassages(listOf(a.post,b.post))!=null
     }
     /** A complete gallery can prove that separately published, captionless
      * pictures are already present. Compare actual images, never their common
@@ -658,6 +706,11 @@ object CrossPosts {
         if(a.text==b.text&&!completeCopyText(a,b))return false
         if(completeCopyText(a,b)) {
             val length=a.text.length;val count=a.tokens.size;val distinct=a.tokens.toSet().size
+            // Portable content evidence for independently captured Facebook
+            // aliases: a distinctive complete caption at the exact same
+            // publication instant. This does not assert common account control;
+            // keep both source identities and every attachment in saves too.
+            if(a.post.platform==Platform.FACEBOOK&&b.post.platform==Platform.FACEBOOK&&timeA!=null&&timeA==timeB&&length>=80&&count>=12&&distinct>=8)return true
             val substantial=length>=160&&count>=24&&distinct>=12
             val specific=length>=80&&count>=12&&distinct>=8
             if(substantial&&(reference||sharedMedia||distance!=null&&distance<=MAX_COPY_WINDOW.toULong()))return true
@@ -684,6 +737,14 @@ object CrossPosts {
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>WINDOW.toULong())return false
         if(!repeated&&distance<=600_000uL&&headingMatch(a,b,sameMedia))return true
+        // Linked publishers often make a small literal wording edit while
+        // distributing one announcement. The strict aligner preserves every
+        // variant and rejects changed claims/names. Do not make this route
+        // wait for an image download when the complete long passage itself
+        // supplies corroboration; destinations and the tight clock must agree.
+        if(!repeated&&wordingEdit(a,b))return true
+        if(!repeated&&resourceAnnouncement(a,b))return true
+        if(!repeated&&corroboratedPassage(a,b,sameMedia))return true
         // A specific shared article destination can corroborate a substantial
         // caption too. Neither a common URL nor image alone establishes a match.
         if(!repeated&&a.destinations.intersect(b.destinations).isEmpty()&&!sameImages(a.post,b.post,sameMedia))return false
@@ -708,7 +769,7 @@ object CrossPosts {
     }
     /** Matching cover art can corroborate a specific announcement headline.
      * It does not establish equal recordings: every playable edition is kept. */
-    private fun sameAnnouncementArtwork(a:Post,b:Post,sameMedia:(Post,Post)->Boolean):Boolean {
+    private fun sameAnnouncementArtwork(a:Post,b:Post,sameMedia:(Post,Post)->Boolean,nearby:Boolean=false):Boolean {
         fun frames(post:Post)=post.media.take(12).mapNotNull {item->when(item.type) {
             "image"->item
             "video"->item.preview?.let {item.copy(url=it,type="image")}
@@ -720,7 +781,7 @@ object CrossPosts {
             // Scene resemblance is sufficient only for this corroborated
             // announcement route. Attachment suppression continues to require
             // its separate detailed equality proof.
-            if(first!=null&&second!=null)VisualFrames.sameImage(first,second)||VisualFrames.same(first,second)
+            if(first!=null&&second!=null)VisualFrames.sameImage(first,second)||VisualFrames.same(first,second,nearbyFrame=nearby)
             else x.url==y.url||ImageAssetIdentity.same(x,y)
         }})return true
         return sameImages(a,b,sameMedia)
@@ -741,10 +802,10 @@ object CrossPosts {
         val feedAlias=a.post.platform==Platform.FACEBOOK&&a.suppliedBy.intersect(b.suppliedBy).isNotEmpty()&&
             a.post.publishedAt!=null&&a.post.publishedAt==b.post.publishedAt&&completeCopyText(a,b)&&
             (a.text.length>=80&&a.tokens.size>=12&&a.tokens.toSet().size>=8||
-                // The same feed can expose a caption-only reel alongside its
-                // complete video post. Reconcile that extraction alias before
-                // it creates two competing Facebook candidates for X/Instagram.
-                (a.post.media.isEmpty()||b.post.media.isEmpty())&&a.text.length>=48&&a.tokens.size>=7&&a.tokens.toSet().size>=7)
+                // An extraction alias can carry its own media rendition too.
+                // Retain both originals and every distinct picture; a second
+                // rendition must not create competing Facebook candidates.
+                a.text.length>=48&&a.tokens.size>=7&&a.tokens.toSet().size>=7)
         if(!sameAccount&&!feedAlias)return false
         val timeA=a.post.publishedAt?.takeIf {it>0} ?: return false;val timeB=b.post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
@@ -770,6 +831,7 @@ object CrossPosts {
         row.clips.forEach {add("clip:"+it)}
         val repeatAccount=row.account
         if(row.owner!=null)AnnouncementHeadings.key(row.post)?.let {add("heading:${row.owner}:$it")}
+        if(row.owner!=null)ResourceAnnouncements.key(row.post)?.let {add("resource-tail:${row.owner}:"+it.length+":"+it.hashCode())}
         speaker(row.post)?.let {subject->(row.curator ?: repeatAccount)?.let {add("speaker:$it:$subject")}}
         CrossPostFusion.candidateAnchors(row.post).forEach {
             if(row.owner!=null)add("fusion:"+row.owner+":"+it)
@@ -915,7 +977,10 @@ object CrossPosts {
             PostGroup(originals.sortedWith(compareBy<Post> {it.publishedAt?.takeIf {time->time>0} ?: Long.MAX_VALUE}.thenBy(::originalKey)))
         }
         checkpoint()
-        return RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia)).sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
+        val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia))
+        return AnnouncementCollections.collect(established,ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}},
+            {a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
+            .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
 }
 

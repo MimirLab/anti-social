@@ -101,7 +101,7 @@ class LocalLibrary(private val repo: Repository) {
             require(contentCopies||CrossPosts.sameSourceRepeats(repeated,repo.images.identities::same)||CrossPosts.sameContentCopies(repeated,repo.images.identities::same)){"Repeated source editions need matching content and a proven shared account or reposting source"}
         }
         val repeatedOnly=contentCopies||roots.map {it.platform}.distinct().size==1&&CrossPosts.sameSourceRepeats(roots,repo.images.identities::same)
-        require(repeatedOnly||CrossPostFusion.compose(roots)!=null||CrossPostFusion.compose(fusionCaptionRoots(roots))!=null){"Captured source editions do not share a substantial caption"}
+        require(repeatedOnly||CrossPostFusion.composeCollectedEditions(roots)!=null||CrossPostFusion.compose(roots)!=null||CrossPostFusion.compose(fusionCaptionRoots(roots))!=null){"Captured source editions do not share a substantial caption"}
         return roots
     }
     fun mergeThreads(previous: List<CapturedThread>,incoming: List<CapturedThread>): List<CapturedThread> {

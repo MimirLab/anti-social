@@ -50,7 +50,7 @@ import java.time.format.DateTimeFormatter
                 IconButton(onClick={
                     saveRoot=selected.firstOrNull() ?: current.posts.first()
                     captured=captureLoadedThreads(vm,current.posts,reader)
-                    capturedEditions=current.posts.takeIf {CrossPostFusion.compose(it)!=null}.orEmpty()
+                    capturedEditions=current.posts.takeIf {CrossPostFusion.composeCollectedEditions(it)!=null||CrossPostFusion.compose(it)!=null}.orEmpty()
                     saveCopy=true
                 },enabled=current.threads.values.any {it.page!=null}||current.communities.values.any {it.page!=null}||community?.page!=null,modifier=Modifier.testTag("Save loaded discussion")){Icon(Icons.Rounded.Download,"Save loaded discussion")}
                 IconButton(onClick={reader.close()}){Icon(Icons.Rounded.Close,"Close discussions")}

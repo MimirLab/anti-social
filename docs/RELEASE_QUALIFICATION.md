@@ -9,6 +9,86 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.53 announcement collections and complete source presentation
+
+This increment extends the existing detectors and shared collection plan. It
+uses cached publisher bindings and already acquired text/media evidence; no
+model, new acquisition route, dependency, permission or database migration is
+introduced. Darwin remains the donor. The preceding 0.38.52 search and chain
+improvements are retained in this release.
+
+### Reproduced behavior and correction
+
+Three reported announcement families were replayed against the unchanged signed
+0.38.52 APK in the real native feed. Each occupied two rows and repeated the
+checked common passage. The causes differed: a trailing account reference, a
+short live-broadcast introduction, and a delayed short edition with formatting
+differences. Their local account bindings were present; another identity database
+or a website lookup per comparison was not the missing component.
+
+Frozen multi-platform anchors, complete title/body relationships and typed
+broadcast identity now supplement the existing routes. Small internal wording
+edits retain strict context/claim guards. Detailed attachment observations can
+corroborate qualified literal name variants without becoming general account
+identity or exact-file validation. A whole shared resource announcement can
+retain different short introductions, while a resource footer alone cannot
+collapse a changed appointment or correction. See
+[collection contracts](ATTACHMENT_COLLECTIONS.md#collected-announcement-editions-03853).
+
+The already admitted presentation reads common passages once, attributes
+differences, and preserves a complete literal path for every original key.
+Reference URLs remain in originals and Links rather than generating paragraphs
+of tracking-code clutter. Ordinary successful composition remains preferred.
+The qualified name route also repairs a fallback that otherwise repeated the
+surrounding paragraph.
+
+Native replay expanded to **16 captured announcement families and 49 originals**.
+Every family ends with one reading row and one occurrence of its checked shared
+passage. The checks use actual locally decoded source files, the real
+MainActivity/chronological reader, continuous scrolling, individual card
+screenshots and Library saves. Saved originals are compared against the captured
+source text and media fields, independently of local fingerprint/metadata
+enrichment. The three initial cases retain respectively one
+shared graphic, two distinct pictures, and three selectable playable recordings.
+Other replays cover source aliases, small wording edits, title additions,
+proper-name references, different video framing and gallery membership.
+This is coverage of those captures, not a universal claim about all posts.
+
+The save pass independently exposed a Facebook extraction-alias rejection.
+Portable same-instant, distinctive complete-caption copy evidence now preserves
+those captured originals without inferring common account control. The media
+inventory remains independent of text compression; a matching poster still does
+not establish equal recordings. Private captures, account bindings, images and
+reports are excluded from source and release assets.
+
+### Regression gates and measurements
+
+The full JVM run has **2,476 cases: 2,473 passes, zero failures/errors and three
+optional skips**. The private business packet, private cross-post packet and
+optional pinned embedding check are skipped without their explicit inputs.
+Release lint passes. A native API 35 batch covers **128 named checks: 127 passes,
+zero failures and one skipped opt-in private replay**. Separate opted-in captured
+replays exercise the 16 families above.
+
+Rejected candidates are retained in the private evidence. An early compositor
+preference changed established formatting and admitted rejected factual edits;
+the original path now runs first, and the new fallback reuses factual,
+destination, context and endpoint guards. Its ten full-suite failures were
+corrected before qualification. Two native shared-text rendering regressions
+were corrected and passed both focused rechecks and the complete 128-check
+batch. A new changed-weekday/shared-footer control failed before its targeted
+introduction guard and passes afterward. None of those rejected candidates was
+published.
+
+A desktop JVM component comparison used the same 765 cached posts, five warmups
+and nine measured grouping passes per version, without image downloads or
+synthetic pixel matches. Median grouping was **795.6 ms in 0.38.52 and 797.1 ms
+in the candidate**. Collections changed from 633 to 625; every original key and
+input payload was retained. This measures warm text/source grouping, excludes
+network and UI work, and is not a physical-phone latency, p95, memory or battery
+measurement. The native reader and save checks provide separate functional
+evidence.
+
 ## 0.38.52 chain labels, coffee recall and prepared local matching
 
 The preceding speed measurements covered reconciliation, not the remaining local

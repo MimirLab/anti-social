@@ -94,12 +94,13 @@ import app.antisocial.core.PostPresentation
 /** One flowing caption. Brackets visibly delimit alternatives; small native
  * platform marks identify each exact fragment and open that original edition. */
 @Composable private fun WovenPostText(fusion:PostFusion,roots:List<Post>,repo:Repository?,onOpen:(()->Unit)?,networkAllowed:Boolean) {
-    val runs=fusion.weave.orEmpty()
+    val runs=fusion.weave.orEmpty().filter {it.variants.any {variant->variant.visibleText.isNotBlank()}}
+    val textTag=if(runs.size==1&&runs.single().shared)"Fusion shared text"else "Fusion woven text"
     // Keep scoped mention/link handling on its existing reader path. Its plain
     // representation carries the same alternatives with explicit source names.
-    if(runs.any {run->run.variants.any {'@' in it.text||it.text.contains("https://")}}) {
+    if(runs.any {run->run.variants.any {'@' in it.visibleText||it.visibleText.contains("https://")}}) {
         val text=fusion.segments.single().text;val context=fusionMentionContext(roots,text,repo)
-        PostBodyText(text,repo,context?.platform,onOpen=onOpen,tag="Fusion woven text",sourceUrl=context?.sourceUrl,
+        PostBodyText(text,repo,context?.platform,onOpen=onOpen,tag=textTag,sourceUrl=context?.sourceUrl,
             networkAllowed=networkAllowed,explicitProfileLinks=context?.explicitProfileLinks.orEmpty())
         return
     }
@@ -109,12 +110,12 @@ import app.antisocial.core.PostPresentation
     val text=buildAnnotatedString {
         runs.forEachIndexed {index,run->
             if(index>0)append(" ")
-            if(run.shared)append(run.variants.single().text)
+            if(run.shared)append(run.variants.single().visibleText)
             else {
                 withStyle(SpanStyle(color=color)){append("[")}
-                run.variants.filter {it.text.isNotBlank()}.forEachIndexed {variantIndex,variant->
+                run.variants.filter {it.visibleText.isNotBlank()}.forEachIndexed {variantIndex,variant->
                     if(variantIndex>0)withStyle(SpanStyle(color=color)){append(" / ")}
-                    append(variant.text)
+                    append(variant.visibleText)
                     app.antisocial.core.PlatformOrder.sort(variant.platforms).forEach {platform->
                         append(" ")
                         val id="source-$index-$variantIndex-${platform.id}"
@@ -140,7 +141,7 @@ import app.antisocial.core.PostPresentation
             }
         }
     }
-    Text(text,inlineContent=marks,fontSize=15.sp,lineHeight=23.sp,modifier=Modifier.testTag("Fusion woven text").then(if(onOpen!=null)Modifier.clickable {onOpen()}else Modifier))
+    Text(text,inlineContent=marks,fontSize=15.sp,lineHeight=23.sp,modifier=Modifier.testTag(textTag).then(if(onOpen!=null)Modifier.clickable {onOpen()}else Modifier))
 }
 
 /** Presentation only: source captions, copying and local saved records retain the full text. */

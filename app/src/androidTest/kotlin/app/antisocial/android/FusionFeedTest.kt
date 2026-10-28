@@ -50,6 +50,8 @@ class FusionFeedTest {
     private val accounts=mutableListOf<Follow>()
     private val models=mutableListOf<AntiSocialViewModel>()
     private val mediaKeys=mutableSetOf<String>()
+    private val packetMedia=mutableMapOf<String,MediaRow?>()
+    private val packetFiles=mutableListOf<File>()
     private val calls=CopyOnWriteArrayList<String>()
     private lateinit var preferences: String
     private lateinit var originalMemory: FeedMemoryStore
@@ -100,6 +102,8 @@ class FusionFeedTest {
             }
             repo.dao.removeRetainedHistory(keys);repo.dao.removePosts(keys)
             mediaKeys.forEach {key->repo.dao.media(key)?.let {File(it.path).delete()};repo.dao.removeMedia(listOf(key))}
+            packetMedia.forEach {(key,old)->if(old==null)repo.dao.removeMedia(listOf(key))else repo.dao.putMedia(old);repo.lease(key,false)}
+            packetFiles.forEach {it.delete()}
         }
         repo.images.clear()
         listOf(memoryFile,File(memoryFile.path+".bak"),File(memoryFile.path+".new")).forEach {it.delete()}
@@ -205,6 +209,101 @@ class FusionFeedTest {
         val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         val dir=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"fusion-feed").apply {mkdirs()}
         File(dir,"$name.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+    }
+
+    /** Private reproductions exercise the real reader without committing its
+     * subscriptions, source text or pictures as public fixtures. */
+    @Test fun suppliedPrivateEditionsRenderOneCardAndOneCommonCaptionPerAnnouncement() {
+        val args=InstrumentationRegistry.getArguments()
+        Assume.assumeTrue(args.getString("antisocialCollectedFeedPacket")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
+        val input=File(ui.activity.filesDir,"fusion-private-packet/input.json")
+        require(input.isFile&&input.length() in 1..4*1024*1024)
+        val packet=com.google.gson.JsonParser.parseReader(input.reader()).asJsonObject
+        val cases=packet.getAsJsonArray("cases");require(cases.size() in 1..8)
+        runBlocking {require(repo.dao.allFollows().isEmpty()&&repo.dao.allBookmarks().isEmpty()) {"Use a separate empty fixture device"}}
+        accounts+=packet.getAsJsonArray("follows").map {repo.gson.fromJson(it,Follow::class.java)}
+        require(accounts.size in 1..40)
+        val memberships=packet.getAsJsonObject("memberships").entrySet().associate {(key,value)->key to value.asJsonArray.map {it.asString}.toSet()}
+        cases.forEach {value->val posts=value.asJsonObject.getAsJsonArray("posts");require(posts.size() in 1..12);records+=posts.map {repo.gson.fromJson(it,Post::class.java)}}
+        require(records.size<=64&&records.map(repo::key).distinct().size==records.size)
+        val output=File(ui.activity.getExternalFilesDir("validation"),"collected-feed-packet").apply {mkdirs()}
+        runBlocking {
+            accounts.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
+            for(post in records) {
+                val sources=memberships[repo.key(post)].orEmpty();require(sources.isNotEmpty()&&sources.all {id->accounts.any {it.id==id}})
+                sources.forEach {repo.store(Page(listOf(post)),it,true)}
+            }
+            repo.images.identities.clear()
+            val files=packet.getAsJsonObject("files")
+            files?.entrySet()?.forEach {(url,value)->
+                val name=value.asString;require(name.matches(Regex("[A-Za-z0-9_.-]{1,100}")))
+                val file=File(input.parentFile,name);require(file.isFile&&file.length() in 1..25L*1024*1024)
+                val key=Repository.hash(url);packetMedia[key]=repo.dao.media(key);repo.lease(key,true)
+                val cached=File(ui.activity.cacheDir,"fusion-packet-$suffix-$key");file.copyTo(cached);packetFiles+=cached
+                repo.dao.putMedia(MediaRow(key,cached.path,cached.length(),System.currentTimeMillis()))
+                repo.images.load(url,"https://packet.fixture.invalid/",1600)
+            }
+        }
+        seed("all",records);val vm=model();show(vm,all=true)
+        ui.waitUntil(20_000){ui.onAllNodesWithTag("Combined feed").fetchSemanticsNodes().isNotEmpty()}
+        val seen=linkedMapOf<String,String>()
+        fun words(node:androidx.compose.ui.semantics.SemanticsNode):List<String> {
+            val nested=node.children.flatMap(::words)
+            return nested.ifEmpty {node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}}
+        }
+        val rows=SemanticsMatcher("Collected feed rows"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Feed row ")==true}
+        // The deck container precedes its asynchronous first frozen batch.
+        // Begin inspection at the first actual card, not the empty startup
+        // placeholder; otherwise an early gesture can skip the newest row.
+        ui.waitUntil(20_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Combined feed").performScrollToIndex(0)
+        var previous:Map<String,Int>?=null;var unchanged=0
+        for(page in 0 until 32) {
+            ui.waitForIdle();android.os.SystemClock.sleep(250)
+            val visible=ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes()
+            visible.forEach {node->seen[requireNotNull(node.config.getOrNull(SemanticsProperties.TestTag)).removePrefix("Feed row ")]=words(node).joinToString("\n")}
+            val positions=visible.associate {requireNotNull(it.config.getOrNull(SemanticsProperties.TestTag)) to it.positionInRoot.y.toInt()}
+            unchanged=if(positions==previous)unchanged+1 else 0;previous=positions
+            val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            File(output,"page-$page.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+            if(unchanged>=3)break
+            ui.onNodeWithTag("Combined feed").performTouchInput {swipeUp(durationMillis=200)}
+        }
+        val spaces=Regex("[\\s\\p{Z}]+")
+        fun compact(value:String)=value.replace(spaces," ").trim().lowercase()
+        val groups=runBlocking(Dispatchers.Default){CrossPosts.groupCancellable(records.map(repo.images.identities::captured),accounts,memberships,repo.images.identities::same)}
+        val reports=cases.mapIndexed {index,value->
+            val spec=value.asJsonObject;val keys=spec.getAsJsonArray("posts").map {repo.key(repo.gson.fromJson(it,Post::class.java))}.toSet()
+            val shown=seen.filterKeys {it in keys};val passage=compact(spec["once"].asString)
+            val count=shown.values.sumOf {Regex(Regex.escape(passage)).findAll(compact(it)).count()}
+            val collected=groups.filter {it.posts.any {post->repo.key(post) in keys}}
+            val captured=collected.flatMap {it.posts}.map(repo::key).toSet()
+            val attachments=collected.flatMap {collectionPlan(it.posts).attachments}
+            val expected=spec.get("expectedAttachments")?.asInt
+            val save=runBlocking {runCatching {
+                val roots=collected.single().posts
+                repo.library.save(roots.first(),emptyList(),fusionRoots=roots)
+                val retained=repo.library.details(repo.key(roots.first()))!!.fusionRoots.orEmpty()
+                require(retained.map(repo::key).toSet()==keys)
+                fun source(post:Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(aiMetadata=null,visualFingerprint=null,attachmentFingerprint=null)})
+                roots.forEach {root->require(source(root)==source(retained.single {repo.key(it)==repo.key(root)})) {"A saved original lost source text or media"}}
+            }}
+            mapOf("case" to index,"rows" to shown.size,"passageOccurrences" to count,"shown" to shown,
+                "originalsPreserved" to (captured==keys),"attachments" to attachments.size,
+                "expectedAttachmentsPreserved" to (expected==null||expected==attachments.size),"savedOriginalsPreserved" to save.isSuccess,"saveError" to save.exceptionOrNull()?.message)
+        }
+        File(output,"report.json").writeText(repo.gson.toJson(reports))
+        File(output,"groups.json").writeText(repo.gson.toJson(groups))
+        // Capture each current card's beginning explicitly as well as the
+        // continuous scroll. A fling can move past a short caption between two
+        // full-screen media renditions even though semantics retain its text.
+        groups.forEachIndexed {index,group->
+            ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(group.primary)}"))
+            ui.waitForIdle()
+            val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+            File(output,"card-$index-top.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        }
+        assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
     }
     private fun revealCombinedControl(matcher: SemanticsMatcher,listTag: String="Combined feed") {
         val list=ui.onNodeWithTag(listTag)

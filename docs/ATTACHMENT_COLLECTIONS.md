@@ -1,5 +1,62 @@
 # Attachment collections
 
+## Collected announcement editions, 0.38.53
+
+Detection, text compression and media equality remain separate decisions. This
+increment extends the existing routes; it does not replace them with a broad
+similarity threshold. Ownership comes from the existing local subscriptions,
+person bindings and supplying-feed memberships. Grouping does not look up an
+account on the web for every comparison.
+
+An established collection on at least two linked platforms can anchor a delayed
+short edition from another platform. The complete short wording must agree
+after the bounded decorative/punctuation projection, with positive publication
+dates within 30 minutes. Numbers, negation, questions, meaningful symbols and
+destinations retain their controls. Anchors are frozen for the pass: attaching
+one leaf does not create another anchor or extend its time window. Competing
+destinations or two unresolved candidates on one platform remain separate.
+
+Other bounded routes cover a retained title over an identical complete body,
+trailing attribution references, and a short introduction to the same explicitly
+declared live broadcast. The broadcast route requires the same actual X account,
+stable broadcast identity, distinctive heading and a fuller source edition.
+Distinctive reference editions and title/body relationships use a ten-minute
+interval. Ordinary pairwise short-caption admission keeps its existing bounds.
+
+For long captions, small literal internal wording edits can collect without an
+image download when the existing claim, destination, context and endpoint guards
+agree. A separate artwork-corroborated passage route can retain bounded literal
+handle/name alternatives. It can use detailed attachment observations that are
+ineligible as general post identity. This does not establish account ownership,
+authenticate a file, or make different recordings identical.
+
+A complete shared closing paragraph with the same explicit resource can also
+retain different short introductions. A generic homepage alone does not qualify.
+The whole substantial closing statement must agree; publication time, publisher,
+media, factual constraints and the complete source projections are checked.
+Corrections and competing near-paraphrases in the introductions remain separate.
+This route does not lower the general passage aligner's shared-word threshold.
+
+Text presentation reads shared passages once and attributes the differences.
+Each original key retains a complete path through the literal alternatives,
+including references. Opaque tracking suffixes do not become another paragraph
+of reading work: references remain in originals and the existing Links control.
+Meaningful account references remain visible. Existing successful formatting
+paths retain priority; qualified name alternatives can replace a fallback that
+would repeat the surrounding paragraph.
+
+Saves replay the applicable evidence rather than saving only the primary root.
+Same-instant Facebook extraction aliases can have portable, distinctive complete
+caption-copy evidence without asserting that their different account spellings
+prove common control. Every original, discussion and media inventory entry stays
+available. The reader still distinguishes a shared picture from selectable
+recordings with the same or different covers.
+
+These operations use bounded native code and evidence already acquired by the
+reader. No model, extra crawl, dependency, permission or database migration is
+introduced. The [dated qualification](RELEASE_QUALIFICATION.md) distinguishes
+private captured-source native replays, ordinary regressions and timing scope.
+
 ## Live-feed reconciliation, 0.38.47
 
 Several failures occurred outside pairwise matching. A late counterpart could

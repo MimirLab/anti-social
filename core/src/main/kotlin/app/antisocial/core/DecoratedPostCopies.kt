@@ -45,20 +45,26 @@ internal object DecoratedPostCopies {
             url.queryParameterNames.filter {it.startsWith("utm_",true)||it.lowercase(Locale.ROOT) in setOf("fbclid","gclid","igshid")}.forEach(::removeAllQueryParameters)
         }.build().toString()
     }
-    fun prepare(post:Post):Prepared? {
+    fun prepare(post:Post):Prepared?=prepare(post,false)
+    /** A separate projection for corroborated short announcement editions;
+     * ordinary detector admission keeps its existing bounds. */
+    fun short(post:Post):Prepared?=prepare(post,true)?.takeIf {it.tokens.size<12}
+    private fun prepare(post:Post,short:Boolean):Prepared? {
         if(post.preview||post.parentId!=null||post.body.length.toLong()+post.title.length>4096)return null
         val copy=post.copy(title=clean(post.title),body=clean(post.body))
         val content=PostPresentation.content(copy)
-        val text=TextWhitespace.collapse(PostPresentation.proseWithoutLinks(content)).replace('’','\'').lowercase(Locale.ROOT).trim()
+        val raw=TextWhitespace.collapse(PostPresentation.proseWithoutLinks(content)).replace('’','\'').lowercase(Locale.ROOT).trim()
+        if(short&&(raw.endsWith("…")||raw.endsWith("...")))return null
+        val text=if(short)raw.trimEnd('.','!',' ')else raw
         val tokens=words.findAll(text).take(257).map {it.value}.toList()
-        if(text.length<40||tokens.size !in 8..256||tokens.distinct().size<6)return null
+        if(text.length<(if(short)12 else 40)||tokens.size !in (if(short)3 else 8)..256||tokens.distinct().size<(if(short)3 else 6))return null
         val attached=post.media.flatMap {listOfNotNull(it.url,it.preview)}.toSet()
         val resources=(PostPresentation.destinationLabels(PostPresentation.content(post)).toList()+post.links.orEmpty().take(16))
             .filterNot {it in attached}.mapNotNull {resource(it,post)}.toSet()
         val symbols=StringBuilder().also {out->text.codePoints().forEach {c->val type=Character.getType(c);if(c in protected||type==Character.MATH_SYMBOL.toInt()||type==Character.CURRENCY_SYMBOL.toInt())out.appendCodePoint(c)}}.toString()
         return Prepared(post,text,tokens,tokens.windowed(3).map {it.joinToString("\u0001").hashCode()}.sorted().toIntArray(),resources,
             numbers.findAll(text).map {TextWhitespace.collapse(it.value).replace(" ","")}.toList()+tokens.filter {it in negatives},symbols,text.count {it=='?'},
-            copy.title!=post.title||copy.body!=post.body)
+            copy.title!=post.title||copy.body!=post.body||raw!=text)
     }
     fun anchors(value:Prepared)=value.chunks.distinct().sorted().take(8)
     fun compare(a:Prepared,b:Prepared):Match? {
@@ -97,6 +103,15 @@ internal object DecoratedPostCopies {
         // originals, including every decorative variant, remain inspectable.
         val preferred=posts.indices.minWith(compareByDescending<Int> {PostPresentation.destinationLabels(PostPresentation.content(posts[it])).count {url->resource(url,posts[it])!=null}}
             .thenBy {PostPresentation.text(posts[it]).title.isNotBlank()}.thenBy {it})
+        return PostFusion(listOf(FusionSegment(PostPresentation.content(posts[preferred]),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
+    }
+    /** Presentation only after collection; never used by the pair matcher. */
+    fun composeShort(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
+        val values=posts.map {short(it) ?: return null}
+        if(values.none {it.changed})return null
+        for(i in values.indices)for(j in i+1 until values.size)if(compare(values[i],values[j])?.exact!=true)return null
+        val preferred=posts.indices.minWith(compareBy<Int>{PostPresentation.text(posts[it]).title.isNotBlank()}.thenBy {CrossPosts.originalKey(posts[it])})
         return PostFusion(listOf(FusionSegment(PostPresentation.content(posts[preferred]),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
     }
 }
