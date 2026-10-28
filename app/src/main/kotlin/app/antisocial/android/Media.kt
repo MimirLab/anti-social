@@ -57,14 +57,17 @@ private class VideoCacheEvictor(private val prefs: Preferences): CacheEvictor {
 }
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-class VideoCache(context: Context,prefs: Preferences) {
+class VideoCache(context: Context,prefs: Preferences,private val onPlayback:(Boolean)->Unit={}) {
     private val preferences=prefs
     private val database=StandaloneDatabaseProvider(context)
     val cache=SimpleCache(File(context.cacheDir,"video"),VideoCacheEvictor(prefs),database)
     private val active=java.util.concurrent.ConcurrentHashMap<String,Int>()
     fun bytes()=cache.cacheSpace
     fun release(){cache.release();database.close()}
-    fun active(url: String,enabled: Boolean){if(enabled)active.merge(url,1){old,new->old+new}else active.computeIfPresent(url){_,count->(count-1).takeIf {it>0}}}
+    fun active(url: String,enabled: Boolean)=synchronized(active) {
+        if(enabled)active.merge(url,1){old,new->old+new}else active.computeIfPresent(url){_,count->(count-1).takeIf {it>0}}
+        onPlayback(active.isNotEmpty())
+    }
     fun cleanup(now: Long,all: Boolean=false) {
         cache.keys.toList().filter {!active.containsKey(it)}.forEach {key->cache.getCachedSpans(key).toList().forEach {span->if(all||now-span.lastTouchTimestamp>preferences.videoCacheDays*CachePolicy.DAY)cache.removeSpan(span)}}
         val budget=preferences.videoCacheMb.toLong()*1024*1024

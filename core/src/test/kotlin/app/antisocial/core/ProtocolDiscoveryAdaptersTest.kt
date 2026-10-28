@@ -40,6 +40,14 @@ class ProtocolDiscoveryAdaptersTest {
         assertNull(ProtocolDiscoveryParsing.fxStatus(obj(fx().replace("\"screen_name\":\"jack\"","\"screen_name\":\"wrong\"")),Platform.X,fxProvenance(),routes))
         assertNull(ProtocolDiscoveryParsing.fxStatus(obj(fx().replace("\"twitter\"","\"bluesky\"")),Platform.X,fxProvenance(),routes))
     }
+    @Test fun fxKeepsAQualifiedSmallRenditionWithoutReplacingThePlayableSource() {
+        val high="https://video-s.twimg.com/amplify_video/710001/vid/1920x1080/high.mp4"
+        val low="https://video.twimg.com/amplify_video/710001/vid/320x180/low.mp4"
+        val wrong=low.replace("710001","710002")
+        val extra=",\"media\":{\"videos\":[{\"duration\":120.5,\"formats\":[{\"container\":\"mp4\",\"codec\":\"h264\",\"bitrate\":1000,\"url\":\"$high\"},{\"container\":\"mp4\",\"codec\":\"h264\",\"bitrate\":100,\"url\":\"$low\"},{\"container\":\"mp4\",\"codec\":\"h264\",\"bitrate\":1,\"url\":\"$wrong\"}]}]}"
+        val media=ProtocolDiscoveryParsing.fxStatus(obj(fx(extra=extra)),Platform.X,fxProvenance(),routes)!!.media.single()
+        assertEquals(high,media.url);assertEquals(low,media.samplingUrl);assertEquals(120500L,media.durationMs)
+    }
     @Test fun fxRejectsProtectedAuthorsAndEmptyBranding() {
         assertNull(ProtocolDiscoveryParsing.fxStatus(obj(fx().replace("\"name\":\"Jack\"","\"name\":\"Jack\",\"protected\":true")),Platform.X,fxProvenance(),routes))
         assertNull(ProtocolDiscoveryParsing.fxStatus(obj(fx().replace("Public body 20","")),Platform.X,fxProvenance(),routes))

@@ -9,13 +9,61 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
-## Development checkpoint after 0.38.55: video scenes and dotted captions
+## 0.38.56: shared footage with different captions
 
-[Scope and dated evidence](VIDEO_FOOTAGE.md) distinguish supplied-sample native
-collection/save checks, separately bounded live range probes, and the automatic
-scheduling/cache integration that remains unqualified. The checkpoint passes
-2,511 JVM checks / four optional skips and 131 native feed/Library checks / one
-opt-in skip, with zero final failures. No new official APK has been published.
+[The video-scene contract](VIDEO_FOOTAGE.md) describes the bounded sampler,
+ordinary cache, worker authority and dated observations. Different captions can
+join through existing local publisher identity and three compatible, temporally
+aligned scene observations. Dotted prose now survives URL classification;
+formatting-only dotted/spaced caption copies share a verbatim displayed version.
+Distinct source captions, discussions and playable recordings remain retained.
+
+The full JVM run covers **2,519 cases: 2,515 passes, zero failures/errors and four
+optional skips**. It includes range refusal, byte/request accounting, validator
+and source association, crop and sequence controls, literal caption preservation,
+bounded request planning and a synthetic fifth-platform abbreviation. That
+synthetic case does not establish acquisition of the reported fifth edition.
+
+The final API 35 native selection covers **146 named checks: 145 passes,
+zero failures and one opt-in skip** across feed collections, image identity,
+reading memory, Library/migrations, cache recovery, actual video controls and production descriptor/image/PDF/article
+worker checks.
+Six new cache controls cover reuse/restart, corruption/expiry, purge races,
+source association, transient recovery and playback priority. Cache cleanup
+retains protected saves, and an obsolete callback cannot repopulate its generation.
+
+A private automatic replay starts without scene observations. Existing cached
+posts/previews become readable while bounded live recording reads run behind the
+visible card. The settled card contains four source originals, one copy of each
+distinct caption and three selectable recordings; saving preserves every source.
+Initial and settled native screens were inspected. One emulator observation was
+679 ms to first visible card and 6,897 ms to collection formation. It is not a cold-feed,
+phone, percentile or battery benchmark. The fifth source was not acquired.
+
+The preceding supplied-sample foundation passed its separate native replay.
+Earlier automatic replay failures exposed screenshot assumptions about retained
+row anchors and multi-paragraph captions. The corresponding content/save reports
+passed, but those attempts are not counted as passed instrumentation. The runner
+now requires a JUnit success, not just the shell command's exit status. The corrected runs pass five native
+packet invocations covering **16 announcement families and 49 originals**, plus
+the separate automatic four-original video replay. Card captures were inspected.
+An expanded worker selection initially included two debug-only probe/stall checks;
+the release worker refused them as designed. They are excluded from the final
+146-check release selection rather than counted as passing checks.
+
+A dedicated API 26 emulator also passes all six cache/recovery checks and a real
+bounded range/descriptor read: four scenes, 1,835,008 bytes, seven requests.
+These are stock-framework engineering checks, not a privileged user feature.
+Release lint passes. Artifact/source integrity, compatible preview promotion and
+the permanent download follow the [publishing procedure](PUBLISHING.md).
+
+The change adds no model, permission, database migration or native dependency.
+Sampling runs only for a settled visible card, respects Wi-Fi-only video and
+resource controls, yields to foreground traffic and cancels on scrolling,
+backgrounding, overlays or playback. Unsupported ranges or insufficient evidence
+leave editions separate. Android's media retriever uses a dedicated ordinary UID
+worker, not a permissionless sandbox; the descriptor protocol and returned data
+are bounded. No full-file or equal-audio claim follows from matching scenes.
 
 ## 0.38.55 public-timeline sharing attribution
 

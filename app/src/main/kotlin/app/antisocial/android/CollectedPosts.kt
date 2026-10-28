@@ -32,9 +32,12 @@ internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusi
  * platform's longest edition and quietly omit another source's unique prose. */
 private fun sourceCaptionBlocks(posts:List<Post>):PostFusion? {
     if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
-    val groups=posts.filter {PostPresentation.content(it).isNotBlank()}.groupBy {PostPresentation.content(it).trim()}
+    val groups=posts.filter {PostPresentation.content(it).isNotBlank()}.groupBy {CrossPosts.formattingCaptionKey(it) ?: PostPresentation.content(it).trim()}
+        .values.flatMap {sources->if(sources.size>1&&CrossPosts.formattingCaptionCopies(sources))listOf(sources)else sources.groupBy {PostPresentation.content(it).trim()}.values}
     if(groups.isEmpty())return null
-    return PostFusion(groups.values.map {sources->FusionSegment(PostPresentation.content(sources.first()),sources.mapTo(linkedSetOf()){it.platform},
+    return PostFusion(groups.map {sources->
+        val preferred=sources.minBy {PostLinks.urls(it.copy(links=null)).size}
+        FusionSegment(PostPresentation.content(preferred),sources.mapTo(linkedSetOf()){it.platform},
         sources.size==posts.size,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))})
 }
 

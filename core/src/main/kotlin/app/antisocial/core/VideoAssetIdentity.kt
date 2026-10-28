@@ -18,4 +18,15 @@ object VideoAssetIdentity {
             url.encodedPath.endsWith(".mp4",true))return "meta:"+url.encodedPath
         return null
     }
+    /** Only source-advertised renditions of the same qualified provider clip.
+     * The selected playback URL and every playable edition remain unchanged. */
+    fun smallRendition(playback:String,candidates:List<Pair<String,Long>>):String? {
+        val clip=key(playback) ?: return null
+        return candidates.filter {it.second>0&&it.first.length<=8192&&key(it.first)==clip}.minByOrNull {it.second}?.first
+    }
+    fun validSampling(media:Media):Boolean {
+        val candidate=media.samplingUrl ?: return true
+        return media.type=="video"&&candidate.length<=8192&&key(media.url)?.let {it==key(candidate)}==true
+    }
+    fun sampleUrl(media:Media)=media.samplingUrl?.takeIf {validSampling(media)} ?: media.url
 }

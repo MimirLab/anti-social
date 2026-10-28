@@ -13,13 +13,15 @@ import java.io.IOException
  * nor an offline file. Gateway rejects unsupported ranges/changed validators
  * and caps sixteen exchanges/four MiB; a failure creates no observation. */
 internal class GatewayVideoSampler(private val repo:Repository) {
-    internal data class Result(val frames:SampledVideoFrames,val fetchedBytes:Long,val fetchedBlocks:Int)
+    internal data class Result(val frames:SampledVideoFrames,val fetchedBytes:Long,val fetchedBlocks:Int,val renditionUrl:String)
     suspend fun sample(media:Media,sourceUrl:String):Result=withContext(Dispatchers.IO) {withTimeout(20_000) {
         require(media.type=="video"&&media.audioUrl==null&&!VideoFormats.adaptive(VideoFormats.mime(media)))
         // A qualified supplied clip URL may omit HTTP validators. Such a read
         // stays a short-lived observation with a repeated prefix check, never
         // equivalence of complete recordings or reusable playable bytes.
-        val ranges=repo.gateway.mediaRanges(media.url,sourceUrl,observationOnly=VideoAssetIdentity.key(media.url)!=null)
+        require(VideoAssetIdentity.validSampling(media))
+        val selected=VideoAssetIdentity.sampleUrl(media)
+        val ranges=repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null)
         val scope=currentCoroutineContext()
         val thread=HandlerThread("anti social video bytes").apply {start()}
         try {
@@ -38,7 +40,7 @@ internal class GatewayVideoSampler(private val repo:Repository) {
             storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY,callback,Handler(thread.looper)).use {fd->
                 val frames=repo.contentSandbox.sampledVideo(fd)
                 ranges.verify()
-                Result(frames,ranges.fetchedBytes,ranges.fetchedBlocks)
+                Result(frames,ranges.fetchedBytes,ranges.fetchedBlocks,selected)
             }
         }finally {thread.quitSafely()}
     }}

@@ -50,7 +50,7 @@ private object PortableModelValidation {
         ExtractionCoverage::class.java to setOf("note", "replyParent"),
         PostSnapshot::class.java to setOf("publishedAt", "avatar", "aiDisclosures", "relationship", "contextNotes", "publicRelations", "authorAccount"),
         PostRelationship::class.java to setOf("parentId", "conversationId", "relationId", "sourceParentId", "parentCoverage"),
-        Media::class.java to setOf("preview", "mimeType", "aiMetadata", "durationMs", "audioUrl", "audioMimeType", "visualFingerprint", "attachmentFingerprint", "videoFootage"),
+        Media::class.java to setOf("preview", "mimeType", "aiMetadata", "durationMs", "audioUrl", "audioMimeType", "visualFingerprint", "attachmentFingerprint", "videoFootage", "samplingUrl"),
         VideoFootageEvidence::class.java to emptySet(),
         SampledVideoScene::class.java to emptySet(),
         Provenance::class.java to emptySet(),

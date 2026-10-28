@@ -79,7 +79,7 @@ class Repository(val context: Context) {
     val blocked=MutableStateFlow<List<Pair<String,String>>>(emptyList())
     val status=MutableStateFlow("")
     val usage=MutableStateFlow(StorageUsage())
-    val videoCache=VideoCache(context,prefs)
+    val videoCache=VideoCache(context,prefs){active->videos.playback(active)}
     val mentionNames by lazy {MentionNameStore(this)}
     /** Public labels are disposable enrichment; a damaged cache must never
      * prevent the original page from being delivered or stored. */
@@ -102,6 +102,7 @@ class Repository(val context: Context) {
     val youtube by lazy {YouTubeStore(this)}
     val cardWork=CardWork()
     val images by lazy {ImageLoader(this)}
+    internal val videos=VideoEvidenceStore(this)
     val aiMetadata by lazy {AiMetadataStore(scope,onWork={url->cardWork.begin(listOf(mediaWorkKey(url)),"Image information")})}
     private val mediaInfoStore=lazy {MediaInfoStore(this)}
     internal val mediaInfo get()=mediaInfoStore.value
@@ -843,6 +844,7 @@ class Repository(val context: Context) {
         // Cache maintenance must not hold the completed reader generation back.
         cleanup()
         images.retryFailed()
+        videos.retryFailures()
     }}
     suspend fun viewed(post: Post) {val now=System.currentTimeMillis();dao.touchPost(key(post),now);dao.putHistory(HistoryRow(key(post),post.platform.id,post.canonicalUrl,post.title.ifBlank {post.body.take(90)},now));library.recordHistory(post,now)}
     suspend fun bookmark(post: Post,save: Boolean) {
@@ -988,6 +990,7 @@ class Repository(val context: Context) {
         if(clearAll)evidenceReader.clearArticleMemory()
         if(sourceRecordStore.isInitialized())sourceRecords.cleanup(clearAll)
         mediaInfo.cleanup(clearAll)
+        videos.cleanup(clearAll)
         if(localDiscoveryStore.isInitialized())localDiscovery.cleanup(clearAll)
         if(localLinkStore.isInitialized())localLinks.cleanup(clearAll)
         PlaceSearchVocabulary.cleanup(clearAll)
@@ -1003,7 +1006,7 @@ class Repository(val context: Context) {
         if(clearAll){sponsorBlock.clear();youtube.clear()}else sponsorBlock.cleanup(now)
         val entries=posts.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,false,activeKeys.containsKey(it.key))}+media.map {CacheEntry(it.key,it.bytes,it.createdAt,it.lastViewedAt,it.saved,activeKeys.containsKey(it.key))}
         val free=StatFs(context.filesDir.path).availableBytes
-        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()-(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)-adjacentStore.bytes()-participantBank.bytes()).coerceAtLeast(0)
+        val budget=if(clearAll)0 else (minOf(prefs.cacheMb.toLong()*1024*1024,(free-256L*1024*1024).coerceAtLeast(0))-mentionNames.bytes()-contextReader.store.logicalBytes(false)-contextReader.temporaryBytes()-articleReadingCache.bytes()-(if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)-(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)-mediaInfo.bytes()-(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)-adjacentStore.bytes()-participantBank.bytes()-videos.bytes()).coerceAtLeast(0)
         val evict=CachePolicy.eviction(entries,now,budget,prefs.unseenDays,prefs.viewedDays)
         val postKeys=posts.filter {it.key in evict}.map {it.key};val mediaRows=media.filter {it.key in evict}
         if(clearAll||postKeys.isNotEmpty())db.withTransaction {
@@ -1024,7 +1027,7 @@ class Repository(val context: Context) {
         val savedBytes=(if(localDiscoveryStore.isInitialized())localDiscovery.bytes(true)else 0)+dao.bookmarkBytes()+dao.savedDetailBytes()+dao.mediaBytes(true)+contextReader.store.logicalBytes(true)
         val videoKeys=dao.allSavedAssets().filter {it.type!="image"}.map {it.assetKey}.toSet()+dao.allBookmarks().mapNotNull {runCatching {gson.fromJson(it.payload,Post::class.java)}.getOrNull()}.flatMap {p->(p.media+p.archivedVersion?.snapshot?.media.orEmpty()).filter {it.type!="image"}.map {hash(it.url)}}
         val videoBytes=dao.allMedia().filter {it.saved&&it.key in videoKeys}.sumOf {it.bytes}
-        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes()+(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)+adjacentStore.bytes()+participantBank.bytes(),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
+        publish(usage,StorageUsage((if(localDiscoveryStore.isInitialized())localDiscovery.bytes()else 0)+(if(sourceRecordStore.isInitialized())sourceRecords.bytes()else 0)+mediaInfo.bytes()+dao.postBytes()+dao.mediaBytes(false)+mentionNames.bytes()+contextReader.store.logicalBytes(false)+contextReader.temporaryBytes()+articleReadingCache.bytes()+(if(accountCacheStore.isInitialized())accountDiscoveryCache.bytes()else 0)+adjacentStore.bytes()+participantBank.bytes()+videos.bytes(),savedBytes,filterDir.listFiles()?.sumOf {it.length()} ?: 0,videoCache.bytes(),videoBytes))
     }
     suspend fun exportBackup(): ByteArray=withContext(Dispatchers.IO) {val backup=Backup(settings=JsonParser.parseString(prefs.export().toString()).asJsonObject,follows=dao.allFollows(),bookmarks=dao.allBookmarks(),history=dao.allHistory(),savedDetails=dao.allSavedDetails(),collections=dao.allCollections(),collectionLinks=dao.allCollectionLinks(),retainedHistory=dao.allRetainedHistory());gson.toJson(backup).toByteArray()}
     suspend fun importBackup(bytes: ByteArray) {

@@ -536,7 +536,7 @@ object CrossPosts {
         return same&&ContentIdentity.key(post.platform,value)==ContentIdentity.key(post.platform,post.canonicalUrl)
     }
     internal fun originalLink(value:String,post:Post)=linksToOriginal(value,post)
-    private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
+    private fun publisherOwner(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>):String? {
         val eligible=accounts[post.platform].orEmpty()
         val pathOwners=eligible.filter {own(post,it.second)}.map {it.first}.distinct()
         val sources=memberships[originalKey(post)].orEmpty()
@@ -554,11 +554,16 @@ object CrossPosts {
         // different local bundles. A list's first entry is not identity proof.
         // Its actual feed membership can disambiguate those matching accounts;
         // a curator's feed must never override an independently named author.
-        val owner=when(pathOwners.size) {
+        return when(pathOwners.size) {
             0->sourceOwners.singleOrNull()
             1->pathOwners.single()
             else->pathOwners.intersect(sourceOwners.toSet()).singleOrNull()
         }
+    }
+    private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
+        val eligible=accounts[post.platform].orEmpty()
+        val sources=memberships[originalKey(post)].orEmpty()
+        val owner=publisherOwner(post,accounts,memberships)
         val bounded=post.body.length.toLong()+post.title.length<=MAX_TEXT
         val content=if(bounded) {
             val body=decoded(post.body);val title=decoded(post.title)
@@ -676,6 +681,16 @@ object CrossPosts {
         if(first.tokens.size>=20&&first.text.length>=120)return false
         return first.text.length>=12&&first.tokens.size>=3&&first.tokens.distinct().size>=3&&
             posts.all {post->val value=if(post===posts.first())first else features(post,emptyMap(),emptyMap());value.validOriginal&&!value.truncated&&completeCopyText(first,value)}
+    }
+    /** Presentation only after collection. Word boundaries, claims, questions,
+     * symbols and real destinations still use the existing literal checks.
+     * Compact identity removes spacing only, never punctuation or authored words. */
+    fun formattingCaptionKey(post:Post):String? {
+        if(post.body.length.toLong()+post.title.length>MAX_TEXT||!onlyOpaqueOrOriginalLinks(post))return null
+        return PostPresentation.referenceFreeCaption(PostPresentation.content(post)).filterNot {it.isWhitespace()||Character.isSpaceChar(it)}
+    }
+    fun formattingCaptionCopies(posts:List<Post>):Boolean=CrossPostFusion.withPrepared {
+        literalCaptionVersions(posts)&&posts.map(::formattingCaptionKey).let {it.none {v->v==null}&&it.distinct().size==1}
     }
     private fun copyMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(commentCopies(a,b))return true
@@ -853,6 +868,14 @@ object CrossPosts {
     suspend fun groupWithVideoFootage(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap(),sameMedia:(Post,Post)->Boolean={_,_->false},sharedFootage:(Post,Post)->SharedVideoFootage?):List<PostGroup> {
         val context=currentCoroutineContext()
         return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia,sharedFootage){context.ensureActive()}}
+    }
+    fun videoFootageRequests(groups:List<PostGroup>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap()):List<VideoFootageRequest> = CrossPostFusion.withPrepared {
+        if(groups.size<2)return@withPrepared emptyList()
+        val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
+        val owners=groups.flatMap {it.posts}.associate {post->
+            originalKey(post) to publisherOwner(post,accounts,memberships).takeIf {realOriginal(post)}
+        }
+        SharedVideoCollections.requests(groups,owners)
     }
     /** Reconcile overlapping extractions inside one input batch. Never union
      * attachments across historical revisions or rewrite a source record. */

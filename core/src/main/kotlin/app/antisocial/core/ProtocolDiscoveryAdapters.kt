@@ -129,8 +129,13 @@ object ProtocolDiscoveryParsing {
         if(platform==Platform.BLUESKY&&(path.size!=4||path[0]!="profile"||path[2]!="post"||path[3]!=id||!path[1].equals(handle,true)&&path[1]!=author.pText("did","id")))return null
         val media=node.pObject("media");val images=media.pArray("photos").take(20).mapNotNull {raw->raw.pObj()?.let {p->pUrl(p.pText("url"),provenance.finalUrl)?.let {Media(it,description=p.pText("altText","alt_text"))}}}
         val videos=media.pArray("videos").take(8).mapNotNull {raw->raw.pObj()?.let {v->
-            val preferred=v.pArray("formats").mapNotNull {it.pObj()}.filter {it.pText("container")=="mp4"&&it.pText("codec") in setOf("","h264")}.maxByOrNull {it.pLong("bitrate") ?: 0}
-            pUrl(preferred?.pText("url").orEmpty().ifBlank {v.pText("url")},provenance.finalUrl)?.let {Media(it,"video",pUrl(v.pText("thumbnail_url"),provenance.finalUrl),v.pText("altText","alt_text"))}
+            val formats=v.pArray("formats").take(32).mapNotNull {it.pObj()}.filter {it.pText("container")=="mp4"&&it.pText("codec") in setOf("","h264")}
+            val preferred=formats.maxByOrNull {it.pLong("bitrate") ?: 0}
+            pUrl(preferred?.pText("url").orEmpty().ifBlank {v.pText("url")},provenance.finalUrl)?.let {url->
+                val candidates=formats.mapNotNull {format->pUrl(format.pText("url"),provenance.finalUrl)?.let {it to (format.pLong("bitrate") ?: 0L)}}
+                Media(url,"video",pUrl(v.pText("thumbnail_url"),provenance.finalUrl),v.pText("altText","alt_text"),
+                    durationMs=MediaDuration.seconds(v["duration"]),samplingUrl=VideoAssetIdentity.smallRendition(url,candidates))
+            }
         }}
         val body=node.pText("text");if(body.isBlank()&&images.isEmpty()&&videos.isEmpty())return null
         val card=node.pObject("card");val links=listOfNotNull(pUrl(card.pText("url"),provenance.finalUrl))

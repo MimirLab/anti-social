@@ -149,6 +149,10 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         require(maxBytes in 1024..64L*1024*1024&&maxRequests in 1..8)
         return withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(maxBytes),java.util.concurrent.atomic.AtomicInteger(maxRequests),kotlinx.coroutines.currentCoroutineContext()[TextReadBudget])){read()}
     }
+    /** One requested pair of scene observations, including preempted attempts.
+     * Existing enclosing request/byte allowances remain stricter parents. */
+    suspend fun <T> boundedVideoComparison(read:suspend ()->T):T=
+        withContext(TextReadBudget(java.util.concurrent.atomic.AtomicLong(8L*1024*1024),java.util.concurrent.atomic.AtomicInteger(32),kotlinx.coroutines.currentCoroutineContext()[TextReadBudget])){read()}
     private fun origin(url: HttpUrl)="${url.scheme}://${url.host}:${url.port}"
     private fun requestOrigins(sourceUrl: String): AllowedOrigins? {
         val source=sourceUrl.toHttpUrlOrNull() ?: return null

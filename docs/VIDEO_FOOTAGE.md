@@ -1,9 +1,9 @@
-# Shared video scenes: development checkpoint
+# Shared video scenes
 
-This work is under qualification after 0.38.55. The live release does not yet
-automatically sample videos. The candidate can group already-sampled editions;
-automatic candidate scheduling, ordinary-cache reuse and their cancellation
-controls remain to be connected and qualified before publication.
+Version 0.38.56 adds a bounded, visible-card comparison route to the
+existing caption and image routes. Recorded
+shared scenes can connect different captions without rewriting their originals.
+This is neither continuous video crawling nor complete-file authentication.
 
 ## Content and preservation
 
@@ -18,7 +18,7 @@ families. Existing caption and still-image comparison routes retain their rules.
 
 The independent Kotlin comparer searches bounded crops of existing 64×64 detail
 samples using normalized correlation. It loads no model, computer-vision runtime
-or new native library. The experimental scene threshold is 0.92; qualification
+or new native library. The scene correlation threshold is 0.92; qualification
 includes crop/zoom, unrelated and reversed scenes, static covers, missing
 positions, duration changes, source association and cancellation controls.
 
@@ -28,6 +28,32 @@ recording. Existing **Media editions** shares display space while keeping the
 recordings selectable. Optional `Media.videoFootage` observations can accompany
 an explicit saved copy; import checks their bounded schema and source association.
 They are local observations, not cryptographic authentication of a source.
+
+## Scheduling and ordinary cache
+
+The request planner uses existing local publisher/account membership. It offers
+at most twelve pairs from the newest 128 eligible groups, with compatible declared
+runtimes or an advertised smaller rendition. Unknown videos, adaptive playlists,
+split audio and multi-clip originals do not initiate this route. No fresh account
+lookup or guessed rendition URL is needed. Playback keeps its existing URL;
+sampling can use a smaller rendition explicitly advertised for the same clip.
+
+A readable card must remain still for 1.2 seconds before requesting the single
+sampling lane. Scrolling, leaving the foreground, overlays and active playback
+cancel the visible-card request. Automatic work respects the existing Wi-Fi-only
+video setting and skips power-saving, severe-thermal and low-memory conditions.
+Foreground Gateway work takes precedence. Card status shows **Comparing video
+editions** while that request is active. One pair has an enclosing eight-MiB,
+32-exchange, 45-second ceiling; per-recording limits remain tighter. Retries spend
+the same parent allowance. Unsupported acquisition leaves editions separate.
+
+Derived observations expire after seven days, with 128-entry/eight-MiB ordinary
+cache limits. Matching reads the in-memory projection; disk restoration runs on
+an IO worker. Reopening a cached recording does not refetch its samples. A manual
+ordinary-cache purge cancels work and advances its admission generation before
+deleting observations. An obsolete callback cannot repopulate the cleared cache.
+Protected saves retain their own original records and bounded observations.
+Transient failures have a short cooldown and can be retried by explicit refresh.
 
 ## Acquisition boundary
 
@@ -50,7 +76,9 @@ image. `PlatformVideoService` therefore uses a dedicated ordinary app process,
 accepts only the video-sampling operation and receives a read-only descriptor.
 It has the same independent watchdog/termination protocol as the other content
 workers, but is **not** a permissionless sandbox. The parent bounds returned
-samples and JSON. Ordinary isolated image/document workers retain their authority.
+samples and JSON. Its watchdog terminates the app worker; it cannot guarantee
+termination of every operation inside Android's separate media services. Ordinary
+isolated image/document workers retain their authority.
 
 ## Dated observations, 2026-10-28
 
@@ -62,9 +90,19 @@ requires no runtime request; synthetic controls preserve bare real domains,
 reserved fixture domains and punycode domains while retaining ordinary dotted
 words as prose.
 
-The native supplied-sample replay now shows one card, the common caption once,
-all four originals and three selectable recordings. The protected save retains
-every source edition. Screens and caption presentation were inspected.
+Both the supplied-sample replay and an automatic replay starting without scene
+observations show one card, each distinct caption once, all four originals and
+three selectable recordings. Formatting-only dotted/spaced versions share one
+verbatim displayed caption; exact originals remain available. The protected save
+retains every source edition. Initial and settled native screens were inspected.
+
+In one API 35 emulator replay, cached posts/previews became visible in 679 ms and
+the collection formed after live bounded video reads in 6,897 ms. These are single
+observations of this mixed cached/live fixture, not cold network-feed timings,
+phone measurements, percentiles or a promise for other sources. An initial replay
+passed collection/save assertions but failed its screenshot assumption: the feed
+correctly retained its visible row anchor rather than adopting the earliest
+source's key. The harness now accepts the actual retained original alias.
 
 Separate native range probes acquired four scenes from a smaller advertised
 rendition and three from a larger recording within each fixed allowance. Their
@@ -72,12 +110,18 @@ scene comparison passes and a reversed-sequence control fails. Nearest-keyframe
 shortcuts failed this case and were not adopted. These are API 35 emulator
 observations, not physical-phone performance or general provider availability.
 Another reported platform edition has not yet been acquired and is not counted.
+A separately created API 26 emulator also returned four scenes through the real
+proxy-descriptor/Gateway path, using 1,835,008 bytes and seven range requests in
+6,330 ms. Its six ordinary-cache controls passed. An initial fixture-staging permission error was corrected before that run.
+No product root permission is required.
 
-The foundation checkpoint passes 2,511 JVM checks with four optional skips and
-131 native feed/Library checks with one opt-in skip. Initial failing probes and
-their corrected runs remain in the private external evidence area. This is not
-release qualification of an automatic sampler or a claim that all video
-duplicates are solved.
+The earlier foundation checkpoint passed 2,511 JVM checks with four optional
+skips and 131 native feed/Library checks with one opt-in skip. Automatic-cache
+controls separately passed six native cases covering reuse, restart, expiry,
+corruption, purge races, clip association, transient recovery and playback.
+The final selection is recorded in [release qualification](RELEASE_QUALIFICATION.md).
+Initial failing probes and corrected runs remain in the private external evidence
+area. This does not claim that all video duplicates are solved.
 
 ## Primary references
 

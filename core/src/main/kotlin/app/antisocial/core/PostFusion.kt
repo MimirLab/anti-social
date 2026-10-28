@@ -562,6 +562,10 @@ object CrossPostFusion {
             }
         }
         if((proseWords.size<MIN_WORDS||prose.length<MIN_CHARS)&&prose.length>=12&&proseWords.size in 3..MAX_WORDS&&proseWords.distinct().size>=3&&CrossPosts.literalCaptionVersions(posts)) {
+            if(CrossPosts.formattingCaptionCopies(posts)) {
+                val preferred=posts.minBy {PostPresentation.destinationLabels(PostPresentation.content(it)).count()}
+                return PostFusion(listOf(FusionSegment(PostPresentation.content(preferred),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
+            }
             // Keep ordinary tonal punctuation out of the reading workload.
             // Question marks, internal commas, symbols, quantities and links
             // retain the preceding guards and all exact source editions.

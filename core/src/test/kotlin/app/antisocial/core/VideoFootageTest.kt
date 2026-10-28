@@ -58,6 +58,17 @@ class VideoFootageTest {
         assertNull(VideoAssetIdentity.key(root.url.replace("/vid/","/unrelated/")))
         val gson=Gson();assertEquals(root,gson.fromJson(gson.toJson(root),Media::class.java))
     }
+    @Test fun advertisedSmallRenditionsCannotChangeThePlaybackOrBorrowAnotherClip() {
+        val playback="https://video-s.twimg.com/amplify_video/710001/vid/1920x1080/main.mp4"
+        val small="https://video.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        val foreign=small.replace("710001","710002")
+        assertEquals(small,VideoAssetIdentity.smallRendition(playback,listOf(playback to 1000L,small to 100L,foreign to 1L)))
+        val media=Media(playback,"video",samplingUrl=small)
+        assertTrue(VideoFootage.valid(media));assertEquals(playback,media.url);assertEquals(small,VideoAssetIdentity.sampleUrl(media))
+        assertFalse(VideoFootage.valid(media.copy(samplingUrl=foreign)))
+        assertFalse(VideoFootage.valid(media.copy(type="image")))
+        assertNull(VideoAssetIdentity.smallRendition("https://example.org/player.mp4",listOf(small to 100L)))
+    }
     @Test fun panningPortraitCropsShareFootageWithoutBecomingIdenticalPictures() {
         val p=source;val a=evidence(p.map(::frame));val b=evidence(cropped(p))
         assertTrue(VideoFootage.valid(a));assertTrue(VideoFootage.valid(b))

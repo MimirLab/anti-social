@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.combine
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -115,8 +116,9 @@ private val Mint=Color(0xFF8DE5BA)
 private val Ink=Color(0xFF111315)
 private val Panel=Color(0xFF1A1D20)
 private val Muted=Color(0xFF929D99)
-private data class KnownPostGroups(val posts: List<Post>,val follows: List<Follow>,val memberships: Map<String,Set<String>>,val groups: Map<String,List<Post>>)
+private data class KnownPostGroups(val posts: List<Post>,val follows: List<Follow>,val memberships: Map<String,Set<String>>,val groups: Map<String,List<Post>>,val videoRequests:Map<String,VideoFootageRequest>)
 internal val LocalPostCounterparts=compositionLocalOf<Map<String,List<Post>>> {emptyMap()}
+internal val LocalVideoRequests=compositionLocalOf<Map<String,VideoFootageRequest>> {emptyMap()}
 internal val LocalSavedPostKeys=compositionLocalOf<Set<String>> {emptySet()}
 internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
 
@@ -165,7 +167,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         (if(useGlobal)listOfNotNull(globalSnapshot?.memberships)else listOfNotNull(globalSnapshot?.memberships,storedSnapshot?.memberships)).forEach {map->map.forEach {(key,ids)->put(key,get(key).orEmpty()+ids)}}
     }}
     LaunchedEffect(repo,matchingCandidates) {
-        matchingCandidates?.let {posts->delay(300);repo.images.restoreCachedIdentities(posts)}
+        matchingCandidates?.let {posts->delay(300);launch {repo.videos.restore()};repo.images.restoreCachedIdentities(posts)}
     }
     val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships) {
         val candidates=matchingCandidates;val accounts=loadedFollows
@@ -174,15 +176,19 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         // Finish the current coherent grouping rather than repeatedly cancelling
         // the first readable deck. StateFlow conflates later revisions while we
         // work; source/membership changes still cancel this whole projection.
-        repo.images.identities.matchingSnapshots(candidates).collect {evidence->
+        combine(repo.images.identities.matchingSnapshots(candidates),repo.videos.revision){evidence,_->evidence}.collect {evidence->
             value=withContext(Dispatchers.Default) {
+                val observed=evidence.posts.map(repo.videos::captured)
                 val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
                     val context=currentCoroutineContext()
-                    CrossPosts.groupWithVideoFootage(evidence.posts,accounts,matchingMemberships,evidence::same) {a,b->
-                        VideoFootage.related(a,b){context.ensureActive()}
+                    CrossPosts.groupWithVideoFootage(observed,accounts,matchingMemberships,evidence::same) {a,b->
+                        repo.videos.related(a,b){context.ensureActive()}
                     }
-                }.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap()
-                KnownPostGroups(candidates,accounts,matchingMemberships,groups)
+                }
+                val requests=buildMap<String,VideoFootageRequest> {
+                    CrossPosts.videoFootageRequests(groups,accounts,matchingMemberships).forEach {request->request.originalKeys.forEach {key->putIfAbsent(key,request)}}
+                }
+                KnownPostGroups(candidates,accounts,matchingMemberships,groups.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap(),requests)
             }
             delay(150)
         }
@@ -225,7 +231,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     }
     val colors=if(dark)darkColorScheme(primary=Mint,secondary=Mint,secondaryContainer=Color(0xFF253D31),onSecondaryContainer=Mint,background=Ink,surface=Ink,surfaceVariant=Panel,onSurface=Color(0xFFECEFEA),onSurfaceVariant=Muted) else lightColorScheme(primary=Color(0xFF236849),secondary=Color(0xFF236849),secondaryContainer=Color(0xFFDDEDE3),onSecondaryContainer=Color(0xFF236849),background=Color(0xFFF7F9F6),surface=Color.White,surfaceVariant=Color(0xFFF0F3EF),onSurface=Ink,onSurfaceVariant=Color(0xFF64726B))
     MaterialTheme(colorScheme=colors,typography=Typography()) {
-        CompositionLocalProvider(LocalMentionOpenAccount provides {url->vm.openLink(url)},LocalArchiveChecksPaused provides (showFollow||showSearch||showConnection||showChannels||showFeedChooser||sharingChannel!=null||discussion!=null),LocalPostCounterparts provides discussionGroups,LocalSavedPostKeys provides savedKeys,LocalImageSearch provides vm::searchImage) {
+        CompositionLocalProvider(LocalMentionOpenAccount provides {url->vm.openLink(url)},LocalArchiveChecksPaused provides (showFollow||showSearch||showConnection||showChannels||showFeedChooser||sharingChannel!=null||discussion!=null),LocalPostCounterparts provides discussionGroups,LocalVideoRequests provides knownGroups?.videoRequests.orEmpty(),LocalSavedPostKeys provides savedKeys,LocalImageSearch provides vm::searchImage) {
         BackHandler(enabled=state.target!=null||state.section!="feed"){vm.back()}
         ContextSheet(repo,onOpenLink={vm.openLink(it,true)})
         ArticleReaderSheet(vm.articles,onOpenLink={vm.openLink(it,true)},onBrowser=vm::openBrowser)

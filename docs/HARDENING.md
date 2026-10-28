@@ -19,7 +19,7 @@ media, updates and Tor policy. Original downloaded bytes remain unchanged.
 | Ordinary picture decoding and PDF display | `ContentSandboxService`, an unexported Android isolated service with no permissions of its own |
 | Article extraction, PDF text, and picture/PDF preparation for OCR | A second isolated service, `DocumentSandboxService`, separating ordinary background document work from the visible picture queue |
 | HEIF/AVIF image containers | `PlatformImageService`, a separate ordinary process using Android's existing media decoder path; it shares the app UID and is **not** a permission sandbox |
-| Candidate video-scene sampling | `PlatformVideoService`, a descriptor-only ordinary app process with an independent watchdog; **not** permissionless. [Development scope and qualification](VIDEO_FOOTAGE.md). Automatic sampling is not yet enabled. |
+| Video-scene sampling | `PlatformVideoService`, a descriptor-only ordinary app process with an independent watchdog; **not** permissionless. [Scheduling, acquisition limits and qualification](VIDEO_FOOTAGE.md). Settled visible cards can request bounded sampling; no global scan. |
 | Local inference, translation, OCR recognition and audio processing | Existing private workers and verified model packs; these are not newly claimed to be permissionless |
 
 Android denies isolated UIDs access to `media.player`. On the tested Android 15

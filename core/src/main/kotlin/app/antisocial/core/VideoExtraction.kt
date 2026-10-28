@@ -75,6 +75,9 @@ internal object VideoExtraction {
             val media=candidate(text(value,"src","url"),base,text(value,"type","content_type"),preview,description) ?: return@mapNotNull null
             media to (text(value,"bitrate").toLongOrNull()?.coerceAtLeast(0) ?: 0L)
         }
-        return (variants.filter {it.first.mimeType in setOf("video/mp4","video/webm")}.ifEmpty {variants}).maxByOrNull {it.second}?.first?.copy(durationMs=MediaDuration.milliseconds(video["duration_millis"]))
+        val progressive=variants.filter {it.first.mimeType in setOf("video/mp4","video/webm")}
+        val primary=(progressive.ifEmpty {variants}).maxByOrNull {it.second}?.first ?: return null
+        return primary.copy(durationMs=MediaDuration.milliseconds(video["duration_millis"]),
+            samplingUrl=VideoAssetIdentity.smallRendition(primary.url,progressive.map {it.first.url to it.second}))
     }
 }

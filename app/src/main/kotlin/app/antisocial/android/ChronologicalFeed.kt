@@ -13,6 +13,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
@@ -200,7 +201,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val bodyChanges by produceState<FeedBodyChanges?>(null,frozen,available,counterparts) {
         value=withContext(Dispatchers.Default) {
             val owners=frozen.flatMap {row->row.aliases.map {it to row.key}}.toMap()
-            fun sourceContent(post:Post)=post.copy(provenance=null,archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null)})
+            fun sourceContent(post:Post)=post.copy(provenance=null,archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null,videoFootage=null,samplingUrl=null)})
             fun contexts(posts: List<Post>): List<Triple<String,Set<Platform>?,Set<String>?>> = collectedPostFusion(posts)?.segments
                 ?.map {Triple(it.text,if(it.shared)null else it.platforms,if(it.shared)null else it.originalKeys)}
                 ?: listOf(Triple(collectedCaptionPost(posts)?.let(PostPresentation::content).orEmpty(),null,null))
@@ -534,6 +535,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                             if(unreadRow)Text(if(newRow)"New"else "Unread",fontSize=11.sp,color=if(newRow)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Feed row status ${row.key}"))
                         }
                         if(decision(row)==null)PendingFilterCard()else FilteredPost(decision(row)!!,repo.key(row.bodyPosts.first()),filtering,onEdit={filtering.managing=true}) {
+                            FeedVideoDwell(list,row.key,row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
                             PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts}){repo.postTarget(row.primary)?.let {vm.open(it)}}
                         }
                     }
@@ -610,6 +612,26 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
         val viewport=end-start;if(size<=0||viewport<=0||moving)return false
         val visible=(min(offset+size,end)-max(offset,start)).coerceAtLeast(0)
         return if(size<=viewport)visible>=size*.6f else visible>=viewport*.6f&&offset<=start+viewport/2&&offset+size>=start+viewport/2
+    }
+}
+
+/** Visible, settled cards only. Scrolling, overlays, lost focus and backgrounding
+ * cancel the coroutine and its Gateway reads rather than queuing a global scan. */
+@Composable private fun FeedVideoDwell(list:LazyListState,key:String,request:VideoFootageRequest?,repo:Repository) {
+    val view=LocalView.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
+    var resumed by remember(lifecycle){mutableStateOf(lifecycle.currentState==Lifecycle.State.RESUMED)}
+    var focused by remember(view){mutableStateOf(view.hasWindowFocus())}
+    val paused=LocalArchiveChecksPaused.current
+    val retries by repo.videos.retries.collectAsStateWithLifecycle()
+    val playing by repo.videos.playbackActive.collectAsStateWithLifecycle()
+    val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
+        info.visibleItemsInfo.firstOrNull {it.key.toString()==key}?.let {FeedDwellGeometry(it.offset,it.size,info.viewportStartOffset,info.viewportEndOffset,list.isScrollInProgress).readable}==true
+    }}}
+    DisposableEffect(lifecycle){val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
+    DisposableEffect(view){val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
+    LaunchedEffect(request?.key,settled,resumed,focused,paused,playing,retries) {
+        if(request==null||!settled||!resumed||!focused||paused||playing)return@LaunchedEffect
+        delay(1200);repo.videos.enrich(request)
     }
 }
 

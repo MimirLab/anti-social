@@ -106,6 +106,7 @@ class FusionFeedTest {
             packetFiles.forEach {it.delete()}
         }
         repo.images.clear()
+        repo.videos.cleanup(true)
         listOf(memoryFile,File(memoryFile.path+".bak"),File(memoryFile.path+".new")).forEach {it.delete()}
         ui.runOnIdle {
             ui.activity.getSharedPreferences("antisocial",Context.MODE_PRIVATE).edit().clear().apply()
@@ -219,6 +220,13 @@ class FusionFeedTest {
         val input=File(ui.activity.filesDir,"fusion-private-packet/input.json")
         require(input.isFile&&input.length() in 1..4*1024*1024)
         val packet=com.google.gson.JsonParser.parseReader(input.reader()).asJsonObject
+        val automatic=packet.get("automaticVideoEvidence")?.asBoolean==true
+        if(automatic) {
+            Assume.assumeTrue(args.getString("antisocialVideoSceneAutoLive")=="true")
+            repo.prefs.videoDownloadWifiOnly=false;repo.prefs.mentionLookups=false
+            repo.gateway.configure(NetworkPolicy())
+            repo.videos.cleanup(true)
+        }
         val cases=packet.getAsJsonArray("cases");require(cases.size() in 1..8)
         runBlocking {require(repo.dao.allFollows().isEmpty()&&repo.dao.allBookmarks().isEmpty()) {"Use a separate empty fixture device"}}
         accounts+=packet.getAsJsonArray("follows").map {repo.gson.fromJson(it,Follow::class.java)}
@@ -244,6 +252,7 @@ class FusionFeedTest {
                 repo.images.load(url,"https://packet.fixture.invalid/",1600)
             }
         }
+        val presentationStart=android.os.SystemClock.elapsedRealtime()
         seed("all",records);val vm=model();show(vm,all=true)
         ui.waitUntil(20_000){ui.onAllNodesWithTag("Combined feed").fetchSemanticsNodes().isNotEmpty()}
         val seen=linkedMapOf<String,String>()
@@ -256,7 +265,15 @@ class FusionFeedTest {
         // Begin inspection at the first actual card, not the empty startup
         // placeholder; otherwise an early gesture can skip the newest row.
         ui.waitUntil(20_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        val firstVisibleMs=android.os.SystemClock.elapsedRealtime()-presentationStart
         ui.onNodeWithTag("Combined feed").performScrollToIndex(0)
+        if(automatic) {
+            val clips=records.filter {post->post.media.any {it.type=="video"&&VideoFormats.mime(it) in setOf("video/mp4","video/webm")}}
+            require(clips.size in 2..4)
+            ui.waitUntil(90_000){clips.all {post->repo.videos.captured(post).media.any {it.videoFootage?.scenes?.size?.let {count->count>=3}==true}}}
+            ui.waitUntil(30_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().size==1}
+        }
+        File(output,"timings.json").writeText(repo.gson.toJson(mapOf("automaticVideoEvidence" to automatic,"firstVisibleMs" to firstVisibleMs,"settledMs" to (android.os.SystemClock.elapsedRealtime()-presentationStart))))
         var previous:Map<String,Int>?=null;var unchanged=0
         for(page in 0 until 32) {
             ui.waitForIdle();android.os.SystemClock.sleep(250)
@@ -271,7 +288,7 @@ class FusionFeedTest {
         }
         val spaces=Regex("[\\s\\p{Z}]+")
         fun compact(value:String)=value.replace(spaces," ").trim().lowercase()
-        val groups=runBlocking(Dispatchers.Default){CrossPosts.groupWithVideoFootage(records.map(repo.images.identities::captured),accounts,memberships,repo.images.identities::same) {a,b->VideoFootage.related(a,b)}}
+        val groups=runBlocking(Dispatchers.Default){CrossPosts.groupWithVideoFootage(records.map(repo.videos::captured).map(repo.images.identities::captured),accounts,memberships,repo.images.identities::same) {a,b->VideoFootage.related(a,b)}}
         val reports=cases.mapIndexed {index,value->
             val spec=value.asJsonObject;val keys=spec.getAsJsonArray("posts").map {repo.key(repo.gson.fromJson(it,Post::class.java))}.toSet()
             val shown=seen.filterKeys {it in keys};val passage=compact(spec["once"].asString)
@@ -298,12 +315,16 @@ class FusionFeedTest {
         // continuous scroll. A fling can move past a short caption between two
         // full-screen media renditions even though semantics retain its text.
         groups.forEachIndexed {index,group->
-            ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(group.primary)}"))
+            // Streaming preserves the visible row's existing anchor even when
+            // a newly collected original has an earlier canonical primary.
+            val aliases=group.posts.mapTo(hashSetOf(),repo::key)
+            val visibleKey=seen.keys.firstOrNull {it in aliases} ?: repo.key(group.primary)
+            ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row $visibleKey"))
             // A tall card can already intersect the viewport at its last
             // picture. ScrollToNode then does nothing; explicitly align its
             // beginning so this evidence actually includes the caption.
             val list=ui.onNodeWithTag("Combined feed")
-            val row=ui.onNodeWithTag("Feed row ${repo.key(group.primary)}",useUnmergedTree=true)
+            val row=ui.onNodeWithTag("Feed row $visibleKey",useUnmergedTree=true)
             repeat(3) {
                 ui.waitForIdle()
                 val delta=row.fetchSemanticsNode().positionInRoot.y-list.fetchSemanticsNode().positionInRoot.y
@@ -314,7 +335,11 @@ class FusionFeedTest {
             File(output,"card-$index-top.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
             val spec=cases.map {it.asJsonObject}.firstOrNull {candidate->candidate.getAsJsonArray("posts").any {repo.key(repo.gson.fromJson(it,Post::class.java))==repo.key(group.primary)}}
             if(spec!=null) {
-                val caption=hasText(spec["once"].asString,substring=true,ignoreCase=true)
+                // The full passage is already checked across literal source
+                // segments above. Locate its beginning for the screenshot;
+                // paragraph breaks can legitimately create multiple nodes.
+                val beginning=spec["once"].asString.trim().split(spaces).take(3).joinToString(" ")
+                val caption=hasText(beginning,substring=true,ignoreCase=true)
                 revealCombinedControl(caption)
                 ui.waitForIdle()
                 val captionBitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()

@@ -22,12 +22,12 @@ class LocalLibrary(private val repo: Repository) {
     val revision=MutableStateFlow(0)
     val collections=dao.collections()
     fun notifyChanged(){revision.update {it+1}}
-    private fun sourceRecord(post: Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null,videoFootage=null)})
+    private fun sourceRecord(post: Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(visualFingerprint=null,attachmentFingerprint=null,videoFootage=null,samplingUrl=null)})
     /** Retain the first captured edition verbatim; supplement only its missing
      * local image observation from an otherwise identical source snapshot. */
     private fun capturedEditions(editions: List<Post>): List<Post> = editions.groupBy(repo::key).values.map {copies->
         val first=copies.first();val compatible=copies.filter {sourceRecord(it)==sourceRecord(first)}
-        first.copy(media=first.media.mapIndexed {index,media->media.copy(visualFingerprint=media.visualFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].visualFingerprint},attachmentFingerprint=media.attachmentFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].attachmentFingerprint},videoFootage=media.videoFootage ?: compatible.firstNotNullOfOrNull {it.media[index].videoFootage})})
+        first.copy(media=first.media.mapIndexed {index,media->media.copy(visualFingerprint=media.visualFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].visualFingerprint},attachmentFingerprint=media.attachmentFingerprint ?: compatible.firstNotNullOfOrNull {it.media[index].attachmentFingerprint},videoFootage=media.videoFootage ?: compatible.firstNotNullOfOrNull {it.media[index].videoFootage},samplingUrl=media.samplingUrl ?: compatible.firstNotNullOfOrNull {it.media[index].samplingUrl})})
     }
     private fun parse(payload: String): Post?=runCatching {gson.fromJson(payload,Post::class.java)}.getOrNull()?.takeIf {validMedia(it)&&(it.recoveredArchive==null||RecoveredArchives.valid(it))}?.let {it.copy(archivedVersion=repo.archiveVersion(it))}
     suspend fun details(key: String): SavedCopyDetails?=withContext(Dispatchers.IO) {dao.savedDetail(key)?.let {runCatching {gson.fromJson(it.payload,SavedCopyDetails::class.java)}.getOrNull()}}

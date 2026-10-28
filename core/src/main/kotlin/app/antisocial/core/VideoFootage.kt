@@ -44,6 +44,7 @@ object VideoFootage {
     /** A rendition observation belongs only to its exact URL or a qualified
      * same-provider clip. It is never inherited through a thumbnail. */
     fun valid(media:Media):Boolean {
+        if(!VideoAssetIdentity.validSampling(media))return false
         val evidence=media.videoFootage ?: return true
         if(media.type!="video"||!valid(evidence))return false
         return media.url==evidence.renditionUrl||VideoAssetIdentity.key(media.url)?.let {it==VideoAssetIdentity.key(evidence.renditionUrl)}==true
