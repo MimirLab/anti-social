@@ -3,11 +3,14 @@ package app.antisocial.core
 
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
+data class VideoAcquisitionKey(val url:String,val samplingUrl:String?,val durationMs:Long?,val mimeType:String?,val audioUrl:String?)
+
 /** Qualifies renditions of one supplied clip; never uses a caption, account,
  * thumbnail or an arbitrary query-bearing website as a video identifier. */
 object VideoAssetIdentity {
     private fun progressiveCandidate(raw:String)=VideoFormats.mime(Media(raw,"video")) in setOf(null,"video/mp4","video/webm")
     private val twitter=Regex("^/(amplify_video|ext_tw_video)/([0-9]{1,40})/(?:vid|pl)/")
+    private val numericPost=Regex("post:[0-9]{1,40}")
     fun key(raw:String):String? {
         val url=raw.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()} ?: return null
         YouTubeUrls.videoId(raw)?.let {return "youtube:$it"}
@@ -30,4 +33,34 @@ object VideoAssetIdentity {
         return media.type=="video"&&candidate.length<=8192&&progressiveCandidate(candidate)&&key(media.url)?.let {it==key(candidate)}==true
     }
     fun sampleUrl(media:Media)=media.samplingUrl?.takeIf {validSampling(media)} ?: media.url
+    fun acquisitionKey(media:Media)=VideoAcquisitionKey(media.url,media.samplingUrl,media.durationMs,media.mimeType,media.audioUrl)
+
+    /** A retained public X clip can lack the metadata now kept by its reader.
+     * Only an exact post and qualified progressive provider clip can ask for a
+     * small current metadata read; arbitrary opaque videos stay excluded. */
+    fun canResolveMetadata(post:Post):Boolean {
+        if(post.platform!=Platform.X||post.preview||post.parentId!=null||post.recoveredArchive!=null||post.provenance?.source?.role==SourceRole.CACHE)return false
+        val canonical=post.canonicalUrl.takeIf {it.length<=8192}?.toHttpUrlOrNull() ?: return false
+        if(!canonical.isHttps||canonical.username.isNotEmpty()||canonical.password.isNotEmpty()||SocialLinkHosts.platform(post.canonicalUrl)!=Platform.X||
+            !numericPost.matches(ContentIdentity.key(Platform.X,post.canonicalUrl)))return false
+        val media=post.media.singleOrNull {it.type=="video"} ?: return false
+        return media.audioUrl==null&&key(media.url)?.startsWith("twitter:")==true&&VideoFormats.mime(media) in setOf("video/mp4","video/webm")&&validSampling(media)
+    }
+
+    /** Borrow acquisition hints only from one qualified provider clip. Keep
+     * playback, captions, previews and exact-byte provenance on their original. */
+    fun withMetadata(current:Media,supplied:Media):Media? {
+        if(current.type!="video"||supplied.type!="video"||current.audioUrl!=null||supplied.audioUrl!=null||!validSampling(current)||!validSampling(supplied))return null
+        val clip=key(current.url) ?: return null
+        if(key(supplied.url)!=clip)return null
+        val declared=supplied.durationMs
+        if(declared!=null&&declared !in 2_000..VideoFootage.MAX_DURATION_MS)return null
+        val existing=current.durationMs
+        if(existing!=null&&existing !in 2_000..VideoFootage.MAX_DURATION_MS)return null
+        if(existing!=null&&declared!=null&&kotlin.math.abs(existing-declared)>maxOf(750L,maxOf(existing,declared)/100))return null
+        val candidate=(supplied.samplingUrl ?: supplied.url).takeIf {url->
+            url!=current.url&&key(url)==clip&&VideoFormats.mime(Media(url,"video")) in setOf("video/mp4","video/webm")
+        }
+        return current.copy(durationMs=existing ?: declared,samplingUrl=current.samplingUrl ?: candidate).takeUnless {it==current}
+    }
 }

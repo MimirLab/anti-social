@@ -433,6 +433,22 @@ class Repository(val context: Context) {
         }
     }
     fun pageKey(target: Target)="page:"+hash("${target.platform.id}:${target.kind}:${target.canonicalUrl}")
+    /** A settled legacy video can request just source-published acquisition
+     * hints. This does not replace its caption, playable URL or stored post. */
+    internal suspend fun videoMetadata(post:Post):Media?=withContext(Dispatchers.IO) {
+        if(!VideoAssetIdentity.canResolveMetadata(post))return@withContext null
+        val current=post.media.singleOrNull {it.type=="video"} ?: return@withContext null
+        val target=routes.recognize(post.canonicalUrl,Platform.X)?.takeIf {it.kind in setOf(TargetKind.POST,TargetKind.THREAD)} ?: return@withContext null
+        fun supplied(page:Page):Media?=page.posts.firstOrNull {p->
+            p.platform==post.platform&&!p.preview&&p.recoveredArchive==null&&p.provenance?.source?.role!=SourceRole.CACHE&&
+                ContentIdentity.key(p.platform,p.canonicalUrl)==ContentIdentity.key(post.platform,post.canonicalUrl)
+        }?.media?.singleOrNull {it.type=="video"}?.let {VideoAssetIdentity.withMetadata(current,it)}
+        cachedPage(target)?.let(::supplied)?.let {return@withContext it}
+        val page=withTimeoutOrNull(8_000) {
+            pool.load(target,originalFallback=false,progress={},requestedCapability=Capability.MEDIA,background=true,mediaMetadataOnly=true)
+        } ?: return@withContext null
+        supplied(page)
+    }
     suspend fun cachedPage(target: Target): Page?=withContext(Dispatchers.IO) {mediaMutex.withLock {
         val row=dao.media(pageKey(target)) ?: return@withLock null
         val file=File(row.path)

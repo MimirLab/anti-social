@@ -186,7 +186,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                     }
                 }
                 val requests=buildMap<String,VideoFootageRequest> {
-                    CrossPosts.videoFootageRequests(groups,accounts,matchingMemberships).forEach {request->request.originalKeys.forEach {key->putIfAbsent(key,request)}}
+                    CrossPosts.videoFootageRequests(groups,accounts,matchingMemberships).filter(repo.videos::available).forEach {request->request.originalKeys.forEach {key->putIfAbsent(key,request)}}
                 }
                 KnownPostGroups(candidates,accounts,matchingMemberships,groups.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap(),requests)
             }

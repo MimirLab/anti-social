@@ -120,4 +120,48 @@ class SharedVideoCollectionsTest {
         assertTrue(plans(second=b.copy(media=b.media.map {it.copy(mimeType="video/x-matroska")})).isEmpty())
         assertTrue(plans(second=b.copy(media=b.media.map {it.copy(durationMs=5000)})).isEmpty())
     }
+    @Test fun aRetainedQualifiedXClipCanAskForMetadataBeforeComparingDifferentCaptions() {
+        val first=post(Platform.X,"First clip.").copy(media=listOf(Media("https://video.twimg.com/amplify_video/710001/vid/1920x1080/main.mp4","video")))
+        val second=post(Platform.FACEBOOK,"Another complete caption.",minute=1).copy(media=listOf(Media("https://media.example.org/second.mp4","video")))
+        assertTrue(VideoAssetIdentity.canResolveMetadata(first))
+        val request=CrossPosts.videoFootageRequests(listOf(PostGroup(listOf(first)),PostGroup(listOf(second))),accounts).single()
+        assertTrue(request.resolveMetadata)
+        assertEquals(setOf(first,second),setOf(request.first,request.second))
+        assertFalse(VideoAssetIdentity.canResolveMetadata(first.copy(parentId="parent")))
+        assertFalse(VideoAssetIdentity.canResolveMetadata(first.copy(media=first.media.map {it.copy(url="https://media.example.org/unknown")})))
+        assertFalse(VideoAssetIdentity.canResolveMetadata(first.copy(media=first.media.map {it.copy(url=it.url.replace("video.twimg.com","video.twimg.com.example.org"))})))
+    }
+    @Test fun anUnhintedCaptionPeerCannotHideTheEditionThatCanResolveItsOwnMetadata() {
+        val x=post(Platform.X,"A shared first caption.").copy(media=listOf(Media("https://video.twimg.com/amplify_video/710001/vid/1920x1080/main.mp4","video")))
+        val bsky=post(Platform.BLUESKY,x.body,minute=1).copy(media=listOf(Media("https://media.example.org/bsky-opaque","video")))
+        val fb=post(Platform.FACEBOOK,"A different caption.",minute=2).copy(media=listOf(Media("https://media.example.org/fb-opaque","video")))
+        val groups=listOf(PostGroup(listOf(x,bsky)),PostGroup(listOf(fb)))
+        val request=CrossPosts.videoFootageRequests(groups,accounts).single()
+        assertTrue(request.resolveMetadata)
+        assertEquals(setOf(x,fb),setOf(request.first,request.second))
+        assertEquals(setOf(x,bsky,fb).mapTo(hashSetOf(),CrossPosts::originalKey),request.originalKeys)
+        assertEquals(request.acquisitionKey,CrossPosts.videoFootageRequests(groups.map {it.copy(posts=it.posts.reversed())}.reversed(),accounts).single().acquisitionKey)
+    }
+    private fun measured(post:Post):Post {
+        val media=post.media.single()
+        val scenes=(0..3).map {position->SampledVideoScene(position,requireNotNull(VisualFrames.encode(1.5,40.0,0L,0L,List(48){128},ByteArray(4096){(it%193+31).toByte()})))}
+        return post.copy(media=listOf(media.copy(videoFootage=VideoFootageEvidence(media.url,120_000,at,scenes))))
+    }
+    @Test fun aMeasuredPeerKeepsTheRemainingOpaqueEditionEligibleWithoutAnotherMetadataLookup() {
+        val x=measured(post(Platform.X,"First film.").copy(media=listOf(Media("https://video.twimg.com/amplify_video/710001/vid/1920x1080/main.mp4","video"))))
+        val fb=post(Platform.FACEBOOK,"Different wording.",minute=1).copy(media=listOf(Media("https://media.example.org/opaque","video")))
+        val groups=listOf(PostGroup(listOf(x)),PostGroup(listOf(fb)))
+        val pending=CrossPosts.videoFootageRequests(groups,accounts).single()
+        assertFalse(pending.resolveMetadata)
+        assertTrue(CrossPosts.videoFootageRequests(listOf(groups.first(),PostGroup(listOf(measured(fb)))),accounts).isEmpty())
+    }
+    @Test fun acquisitionRestartIdentityChangesOnlyWhenTheActualAcquisitionInputsChange() {
+        val first=post(Platform.X,"First film.")
+        val second=post(Platform.FACEBOOK,"Different wording.",minute=1)
+        val pending=VideoFootageRequest(first,second,setOf("first","second"),resolveMetadata=true)
+        assertEquals(pending.acquisitionKey,pending.copy(first=measured(first).copy(body="A later source caption."),resolveMetadata=false).acquisitionKey)
+        assertEquals(pending.acquisitionKey,pending.copy(first=second,second=first).acquisitionKey)
+        assertNotEquals(pending.acquisitionKey,pending.copy(first=first.copy(media=first.media.map {it.copy(durationMs=120_500)})).acquisitionKey)
+        assertNotEquals(pending.acquisitionKey,pending.copy(first=first.copy(media=first.media.map {it.copy(samplingUrl="https://media.example.org/other.mp4")})).acquisitionKey)
+    }
 }

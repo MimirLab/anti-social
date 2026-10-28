@@ -335,3 +335,26 @@ describes the binding and direction of that observation. Feed and fused readers
 reuse the existing attribution component; saved source records and snapshots
 retain the optional relationship. This changes no comparison threshold, media
 identity rule, source author or recording selection.
+
+## Gallery self-replies, 0.38.59
+
+A gallery member can be a publisher's own explicitly linked reply. Its actual
+same-platform/account parent must already be a proven gallery member in the
+current evidence snapshot. A captioned child additionally needs the existing
+literal gallery-caption relation. A blank child may use detailed attachment
+rasters only through that proven parent; an isolated blank picture cannot borrow
+this permission. Conflicting detailed pixels still defeat containment.
+
+A fuller introduction no longer fails solely because it exceeds the former
+160-character/16-word allowance. Complete captions remain bounded to 4096
+characters and 256 words. Literal sentence/heading boundaries, destination,
+number, negation and meaningful-symbol guards remain. The introduction is kept
+with its original attribution, rather than removed to obtain a match.
+
+Two private native replays start with unmodified source posts and actual image
+files, without injected fingerprints. They now produce one card per family,
+retain six and five distinct pictures respectively, and preserve all four and
+six originals in Library saves. Provided images are decoded before presentation;
+this qualifies collection, display and saving, not cold live image acquisition.
+The failed pre-fix runs and actual native screens remain private. The release
+qualification records the broader regression scope.

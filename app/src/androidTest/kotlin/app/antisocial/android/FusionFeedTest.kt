@@ -294,7 +294,8 @@ class FusionFeedTest {
             val initial=CrossPosts.group(records,accounts,memberships,repo.images.identities::same)
             val plans=CrossPosts.videoFootageRequests(initial,accounts,memberships)
             val clips=plans.flatMap {listOf(it.first,it.second)}.distinctBy(repo::key)
-            require(clips.size in 2..4)
+            File(output,"automatic-initial-plan.json").writeText(repo.gson.toJson(mapOf("groups" to initial,"requests" to plans,"clipCount" to clips.size)))
+            require(clips.size in 2..4) {"Inspect the private initial plan: expected two to four nominated clips"}
             try {
                 ui.waitUntil(90_000){clips.all {post->repo.videos.captured(post).media.any {it.videoFootage?.scenes?.size?.let {count->count>=3}==true}}}
                 ui.waitUntil(30_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().size==1}
@@ -375,11 +376,15 @@ class FusionFeedTest {
             File(output,"card-$index-top.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
             val spec=cases.map {it.asJsonObject}.firstOrNull {candidate->candidate.getAsJsonArray("posts").any {repo.key(repo.gson.fromJson(it,Post::class.java))==repo.key(group.primary)}}
             if(spec!=null) {
-                // The full passage is already checked across literal source
-                // segments above. Locate its beginning for the screenshot;
-                // paragraph breaks can legitimately create multiple nodes.
-                val beginning=spec["once"].asString.trim().split(spaces).take(3).joinToString(" ")
-                val caption=hasText(beginning,substring=true,ignoreCase=true)
+                // Keep the full-passage assertion above. A short prefix can
+                // legitimately occur in the introduction and its heading;
+                // locate one unique literal node inside this retained card.
+                val passage=spec["once"].asString.trim();val words=passage.split(spaces)
+                val hints=(listOf(passage)+listOf(12,8,5,3).map {words.take(it).joinToString(" ")}).distinct()
+                val scope=hasAnyAncestor(hasTestTag("Feed row $visibleKey"))
+                val caption=hints.map {hasText(it,substring=true,ignoreCase=true) and scope}.firstOrNull {
+                    ui.onAllNodes(it).fetchSemanticsNodes().size==1
+                } ?: error("The retained card has no unique literal passage for its screenshot")
                 revealCombinedControl(caption)
                 ui.waitForIdle()
                 val captionBitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()

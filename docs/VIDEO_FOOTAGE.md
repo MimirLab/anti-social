@@ -161,6 +161,51 @@ another card. They are retained as failed instrumentation attempts. The correcte
 test checks nominated comparison representatives and actual original-key rows;
 its existing content, attachment and protected-save assertions remain required.
 
+### Retained input and failed-peer scheduling, 0.38.59
+
+The Sotwe reader now retains its source-published millisecond duration and
+distinct, smaller progressive rendition of the same qualified clip. Playback
+keeps its existing selected URL. A dated native timeline read retained seven
+matching roots, including one video with both fields; quoted/reposted records
+remain outside this parser's original-account scope. An independent range probe
+measured 44,416 ms against its declared
+44,372 ms and returned four scenes within the existing bounds.
+
+Older retained X posts can lack both fields. An exact, non-preview public root
+with one qualified progressive X clip may now nominate a metadata-preparation
+request. Within a caption group the representative favors existing observations,
+then supplied sampling renditions, then a resolvable edition. An opaque peer
+cannot hide that existing route merely by sorting first.
+
+Preparation reuses the exact post's cached metadata when available, then the
+existing alternate FxEmbed JSON method through SourcePool and NetworkGateway.
+It tries at most two eligible endpoints, with an eight-second enclosing deadline
+inside the same comparison budget. Original, archive and route-maintenance
+fallbacks are excluded from this narrow operation. Exact-post and same-provider
+clip checks admit only acquisition hints; captions, playback, labels, saved
+records and exact-file provenance remain unchanged. No provider is added.
+
+Observed scenes can keep an unmeasured peer eligible without repeating metadata
+work. Changes to the actual acquisition inputs restart the settled-card request;
+changes to scene observations alone do not cancel its second recording. A failed
+peer's cooldown no longer occupies a card's only slot ahead of a usable pair.
+Explicit retry restores eligibility. These decisions use bounded local state,
+not new foreground queries or larger sampling allowances.
+
+The earlier positive fixture included a separately acquired rendition hint.
+An untouched four-platform cache replay first exposed its missing nomination;
+the corrected native path now reads actual metadata and video ranges, produces
+one card, retains both distinct captions and three selectable recordings, and
+saves all four originals. One API 35 observation was 1,051 ms to the first cached
+card and 7,940 ms to collection. Those are single mixed cached/live emulator
+observations, not physical-phone or percentile measurements.
+
+A larger retained-input replay also exposed an unreadable older
+video URL and a text-only source alias without sufficient collection evidence.
+Those records are not counted as a successful complete family. A failed range
+read is neither proof of different footage nor permission to discard a recording.
+The corresponding failed runs remain private for further acquisition work.
+
 ## Primary references
 
 - [Normalized template correlation](https://docs.opencv.org/4.13.0/de/da9/tutorial_template_matching.html)

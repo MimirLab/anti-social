@@ -49,4 +49,37 @@ class GalleryCollectionTest {
         val stranger=child.copy(canonicalUrl=child.canonicalUrl.replace("/workshop/","/stranger/"))
         assertEquals(2,CrossPosts.group(listOf(gallery,parts[1],stranger),emptyList()).size)
     }
+    @Test fun aPublisherReplyCanKeepTheAlreadyProvenGalleryHeading() {
+        val child=parts[2].copy(parentId=parts[1].id,body=text)
+        val originals=listOf(gallery,parts[0],parts[1],child)
+        for(input in listOf(originals,originals.reversed())) {
+            assertEquals(originals.toSet(),CrossPosts.group(input,emptyList()).single().posts.toSet())
+            assertTrue(CrossPosts.galleryCollection(input))
+            assertEquals(listOf(text),CrossPostFusion.composeMedia(input)!!.segments.map {it.text})
+        }
+        assertEquals(2,CrossPosts.group(listOf(gallery,parts[1],child.copy(body="The connector has NOT been repaired.")),emptyList()).size)
+        assertEquals(2,CrossPosts.group(listOf(gallery,child),emptyList()).size)
+    }
+    @Test fun anExplicitSamePublisherParentCanQualifyDetailedPicturesInABlankGalleryReply() {
+        fun detail(index:Int,changed:Boolean=false):String {
+            val pixels=ByteArray(4096){i->(40+(i%64*7+i/64*11+index*30)%170).toByte()}
+            if(changed)for(y in 20..23)for(x in 40..43)pixels[y*64+x]=((pixels[y*64+x].toInt()and 255)+60).coerceAtMost(255).toByte()
+            return VisualFrames.encode(1.25,50.0,0x1234+index.toLong(),0x4567,List(48){70+(it*3+index*7)%140},pixels)!!
+        }
+        val full=gallery.copy(media=gallery.media.mapIndexed {i,m->m.copy(attachmentFingerprint=detail(i))})
+        val parent=parts[0].copy(media=listOf(full.media.first()))
+        val child=parts[1].copy(parentId=parent.id,media=full.media.drop(1).map {it.copy(url=it.url.replace("images.example","resized.example"))})
+        val originals=listOf(full,parent,child)
+        for(input in listOf(originals,originals.reversed())) {
+            assertEquals(originals.toSet(),CrossPosts.group(input,emptyList()).single().posts.toSet())
+            assertTrue(CrossPosts.galleryCollection(input))
+        }
+        // Detailed raster evidence gains no stand-alone post identity. The
+        // explicit parent must exist and name the same actual publisher.
+        for(other in listOf(child.copy(parentId=null),child.copy(parentId="missing"),
+            child.copy(canonicalUrl=child.canonicalUrl.replace("/workshop/","/stranger/"))))
+            assertEquals(2,CrossPosts.group(listOf(full,parent,other),emptyList()).size)
+        val edited=child.copy(media=child.media.mapIndexed {i,m->if(i==0)m.copy(attachmentFingerprint=detail(1,true))else m})
+        assertEquals(2,CrossPosts.group(listOf(full,parent,edited),emptyList(),sameMedia={_,_->true}).size)
+    }
 }

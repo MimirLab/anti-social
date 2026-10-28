@@ -1,8 +1,11 @@
 /* anti social, GPL-3.0-or-later. Keep every original and playable edition. */
 package app.antisocial.core
 
-data class VideoFootageRequest(val first:Post,val second:Post,val originalKeys:Set<String>) {
+data class VideoFootageRequest(val first:Post,val second:Post,val originalKeys:Set<String>,val resolveMetadata:Boolean=false) {
     val key get()=listOf(CrossPosts.originalKey(first),CrossPosts.originalKey(second)).sorted().joinToString("|")
+    val acquisitionKey get()=listOf(first,second).sortedBy(CrossPosts::originalKey).map {post->
+        CrossPosts.originalKey(post) to post.media.singleOrNull {it.type=="video"}?.let(VideoAssetIdentity::acquisitionKey)
+    }
 }
 
 /** Frozen caption collections can share sampled footage despite different
@@ -27,27 +30,40 @@ internal object SharedVideoCollections {
         require(limit in 1..16)
         if(groups.size<2)return emptyList()
         val candidates=rows(groups,owners,checkpoint).sortedByDescending {it.last}.take(128)
+        // Validate each captured raster set once, not once per candidate pair.
+        val observed=candidates.flatMap {it.group.posts}.flatMap {it.media}.filter {it.type=="video"}.distinct().associateWith {m->
+            m.videoFootage?.takeIf {it.scenes.size>=3&&VideoFootage.valid(m)}
+        }
+        val resolvable=candidates.flatMap {it.group.posts}.distinct().associateWith(VideoAssetIdentity::canResolveMetadata)
         fun selected(group:PostGroup)=group.posts.filter {post->
             // An opaque URL can be nominated by the same runtime/rendition
             // evidence; the sampler checks its already fetched prefix first.
             post.media.any {it.type=="video"&&it.audioUrl==null&&(it.durationMs==null||it.durationMs in 2_000..VideoFootage.MAX_DURATION_MS)&&VideoFormats.mime(it) in setOf(null,"video/mp4","video/webm")&&VideoAssetIdentity.validSampling(it)}
-        }.minWithOrNull(compareBy<Post> {post->post.media.none {it.type=="video"&&it.samplingUrl!=null}}.thenBy(CrossPosts::originalKey))
+        }.minWithOrNull(compareBy<Post> {post->post.media.none {observed[it]!=null}}
+            .thenBy {post->post.media.none {it.type=="video"&&it.samplingUrl!=null}}
+            .thenBy {resolvable[it]!=true}.thenBy(CrossPosts::originalKey))
         val selected=candidates.associate {it.index to selected(it.group)}
+        val metadata=candidates.associate {it.index to (resolvable[selected[it.index]]==true)}
         val plans=mutableListOf<Pair<Long,VideoFootageRequest>>()
         for(i in candidates.indices)for(j in i+1 until candidates.size) {
             checkpoint();val a=candidates[i];val b=candidates[j]
             if(a.owner!=b.owner||maxOf(a.last,b.last)-minOf(a.first,b.first)>6*60*60_000L||a.group.posts.size+b.group.posts.size>CrossPosts.MAX_EDITIONS)continue
             val first=selected[a.index] ?: continue;val second=selected[b.index] ?: continue
             val left=first.media.singleOrNull {it.type=="video"} ?: continue;val right=second.media.singleOrNull {it.type=="video"} ?: continue
-            // Unknown videos are not a reason to scan a publisher's whole
-            // neighborhood. Require advertised cheap acquisition or a pair of
-            // compatible declared runtimes before automatic work is offered.
-            if(left.samplingUrl==null&&right.samplingUrl==null&&(left.durationMs==null||right.durationMs==null))continue
+            val observedLeft=observed[left];val observedRight=observed[right]
+            val leftDuration=left.durationMs ?: observedLeft?.durationMs
+            val rightDuration=right.durationMs ?: observedRight?.durationMs
+            // A measured peer already needs no acquisition. Older qualified X
+            // clips may instead ask the settled-card lane for current public
+            // metadata first; an opaque URL alone still cannot trigger work.
+            val missing=left.samplingUrl==null&&right.samplingUrl==null&&(leftDuration==null||rightDuration==null)&&observedLeft==null&&observedRight==null
+            val resolve=missing&&(metadata[a.index]==true||metadata[b.index]==true)
+            if(missing&&!resolve)continue
             if(left.videoFootage?.scenes?.size?.let {it>=3}==true&&right.videoFootage?.scenes?.size?.let {it>=3}==true)continue
-            if(left.durationMs?.let {l->right.durationMs?.let {r->kotlin.math.abs(l-r)>maxOf(750L,maxOf(l,r)/100)}}==true)continue
-            plans+=kotlin.math.abs(a.last-b.last) to VideoFootageRequest(first,second,(a.group.posts+b.group.posts).mapTo(linkedSetOf(),CrossPosts::originalKey))
+            if(leftDuration?.let {l->rightDuration?.let {r->kotlin.math.abs(l-r)>maxOf(750L,maxOf(l,r)/100)}}==true)continue
+            plans+=kotlin.math.abs(a.last-b.last) to VideoFootageRequest(first,second,(a.group.posts+b.group.posts).mapTo(linkedSetOf(),CrossPosts::originalKey),resolve)
         }
-        return plans.sortedWith(compareBy<Pair<Long,VideoFootageRequest>> {it.first}.thenByDescending {maxOf(it.second.first.publishedAt ?: 0,it.second.second.publishedAt ?: 0)}.thenBy {it.second.key})
+        return plans.sortedWith(compareBy<Pair<Long,VideoFootageRequest>> {it.second.resolveMetadata}.thenBy {it.first}.thenByDescending {maxOf(it.second.first.publishedAt ?: 0,it.second.second.publishedAt ?: 0)}.thenBy {it.second.key})
             .map {it.second}.distinctBy {it.key}.take(limit)
     }
     fun collect(groups:List<PostGroup>,owners:Map<String,String?>,proof:(Post,Post)->SharedVideoFootage?,checkpoint:()->Unit={}):List<PostGroup> {

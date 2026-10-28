@@ -629,7 +629,8 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
     }}}
     DisposableEffect(lifecycle){val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
     DisposableEffect(view){val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
-    LaunchedEffect(request?.key,settled,resumed,focused,paused,playing,retries) {
+    val acquisition=remember(request){request?.acquisitionKey}
+    LaunchedEffect(acquisition,settled,resumed,focused,paused,playing,retries) {
         if(request==null||!settled||!resumed||!focused||paused||playing)return@LaunchedEffect
         delay(1200);repo.videos.enrich(request)
     }

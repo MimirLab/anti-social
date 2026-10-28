@@ -77,6 +77,19 @@ class VideoFootageTest {
         assertEquals(url,VideoAssetIdentity.sampleUrl(media))
         assertNull(VideoAssetIdentity.smallRendition(url,listOf(playlist to 100L)))
     }
+    @Test fun currentMetadataCannotReplacePlaybackOrBorrowAChangedClipOrCredentials() {
+        val high="https://video.twimg.com/amplify_video/710001/vid/1920x1080/main.mp4"
+        val small="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        val original=Media(high,"video",preview="https://images.example/cover.jpg",description="Original description")
+        val supplied=Media(high,"video",preview="https://images.example/new-cover.jpg",description="Different source label",durationMs=120_000,samplingUrl=small)
+        assertEquals(original.copy(durationMs=120_000,samplingUrl=small),VideoAssetIdentity.withMetadata(original,supplied))
+        for(other in listOf(supplied.copy(url=high.replace("710001","710002")),supplied.copy(type="image"),
+            supplied.copy(samplingUrl=small.replace("710001","710002")),supplied.copy(samplingUrl=small.replace("/vid/320x180/small.mp4","/pl/master.m3u8")),
+            supplied.copy(samplingUrl=small.replace("https://","https://user@")),supplied.copy(durationMs=1),supplied.copy(durationMs=Long.MAX_VALUE)))
+            assertNull(VideoAssetIdentity.withMetadata(original,other))
+        assertNull(VideoAssetIdentity.withMetadata(original.copy(durationMs=60_000),supplied))
+        assertNull(VideoAssetIdentity.withMetadata(original,original))
+    }
     @Test fun panningPortraitCropsShareFootageWithoutBecomingIdenticalPictures() {
         val p=source;val a=evidence(p.map(::frame));val b=evidence(cropped(p))
         assertTrue(VideoFootage.valid(a));assertTrue(VideoFootage.valid(b))

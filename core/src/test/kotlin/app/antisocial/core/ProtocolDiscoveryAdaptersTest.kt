@@ -249,6 +249,43 @@ class ProtocolDiscoveryAdaptersTest {
         val data=obj(sotwe(sotwePost(extra=",\"mediaEntities\":[{\"type\":\"video\",\"mediaURL\":\"https://images.example/preview.jpg\",\"videoInfo\":{\"variants\":[{\"type\":\"application/x-mpegURL\",\"url\":\"https://video.example/a.m3u8\"},{\"type\":\"video/mp4\",\"bitrate\":100,\"url\":\"https://video.example/a.mp4\"}]}}],\"urlEntities\":[{\"expandedURL\":\"https://example.com/page\"}]")))
         val post=ProtocolDiscoveryParsing.sotwe(data,routes.target(Platform.X,"jack"),fxProvenance()).posts.single();assertEquals("https://video.example/a.mp4",post.media.single().url);assertEquals(listOf("https://example.com/page"),post.links)
     }
+    @Test fun sotweKeepsItsOwnDeclaredRuntimeAndQualifiedSmallRenditionWithoutChangingPlayback() {
+        val high="https://video-s.twimg.com/amplify_video/710001/vid/1920x1080/source.mp4"
+        val low="https://video.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        val foreign=low.replace("710001","710002")
+        val variants="""[{"type":"video/mp4","bitrate":2176000,"url":"$high"},{"type":"video/mp4","bitrate":256000,"url":"$low"},{"type":"video/mp4","bitrate":1,"url":"$foreign"}]"""
+        val data=obj(sotwe(sotwePost(extra=""","mediaEntities":[{"type":"video","mediaURL":"https://images.example/poster.jpg","extAltText":"A public workshop film","videoInfo":{"duration":50008,"variants":$variants}}]""")))
+        val post=ProtocolDiscoveryParsing.sotwe(data,routes.target(Platform.X,"jack"),fxProvenance()).posts.single()
+        val media=post.media.single()
+        assertEquals(high,media.url);assertEquals(low,media.samplingUrl);assertEquals(50008L,media.durationMs)
+        assertEquals("https://images.example/poster.jpg",media.preview);assertEquals("A public workshop film",media.description)
+        assertEquals("Public Sotwe post",post.body);assertEquals("https://x.com/jack/status/20",post.canonicalUrl)
+    }
+    @Test fun sotweFeedNormalizationCanOfferVideoComparisonAcrossDifferentSourceCaptions() {
+        val high="https://video.twimg.com/amplify_video/710001/vid/1920x1080/source.mp4"
+        val low="https://video.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        val raw=sotwe(sotwePost(extra=""","mediaEntities":[{"type":"video","videoInfo":{"variants":[{"type":"video/mp4","bitrate":2176000,"url":"$high"},{"type":"video/mp4","bitrate":256000,"url":"$low"}]}}]"""))
+        val target=routes.target(Platform.X,"jack")
+        val first=ProtocolDiscoveryParsing.sotwe(obj(raw),target,fxProvenance()).posts.single()
+        val other=routes.target(Platform.FACEBOOK,"12345678")
+        val second=Post("21",Platform.FACEBOOK,"https://www.facebook.com/12345678/posts/21","Public studio","See the complete neighborhood workshop film.",
+            publishedAt=first.publishedAt!!+1000,media=listOf(Media("https://media.example/another.mp4","video")))
+        val follows=listOf(Follow("x",target,"Public studio",personId="studio"),Follow("fb",other,"Public studio",personId="studio"))
+        val memberships=mapOf(CrossPosts.originalKey(first) to setOf("x"),CrossPosts.originalKey(second) to setOf("fb"))
+        val request=CrossPosts.videoFootageRequests(listOf(PostGroup(listOf(first)),PostGroup(listOf(second))),follows,memberships).single()
+        assertEquals(setOf(first,second),setOf(request.first,request.second));assertNull(first.media.single().durationMs)
+        assertEquals(low,first.media.single().samplingUrl)
+    }
+    @Test fun sotweDoesNotBorrowOtherDurationsOrUnqualifiedSmallVideoUrls() {
+        val high="https://video.twimg.com/amplify_video/710001/vid/1920x1080/source.mp4"
+        val foreign="https://video.twimg.com/amplify_video/710002/vid/320x180/other.mp4"
+        val playlist="https://video.twimg.com/amplify_video/710001/pl/master.m3u8"
+        for(duration in listOf("null","true","-1","\"1e100000\"")) {
+            val raw=sotwe(sotwePost(extra=""","duration":40000,"music":{"duration":50000},"mediaEntities":[{"type":"video","videoInfo":{"duration":$duration,"variants":[{"type":"video/mp4","bitrate":2000,"url":"$high"},{"type":"video/mp4","bitrate":1,"url":"$foreign"},{"type":"application/x-mpegURL","bitrate":1,"url":"$playlist"}]}}]"""))
+            val media=ProtocolDiscoveryParsing.sotwe(obj(raw),routes.target(Platform.X,"jack"),fxProvenance()).posts.single().media.single()
+            assertEquals(high,media.url);assertNull(media.durationMs);assertNull(media.samplingUrl)
+        }
+    }
     @Test fun alternateRedirectCannotClaimHealthFromOriginalOrAnotherProvider() {
         val selected=source(Platform.X,"fxembed-rss","https://fxtwitter.com")
         assertThrows(SourceFailure::class.java){protocolDiscoveryProvenance(selected,Payload("<rss/>","https://x.com/jack/rss","text/xml",200))}

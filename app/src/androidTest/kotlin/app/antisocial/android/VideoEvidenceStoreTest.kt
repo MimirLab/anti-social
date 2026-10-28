@@ -101,4 +101,66 @@ class VideoEvidenceStoreTest {
         try {delay(150);assertEquals(0,calls.get());bank.playback(false);withTimeout(10_000){work.join()};assertEquals(2,calls.get())}
         finally {bank.playback(false);work.cancelAndJoin()}
     }
+    @Test fun legacyMetadataIsResolvedBeforeSamplingAndNotRepeatedAfterCacheOrRestart():Unit=runBlocking {
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val pending=VideoFootageRequest(legacy,second,request.originalKeys,resolveMetadata=true)
+        val small="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        val lookups=AtomicInteger();val samples=AtomicInteger();val bank=store()
+        bank.metadata={post->assertEquals(legacy,post);lookups.incrementAndGet();first.media.single().copy(samplingUrl=small)}
+        bank.sample={media,_->
+            samples.incrementAndGet()
+            if(media.url==first.media.single().url)assertEquals(small,media.samplingUrl)
+            result(media)
+        }
+        bank.enrich(pending,automatic=false);assertEquals(1,lookups.get());assertEquals(2,samples.get())
+        assertNotNull(bank.captured(legacy).media.single().videoFootage)
+        assertNull(legacy.media.single().durationMs);assertNull(legacy.media.single().samplingUrl)
+        bank.enrich(pending,automatic=false);assertEquals(1,lookups.get());assertEquals(2,samples.get())
+        val restored=store();restored.metadata={error("Cached scenes must not look up metadata")};restored.sample={_,_->error("Cached scenes must not fetch")}
+        restored.enrich(pending,automatic=false)
+        assertNotNull(restored.captured(legacy).media.single().videoFootage)
+    }
+    @Test fun metadataForAnotherClipCannotStartSamplingTheRetainedVideo():Unit=runBlocking {
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val bank=store();val samples=AtomicInteger()
+        bank.metadata={first.media.single().copy(url=first.media.single().url.replace("710001","710009"))}
+        bank.sample={media,_->assertNotEquals(first.media.single().url,media.url);samples.incrementAndGet();result(media)}
+        bank.enrich(VideoFootageRequest(legacy,second,request.originalKeys,resolveMetadata=true),automatic=false)
+        assertEquals(1,samples.get());assertNull(bank.captured(legacy).media.single().videoFootage)
+        assertNotNull(bank.captured(second).media.single().videoFootage)
+    }
+    @Test fun purgeDuringMetadataCannotStartASamplerFromAnObsoleteCallback():Unit=runBlocking {
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val bank=store();val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val samples=AtomicInteger()
+        bank.metadata={withContext(NonCancellable){entered.complete(Unit);finish.await();first.media.single()}}
+        bank.sample={m,_->samples.incrementAndGet();result(m)}
+        val work=launch {bank.enrich(VideoFootageRequest(legacy,second,request.originalKeys,resolveMetadata=true),automatic=false)}
+        try {
+            withTimeout(10_000){entered.await()};bank.cleanup(true);finish.complete(Unit);withTimeout(10_000){work.join()}
+            assertTrue(work.isCancelled);assertEquals(0,samples.get());assertEquals(0,bank.bytes())
+        }finally {finish.complete(Unit);work.cancel();withContext(NonCancellable){withTimeout(10_000){work.join()}}}
+    }
+    @Test fun aNewAdvertisedRenditionIsNotBlockedByTheOldInputFailureCooldown():Unit=runBlocking {
+        val bank=store();val samples=AtomicInteger()
+        bank.metadata={error("An advertised rendition does not need metadata lookup")}
+        bank.sample={m,_->samples.incrementAndGet();if(m.url==first.media.single().url&&m.samplingUrl==null)throw java.io.IOException("Old rendition failed");result(m)}
+        bank.enrich(request,automatic=false);assertEquals(2,samples.get());assertNull(bank.captured(first).media.single().videoFootage)
+        val improved=first.copy(media=first.media.map {it.copy(samplingUrl="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4")})
+        bank.enrich(VideoFootageRequest(improved,second,request.originalKeys),automatic=false)
+        assertEquals(3,samples.get());assertNotNull(bank.captured(first).media.single().videoFootage)
+    }
+    @Test fun aCoolingPeerCannotHideAnotherAvailableComparisonAndExplicitRetryRestoresIt():Unit=runBlocking {
+        val bank=store();val samples=AtomicInteger()
+        bank.sample={m,_->samples.incrementAndGet();if(m.url==second.media.single().url)throw java.io.IOException("Unavailable peer");result(m)}
+        assertTrue(bank.available(request));val before=bank.revision.value
+        bank.enrich(request,automatic=false)
+        assertTrue(bank.revision.value>before);assertFalse(bank.available(request))
+        val other=second.copy(id="710003",canonicalUrl="https://www.facebook.com/publicstudio/posts/710003",media=second.media.map {it.copy(url="https://media.fixture.invalid/other.mp4")})
+        val alternate=VideoFootageRequest(first,other,setOf(CrossPosts.originalKey(first),CrossPosts.originalKey(other)))
+        assertTrue(bank.available(alternate));bank.enrich(alternate,automatic=false)
+        assertEquals(3,samples.get());assertNotNull(bank.captured(other).media.single().videoFootage)
+        assertFalse(bank.available(alternate));assertFalse(bank.available(request))
+        val failedRevision=bank.revision.value;bank.retryFailures()
+        assertTrue(bank.revision.value>failedRevision);assertTrue(bank.available(request))
+    }
 }

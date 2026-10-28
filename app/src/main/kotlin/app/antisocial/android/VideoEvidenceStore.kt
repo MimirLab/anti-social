@@ -20,7 +20,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     private val lane=Mutex()
     private val entries=linkedMapOf<String,Entry>()
     private val aliases=mutableMapOf<String,MutableSet<String>>()
-    private val failures=linkedMapOf<String,Long>()
+    private val failures=linkedMapOf<VideoAcquisitionKey,Long>()
     private val proofs=object:LinkedHashMap<Pair<VideoFootageEvidence,VideoFootageEvidence>,SharedVideoFootage?>(16,.75f,true){}
     private val running=linkedSetOf<Job>()
     private var generation=0L
@@ -33,6 +33,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     val playbackActive=playing.asStateFlow()
     fun playback(active:Boolean){playing.value=active}
     internal var sample:suspend (Media,String)->GatewayVideoSampler.Result=GatewayVideoSampler(repo)::sample
+    internal var metadata:suspend (Post)->Media?=repo::videoMetadata
 
     private fun fresh(e:VideoFootageEvidence)=clock()-e.sampledAt in 0 until 7*CachePolicy.DAY
     private fun remove(url:String) {
@@ -56,6 +57,14 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     fun captured(post:Post):Post=synchronized(lock) {
         val media=post.media.map {item->if(item.videoFootage?.scenes?.size?.let {it>=3}==true)item else lookup(item)?.let {item.copy(videoFootage=it)} ?: item}
         if(media==post.media)post else post.copy(media=media)
+    }
+    /** A cooling failed peer must not occupy a visible card's only comparison
+     * slot ahead of another usable peer. This is an in-memory scheduling check;
+     * no failed read becomes evidence that two recordings differ. */
+    fun available(request:VideoFootageRequest):Boolean=synchronized(lock) {
+        val media=listOf(request.first,request.second).map {it.media.singleOrNull {m->m.type=="video"} ?: return false}
+        val needed=media.filter {it.videoFootage?.scenes?.size?.let {count->count>=3}!=true&&lookup(it)==null}
+        needed.isNotEmpty()&&needed.none {m->failures[VideoAssetIdentity.acquisitionKey(m)]?.let {clock()-it in 0 until 5*60_000L}==true}
     }
     fun related(a:Post,b:Post,checkpoint:()->Unit):SharedVideoFootage? {
         for(left in a.media)for(right in b.media) {
@@ -91,15 +100,21 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             if(epoch==generation){loaded=true;if(entries.isNotEmpty())changes.value+=1}
         }
     }
-    private suspend fun acquire(post:Post,epoch:Long) {
+    private suspend fun acquire(post:Post,epoch:Long,resolveMetadata:Boolean) {
         val media=post.media.singleOrNull {it.type=="video"} ?: return
+        val input=VideoAssetIdentity.acquisitionKey(media)
         if(media.videoFootage?.scenes?.size?.let {it>=3}==true&&VideoFootage.valid(media))return
         synchronized(lock) {
             if(lookup(media)!=null)return
-            failures[media.url]?.let {if(clock()-it in 0 until 5*60_000L)return}
+            failures[input]?.let {if(clock()-it in 0 until 5*60_000L)return}
         }
         try {
-            val result=sample(media,post.contentSourceUrl)
+            val prepared=if(resolveMetadata&&media.samplingUrl==null&&VideoAssetIdentity.canResolveMetadata(post)) {
+                val supplied=metadata(post) ?: throw IOException("No supported current video metadata")
+                currentCoroutineContext().ensureActive()
+                VideoAssetIdentity.withMetadata(media,supplied) ?: throw IOException("Video metadata belongs to another recording")
+            }else media
+            val result=sample(prepared,post.contentSourceUrl)
             currentCoroutineContext().ensureActive()
             val observation=VideoFootageEvidence(result.renditionUrl,result.frames.durationMs,clock(),result.frames.scenes.toList())
             if(observation.scenes.size<3||!VideoFootage.valid(media.copy(videoFootage=observation)))throw IOException("Too few supported video scenes")
@@ -108,10 +123,10 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             synchronized(lock) {
                 if(epoch!=generation)return
                 directory.mkdirs();Repository.atomic(File(directory,Repository.hash(media.url)+".json"),bytes)
-                put(row);failures.remove(media.url);trim(false);changes.value+=1
+                put(row);failures.remove(input);trim(false);changes.value+=1
             }
         }catch(e:CancellationException){throw e}
-        catch(_:Exception){synchronized(lock){if(epoch==generation){failures[media.url]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first())}}}
+        catch(_:Exception){synchronized(lock){if(epoch==generation){failures[input]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}}
     }
     suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true)=withContext(Dispatchers.IO) {lane.withLock {
         repo.awaitReady();restore()
@@ -132,7 +147,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                     var retries=0
                     while(true)try {
                         while(repo.gateway.hasForegroundRequests||playing.value)delay(300)
-                        repo.gateway.deferredRead {acquire(post,epoch)}
+                        repo.gateway.deferredRead {acquire(post,epoch,request.resolveMetadata)}
                         break
                     }catch(e:CancellationException) {
                         currentCoroutineContext().ensureActive()
@@ -162,7 +177,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         if(clear){generation++;running.toList().forEach {it.cancel(CancellationException("Ordinary video evidence cleared"))};entries.clear();aliases.clear();failures.clear();proofs.clear();loaded=true;changes.value+=1}
         trim(clear)
     }
-    fun retryFailures()=synchronized(lock){failures.clear();retryChanges.value+=1}
+    fun retryFailures()=synchronized(lock){failures.clear();changes.value+=1;retryChanges.value+=1}
     fun bytes():Long=directory.listFiles().orEmpty().filter {it.isFile}.sumOf {it.length()}
     companion object {private const val MAX_ENTRIES=128;private const val MAX_ENTRY_BYTES=64*1024}
 }

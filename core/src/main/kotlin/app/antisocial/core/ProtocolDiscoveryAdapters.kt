@@ -95,7 +95,19 @@ object ProtocolDiscoveryParsing {
             val body=node.pText("text");val media=node.pArray("mediaEntities").take(20).mapNotNull {raw->raw.pObj()?.let {m->
                 when(m.pText("type")) {
                     "photo"->pUrl(m.pText("mediaURL"),provenance.finalUrl)?.let {Media(it,description=m.pText("extAltText","altText"))}
-                    "video","animated_gif"->{val variant=m.pObject("videoInfo").pArray("variants").mapNotNull {it.pObj()}.filter {it.pText("type")=="video/mp4"}.maxByOrNull {it.pLong("bitrate") ?: 0};pUrl(variant?.pText("url").orEmpty(),provenance.finalUrl)?.let {Media(it,"video",pUrl(m.pText("mediaURL"),provenance.finalUrl),m.pText("extAltText","altText"))}}
+                    "video","animated_gif"->{
+                        val info=m.pObject("videoInfo")
+                        val variants=info.pArray("variants").take(32).mapNotNull {it.pObj()}.filter {it.pText("type")=="video/mp4"}
+                            .mapNotNull {v->pUrl(v.pText("url"),provenance.finalUrl)?.let {it to (v.pLong("bitrate") ?: 0L)}}
+                        variants.maxByOrNull {it.second}?.first?.let {url->
+                            // This public feed supplies milliseconds and several
+                            // progressive renditions. Retain them for the existing
+                            // bounded sampler without another post/profile lookup.
+                            Media(url,"video",pUrl(m.pText("mediaURL"),provenance.finalUrl),m.pText("extAltText","altText"),
+                                durationMs=MediaDuration.milliseconds(info["duration"]),
+                                samplingUrl=VideoAssetIdentity.smallRendition(url,variants)?.takeUnless {it==url})
+                        }
+                    }
                     else->null
                 }
             }}

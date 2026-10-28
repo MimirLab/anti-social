@@ -368,16 +368,16 @@ object CrossPosts {
         if(post.parentId==null)return galleryContains(anchor,post,sameMedia)
         // A publisher may deliver the remaining gallery pictures as a reply
         // chain. A later conversation fetch must not split that collected card.
-        // Only captionless pictures whose actual parent is another proven
-        // same-account gallery original qualify; ordinary replies stay replies.
-        if(PostPresentation.content(post).isNotBlank())return false
+        // The actual parent must be another proven same-account gallery
+        // original. A supplied caption still needs the ordinary literal gallery
+        // relation below; an unrelated reply cannot borrow its parent's prose.
         val account=originalAccount(post) ?: return false
         val parent=scope.firstOrNull {it.platform==post.platform&&it.id==post.parentId&&it.parentId==null&&originalAccount(it)==account} ?: return false
-        return galleryContains(anchor,parent,sameMedia)&&galleryContains(anchor,post.copy(parentId=null),sameMedia)
+        return galleryContains(anchor,parent,sameMedia)&&galleryContains(anchor,post.copy(parentId=null),sameMedia,parentQualified=true)
     }
     private fun galleryAnchor(post: Post)=post.media.size in 2..12&&post.media.all {it.type=="image"&&it.url!=post.avatar}&&
         tokens(decoded(PostPresentation.content(post))).size>=8
-    private fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean): Boolean {
+    private fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean,parentQualified:Boolean=false): Boolean {
         if(anchor.preview||post.preview||anchor.parentId!=null||post.parentId!=null)return false
         val a=anchor.publishedAt?.takeIf {it>0} ?: return false;val b=post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(a>=b)a.toULong()-b.toULong()else b.toULong()-a.toULong()
@@ -396,18 +396,18 @@ object CrossPosts {
             if(!exact&&!GalleryCaptionCopies.contains(anchor,post))return false
         }
         // Low-information pictures cannot establish a post match by themselves.
-        // Inside a proven gallery, a complete qualified caption can additionally
-        // corroborate their detailed attachment observation. Captionless logos
-        // and weak scene hashes never gain this permission.
+        // A qualified caption or explicit, already-proven publisher parent can
+        // corroborate detailed attachment observations. A captionless picture
+        // alone and weak scene hashes never gain this permission.
         val weak=anchor.media.any {it.attachmentFingerprint!=null}||post.media.any {it.attachmentFingerprint!=null}
-        val captionQualified=weak&&text.isNotBlank()&&GalleryCaptionCopies.contains(anchor,post)
+        val detailQualified=weak&&(text.isNotBlank()&&GalleryCaptionCopies.contains(anchor,post)||parentQualified&&text.isBlank())
         return post.media.all {image->anchor.media.any {other->
             // A complete gallery claims that every picture is already present.
             // Detailed observations outrank a similar template/scene or a
             // looser callback when a face, number or crop has changed.
-            val a=if(captionQualified)other.attachmentFingerprint ?: other.visualFingerprint else other.visualFingerprint
-            val b=if(captionQualified)image.attachmentFingerprint ?: image.visualFingerprint else image.visualFingerprint
-            val attachment=captionQualified&&(other.attachmentFingerprint!=null||image.attachmentFingerprint!=null)
+            val a=if(detailQualified)other.attachmentFingerprint ?: other.visualFingerprint else other.visualFingerprint
+            val b=if(detailQualified)image.attachmentFingerprint ?: image.visualFingerprint else image.visualFingerprint
+            val attachment=detailQualified&&(other.attachmentFingerprint!=null||image.attachmentFingerprint!=null)
             if(attachment&&(a?.startsWith("f2|")!=true||b?.startsWith("f2|")!=true))false
             else if(a!=null&&b!=null)VisualFrames.sameImage(a,b)
             else sameImages(anchor.copy(media=listOf(other)),post.copy(media=listOf(image)),sameMedia)

@@ -38,7 +38,10 @@ internal object GalleryCaptionCopies {
         if(start>0&&(!full.text[start-1].isWhitespace()||full.text.take(start).trimEnd().lastOrNull() !in listOf('.','!')))return null
         if(end<full.text.length&&(full.text[end]!=' '||part.text.lastOrNull() !in listOf('.','!')))return null
         val extra=full.text.take(start)+" "+full.text.drop(end)
-        if(extra.length>160||words.findAll(extra).count()>16||extra.any {it.isDigit()||it=='?'||it=='@'}||
+        // Every complete caption is bounded to 4096 characters/256 words. A
+        // fuller literal introduction is retained and attributed, not removed;
+        // its length alone need not defeat independently proven gallery media.
+        if(extra.any {it.isDigit()||it=='?'||it=='@'}||
             Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]").containsMatchIn(extra)||unsafe.containsMatchIn(extra))return null
         return start until end
     }

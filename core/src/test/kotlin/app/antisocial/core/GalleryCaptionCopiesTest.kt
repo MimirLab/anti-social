@@ -27,6 +27,20 @@ class GalleryCaptionCopiesTest {
         }
         assertEquals(heading+" https://t.co/AbCd123",short.body)
     }
+    @Test fun aFullerLiteralIntroductionDoesNotHideAnOtherwiseProvenGalleryHeading() {
+        val introduction="The community workshop has prepared a detailed illustrated account of the repair session for everyone who helped with the project. Volunteers tested the equipment and organized the replacement components before sharing the completed work."
+        val full=gallery().copy(body="$introduction $heading:")
+        val short=part()
+        for(input in listOf(listOf(full,short),listOf(short,full))) {
+            val group=CrossPosts.group(input,emptyList()).single()
+            val fusion=CrossPostFusion.composeMedia(group.posts)!!
+            assertEquals(listOf(introduction,heading),fusion.segments.map {it.text})
+            assertEquals(setOf(full.identityKey),fusion.segments.first().originalKeys)
+            assertEquals(input.map {it.identityKey}.toSet(),fusion.segments.last().originalKeys)
+        }
+        assertEquals(2,CrossPosts.group(listOf(full,short.copy(media=listOf(Media("https://images.example/unrelated.jpg")))),emptyList()).size)
+        assertEquals(2,CrossPosts.group(listOf(full.copy(body="The project has not been completed. $introduction $heading:"),short),emptyList()).size)
+    }
     @Test fun multipleGalleryEditionsAndTheirShorterCaptionFormOneCompleteCollection() {
         val instagram=gallery();val fb=instagram.copy(id="456",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/workshop/posts/456")
         val posts=listOf(part(),fb,instagram)

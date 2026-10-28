@@ -9,6 +9,62 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.59: gallery replies and retained video acquisition
+
+[Gallery self-replies](ATTACHMENT_COLLECTIONS.md#gallery-self-replies-03859)
+now use explicit proven parent membership and existing literal caption/detail
+checks. Fuller introductions retain their source text without the former extra
+length cutoff. [Video acquisition](VIDEO_FOOTAGE.md#retained-input-and-failed-peer-scheduling-03859)
+keeps supplied duration/rendition fields, lets qualified older X clips request
+small exact-post metadata reads, and prevents a cooling failed peer from hiding
+another usable comparison. No model, dependency, permission, native binary,
+provider or database migration is added. Existing gateway, Tor, resource,
+concurrency and sampling bounds remain in force.
+
+The full JVM run covers **2,551 cases: 2,547 passes, zero failures/errors and four
+optional skips**. The API 35 release selection covers **172 named native checks:
+170 passes, zero failures and two opt-in skips**. The exact named selection is
+checked against returned results. New native controls cover metadata-before-
+sampling, reuse after restart, foreign-clip rejection, purge during an
+uncooperative metadata callback, changed acquisition inputs and failed-peer
+eligibility/retry. Existing feed, Library, refresh, reading-position, playback,
+worker and connection-policy controls remain in that selection.
+
+Five additional private native runs pass the preceding **16 announcement
+families and 49 originals**, checking one shared passage, expected distinct
+attachments, original retention and protected saves. These runs are separate
+from the named synthetic release selection.
+
+Two captured gallery families first reproduced as two and three collections.
+Their native replay now retains one card per family, all ten originals, six and
+five distinct pictures, and faithful protected saves. Input files contain raw
+posts and real pictures, with no injected fingerprints. The pictures are decoded
+before presentation, so this is not a cold live-image benchmark. An initial
+successful content/save run failed a screenshot locator whose three-word prefix
+occurred legitimately in both an introduction and heading; the corrected unique,
+card-scoped locator keeps the complete-passage assertion.
+
+The earlier positive video fixture had a separately acquired rendition hint
+missing from the ordinary retained input. Replaying that input exposed both the
+missing nomination and a caption-group representative that hid its usable X
+edition. An untouched four-platform native replay now uses the existing idle-card
+lane to obtain real metadata and bounded scene samples, forms one card, retains
+the two distinct captions and three recordings, and saves all four originals.
+One API 35 mixed cached/live observation was 1,051 ms to first card and 7,940 ms
+to collection. These are single emulator observations, not phone percentiles.
+The same target is nominated within the existing twelve-pair allowance when
+planning against the complete 911-record retained corpus; this is a local plan
+observation, not complete live acquisition of that corpus.
+
+A larger retained video replay remains incomplete: an additional older signed
+video URL failed its real range read, and another text-only source alias lacked
+sufficient collection evidence. Its failed read also exposed the scheduling gap
+now covered by the native failed-peer control. Those additional records are not
+counted as a successful complete family. Failed attempts and real captures stay
+private. Physical-phone p95, energy use and general endpoint availability remain
+unmeasured. Clean-build, artifact, preview-state and publication checks follow
+the existing publishing procedure.
+
 ## 0.38.58: cached connections and source-bound RSS sharing
 
 [Cached account discovery](CACHED_ACCOUNT_DISCOVERY.md) describes the bounded
