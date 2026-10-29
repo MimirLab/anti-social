@@ -643,6 +643,7 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
         // Evidence updates wake this loop without cancelling a pair halfway
         // through its second recording. Nothing polls while the catalog is idle.
         while(attempted.size<12) {
+            if(!repo.videos.automaticAllowed())return@LaunchedEffect
             val lookup=latestLookup;val offered=latestRequest
             val next=offered?.takeIf {it.acquisitionKey !in attempted&&repo.videos.available(it)} ?: lookup(key,attempted)
             if(next==null) {

@@ -159,7 +159,7 @@ class FusionFeedTest {
         ui.onAllNodesWithText(shared).assertCountEquals(1)
         ui.onNodeWithTag("Fusion shared text").assertTextEquals(shared)
         listOf(0 to (beforeX to "X"),1 to (beforeInstagram to "Instagram"),3 to (afterX to "X"),4 to (afterInstagram to "Instagram")).forEach {(index,context)->
-            ui.onNodeWithTag("Fusion context $index").assertTextEquals(context.first).assert(hasAnySibling(hasText(context.second)))
+            ui.onNodeWithTag("Fusion context $index").assertTextEquals(context.first).assert(hasAnySibling(hasContentDescription(context.second,substring=true)))
         }
     }
     private fun cachePicture(post: Post,jpeg: Boolean=false,preload: Boolean=true) {
@@ -924,8 +924,8 @@ class FusionFeedTest {
             ui.onAllNodesWithTag("Fused post text").assertCountEquals(1)
             ui.onAllNodesWithTag("Fusion shared text").assertCountEquals(2)
             listOf(opening,conclusion,xMiddle,instagramMiddle).forEach {ui.onAllNodesWithText(it).assertCountEquals(1)}
-            ui.onNodeWithText(xMiddle).assert(hasAnySibling(hasText("X")))
-            ui.onNodeWithText(instagramMiddle).assert(hasAnySibling(hasText("Instagram")))
+            ui.onNodeWithText(xMiddle).assert(hasAnySibling(hasContentDescription("X",substring=true)))
+            ui.onNodeWithText(instagramMiddle).assert(hasAnySibling(hasContentDescription("Instagram",substring=true)))
             val first=ui.onNodeWithText(opening).fetchSemanticsNode().positionInRoot.y
             val last=ui.onNodeWithText(conclusion).fetchSemanticsNode().positionInRoot.y
             listOf(xMiddle,instagramMiddle).forEach {passage->

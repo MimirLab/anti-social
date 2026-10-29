@@ -61,4 +61,35 @@ class CaptionFieldBlocksTest {
         assertFalse(CrossPosts.fieldCaptionComposition(a.copy(body="Hello there."),b.copy(body="Hello there.")))
     }
 
+    @Test fun proseCaseAndARepeatedTitleAreFormattingWhileEverySourcePathStaysAvailable() {
+        val mixed=second.copy(body="Building.A.Better.Neighborhood.",title="WORKSHOP FILM")
+        val originals=listOf(first,mixed,other);val raw=originals.map {it.copy()}
+        val fusion=requireNotNull(CaptionFieldBlocks.compose(originals))
+        assertEquals(1,fusion.segments.count {it.text.equals(first.title,true)})
+        assertEquals(1,fusion.segments.count {it.text.filterNot(Char::isWhitespace).equals(body.filterNot(Char::isWhitespace),true)})
+        for(post in originals) {
+            val rendered=fusion.segments.filter {CrossPosts.originalKey(post)in it.originalKeys}.joinToString("\n\n"){it.text}
+            assertEquals(PostPresentation.content(post).filterNot(Char::isWhitespace).lowercase(),rendered.filterNot(Char::isWhitespace).lowercase())
+        }
+        assertEquals(raw,originals);assertEquals(fusion,CaptionFieldBlocks.compose(originals.reversed()))
+    }
+    @Test fun caseFormattingDoesNotLowerSourceUrlPathsOrJoinDifferentWordBoundaries() {
+        val text="The workshop report explains the complete repair safely. https://example.org/Reports/CaseSensitive"
+        val a=first.copy(body=text);val b=second.copy(body=text.lowercase().replace("/reports/casesensitive","/Reports/CaseSensitive"))
+        val fusion=requireNotNull(CaptionFieldBlocks.compose(listOf(a,b)))
+        assertTrue(fusion.segments.any {it.text.contains("/Reports/CaseSensitive")})
+        assertNull(CaptionFieldBlocks.compose(listOf(a,b.copy(body=text.lowercase()))))
+        assertNull(CaptionFieldBlocks.compose(listOf(first.copy(body="New York repair workshop."),second.copy(body="NewYork repair workshop."))))
+        assertNull(CaptionFieldBlocks.compose(listOf(first.copy(body=body),second.copy(body=body.replace("BETTER","NOT BETTER")))))
+    }
+    @Test fun addressesIdentifiersNumericUnitsAndCodeRemainVerbatimWithinFormatting() {
+        val snippets=listOf("Someone@Example.org","urn:Example:CaseSensitive","API_KEY=CaseSensitive","Case_ID","src/CaseSensitive.kt","1M","@StudioName","#PublicStudio","`CaseSensitive`","```CaseSensitive```")
+        for(snippet in snippets) {
+            val text="The published workshop report retains $snippet exactly."
+            val a=first.copy(body=text);val b=second.copy(body=text.uppercase().replace(snippet.uppercase(),snippet))
+            assertNotNull("Surrounding prose can format around $snippet",CaptionFieldBlocks.compose(listOf(a,b)))
+            assertNull("The literal identifier cannot change: $snippet",CaptionFieldBlocks.compose(listOf(a,b.copy(body=text.lowercase()))))
+        }
+    }
+
 }

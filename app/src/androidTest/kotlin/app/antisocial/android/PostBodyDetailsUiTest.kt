@@ -156,6 +156,41 @@ class PostBodyDetailsUiTest {
         }
         evidence("all-attributed-accounts-open-intact-originals")
     }
+    @Test fun aRepeatedLiteralLabelStaysCompactWhileEveryAccountAndSourceActionSurvives() {
+        val first=post(31,"Public studio",body="The public studio published a complete guide to repairing workshop equipment safely. Every original source keeps its own caption, date and discussion.")
+        val second=post(32,"Public studio",body=first.body).copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/studioone/posts/97$suffix")
+        val third=post(33,"Public studio",body=first.body).copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/studiotwo/posts/98$suffix")
+        posts+=listOf(second,third)
+        val roots=listOf(first,second,third);val before=repo.gson.toJson(roots);val vm=model();val header="Post authors ${repo.key(first)}"
+        ui.runOnIdle {ui.activity.setContent {MaterialTheme {Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            PostCard(first,vm,false,discussions=roots){}
+        }}}}
+        val repeated=hasText("Public studio") and hasAnyAncestor(hasTestTag(header))
+        ui.onAllNodes(repeated,useUnmergedTree=true).assertCountEquals(1)
+        ui.onNodeWithTag("Post author ${CrossPosts.originalAccount(first)}").performClick()
+        ui.onNodeWithTag("Collected originals").assertExists()
+        for(original in roots) {
+            ui.onNodeWithTag("Collected original list").performScrollToNode(hasTestTag("Original URL ${repo.key(original)}"))
+            ui.onNodeWithTag("Original URL ${repo.key(original)}").assertTextEquals(original.canonicalUrl)
+            ui.onNodeWithTag("Original comments ${repo.key(original)}").assertExists()
+            ui.onNodeWithTag("Share original ${repo.key(original)}").assertExists()
+            ui.onNodeWithTag("Copy original ${repo.key(original)}").assertExists()
+        }
+        assertEquals(before,repo.gson.toJson(roots));evidence("literal-label-keeps-distinct-source-accounts")
+    }
+    @Test fun anUnambiguousSourceLabelKeepsItsDirectProfileShortcut() {
+        val first=post(34,"Workshop One");val second=post(35,"Workshop Two");val vm=model()
+        repo.prefs.readableMentions=true;repo.mentionNames.changed()
+        ui.runOnIdle {ui.activity.setContent {MaterialTheme {Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            PostCard(first,vm,false,discussions=listOf(first,second)){}
+        }}}}
+        val name=hasText(first.author) and hasAnyAncestor(hasTestTag("Post authors ${repo.key(first)}"))
+        ui.onNode(name).performTouchInput {click(center)}
+        ui.onNodeWithTag("Mention account sheet").assertExists()
+        ui.onNodeWithTag("Mention authentic account link").assertTextEquals(first.canonicalUrl.substringBefore("/status/"))
+        ui.onNodeWithTag("Collected originals").assertDoesNotExist()
+        evidence("unambiguous-author-keeps-direct-account-shortcut")
+    }
     @Test fun loneMediaPermalinksAndTwoLinkInventoriesStayQuietUntilExpanded() {
         val vm=model()
         for(count in 1..2) {

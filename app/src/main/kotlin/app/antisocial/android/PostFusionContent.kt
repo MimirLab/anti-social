@@ -27,6 +27,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -42,6 +43,26 @@ import app.antisocial.core.PostFusion
 import app.antisocial.core.Post
 import app.antisocial.core.PostBodyDetails
 import app.antisocial.core.PostPresentation
+import app.antisocial.core.SourceAuthorLabel
+import app.antisocial.core.SourceAuthorLabels
+import androidx.compose.ui.unit.TextUnit
+
+/** One literal label can name several accounts. Such a row opens the full
+ * source chooser instead of assigning the name to an arbitrary first account. */
+@Composable internal fun CollectedAuthorLabel(label:SourceAuthorLabel,repo:Repository?,modifier:Modifier=Modifier,
+    fontSize:TextUnit=11.sp,markSize:androidx.compose.ui.unit.Dp=13.dp,fontWeight:FontWeight?=FontWeight.Medium,
+    color:Color=MaterialTheme.colorScheme.onSurfaceVariant,networkAllowed:Boolean=true,onOriginals:(()->Unit)?=null) {
+    val target=label.accounts.singleOrNull()
+    Row(modifier.then(if(onOriginals==null)Modifier else Modifier.clickable(role=Role.Button,onClick=onOriginals)),
+        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+        label.platforms.forEach {PlatformMark(it,markSize)}
+        if(target!=null)MentionText(label.label,repo,target.platform,target.canonicalUrl,accountLabel=true,authorAccount=target.authorAccount,
+            explicitProfileLinks=target.links.orEmpty(),networkAllowed=networkAllowed,
+            fontSize=fontSize,fontWeight=fontWeight,color=color,maxLines=1)
+        else MentionText(label.label,accountLabel=true,networkAllowed=false,fontSize=fontSize,fontWeight=fontWeight,color=color,maxLines=1)
+        if(label.accounts.size>label.platforms.size)Text("· ${label.originals.size} originals",fontSize=10.sp,color=color,maxLines=1)
+    }
+}
 
 /** A shared cover takes one slot while every recording remains selectable. */
 @Composable internal fun CollectedMediaChoice(group:CollectedMediaGroup):CollectedAttachment {
@@ -63,7 +84,7 @@ import app.antisocial.core.PostPresentation
 }
 
 /** The shared passage appears once; extra source wording stays visibly attributed. */
-@Composable internal fun FusedPostText(fusion: PostFusion,onOpen: (()->Unit)?=null,roots: List<Post> = emptyList(),repo: Repository?=null,showDetails: Boolean=true,networkAllowed: Boolean=true) {
+@Composable internal fun FusedPostText(fusion: PostFusion,onOpen: (()->Unit)?=null,roots: List<Post> = emptyList(),repo: Repository?=null,showDetails: Boolean=true,networkAllowed: Boolean=true,onOriginals:(()->Unit)?=null) {
     val attributions=remember(roots){roots.mapNotNull {root->PostPresentation.text(root).attribution?.let {it to root}}.distinctBy {it.first}}
     val substantiveShared=remember(fusion){fusion.segments.any {it.shared&&PostBodyDetails.split(it.text).body.any(Char::isLetter)}}
     Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=10.dp).testTag("Fused post text"),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -78,9 +99,9 @@ import app.antisocial.core.PostPresentation
                     val originals=roots.filter {CrossPosts.originalKey(it) in segment.originalKeys}
                     val platforms=segment.platforms.joinToString(" · "){it.label}
                     if(originals.isEmpty())Text(platforms,fontSize=11.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(bottom=4.dp))
-                    else Column(Modifier.padding(bottom=4.dp).semantics(mergeDescendants=true){}) {
-                        originals.distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}.forEach {root->MentionText(root.author.ifBlank {"Author not supplied"},repo,root.platform,root.canonicalUrl,accountLabel=true,authorAccount=root.authorAccount,networkAllowed=networkAllowed,explicitProfileLinks=root.links.orEmpty(),fontSize=11.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-                        Text(platforms,fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    else Column(Modifier.padding(bottom=4.dp).testTag("Fusion authors $index").semantics(mergeDescendants=true){contentDescription=platforms}) {
+                        val labels=remember(originals){SourceAuthorLabels.collect(originals)}
+                        labels.forEach {label->CollectedAuthorLabel(label,repo,networkAllowed=networkAllowed,onOriginals=onOriginals)}
                     }
                 }
                 val segmentRoots=roots.filter {CrossPosts.originalKey(it) in segment.originalKeys}

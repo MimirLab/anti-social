@@ -128,16 +128,20 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         }catch(e:CancellationException){throw e}
         catch(_:Exception){synchronized(lock){if(epoch==generation){failures[input]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}}
     }
+    /** The same resource decision gates demand planning and the eventual
+     * acquisition. No cached decision can outlive a queue wait or mode change. */
+    suspend fun automaticAllowed():Boolean=withContext(Dispatchers.IO){automaticAllowedNow()}
+    private fun automaticAllowedNow():Boolean {
+        if(repo.prefs.videoDownloadWifiOnly&&repo.context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered!=false)return false
+        val power=repo.context.getSystemService(android.os.PowerManager::class.java)
+        if(power?.isPowerSaveMode==true||android.os.Build.VERSION.SDK_INT>=29&&power?.currentThermalStatus?.let {it>=android.os.PowerManager.THERMAL_STATUS_SEVERE}==true)return false
+        val info=android.app.ActivityManager.MemoryInfo()
+        repo.context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
+        return !info.lowMemory
+    }
     suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true)=withContext(Dispatchers.IO) {lane.withLock {
         repo.awaitReady();restore()
-        if(automatic&&repo.prefs.videoDownloadWifiOnly&&repo.context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered!=false)return@withLock
-        if(automatic) {
-            val power=repo.context.getSystemService(android.os.PowerManager::class.java)
-            if(power?.isPowerSaveMode==true||android.os.Build.VERSION.SDK_INT>=29&&power?.currentThermalStatus?.let {it>=android.os.PowerManager.THERMAL_STATUS_SEVERE}==true)return@withLock
-            val info=android.app.ActivityManager.MemoryInfo()
-            repo.context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
-            if(info.lowMemory)return@withLock
-        }
+        if(automatic&&!automaticAllowedNow())return@withLock
         val job=currentCoroutineContext()[Job]!!
         val epoch=synchronized(lock){running+=job;generation}
         try {withTimeout(45_000) {repo.cardWork.track(request.originalKeys,"Comparing video editions") {

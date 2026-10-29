@@ -429,7 +429,9 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     var saveCopy by remember(repo.key(post)){mutableStateOf<PostSaveCapture?>(null)}
     val archive=rememberArchivePresentation(post,repo,active=fullImage==null&&!showOriginals&&!showOptions)
     val displayed=archive.post
-    val attributedAccounts=remember(threads,displayed,archive.showingArchive){(if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads).distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}}
+    val authorSources=if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads
+    val attributedAccounts=remember(authorSources){authorSources.distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}}
+    val authorLabels=remember(authorSources){SourceAuthorLabels.collect(authorSources)}
     val presentationRoots=if(!archive.showingArchive&&displayed.recoveredArchive==null)contentRoots else listOf(displayed)
     val plan=rememberCollectionPlan(repo,presentationRoots)
     val fusion=plan.fusion
@@ -468,10 +470,11 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
                 Column(Modifier.weight(1f).padding(start=10.dp)) {
                     if(attributedAccounts.size==1)MentionText(displayed.author.ifBlank {post.platform.label},repo,displayed.platform,displayed.canonicalUrl,accountLabel=true,authorAccount=displayed.authorAccount,explicitProfileLinks=displayed.links.orEmpty(),fontWeight=FontWeight.SemiBold,fontSize=14.sp,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.height(20.dp))
                     else Row(Modifier.fillMaxWidth().height(20.dp).horizontalScroll(rememberScrollState()).testTag("Post authors ${repo.key(post)}"),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically) {
-                        attributedAccounts.forEach {entry->Row(Modifier.clickable(role=androidx.compose.ui.semantics.Role.Button,onClick={showOriginals=true}).testTag("Post author ${CrossPosts.originalAccount(entry) ?: CrossPosts.originalKey(entry)}"),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                            PlatformMark(entry.platform,15.dp)
-                            MentionText(entry.author.ifBlank {entry.platform.label},repo,entry.platform,entry.canonicalUrl,accountLabel=true,authorAccount=entry.authorAccount,explicitProfileLinks=entry.links.orEmpty(),fontWeight=FontWeight.SemiBold,fontSize=14.sp,maxLines=1)
-                        }}
+                        authorLabels.forEach {label->
+                            val entry=label.originals.first()
+                            CollectedAuthorLabel(label,repo,Modifier.testTag("Post author ${CrossPosts.originalAccount(entry) ?: CrossPosts.originalKey(entry)}"),
+                                fontSize=14.sp,markSize=15.dp,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.onSurface,onOriginals={showOriginals=true})
+                        }
                     }
                     Row(verticalAlignment=Alignment.CenterVertically) {
                         Text(displayed.publishedAt?.let {DateTimeFormatter.ofPattern("MMM d · HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(it))} ?: "Date not supplied",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -495,7 +498,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             RecoveredArchiveLabel(displayed,Modifier.padding(start=16.dp,end=16.dp,bottom=10.dp))
             if(post.preview)Text("Public preview · full content unavailable",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(horizontal=16.dp,vertical=6.dp))
             if(linkedVideo&&caption.title.isNotBlank())MentionText(caption.title,repo,caption.platform,caption.canonicalUrl,fontSize=18.sp,fontWeight=FontWeight.SemiBold,maxLines=3,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(horizontal=16.dp,vertical=10.dp),explicitProfileLinks=caption.links.orEmpty())
-            if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
+            if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false,onOriginals={showOriginals=true})else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
             mediaGroups.forEach {group->val attachment=CollectedMediaChoice(group);val m=attachment.media
                 val owner=if(fusion==null)displayed else contentRoots.firstOrNull {root->root.media.any {it.url==m.url}} ?: displayed
                 if(contentRoots.map {it.platform}.distinct().size>1)Text(attachment.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,
@@ -508,8 +511,8 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
                     Text(if(videoDescriptionExpanded)"Hide description"else "Description",fontSize=12.sp)
                     Icon(if(videoDescriptionExpanded)Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,null,Modifier.size(18.dp))
                 }
-                if(videoDescriptionExpanded){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else PostText(caption.copy(title=""),repo,onOpen,showDetails=false)}
-            }else if(visualFirst&&!linkedVideo){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
+                if(videoDescriptionExpanded){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false,onOriginals={showOriginals=true})else PostText(caption.copy(title=""),repo,onOpen,showDetails=false)}
+            }else if(visualFirst&&!linkedVideo){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false,onOriginals={showOriginals=true})else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
             val sourceUrls=remember(postLinks,threads,repo){(postLinks+threads.map {repo.publicUrl(it.canonicalUrl,it.platform)}).distinct()}
             val inspectableSources=remember(sourceUrls){sourceRequests(sourceUrls).isNotEmpty()}
             if(showSourceDetails)SourceDetailsSheet(repo,sourceUrls,onOpen={vm.openLink(it)},onDismiss={showSourceDetails=false})

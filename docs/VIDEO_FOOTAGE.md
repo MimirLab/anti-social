@@ -245,6 +245,32 @@ fabrication, new provider, model, permission, dependency or database migration.
 See [release qualification](RELEASE_QUALIFICATION.md) for the actual native
 replays, their retained failures and artifact checks.
 
+### Resource admission before demand planning, 0.38.61
+
+The existing Wi-Fi-only, power-saver, severe-thermal and low-memory decision now
+runs before a settled card constructs its focused comparison plan. Acquisition
+rechecks the same decision after waiting for the single lane; no decision is
+cached across a queue wait. Cached observations remain usable by ordinary local
+matching, and deliberate reads retain the existing explicit override. Gateway,
+Tor, byte, scene, timeout, concurrency and cancellation rules remain unchanged.
+
+A native counterexample enabled Android's actual power saver: acquisition stopped,
+but the preceding version still invoked the focused lookup twice. The corrected
+dwell returns before that lookup. The native control also samples through the
+existing deliberate override, clears the derived observations, releases power
+saver, and verifies a fresh automatic dwell on explicit retry. It performs no
+network read: its sampler is a synthetic scheduling control. The real captured
+video replay is qualified separately.
+
+Android processes battery and configuration changes asynchronously. The test
+waits for PowerManager to observe unplugging before enabling saver. A power-mode
+change can also recreate the test activity; its synthetic content is remounted
+only after an observed activity-identity change, as the real app is mounted by
+onCreate. This is test-host recovery, with no production activity flag, user
+permission or root requirement added. Resource deferral introduces no polling or
+perpetual processing indicator. These controls establish admission behavior;
+physical-phone energy savings and latency percentiles remain unmeasured.
+
 ## Primary references
 
 - [Normalized template correlation](https://docs.opencv.org/4.13.0/de/da9/tutorial_template_matching.html)

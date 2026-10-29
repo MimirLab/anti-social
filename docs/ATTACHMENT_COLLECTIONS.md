@@ -1,5 +1,36 @@
 # Attachment collections
 
+## Repeated labels and literal-field formatting (0.38.61)
+
+Source display labels now compress repeated literal names after the established
+one-label-per-proven-profile step. This is a bounded presentation operation,
+separate from account linkage, post admission and saved-copy validation. Different
+accounts and every original remain in the label group. A name shared by several
+accounts opens the complete originals chooser; an unambiguous account retains its
+direct profile shortcut. Platform marks show the contributing services, and
+same-platform ambiguity retains an original-count hint. Missing names, letter
+case, lookalikes and directional controls do not establish a shared identity.
+
+The same display groups apply to a fused caption's source labels, with explicit
+accessible platform names alongside the visual marks. Source URLs,
+sharing, comments, saved fields and original captions retain their own identities.
+A synthetic native counterexample first showed three identical labels for three
+distinct accounts. The replacement keeps one literal label and all three source
+action sets; unrelated-account and direct-profile controls qualify the boundary.
+
+Field-aware caption presentation also treats ordinary prose capitalization as
+formatting. It preserves word boundaries and keeps supported URLs, address and
+identifier-like tokens, numeric units, paths, assignments and backtick code spans
+verbatim. Its source projection checks these protected spans exactly; originals
+and exports retain their raw typography. Questions, negation, numbers and changed
+wording keep their existing admission controls. Presentation cannot supply an
+account-ownership proof or independently admit a post pair.
+
+The URI distinction follows [RFC 3986's normalization boundary](https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1);
+this formatter conservatively retains complete URI tokens instead of performing
+scheme-specific normalization. See [release qualification](RELEASE_QUALIFICATION.md)
+for tests and native replay scope.
+
 ## Compact extraction aliases and source fields (0.38.60)
 
 A complete eight-word compact caption can reconcile a text-only Facebook

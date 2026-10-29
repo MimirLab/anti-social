@@ -10,6 +10,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
@@ -144,6 +146,63 @@ class VideoDwellTest {
         repo.videos.retryFailures()
         ui.waitUntil(15_000){listOf(first,second).all {repo.videos.captured(it).media.single().videoFootage!=null}}
         assertEquals(3,calls.get())
+    }
+
+    private fun shell(command:String)=InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use {
+        java.io.FileInputStream(it.fileDescriptor).use {stream->stream.readBytes().decodeToString()}
+    }
+    @Test fun powerSaverSkipsPlanningAndSamplingButAReleasedHoldCanRetry():Unit=runBlocking {
+        val power=ui.activity.getSystemService(android.os.PowerManager::class.java)
+        val previous=power.isPowerSaveMode
+        val catalog=mutableStateOf(0);val offered=mutableStateOf<VideoFootageRequest?>(null);val paused=mutableStateOf(false)
+        val lookups=AtomicInteger();val samples=AtomicInteger()
+        repo.videos.sample={m,_->samples.incrementAndGet();sampled(m)}
+        val lookup:VideoRequestLookup={_,excluded->lookups.incrementAndGet();request.takeIf {it.acquisitionKey !in excluded&&repo.videos.available(it)}}
+        try {
+            shell("dumpsys battery unplug")
+            ui.waitUntil(5_000){shell("dumpsys power").contains("mIsPowered=false")}
+            shell("cmd power set-mode 1");ui.waitUntil(5_000){power.isPowerSaveMode}
+            show(catalog,offered,paused,lookup)
+            var fixtureActivity=ui.activity;var remounts=0
+            ui.mainClock.advanceTimeBy(3_000);ui.waitForIdle();delay(200)
+            assertEquals("Power saver must defer the focused graph plan as well as decoder/network work",0,lookups.get())
+            assertEquals(0,samples.get())
+            // A deliberate read retains its existing override; only automatic
+            // enrichment is held. The next automatic dwell still samples anew.
+            repo.videos.enrich(request,automatic=false)
+            assertEquals(2,samples.get());assertNotNull(repo.videos.captured(first).media.single().videoFootage)
+            repo.videos.cleanup(true)
+            shell("cmd power set-mode 0");ui.waitUntil(5_000){!power.isPowerSaveMode}
+            assertTrue("Other automatic resource guards must also be available after releasing power saver",repo.videos.automaticAllowed())
+            repo.videos.retryFailures()
+            fun captured()=listOf(first,second).all {repo.videos.captured(it).media.single().videoFootage!=null}
+            try {
+                // Battery saver can change Android's night configuration and
+                // recreate MainActivity. Its onCreate mounts the real app; the
+                // synthetic host must be mounted again on that new activity.
+                repeat(3) {
+                    ui.waitUntil(15_000){captured()||ui.activity!==fixtureActivity}
+                    if(!captured()) {
+                        fixtureActivity=ui.activity;remounts++;show(catalog,offered,paused,lookup);repo.videos.retryFailures()
+                    }
+                }
+                assertTrue("A released hold can start a new visible-card dwell",captured())
+            }catch(error:Throwable) {
+                val directory=java.io.File(ui.activity.getExternalFilesDir("validation"),"video-dwell").apply {mkdirs()}
+                java.io.File(directory,"power-resume-state.json").writeText(JSONObject().put("sameFixtureActivity",fixtureActivity===ui.activity)
+                    .put("powerSave",power.isPowerSaveMode).put("automaticAllowed",repo.videos.automaticAllowed())
+                    .put("focused",ui.activity.window.decorView.hasWindowFocus()).put("lifecycle",ui.activity.lifecycle.currentState.name)
+                    .put("lookups",lookups.get()).put("samples",samples.get()).put("playing",repo.videos.playbackActive.value).toString())
+                java.io.File(directory,"power-resume-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
+                throw error
+            }
+            assertTrue(lookups.get()>0);assertEquals(4,samples.get())
+            val evidence=java.io.File(ui.activity.getExternalFilesDir("validation"),"video-dwell").apply {mkdirs()}
+            java.io.File(evidence,"power-success.json").writeText(JSONObject().put("blockedPlanningCalls",0).put("manualSamples",2)
+                .put("totalSamples",samples.get()).put("lookupCallsAfterRelease",lookups.get()).put("fixtureRemounts",remounts).toString())
+        }finally {
+            shell("cmd power set-mode ${if(previous)1 else 0}");shell("dumpsys battery reset")
+        }
     }
 
 }

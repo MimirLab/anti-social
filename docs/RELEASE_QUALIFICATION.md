@@ -9,6 +9,63 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.61: compact attribution, literal fields and resource-aware planning
+
+[Repeated literal source names](ATTACHMENT_COLLECTIONS.md#repeated-labels-and-literal-field-formatting-03861)
+now take one display label while retaining each distinct account and original.
+Shared-name labels open the complete originals chooser; unambiguous names retain
+their direct profile shortcut. Platform marks retain explicit accessible names.
+Field-aware presentation reads capitalization-only prose variants once while
+keeping URLs, address/identifier tokens, numeric units, paths, assignments and
+code spans exact. Original posts, exports and protected saves retain raw fields.
+These display operations supply no new account-ownership or pair-admission proof.
+
+[Automatic video resource admission](VIDEO_FOOTAGE.md#resource-admission-before-demand-planning-03861)
+now precedes focused lookup and is rechecked after the acquisition lane wait.
+The Wi-Fi-only, power-saver, severe-thermal and low-memory thresholds are unchanged.
+Cached matching and deliberate inspection retain their existing behavior. No
+provider, model, dependency, permission, native binary or database migration is
+added; Gateway, Tor, scene/byte limits, concurrency and cancellation remain intact.
+
+Independent baseline counterexamples showed three repeated labels for distinct
+accounts and two focused lookups while Android's actual power saver already
+prevented sampling. Two JVM counterexamples exposed prose-case/title composition
+and its URL boundary. The new regressions keep unrelated identities and protected
+literal fields distinct. The power control records zero blocked planning calls,
+two deliberate samples while held and two fresh automatic samples after release
+and explicit retry. This is a synthetic scheduling control, not a network or
+energy benchmark. Android's asynchronous battery/configuration transitions
+required a wait for unplugging and remounting the synthetic host on two observed
+activity recreations; no production activity flags changed.
+
+The complete JVM run covers **2,573 cases: 2,569 passes, zero failures/errors and
+four optional skips**. The API 35 release selection covers **186 named native
+checks: 184 passes, zero failures and two opt-in skips**. Returned method identities
+are checked against the full selection. An initial native run had seven failed
+platform-text assertions after visual labels changed to marks. Explicit accessible
+platform descriptions and corresponding provenance assertions restore that
+contract; the complete corrected selection passes. Source chooser, direct-profile,
+late-image/context, reading-position, refresh, Library, worker and connection
+controls remain included. Native source-control screens were inspected.
+
+Seven additional native runs replay **19 captured announcement families and 65
+original editions**: the preceding sixteen families/49 originals, two galleries
+with all ten originals and six/five distinct pictures, and a six-original,
+five-platform video family. Every replay retains one row per family, one common
+passage, expected distinct attachments and faithful protected saves. The video
+card retains four selectable recordings, each distinct caption, and the extra
+supplied title; its common body appears once. Native gallery and video screens
+were inspected. Unmodified captured posts and actual Gateway scene observations
+remain private. One mixed cached/live API 35 replay measured 1,209 ms to its first
+visible card and 19,287 ms to collection. These are single emulator observations,
+not physical-phone, cold-source or percentile measurements.
+
+The preceding two-scene blob response and URL without usable bounded ranges
+remain insufficient evidence, not successful footage comparisons. Physical-phone
+p95/energy, general source availability and complete duplicate elimination remain
+unqualified. Artifact correspondence, preview-state backup and fixed-download
+verification follow the existing publishing procedure.
+
 ## 0.38.60: focused video comparisons and complete source fields
 
 [Visible-card planning](VIDEO_FOOTAGE.md#visible-card-neighborhoods-and-source-fields-03860)
