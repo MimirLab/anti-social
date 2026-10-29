@@ -16,11 +16,35 @@ object VideoAssetIdentity {
         YouTubeUrls.videoId(raw)?.let {return "youtube:$it"}
         if(url.host in setOf("video.twimg.com","video-s.twimg.com"))twitter.find(url.encodedPath)?.let {return "twitter:${it.groupValues[1]}:${it.groupValues[2]}"}
         if(url.host=="v.redd.it")url.pathSegments.firstOrNull()?.takeIf {it.matches(Regex("[A-Za-z0-9]{4,40}"))}?.let {return "reddit:$it"}
+        // This already-used public blob route supplies an account DID and a
+        // canonical raw/SHA-256 CID. Qualify its observation route, not a file
+        // digest: the bounded sampler still checks bytes and three scenes.
+        if(url.host=="pds-cache.fxbsky.app"&&url.port==443&&url.query==null&&url.fragment==null) {
+            val parts=url.pathSegments
+            if(parts.size==2&&parts[0].matches(Regex("did:plc:[a-z2-7]{24}"))&&blobCid(parts[1])&&
+                url.encodedPath=="/${parts[0]}/${parts[1]}")return "bluesky-blob:${parts[0]}:${parts[1]}"
+        }
         // CDN shard and expiring access parameters do not identify a new file.
         // Keep the complete path; different media objects remain different.
         if((url.host.endsWith(".fbcdn.net")||url.host.endsWith(".cdninstagram.com"))&&
             url.encodedPath.endsWith(".mp4",true))return "meta:"+url.encodedPath
         return null
+    }
+    /** CIDv1 / raw codec / SHA-256, including canonical base32 padding bits.
+     * Do not accept a CID-looking arbitrary path as a qualified clip. */
+    private fun blobCid(value:String):Boolean {
+        if(value.length!=59||value.first()!='b')return false
+        val bytes=ByteArray(36);var index=0;var bits=0;var buffer=0
+        for(character in value.drop(1)) {
+            val digit="abcdefghijklmnopqrstuvwxyz234567".indexOf(character)
+            if(digit<0)return false
+            buffer=(buffer shl 5)or digit;bits+=5
+            if(bits>=8) {
+                bits-=8;if(index==bytes.size)return false
+                bytes[index++]=(buffer ushr bits).toByte();buffer=buffer and ((1 shl bits)-1)
+            }
+        }
+        return index==36&&bits==2&&buffer==0&&bytes[0]==1.toByte()&&bytes[1]==0x55.toByte()&&bytes[2]==0x12.toByte()&&bytes[3]==0x20.toByte()
     }
     /** Only source-advertised renditions of the same qualified provider clip.
      * The selected playback URL and every playable edition remain unchanged. */

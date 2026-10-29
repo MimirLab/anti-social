@@ -164,4 +164,43 @@ class SharedVideoCollectionsTest {
         assertNotEquals(pending.acquisitionKey,pending.copy(first=first.copy(media=first.media.map {it.copy(durationMs=120_500)})).acquisitionKey)
         assertNotEquals(pending.acquisitionKey,pending.copy(first=first.copy(media=first.media.map {it.copy(samplingUrl="https://media.example.org/other.mp4")})).acquisitionKey)
     }
+    @Test fun aVisibleOlderCardCannotBeCrowdedOutByTheGlobalNewestWindow() {
+        val a=post(Platform.TIKTOK,"An older film.")
+        val b=post(Platform.X,"Its other caption.",minute=1)
+        val newer=(0..130).map {PostGroup(listOf(post(Platform.X,"Another film $it.",id="72${it+1000}",minute=1_000+it.toLong())))}
+        val groups=newer+listOf(PostGroup(listOf(a)),PostGroup(listOf(b)))
+        val key=CrossPosts.originalKey(a)
+        assertTrue(CrossPosts.videoFootageRequests(groups,accounts).none {key in it.originalKeys})
+        val focused=CrossPosts.focusedVideoFootageRequests(groups,accounts,emptyMap(),setOf(key)).single()
+        assertEquals(setOf(a,b),setOf(focused.first,focused.second))
+    }
+    @Test fun focusedPlanningRetainsOwnerDateUnknownMediaAndFiniteComparisonGuards() {
+        val a=post(Platform.TIKTOK,"First film.")
+        val b=post(Platform.X,"Another caption.",minute=1)
+        val key=CrossPosts.originalKey(a)
+        fun plans(second:Post=b,follows:List<Follow> = accounts)=CrossPosts.focusedVideoFootageRequests(listOf(PostGroup(listOf(a)),PostGroup(listOf(second))),follows,emptyMap(),setOf(key))
+        assertEquals(1,plans().size)
+        assertTrue(plans(b.copy(publishedAt=at+7*60*60_000L)).isEmpty())
+        assertTrue(plans(follows=accounts.map {if(it.target.platform==Platform.X)it.copy(personId="someone-else")else it}).isEmpty())
+        assertTrue(plans(b.copy(parentId="parent")).isEmpty())
+        val unknown=listOf(a,b).map {it.copy(media=it.media.map {m->m.copy(durationMs=null)})}
+        assertTrue(CrossPosts.focusedVideoFootageRequests(unknown.map {PostGroup(listOf(it))},accounts,emptyMap(),setOf(key)).isEmpty())
+        val many=(0..40).map {PostGroup(listOf(post(Platform.X,"Another film $it.",id="73${it+1000}",minute=it+1L)))}
+        val bounded=CrossPosts.focusedVideoFootageRequests(many+PostGroup(listOf(a)),accounts,emptyMap(),setOf(key))
+        assertEquals(12,bounded.size);assertTrue(bounded.all {key in it.originalKeys})
+        assertTrue(CrossPosts.focusedVideoFootageRequests(many,accounts,emptyMap(),setOf("missing")).isEmpty())
+    }
+    @Test fun currentProofsCloseThePlatformGapWithoutScanningMoreOfTheSamePlatforms() {
+        val a=measured(post(Platform.TIKTOK,"First film."))
+        val b=measured(post(Platform.X,"Another caption.",minute=1))
+        val c=post(Platform.X,"An unrelated nearby film.",id="740001",minute=2)
+        val groups=listOf(a,b,c).map {PostGroup(listOf(it))}
+        val focused=CrossPosts.focusedVideoFootageRequests(groups,accounts,emptyMap(),setOf(CrossPosts.originalKey(a)),
+            sharedFootage={x,y->if(setOf(x.id,y.id)==setOf(a.id,b.id))SharedVideoFootage(4,.99)else null})
+        assertTrue(focused.isEmpty())
+        var checks=0
+        assertThrows(CancellationException::class.java) {
+            CrossPosts.focusedVideoFootageRequests(groups,accounts,emptyMap(),setOf(CrossPosts.originalKey(a)),checkpoint={if(++checks==3)throw CancellationException("Stopped")})
+        }
+    }
 }

@@ -535,7 +535,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                             if(unreadRow)Text(if(newRow)"New"else "Unread",fontSize=11.sp,color=if(newRow)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Feed row status ${row.key}"))
                         }
                         if(decision(row)==null)PendingFilterCard()else FilteredPost(decision(row)!!,repo.key(row.bodyPosts.first()),filtering,onEdit={filtering.managing=true}) {
-                            FeedVideoDwell(list,row.key,row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
+                            FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
                             PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts}){repo.postTarget(row.primary)?.let {vm.open(it)}}
                         }
                     }
@@ -617,22 +617,59 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
 
 /** Visible, settled cards only. Scrolling, overlays, lost focus and backgrounding
  * cancel the coroutine and its Gateway reads rather than queuing a global scan. */
-@Composable private fun FeedVideoDwell(list:LazyListState,key:String,request:VideoFootageRequest?,repo:Repository) {
+@Composable internal fun FeedVideoDwell(list:LazyListState,key:String,post:Post,hasVideo:Boolean,request:VideoFootageRequest?,repo:Repository) {
     val view=LocalView.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resumed by remember(lifecycle){mutableStateOf(lifecycle.currentState==Lifecycle.State.RESUMED)}
     var focused by remember(view){mutableStateOf(view.hasWindowFocus())}
     val paused=LocalArchiveChecksPaused.current
     val retries by repo.videos.retries.collectAsStateWithLifecycle()
     val playing by repo.videos.playbackActive.collectAsStateWithLifecycle()
+    val latestRequest by rememberUpdatedState(request)
+    val latestLookup by rememberUpdatedState(LocalVideoRequestLookup.current)
+    val latestCounterparts by rememberUpdatedState(LocalPostCounterparts.current)
     val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
         info.visibleItemsInfo.firstOrNull {it.key.toString()==key}?.let {FeedDwellGeometry(it.offset,it.size,info.viewportStartOffset,info.viewportEndOffset,list.isScrollInProgress).readable}==true
     }}}
     DisposableEffect(lifecycle){val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
     DisposableEffect(view){val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
-    val acquisition=remember(request){request?.acquisitionKey}
-    LaunchedEffect(acquisition,settled,resumed,focused,paused,playing,retries) {
-        if(request==null||!settled||!resumed||!focused||paused||playing)return@LaunchedEffect
-        delay(1200);repo.videos.enrich(request)
+    val acquisition=remember(post){post.media.filter {it.type=="video"}.map(VideoAssetIdentity::acquisitionKey)}
+    val potential=hasVideo||request!=null
+    LaunchedEffect(potential,acquisition,settled,resumed,focused,paused,playing,retries) {
+        if(!potential||!settled||!resumed||!focused||paused||playing)return@LaunchedEffect
+        delay(1200)
+        val attempted=linkedSetOf<VideoComparisonInput>()
+        // Keep the same finite comparison allowance, but spend it on the
+        // settled card instead of letting an unrelated global prefix own it.
+        // Evidence updates wake this loop without cancelling a pair halfway
+        // through its second recording. Nothing polls while the catalog is idle.
+        while(attempted.size<12) {
+            val lookup=latestLookup;val offered=latestRequest
+            val next=offered?.takeIf {it.acquisitionKey !in attempted&&repo.videos.available(it)} ?: lookup(key,attempted)
+            if(next==null) {
+                snapshotFlow {latestLookup to latestRequest}.first {it.first!==lookup||it.second!=offered}
+                continue
+            }
+            attempted+=next.acquisitionKey
+            coroutineScope {
+                val work=async {repo.videos.enrich(next)}
+                // Catalog/evidence changes are harmless, but the same original
+                // acquiring a new URL, duration or rendition must retire stale
+                // work. Keep this child cancellation distinct from leaving the
+                // viewport, changing privacy mode or purging the evidence bank.
+                var obsolete=false
+                val monitor=launch {
+                    snapshotFlow {
+                        fun current(original:Post)=latestCounterparts[CrossPosts.originalKey(original)].orEmpty()
+                            .firstOrNull {CrossPosts.originalKey(it)==CrossPosts.originalKey(original)} ?: original
+                        next.copy(first=current(next.first),second=current(next.second)).acquisitionKey
+                    }.first {it!=next.acquisitionKey}
+                    obsolete=true
+                    work.cancel(CancellationException("Video source input changed"))
+                }
+                try {work.await()}catch(e:CancellationException){currentCoroutineContext().ensureActive();if(!obsolete)throw e}
+                finally {monitor.cancel()}
+            }
+        }
     }
 }
 

@@ -116,9 +116,11 @@ private val Mint=Color(0xFF8DE5BA)
 private val Ink=Color(0xFF111315)
 private val Panel=Color(0xFF1A1D20)
 private val Muted=Color(0xFF929D99)
-private data class KnownPostGroups(val posts: List<Post>,val follows: List<Follow>,val memberships: Map<String,Set<String>>,val groups: Map<String,List<Post>>,val videoRequests:Map<String,VideoFootageRequest>)
+private data class KnownPostGroups(val posts: List<Post>,val follows: List<Follow>,val memberships: Map<String,Set<String>>,val groups: Map<String,List<Post>>,val videoRequests:Map<String,VideoFootageRequest>,val videoGroups:List<PostGroup>)
 internal val LocalPostCounterparts=compositionLocalOf<Map<String,List<Post>>> {emptyMap()}
 internal val LocalVideoRequests=compositionLocalOf<Map<String,VideoFootageRequest>> {emptyMap()}
+internal typealias VideoRequestLookup=suspend (String,Set<VideoComparisonInput>)->VideoFootageRequest?
+internal val LocalVideoRequestLookup=compositionLocalOf<VideoRequestLookup> {{_,_->null}}
 internal val LocalSavedPostKeys=compositionLocalOf<Set<String>> {emptySet()}
 internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
 
@@ -188,12 +190,24 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
                 val requests=buildMap<String,VideoFootageRequest> {
                     CrossPosts.videoFootageRequests(groups,accounts,matchingMemberships).filter(repo.videos::available).forEach {request->request.originalKeys.forEach {key->putIfAbsent(key,request)}}
                 }
-                KnownPostGroups(candidates,accounts,matchingMemberships,groups.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap(),requests)
+                KnownPostGroups(candidates,accounts,matchingMemberships,groups.flatMap {group->group.posts.map {repo.key(it) to group.posts}}.toMap(),requests,groups)
             }
             delay(150)
         }
     }
     val discussionGroups=knownGroups?.groups.orEmpty()
+    val videoLookup:VideoRequestLookup=remember(repo,knownGroups) {
+        val snapshot=knownGroups
+        val lookup:VideoRequestLookup={focus,excluded->repo.cardWork.track(setOf(focus),"Comparing video editions"){withContext(Dispatchers.Default) {
+            if(snapshot==null)return@withContext null
+            val context=currentCoroutineContext()
+            val observed=snapshot.videoGroups.map {group->group.copy(posts=group.posts.map(repo.videos::captured))}
+            CrossPosts.focusedVideoFootageRequests(observed,snapshot.follows,snapshot.memberships,setOf(focus),
+                sharedFootage={a,b->repo.videos.related(a,b){context.ensureActive()}},checkpoint={context.ensureActive()})
+                .firstOrNull {it.acquisitionKey !in excluded&&repo.videos.available(it)}
+        }}}
+        lookup
+    }
     val counterpartsReady=!feedRefresh.publishing&&globalSnapshot?.generation==feedRefresh.readableGeneration&&
         ((state.section!="subscription"&&(state.section!="feed"||state.target!=null))||storedSnapshot!=null&&storedSnapshot.generation==globalSnapshot?.generation)&&matchingCandidates!=null&&loadedFollows!=null&&knownGroups?.posts==matchingCandidates&&knownGroups?.follows==loadedFollows&&knownGroups?.memberships==matchingMemberships
     val readerStates=rememberSaveableStateHolder()
@@ -231,7 +245,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     }
     val colors=if(dark)darkColorScheme(primary=Mint,secondary=Mint,secondaryContainer=Color(0xFF253D31),onSecondaryContainer=Mint,background=Ink,surface=Ink,surfaceVariant=Panel,onSurface=Color(0xFFECEFEA),onSurfaceVariant=Muted) else lightColorScheme(primary=Color(0xFF236849),secondary=Color(0xFF236849),secondaryContainer=Color(0xFFDDEDE3),onSecondaryContainer=Color(0xFF236849),background=Color(0xFFF7F9F6),surface=Color.White,surfaceVariant=Color(0xFFF0F3EF),onSurface=Ink,onSurfaceVariant=Color(0xFF64726B))
     MaterialTheme(colorScheme=colors,typography=Typography()) {
-        CompositionLocalProvider(LocalMentionOpenAccount provides {url->vm.openLink(url)},LocalArchiveChecksPaused provides (showFollow||showSearch||showConnection||showChannels||showFeedChooser||sharingChannel!=null||discussion!=null),LocalPostCounterparts provides discussionGroups,LocalVideoRequests provides knownGroups?.videoRequests.orEmpty(),LocalSavedPostKeys provides savedKeys,LocalImageSearch provides vm::searchImage) {
+        CompositionLocalProvider(LocalMentionOpenAccount provides {url->vm.openLink(url)},LocalArchiveChecksPaused provides (showFollow||showSearch||showConnection||showChannels||showFeedChooser||sharingChannel!=null||discussion!=null),LocalPostCounterparts provides discussionGroups,LocalVideoRequests provides knownGroups?.videoRequests.orEmpty(),LocalVideoRequestLookup provides videoLookup,LocalSavedPostKeys provides savedKeys,LocalImageSearch provides vm::searchImage) {
         BackHandler(enabled=state.target!=null||state.section!="feed"){vm.back()}
         ContextSheet(repo,onOpenLink={vm.openLink(it,true)})
         ArticleReaderSheet(vm.articles,onOpenLink={vm.openLink(it,true)},onBrowser=vm::openBrowser)

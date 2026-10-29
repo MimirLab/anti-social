@@ -24,6 +24,7 @@ internal fun orderedCollectedOriginals(posts: List<Post>): List<Post> {
 internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusion.composeCollectedEditions(posts)
     ?: CrossPostFusion.compose(posts)
     ?: CrossPostFusion.composeMedia(posts)
+    ?: CaptionFieldBlocks.compose(posts)
     ?: CrossPostFusion.composeRelated(posts)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}
     ?: sourceCaptionBlocks(posts)

@@ -634,7 +634,8 @@ object CrossPosts {
             // distinctive seven-word caption, from the same linked person and
             // within ten minutes, is stronger evidence than its arbitrary byte
             // length. Existing mutual/per-platform ambiguity checks still apply.
-            return linked&&!a.truncated&&!b.truncated&&timeA!=null&&timeB!=null&&distance<=600_000uL&&length>=48&&count>=7&&distinct>=7&&
+            return linked&&!a.truncated&&!b.truncated&&timeA!=null&&timeB!=null&&distance<=600_000uL&&
+                (length>=48&&count>=7&&distinct>=7||length>=35&&count>=8&&distinct>=8)&&
                 (a.post.media.isEmpty()||b.post.media.isEmpty())
         }
         // Hashtag-only presentation adaptations are permitted for linked accounts.
@@ -692,6 +693,18 @@ object CrossPosts {
     fun formattingCaptionCopies(posts:List<Post>):Boolean=CrossPostFusion.withPrepared {
         literalCaptionVersions(posts)&&posts.map(::formattingCaptionKey).let {it.none {v->v==null}&&it.distinct().size==1}
     }
+    /** Portable content evidence for a complete compact caption whose second
+     * extraction omitted every attachment. Never account or media equality. */
+    private fun compactFacebookAlias(a:Features,b:Features):Boolean {
+        if(a.post.platform!=Platform.FACEBOOK||b.post.platform!=Platform.FACEBOOK||!a.validOriginal||!b.validOriginal||
+            a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated||
+            a.post.publishedAt?.let {it>0&&it==b.post.publishedAt}!=true||a.post.media.isEmpty()==b.post.media.isEmpty()||
+            a.text.length<35||a.tokens.size<8||a.tokens.distinct().size<8||a.destinations!=b.destinations||!completeCopyText(a,b))return false
+        fun supplied(p:Post)=p.recoveredArchive==null&&p.provenance?.source?.let {it.platform==Platform.FACEBOOK&&it.role!=SourceRole.CACHE}==true
+        fun label(p:Post)=p.author.takeIf {it.length<=300}?.let {TextWhitespace.collapse(decoded(it)).trim().lowercase(java.util.Locale.ROOT)}
+        val author=label(a.post)
+        return !author.isNullOrBlank()&&author==label(b.post)&&supplied(a.post)&&supplied(b.post)
+    }
     private fun copyMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(commentCopies(a,b))return true
         if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!a.validOriginal||!b.validOriginal)return false
@@ -725,7 +738,10 @@ object CrossPosts {
             // aliases: a distinctive complete caption at the exact same
             // publication instant. This does not assert common account control;
             // keep both source identities and every attachment in saves too.
-            if(a.post.platform==Platform.FACEBOOK&&b.post.platform==Platform.FACEBOOK&&timeA!=null&&timeA==timeB&&length>=80&&count>=12&&distinct>=8)return true
+            if(a.post.platform==Platform.FACEBOOK&&b.post.platform==Platform.FACEBOOK&&timeA!=null&&timeA==timeB) {
+                if(length>=80&&count>=12&&distinct>=8)return true
+                if(compactFacebookAlias(a,b))return true
+            }
             val substantial=length>=160&&count>=24&&distinct>=12
             val specific=length>=80&&count>=12&&distinct>=8
             if(substantial&&(reference||sharedMedia||distance!=null&&distance<=MAX_COPY_WINDOW.toULong()))return true
@@ -751,6 +767,7 @@ object CrossPosts {
         val timeA=a.post.publishedAt ?: return false;val timeB=b.post.publishedAt ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>WINDOW.toULong())return false
+        if(!repeated&&distance<=600_000uL&&fieldCaptionMatch(a,b,sameMedia))return true
         if(!repeated&&distance<=600_000uL&&headingMatch(a,b,sameMedia))return true
         // Linked publishers often make a small literal wording edit while
         // distributing one announcement. The strict aligner preserves every
@@ -764,6 +781,24 @@ object CrossPosts {
         // caption too. Neither a common URL nor image alone establishes a match.
         if(!repeated&&a.destinations.intersect(b.destinations).isEmpty()&&!sameImages(a.post,b.post,sameMedia))return false
         return CrossPostFusion.matchesWithContext(a.post,b.post)
+    }
+    private fun fieldCaptionMatch(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean {
+        if(a.post.media.isEmpty()||b.post.media.isEmpty()||a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols||a.destinations!=b.destinations)return false
+        val (left,right)=CaptionFieldBlocks.bodyEditions(a.post,b.post) ?: return false
+        val first=features(left,emptyMap(),emptyMap()).copy(owner=a.owner)
+        val second=features(right,emptyMap(),emptyMap()).copy(owner=b.owner)
+        // Only a complete literal body may reuse the established linked short
+        // caption route. The extra title never authorizes general containment,
+        // changed claims, missing media or identity inferred from a label.
+        return first.text.length<120&&first.tokens.size<20&&completeCopyText(first,second)&&
+            CrossPostFusion.compatibleIntroductions(PostPresentation.text(a.post).title,PostPresentation.text(b.post).title)&&matches(first,second,sameMedia)
+    }
+    internal fun fieldCaptionComposition(first:Post,second:Post):Boolean {
+        val a=features(first,emptyMap(),emptyMap()).copy(owner="saved-field-editions")
+        val b=features(second,emptyMap(),emptyMap()).copy(owner="saved-field-editions")
+        val x=first.publishedAt?.takeIf {it>0} ?: return false
+        val y=second.publishedAt?.takeIf {it>0} ?: return false
+        return kotlin.math.abs(x-y)<=600_000&&fieldCaptionMatch(a,b){_,_->false}
     }
     private fun headingMatch(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean =
         AnnouncementHeadings.matches(a.post,b.post) {
@@ -810,6 +845,9 @@ object CrossPosts {
     }
     private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(a.post.platform!=b.post.platform||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated)return false
+        // Fold proven extraction aliases before they become two competing
+        // candidates for another platform's one counterpart slot.
+        if(compactFacebookAlias(a,b))return true
         val sameAccount=a.account!=null&&a.account==b.account||(a.curator ?: a.account)?.let {it==(b.curator ?: b.account)}==true
         // Facebook commonly exposes both numeric and pfbid editions. The
         // exact same subscribed feed, timestamp and distinctive complete text
@@ -845,6 +883,11 @@ object CrossPosts {
         row.destinations.forEach {add("url:"+it)};row.media.forEach {add("media:"+it)}
         row.clips.forEach {add("clip:"+it)}
         val repeatAccount=row.account
+        if(row.owner!=null&&row.post.title.isNotBlank()&&PostPresentation.text(row.post).title.isNotBlank())CaptionFieldBlocks.bodyEdition(row.post)?.let {body->
+            val terms=tokens(PostPresentation.proseWithoutLinks(decoded(PostPresentation.content(body))))
+            val key=terms.joinToString(" ")
+            if(terms.size in 3..19&&key.length<120)add("text:"+key)
+        }
         if(row.owner!=null)AnnouncementHeadings.key(row.post)?.let {add("heading:${row.owner}:$it")}
         if(row.owner!=null)ResourceAnnouncements.key(row.post)?.let {add("resource-tail:${row.owner}:"+it.length+":"+it.hashCode())}
         speaker(row.post)?.let {subject->(row.curator ?: repeatAccount)?.let {add("speaker:$it:$subject")}}
@@ -876,6 +919,16 @@ object CrossPosts {
             originalKey(post) to publisherOwner(post,accounts,memberships).takeIf {realOriginal(post)}
         }
         SharedVideoCollections.requests(groups,owners)
+    }
+    /** Demand-scoped fallback after the visible-card dwell. Reuse current
+     * observations without repeating caption matching or issuing any read. */
+    fun focusedVideoFootageRequests(groups:List<PostGroup>,follows:List<Follow>,memberships:Map<String,Set<String>>,focus:Set<String>,
+        sharedFootage:(Post,Post)->SharedVideoFootage?={_,_->null},checkpoint:()->Unit={}):List<VideoFootageRequest> = CrossPostFusion.withPrepared {
+        require(focus.isNotEmpty()&&focus.size<=MAX_EDITIONS)
+        val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it)to it}.groupBy {it.second.target.platform}
+        val owners=groups.flatMap {it.posts}.associate {post->originalKey(post)to publisherOwner(post,accounts,memberships).takeIf {realOriginal(post)}}
+        val observed=SharedVideoCollections.collect(groups,owners,sharedFootage,checkpoint)
+        SharedVideoCollections.requests(observed,owners,focus=focus,checkpoint=checkpoint)
     }
     /** Reconcile overlapping extractions inside one input batch. Never union
      * attachments across historical revisions or rewrite a source record. */
@@ -995,7 +1048,7 @@ object CrossPosts {
             val matching=cohortEdges[i].mapNotNull {neighbor->groupOf[neighbor].takeIf {it>=0}}.distinct().filter {group->
                 val members=(result[group]+i).flatMap {cohorts[it]}
                 members.size<=MAX_EDITIONS&&result[group].all {unambiguous(it,i)}&&
-                    (members.none {member->fusionEdges[member].any {it in members}}||CrossPostFusion.compose(members.map {ordered[it].post})!=null)
+                    (members.none {member->fusionEdges[member].any {it in members}}||CrossPostFusion.compose(members.map {ordered[it].post})!=null||CaptionFieldBlocks.compose(members.map {ordered[it].post})!=null)
             }
             val existing=matching.singleOrNull()
             if(existing==null){groupOf[i]=result.size;result+=mutableListOf(i)}else {groupOf[i]=existing;result[existing]+=i}

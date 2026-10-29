@@ -75,7 +75,7 @@ object VideoFootage {
         }
         posts.all {post->
             checkpoint()
-            measured.any {it.first==post}||measured.any {(known,_)->CrossPostFusion.compose(listOf(post,known))!=null}
+            measured.any {it.first==post}||measured.any {(known,_)->CrossPostFusion.compose(listOf(post,known))!=null||CrossPosts.fieldCaptionComposition(post,known)}
         }
     }
 

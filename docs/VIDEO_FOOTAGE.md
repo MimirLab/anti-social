@@ -206,6 +206,45 @@ Those records are not counted as a successful complete family. A failed range
 read is neither proof of different footage nor permission to discard a recording.
 The corresponding failed runs remain private for further acquisition work.
 
+### Visible-card neighborhoods and source fields, 0.38.60
+
+The global twelve-pair shortlist remains the cheap initial plan. A settled video
+card can now request a local fallback plan around its existing publisher and
+six-hour publication window. The worker considers at most 128 nearby collections,
+keeps the twelve-pair allowance, and favors missing platform coverage. Current
+scene observations can close the collection before another request is needed.
+This reuses local subscriptions and memberships; it does not crawl a social graph.
+
+The same one-lane Gateway/decoder budget still applies. A continuous card dwell
+attempts at most twelve distinct acquisition inputs. Scrolling, backgrounding,
+overlays and playback cancel it. With no eligible work it waits for a source or
+evidence revision without polling or showing perpetual processing. Catalog or
+scene updates do not cancel the second recording; a changed URL, runtime or
+rendition for that original does. Purging ordinary evidence cancels the owning
+work; explicit retry can start a fresh dwell.
+
+One supplied extra title can accompany an identical short body. The existing
+linked-caption clock, complete-text, media, claim, destination and ambiguity
+checks apply to that body, with editorial framing excluded. The original title
+is retained. Long bodies keep their established multi-platform anchor rules.
+After independent pair admission, field-aware presentation displays the common
+body once and attributes each extra title to its original. Every source must
+reconstruct through its title/body fields; failed compression keeps source blocks.
+Protected saves replay their separate content/footage admission checks.
+
+The existing PDS-cache video route can also qualify a strictly parsed DID and
+CIDv1/raw/SHA-256 path for observation-only range reads. The CID is a source
+identifier here, not a verified full-file digest. Prefix rechecking and the
+three-distinct-scene requirement remain mandatory. A bounded live probe recovered
+only two scenes and therefore did not establish shared footage. A readable URL
+alone is not a successful comparison.
+
+A refreshed public feed already renews an expired signed video URL through the
+ordinary source route. This increment adds no identity cycling, speculative URL
+fabrication, new provider, model, permission, dependency or database migration.
+See [release qualification](RELEASE_QUALIFICATION.md) for the actual native
+replays, their retained failures and artifact checks.
+
 ## Primary references
 
 - [Normalized template correlation](https://docs.opencv.org/4.13.0/de/da9/tutorial_template_matching.html)
@@ -221,3 +260,5 @@ The corresponding failed runs remain private for further acquisition work.
 - [TikWM response fields](https://github.com/mehanon/tikwm/blob/master/tt/types.go)
   and [TikTok representation parsing](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/tiktok.py):
   references checked against actual responses; no runtime dependency imported.
+
+- [AT Protocol blob identifiers](https://atproto.com/specs/blob): DID/CID context and CID serialization.

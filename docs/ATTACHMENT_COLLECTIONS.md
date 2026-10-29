@@ -1,5 +1,23 @@
 # Attachment collections
 
+## Compact extraction aliases and source fields (0.38.60)
+
+A complete eight-word compact caption can reconcile a text-only Facebook
+extraction with its media-bearing counterpart at the exact same publication
+instant. Both require non-cache source provenance, the same nonblank supplied
+author label and identical complete text and destinations. This establishes
+content correspondence, never common account control or equal media. Folding
+that proven alias before cross-platform selection prevents it from displacing
+an Instagram counterpart. Different instants, claims, authors, destinations and
+two unobserved media sets retain their existing boundaries.
+
+The linked missing-media caption path also recognizes eight distinct words in
+35 characters, alongside its existing longer form, under the same ten-minute
+clock and claim controls. All original identities and attachments survive.
+Short shared bodies with a retained extra title use the separately bounded
+[source-field route](VIDEO_FOOTAGE.md#visible-card-neighborhoods-and-source-fields-03860);
+presentation success alone cannot nominate or admit a pair.
+
 ## Consistent image evidence during matching (0.38.54)
 
 Whole-feed counterpart matching uses one local observation snapshot for both

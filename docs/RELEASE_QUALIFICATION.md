@@ -9,6 +9,63 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.60: focused video comparisons and complete source fields
+
+[Visible-card planning](VIDEO_FOOTAGE.md#visible-card-neighborhoods-and-source-fields-03860)
+now reaches useful counterparts outside the cheap global shortlist, under the
+same publisher/date scope, candidate cap, pair allowance and single decoding
+lane. [Compact source aliases](ATTACHMENT_COLLECTIONS.md#compact-extraction-aliases-and-source-fields-03860)
+fold before cross-platform ambiguity checks. A short shared body can retain its
+extra supplied title without repeating the body. Editorial titles, changed
+claims, questions, destinations and competing headings retain their rejection
+controls; long bodies keep the established multi-platform anchor requirement.
+No model, provider, permission, dependency, native binary or database migration
+is added.
+
+The full JVM run covers **2,566 cases: 2,562 passes, zero failures/errors and four
+optional skips**. The API 35 release selection covers **176 named native checks:
+174 passes, zero failures and two opt-in skips**. Named results are checked against
+the complete selection. New native controls exercise focused lookup without a
+global offer, catalog changes during the second recording, overlay cancellation
+and reentry, renewed peer inputs, and purge followed by explicit retry. Initial
+harness attempts failed activity-content setup and test-clock advancement; the
+corrected harness passes against the unchanged production candidate.
+
+A current six-original, five-platform recording family first reproduced as three
+collections on the preceding release, despite successful samples for three
+recordings. The corrected native replay starts from unmodified source posts,
+obtains real Gateway scene observations, and displays one card with all six
+originals and four selectable recordings. Both shared caption bodies appear
+once, the distinct supplied title remains attributed, and a protected save keeps
+all original text/media fields. Initial and caption screens were inspected.
+One mixed cached/live API 35 observation was 930 ms to the first visible card and
+34,359 ms to collection, including a background read yielding to foreground
+content and resuming. These are single emulator observations, not cold-source,
+physical-phone or percentile measurements.
+
+Five additional native runs pass the preceding **16 captured announcement
+families and 49 originals**. A further gallery run retains one card per family,
+all ten originals and the six/five distinct pictures, including the previously
+missing panels. These checks retain the one-passage, expected-attachment and
+protected-save assertions. They are separate from the 176 named synthetic
+selection. Together with the current video family, the captured sweep covers
+19 families and 65 originals; this is not a claim about every post in the feed.
+
+A separate replay against the larger retained corpus confirms the global-plan
+omission and focused eligibility without additional acquisition. Replaying the
+three actual observations makes all six focused plans return no further work.
+That establishes demand scheduling and its stopping condition, not complete
+live acquisition or end-to-end performance of the corpus.
+
+The strict existing blob route became readable under its observation-only
+policy, but its probe recovered only two scenes within four MiB/sixteen requests.
+It therefore supplied no shared-footage proof. Another retained URL did not offer
+usable bounded ranges. Neither response is counted as a successful comparison;
+no scene threshold was lowered. Ordinary feed refresh already renews the signed
+video URL, so no redundant refresh subsystem was introduced. Physical-phone p95,
+energy use, arbitrary duplicate coverage and general source availability remain
+unmeasured. Artifact and preview-state checks follow the publishing procedure.
+
 ## 0.38.59: gallery replies and retained video acquisition
 
 [Gallery self-replies](ATTACHMENT_COLLECTIONS.md#gallery-self-replies-03859)

@@ -1,11 +1,12 @@
 /* anti social, GPL-3.0-or-later. Keep every original and playable edition. */
 package app.antisocial.core
 
+data class VideoComparisonInput(val recordings:List<Pair<String,VideoAcquisitionKey?>>)
 data class VideoFootageRequest(val first:Post,val second:Post,val originalKeys:Set<String>,val resolveMetadata:Boolean=false) {
     val key get()=listOf(CrossPosts.originalKey(first),CrossPosts.originalKey(second)).sorted().joinToString("|")
-    val acquisitionKey get()=listOf(first,second).sortedBy(CrossPosts::originalKey).map {post->
+    val acquisitionKey get()=VideoComparisonInput(listOf(first,second).sortedBy(CrossPosts::originalKey).map {post->
         CrossPosts.originalKey(post) to post.media.singleOrNull {it.type=="video"}?.let(VideoAssetIdentity::acquisitionKey)
-    }
+    })
 }
 
 /** Frozen caption collections can share sampled footage despite different
@@ -26,10 +27,23 @@ internal object SharedVideoCollections {
     /** A finite visible-card plan, not a scan of every recording. Existing
      * caption groups need no video work unless another owned group is nearby.
      * Adaptive playlists and multi-clip originals are outside this sampler. */
-    fun requests(groups:List<PostGroup>,owners:Map<String,String?>,limit:Int=12,checkpoint:()->Unit={}):List<VideoFootageRequest> {
+    fun requests(groups:List<PostGroup>,owners:Map<String,String?>,limit:Int=12,focus:Set<String> = emptySet(),checkpoint:()->Unit={}):List<VideoFootageRequest> {
         require(limit in 1..16)
+        require(focus.size<=CrossPosts.MAX_EDITIONS)
         if(groups.size<2)return emptyList()
-        val candidates=rows(groups,owners,checkpoint).sortedByDescending {it.last}.take(128)
+        val all=rows(groups,owners,checkpoint)
+        val focused=if(focus.isEmpty())emptyList()else all.filter {row->row.group.posts.any {CrossPosts.originalKey(it)in focus}}
+        if(focus.isNotEmpty()&&focused.isEmpty())return emptyList()
+        val candidates=if(focused.isEmpty())all.sortedByDescending {it.last}.take(128)else {
+            // A settled card supplies the geographic equivalent of a local
+            // scope: its publisher, date window and missing platform coverage.
+            // Older visible cards cannot be crowded out by unrelated new rows.
+            val nearby=all.filter {row->row !in focused&&focused.any {anchor->
+                anchor.owner==row.owner&&maxOf(anchor.last,row.last)-minOf(anchor.first,row.first)<=6*60*60_000L&&
+                    row.group.posts.any {post->anchor.group.posts.none {it.platform==post.platform}}
+            }}.sortedWith(compareBy<Row> {row->focused.minOf {kotlin.math.abs(it.last-row.last)}}.thenByDescending {it.last})
+            focused+nearby.take((128-focused.size).coerceAtLeast(0))
+        }
         // Validate each captured raster set once, not once per candidate pair.
         val observed=candidates.flatMap {it.group.posts}.flatMap {it.media}.filter {it.type=="video"}.distinct().associateWith {m->
             m.videoFootage?.takeIf {it.scenes.size>=3&&VideoFootage.valid(m)}
@@ -47,6 +61,7 @@ internal object SharedVideoCollections {
         val plans=mutableListOf<Pair<Long,VideoFootageRequest>>()
         for(i in candidates.indices)for(j in i+1 until candidates.size) {
             checkpoint();val a=candidates[i];val b=candidates[j]
+            if(focused.isNotEmpty()&&a !in focused&&b !in focused)continue
             if(a.owner!=b.owner||maxOf(a.last,b.last)-minOf(a.first,b.first)>6*60*60_000L||a.group.posts.size+b.group.posts.size>CrossPosts.MAX_EDITIONS)continue
             val first=selected[a.index] ?: continue;val second=selected[b.index] ?: continue
             val left=first.media.singleOrNull {it.type=="video"} ?: continue;val right=second.media.singleOrNull {it.type=="video"} ?: continue
