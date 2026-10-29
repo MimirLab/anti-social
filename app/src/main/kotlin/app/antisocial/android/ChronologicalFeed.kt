@@ -66,7 +66,7 @@ private data class FeedRestore(val row: Int,val offset: Int,val exact: Boolean)
 private data class FeedContent(val aliases: Set<String>,val text: List<String>,val media: Set<String>)
 private data class ManualFeedRefresh(val generation: Long,val before: List<FeedContent>)
 private data class FeedBodyChanges(val rows:List<FrozenFeedRow>,val available:Map<String,Post>,val counterparts:Map<String,List<Post>>,
-    val sources:Set<String>,val captions:Set<String>,val regroup:Boolean)
+    val sources:Set<String>,val captions:Set<String>,val details:Set<String>,val regroup:Boolean)
 
 /** LazyColumn can retain a preceding item while only its trailing spacing
  * overlaps the viewport. Anchor to actual card content, keeping partly visible
@@ -205,16 +205,24 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             fun contexts(posts: List<Post>): List<Triple<String,Set<Platform>?,Set<String>?>> = collectedPostFusion(posts)?.segments
                 ?.map {Triple(it.text,if(it.shared)null else it.platforms,if(it.shared)null else it.originalKeys)}
                 ?: listOf(Triple(collectedCaptionPost(posts)?.let(PostPresentation::content).orEmpty(),null,null))
-            val sources=mutableSetOf<String>();val captions=mutableSetOf<String>();var regroup=false
+            val sources=mutableSetOf<String>();val captions=mutableSetOf<String>();val details=mutableSetOf<String>();var regroup=false
             frozen.forEach {row->
                 ensureActive()
                 if(row.posts.any {old->available[repo.key(old)]?.let {it!=old&&sourceContent(it)!=sourceContent(old)}==true})sources+=row.key
                 val known=row.aliases.flatMap {counterparts[it].orEmpty()}
                 if(known.any {post->owners[repo.key(post)]?.let {it!=row.key}==true})regroup=true
                 val current=latestEditions(row.posts,known)
-                if(current!=row.bodyPosts&&(contexts(current)!=contexts(row.bodyPosts)||addsCollectedMedia(row.bodyPosts,current,repo.images.identities)))captions+=row.key
+                if(current!=row.bodyPosts) {
+                    val newer=contexts(current);val shown=contexts(row.bodyPosts)
+                    val wording=newer.map {it.first}!=shown.map {it.first}
+                    val media=!wording&&addsCollectedMedia(row.bodyPosts,current,repo.images.identities)
+                    if(newer!=shown||media)captions+=row.key
+                    // Source attribution can settle independently. Only text
+                    // or media changes need an explicit in-card offer.
+                    if(wording||media)details+=row.key
+                }
             }
-            FeedBodyChanges(frozen,available,counterparts,sources,captions,regroup)
+            FeedBodyChanges(frozen,available,counterparts,sources,captions,details,regroup)
         }
     }
     val changes=bodyChanges?.takeIf {it.rows==frozen&&it.available==available&&it.counterparts==counterparts}
@@ -379,6 +387,32 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             checkpoint(next);store.flush()
         }finally {navigating=false;preparing=false}
     }}
+    fun showCapturedDetails(key:String) {
+        if(!restored||navigating||preparing||!counterpartsReady||changes?.details?.contains(key)!=true)return
+        val sourceRows=rows ?: return
+        val current=sourceRows.firstOrNull {it.key==key} ?: return
+        val sources=latestEditions(current.posts,current.aliases.flatMap {counterparts[it].orEmpty()})
+        val primary=sources.firstOrNull {repo.key(it)==repo.key(current.primary)}
+        val editions=primary?.let {listOf(it)+sources.filter {post->repo.key(post)!=repo.key(it)}} ?: sources
+        val replacement=current.copy(aliases=editions.map(repo::key),posts=editions,bodyPosts=editions)
+        preparing=true
+        scope.launch {
+            try {repo.cardWork.track(editions.map(::postWorkKey),"Showing captured details") {
+                // Reuse the existing read/revision projection for this card.
+                // No source request, whole-window freeze or new batch is needed.
+                val commitRead=prepareReadAliases(listOf(replacement),observe=true)
+                snapshotFlow {list.isScrollInProgress}.first {!it}
+                if(rows!=sourceRows||latestWindow!=ordered||latestGroups!=counterparts||!latestGroupsReady)return@track
+                checkpoint(sourceRows)
+                navigating=true
+                val next=sourceRows.map {if(it.key==key)replacement else it}
+                commitRead();rows=next
+                // Preserve the established key, order and native pixel anchor.
+                // Reading dwell resumes against the newly displayed editions.
+                withFrameNanos {};checkpoint(next);store.flush()
+            }}finally {navigating=false;preparing=false}
+        }
+    }
     fun continueReading() {scope.launch {
         navigating=true
         try {
@@ -528,7 +562,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                     val unreadRow=row.aliases.any {it !in readKeys}
                     val newRow=unreadRow&&row.aliases.any {it in freshKeys}
                     val combined=remember(row.bodyPosts){collectedPostFusion(row.bodyPosts)?.segments?.any {!it.shared}==true}
-                    FeedReadDwell(list,row.key,restored&&!navigating&&unreadRow&&readable(row)) {store.markRead(feedId,row.bodyPosts.map(repo::key))}
+                    FeedReadDwell(list,row.key,restored&&!navigating&&unreadRow&&readable(row),row.bodyPosts) {store.markRead(feedId,row.bodyPosts.map(repo::key))}
                     Column(Modifier.testTag("Feed row ${row.key}"),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth().height(18.dp),verticalAlignment=Alignment.CenterVertically) {
                             if(row.posts.size>1)Text(if(hasRepeatedOriginals(row.posts))"${row.posts.size} originals · "+row.posts.map {it.platform.label}.distinct().joinToString(" · ")else "${row.posts.size} platforms · "+if(combined)"combined post"else "matching post",Modifier.weight(1f),fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -536,7 +570,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                         }
                         if(decision(row)==null)PendingFilterCard()else FilteredPost(decision(row)!!,repo.key(row.bodyPosts.first()),filtering,onEdit={filtering.managing=true}) {
                             FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
-                            PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts}){repo.postTarget(row.primary)?.let {vm.open(it)}}
+                            PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts},
+                                onShowUpdate=if(changes?.details?.contains(row.key)==true)({showCapturedDetails(row.key)})else null){repo.postTarget(row.primary)?.let {vm.open(it)}}
                         }
                     }
                 }}
@@ -675,7 +710,7 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
 }
 
 /** Placement, clipping, scrolling, focus and lifecycle all participate in a continuous read dwell. */
-@Composable private fun FeedReadDwell(list: LazyListState,key: String,enabled: Boolean,onRead: ()->Unit) {
+@Composable private fun FeedReadDwell(list: LazyListState,key: String,enabled: Boolean,body:List<Post>,onRead: ()->Unit) {
     val view=LocalView.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resumed by remember(lifecycle){mutableStateOf(lifecycle.currentState==Lifecycle.State.RESUMED)}
     var focused by remember(view){mutableStateOf(view.hasWindowFocus())}
@@ -684,7 +719,7 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
     val paused=LocalArchiveChecksPaused.current
     DisposableEffect(lifecycle) {val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
     DisposableEffect(view) {val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
-    LaunchedEffect(enabled,resumed,focused,paused,geometry) {
+    LaunchedEffect(enabled,resumed,focused,paused,geometry,body) {
         if(!enabled||!resumed||!focused||paused||geometry?.readable!=true)return@LaunchedEffect
         delay(600);read()
     }

@@ -411,7 +411,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
 
 private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread>,val editions:List<Post>)
 
-@Composable internal fun PostCard(post: Post,vm: AntiSocialViewModel,saved: Boolean,discussions: List<Post> = listOf(post),bodyVariants: List<Post>?=null,onExplain: (()->Unit)?=null,onFilter: (()->Unit)?=null,onOpen: ()->Unit) {
+@Composable internal fun PostCard(post: Post,vm: AntiSocialViewModel,saved: Boolean,discussions: List<Post> = listOf(post),bodyVariants: List<Post>?=null,onExplain: (()->Unit)?=null,onFilter: (()->Unit)?=null,onShowUpdate:(()->Unit)?=null,onOpen: ()->Unit) {
     val repo=vm.repo;val context=LocalContext.current
     val outgoing=rememberOutgoingActions(repo)
     val known=LocalPostCounterparts.current[repo.key(post)].orEmpty()
@@ -481,7 +481,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
                         Text(" · ",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(if(fusion==null)SourcePresentation.label(post)else contentRoots.map {SourcePresentation.label(it)}.distinct().joinToString(" · "),fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.testTag("Post source ${repo.key(post)}"))
                     }
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){PostActivity(repo,threads,postLinks)}
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){PostActivity(repo,threads,postLinks,onShowUpdate.takeUnless {archive.showingArchive||displayed.recoveredArchive!=null})}
                 }
                 ArchiveVersionButton(archive.version,archive.showingArchive,archive.toggle)
                 MediaInfoAction(repo,infoPosts)

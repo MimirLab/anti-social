@@ -9,6 +9,59 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.62: adopt captured details on the current card
+
+[Captured-detail disclosure](ATTACHMENT_COLLECTIONS.md#captured-details-without-a-feed-jump-03862)
+reuses the fixed card-status area. New details distinguishes already captured
+wording/media from background Updating work and idle Ready. Show details updates
+one admitted card in place; Later leaves its frozen body untouched. Source-only
+attribution changes retain their controls without a new-material offer. Existing
+off-screen adoption and Newest behavior remain available.
+
+The action projects only that card on the worker and rechecks its row/window/group
+generation after waiting for idle scrolling. It retains the key, chronological
+position, pixel anchor and stopping baseline, and restarts read dwell for the
+newly displayed body. It starts no discovery cycle or model task; normal Gateway
+media loading still applies to newly displayed uncached references. There is no
+provider, permission, dependency, database migration or native-library change.
+Admission, privacy, source budgets and protected snapshots retain their contracts.
+
+A settled native counterexample against 0.38.61 shows Ready while a captured extra
+photograph remains outside the displayed body. An earlier attempt asserted during
+transient Updating; the corrected wait reproduces the settled Ready state before
+any production change. Three new native controls qualify Later/one-card adoption
+beside a newer prefix, a source-only copy of an existing caption variant, and a
+caption revision superseded again while its disclosure is open. The final action
+shows the newest revision, with neither superseded wording nor repeated common
+text. Pixel-anchor, unread-before-adoption, source-action and faithful-save
+assertions are retained. Native disclosure, adopted-card and quiet-attribution
+screens were inspected.
+
+The fresh complete JVM run covers **2,573 cases: 2,569 passes, zero failures/errors
+and four optional skips**. The API 35 release selection covers **189 named native
+checks: 187 passes, zero failures and two opt-in skips**, with returned method
+identities checked against the exact selection. Existing following/combined feed,
+late-context/image, reading-position, refresh, Library, worker, resource-admission
+and connection-policy controls remain included. An external runner setup error
+stopped before instrumentation; its corrected named run is the recorded batch.
+
+Seven separate native replays pass **19 captured families and 65 originals**:
+sixteen older families/49 originals, two galleries with all ten originals and
+six/five distinct pictures, and a six-original/five-platform recording family.
+The recording family retains one card, four selectable recordings, each caption
+form and the extra supplied title. Common wording appears once and protected
+saves retain the original fields. Captured inputs remain private. One mixed
+cached/live API 35 replay measured 1,267 ms to its first card and 15,805 ms to
+collection; these are single emulator observations, not phone percentiles or a
+performance comparison with previous runs.
+
+Investigation of an adjacent headline/caption pair identified a separate link-only
+share with a truncated publisher heading and additional information. A specific
+resource/announcement relationship remains unqualified; no topic-only matcher was
+added. Complete duplicate coverage, general endpoint resilience, physical-phone
+p95 and energy use remain unmeasured. Source/artifact integrity, preview backup
+and fixed-name publication follow the existing publishing procedure.
+
 ## 0.38.61: compact attribution, literal fields and resource-aware planning
 
 [Repeated literal source names](ATTACHMENT_COLLECTIONS.md#repeated-labels-and-literal-field-formatting-03861)

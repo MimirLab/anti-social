@@ -147,6 +147,14 @@ Updating… means the card has background work underway. Ready means there are n
 current updates to wait for. Tap the status to see what is being added; you can
 keep reading or move on while it works.
 
+New details means additional text or media references have already been captured
+for a feed card whose displayed version is being held in place while you read.
+Tap it, then Show details to update that card here; Later keeps its current
+version. This does not jump to Newest or start another search. Ordinary media
+loading still applies when a newly displayed picture or video is not cached.
+Another source for the same wording remains available through the originals
+controls without announcing new material. Off-screen adoption continues normally.
+
 Saved businesses and events now live in Library. Use Businesses or Events, or
 search across All. Opening a saved card reads its local snapshot; following a
 source or social link is a separate action.

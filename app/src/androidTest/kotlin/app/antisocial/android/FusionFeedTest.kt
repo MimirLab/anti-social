@@ -541,6 +541,122 @@ class FusionFeedTest {
         evidence("late-same-caption-new-photograph-adopted")
     }
 
+    @Test fun aVisibleCardOffersCapturedDetailsWithoutMovingItsAnchorOrJumpingToANewerPost() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body=shared)
+        val extra=Media("https://fusion-instagram-$suffix.invalid/ready.png",description="Captured additional photograph")
+        val instagram=oldInstagram.copy(body=shared,media=x.media+extra)
+        val tail=x.copy(id=x.id+"6",canonicalUrl=x.canonicalUrl+"6",body=(1..24).joinToString("\n"){"Independent reading-room notice $it: return borrowed books."},publishedAt=now-120_000,media=emptyList())
+        val newer=x.copy(id=x.id+"7",canonicalUrl=x.canonicalUrl+"7",body="A separate new workshop announcement is waiting above the reader.",publishedAt=now+60_000,media=emptyList())
+        records+=listOf(x,instagram,tail,newer);val xFollow=follow(Platform.X)
+        store(x,xFollow);store(tail,xFollow);store(instagram,follow(Platform.INSTAGRAM))
+        cacheGalleryPicture(x.media.single().url,1);cacheGalleryPicture(extra.url,2)
+        val window=mutableStateOf(listOf(x,tail));val feed="visible-details:$person";seed(feed,window.value,offset=19)
+        val known=mutableStateOf(mapOf(repo.key(x) to listOf(x),repo.key(tail) to listOf(tail)))
+        val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {
+            ChronologicalFeed(vm,window.value,accounts,emptySet(),feed,"Details fixture","Captured sources",grouped=true,onAdd={},counterparts=known.value)
+        }}}
+        waitRow(x);repo.feedMemory.markRead(feed,listOf(repo.key(x)));val before=top(x)
+        val activity="Card activity ${x.identityKey}"
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Ready"}}
+        ui.runOnIdle {
+            known.value=mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram),repo.key(tail) to listOf(tail),repo.key(newer) to listOf(newer))
+            window.value=listOf(newer,x,tail)
+        }
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Instagram original actions").fetchSemanticsNodes().isNotEmpty()}
+        // The normal idle pipeline may accept the new prefix above the reader.
+        // The local details action must preserve that established reading point.
+        ui.waitUntil(10_000){repo.key(newer) in repo.feedMemory.get(feed).acceptedKeys}
+        try {
+            ui.waitUntil(5_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="New details ready"}}
+        }catch(failure:ComposeTimeoutException) {
+            evidence("failure-visible-captured-details-offer")
+            ui.onNodeWithTag(activity).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"New details ready"))
+            throw failure
+        }
+        ui.onNodeWithTag(activity).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"New details ready"))
+        assertTrue(abs(top(x)-before)<=2f)
+        ui.onAllNodes(SemanticsMatcher("one frozen source photograph"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
+        assertFalse(repo.key(instagram) in repo.feedMemory.get(feed).readKeys)
+        ui.onNodeWithTag(activity).performClick();ui.onNodeWithText("New details ready").assertIsDisplayed()
+        evidence("visible-captured-details-offered")
+        ui.onNodeWithText("Later").performClick()
+        ui.onNodeWithTag("Post image ${repo.key(x)} ${extra.url}").assertDoesNotExist()
+        assertTrue(abs(top(x)-before)<=2f)
+        ui.onNodeWithTag(activity).performClick()
+        ui.onNodeWithText("Show details").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Post image ${repo.key(x)} ${extra.url}").fetchSemanticsNodes().isNotEmpty()}
+        assertTrue("Adoption keeps the active row's pixel anchor",abs(top(x)-before)<=2f)
+        assertEquals(repo.key(x),repo.feedMemory.get(feed).anchorKey)
+        assertTrue(repo.key(newer) in repo.feedMemory.get(feed).acceptedKeys)
+        row(newer).assertIsNotDisplayed()
+        ui.onNodeWithTag(activity).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"Ready"))
+        ui.onAllNodes(SemanticsMatcher("both captured photographs"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(2)
+        val captured=listOf(x,instagram).map(repo.images.identities::captured)
+        runBlocking {repo.library.save(captured.first(),emptyList(),fusionRoots=captured)}
+        assertEquals(captured.map(repo::key).toSet(),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!.map(repo::key).toSet())
+        evidence("visible-captured-details-adopted-in-place")
+    }
+
+    @Test fun anotherSourceForAnExistingCaptionVariantDoesNotOfferNewMaterial() {
+        repo.prefs.mentionLookups=false
+        val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cachePicture(x);cachePicture(instagram,jpeg=true)
+        val blue=x.copy(id="Blue$suffix",platform=Platform.BLUESKY,canonicalUrl="https://bsky.app/profile/studio.example/post/copy$suffix",publishedAt=now-58_000)
+        val blueFollow=Follow("$person:${Platform.BLUESKY.id}",Target(Platform.BLUESKY,TargetKind.PROFILE,"studio.example","https://bsky.app/profile/studio.example"),"Fusion Bluesky",personId=person,personName="Fusion fixture").also {accounts+=it}
+        records+=blue;store(blue,blueFollow)
+        val feed="source-only:$person";seed(feed,listOf(x),offset=19)
+        val known=mutableStateOf(mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram)))
+        val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {
+            ChronologicalFeed(vm,listOf(x),accounts,emptySet(),feed,"Source fixture","Captured sources",grouped=true,onAdd={},counterparts=known.value)
+        }}}
+        waitRow(x);assertFusion();repo.feedMemory.markRead(feed,listOf(repo.key(x),repo.key(instagram)));val before=top(x)
+        ui.runOnIdle {known.value=listOf(x,instagram,blue).associate {repo.key(it)to listOf(x,instagram,blue)}}
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Bluesky original actions").fetchSemanticsNodes().isNotEmpty()&&repo.key(blue)in repo.feedMemory.get(feed).readKeys}
+        val activity="Card activity ${x.identityKey}"
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Ready"}}
+        assertTrue(abs(top(x)-before)<=2f);assertFusion()
+        ui.onNodeWithTag(activity).performClick();ui.onNodeWithText("Ready to read").assertIsDisplayed()
+        ui.onNodeWithText("Show details").assertDoesNotExist()
+        evidence("source-only-attribution-keeps-ready-status")
+        ui.onNodeWithText("Done").performClick()
+    }
+
+    @Test fun aCapturedCaptionRevisionCanBeShownHereWithoutRetainingItsSupersededWording() {
+        repo.prefs.mentionLookups=false
+        val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        cachePicture(x);cachePicture(instagram,jpeg=true)
+        val feed="caption-ready:$person";seed(feed,listOf(x),offset=19)
+        val known=mutableStateOf(mapOf(repo.key(x) to listOf(x,instagram),repo.key(instagram) to listOf(x,instagram)))
+        val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {
+            ChronologicalFeed(vm,listOf(x),accounts,emptySet(),feed,"Revision fixture","Captured sources",grouped=true,onAdd={},counterparts=known.value)
+        }}}
+        waitRow(x);assertFusion();val before=top(x)
+        val revised="We shared 14 seed trays with families."
+        val updated=instagram.copy(body="$beforeInstagram\n\n$shared\n\n$revised")
+        ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,updated),repo.key(updated) to listOf(x,updated))}
+        val activity="Card activity ${x.identityKey}"
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="New details ready"}}
+        ui.onNodeWithText(afterInstagram).assertExists();ui.onNodeWithText(revised).assertDoesNotExist()
+        ui.onNodeWithTag(activity).performClick()
+        // A newer captured revision can arrive while the disclosure is open.
+        // Confirming must use that generation, not the older dialog snapshot.
+        val latest="We shared 16 seed trays with families."
+        val newest=updated.copy(body="$beforeInstagram\n\n$shared\n\n$latest")
+        ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,newest),repo.key(newest) to listOf(x,newest))}
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="New details ready"}}
+        ui.onNodeWithText("Show details").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithText(latest).fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithText(afterInstagram).assertDoesNotExist();ui.onNodeWithText(revised).assertDoesNotExist();ui.onAllNodesWithText(shared).assertCountEquals(1)
+        assertTrue(abs(top(x)-before)<=2f);assertEquals(repo.key(x),repo.feedMemory.get(feed).anchorKey)
+        ui.onNodeWithTag(activity).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription,"Ready"))
+        evidence("caption-revision-adopted-in-place")
+    }
+
     @Test fun identicalVideoCoversUseOneSlotWithBothSourceRecordingsSelectableAndSaved() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val preview="https://fusion-x-$suffix.invalid/shared-cover.png"

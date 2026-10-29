@@ -407,6 +407,7 @@ class CrossPostFeedTest {
         rowCount(listOf(x,blue),1);row(blue).assertDoesNotExist()
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
         assertTrue(repo.feedMemory.get("person:$person").freshKeys.isEmpty())
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Card activity ${x.identityKey}").fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Ready"}}
         repo.feedMemory.reconcile("elsewhere",listOf(repo.key(blue)))
         assertTrue(repo.key(blue) in repo.feedMemory.get("elsewhere").readKeys)
         evidence("late-copy-keeps-read-anchor-native")

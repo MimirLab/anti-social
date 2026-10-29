@@ -1,5 +1,40 @@
 # Attachment collections
 
+## Captured details without a feed jump (0.38.62)
+
+A visible card can retain its reading body while an admitted source supplies
+additional wording or pictures. Its existing status area now distinguishes
+**New details** from active **Updating** work and an idle **Ready** card. The
+disclosure offers Show details or Later. Source-only attribution changes keep
+their original controls without producing a new-material offer. The existing
+off-screen adoption and whole-feed Newest action remain available.
+
+The local action projects only that card's admitted editions on the worker,
+waits for idle scrolling, and rechecks the current row/window/group generation
+before committing. It preserves the established key, chronological position,
+pixel anchor and stopping baseline. A newer source revision arriving while the
+disclosure is open supersedes the earlier candidate. It does not freeze or
+accept a whole new reading batch. Read dwell is keyed to the displayed body so
+an earlier timer cannot mark a newly displayed edition read.
+
+This uses captured source fields and references, with no discovery cycle or
+model call. Newly displayed media can still require its normal Gateway read.
+The fixed status footprint avoids inserting new space above the reading body.
+Independent work retains its existing leases; cancellation releases the local
+action's lease. Account linkage, pair admission, saved-copy validation, source
+budgets, Tor and retention rules are unchanged. Library snapshots remain explicit
+captures, rather than being silently rewritten by this feed action.
+
+The implementation keeps the existing [stable lazy-item keys](https://developer.android.com/develop/ui/compose/lists#item-keys)
+and uses [effect restart keys](https://developer.android.com/develop/ui/compose/side-effects#restarting-effects)
+for the displayed-body read dwell. These framework contracts guide the code;
+native pixel-anchor and reading-state checks supply the app-specific evidence.
+
+The native counterexample and final regression scope are recorded in
+[release qualification](RELEASE_QUALIFICATION.md). The additional status describes
+already captured material; it is not a promise that an unavailable source will
+eventually deliver something else.
+
 ## Repeated labels and literal-field formatting (0.38.61)
 
 Source display labels now compress repeated literal names after the established
