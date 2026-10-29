@@ -93,6 +93,63 @@ object CrossPosts {
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
         val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>,val decoration:DecoratedPostCopies.Prepared?) {
     }
+    /** One active source window may receive many image observations. Keep only
+     * its pure source analysis; never retain an admitted pair/group or a pixel
+     * comparison. Every projection still runs nomination and all match guards. */
+    class SourceProjection internal constructor(follows:List<Follow>,memberships:Map<String,Set<String>>,
+        maxEntries:Int=2048,maxBytes:Long=8L*1024*1024) {
+        private val follows=follows.toList()
+        private val memberships=memberships.mapValues {it.value.toSet()}
+        private val preparation=FeaturePreparation(maxEntries,maxBytes)
+        suspend fun group(posts:List<Post>,sameMedia:(Post,Post)->Boolean={_,_->false}):List<PostGroup> {
+            val context=currentCoroutineContext()
+            return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia,preparation=preparation){context.ensureActive()}}
+        }
+        internal fun stats()=preparation.stats()
+    }
+    fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap())=SourceProjection(follows,memberships)
+    internal data class SourcePreparationStats(val hits:Int,val misses:Int,val entries:Int,val bytes:Long)
+    private data class SourceFeatures(val source:Post,val features:Features,val decorative:Boolean,
+        val decorationKnown:Boolean,val decoration:DecoratedPostCopies.Prepared?,val candidates:Set<String>,val bytes:Long)
+    private class FeaturePreparation(private val maxEntries:Int,private val maxBytes:Long) {
+        init {require(maxEntries>0&&maxBytes>0)}
+        private val gate=Any()
+        private val entries=LinkedHashMap<String,SourceFeatures>()
+        private var bytes=0L;private var hits=0;private var misses=0
+        private fun eligible(post:Post)=post.title.length.toLong()+post.body.length<=MAX_TEXT&&post.media.size<=64&&post.links.orEmpty().size<=32
+        /** Only comparison observations vary independently of source facts.
+         * All other fields, including URL, time, provenance, parents, links,
+         * author declarations and media shape must remain exactly equal. */
+        private fun source(post:Post)=post.copy(links=post.links?.toList(),media=post.media.map {
+            it.copy(visualFingerprint=null,attachmentFingerprint=null,videoFootage=null)
+        })
+        fun find(post:Post):SourceFeatures? {
+            val key=post.takeIf(::eligible)?.let(::source)
+            return synchronized(gate) {entries[originalKey(post)]?.takeIf {key!=null&&it.source==key}.also {if(it==null)misses++else hits++}}
+        }
+        fun retain(post:Post,features:Features,decorative:Boolean,decorationKnown:Boolean,decoration:DecoratedPostCopies.Prepared?,candidates:Set<String>) {
+            if(!eligible(post)){synchronized(gate){entries.remove(originalKey(post))?.let {bytes-=it.bytes}};return}
+            val source=source(post)
+            fun size(values:Iterable<String>)=values.sumOf {64L+it.length*2L}
+            val cost=1024L+size(listOf(source.title,source.body,source.author,source.canonicalUrl,features.text,features.base,features.symbols))+
+                size(source.links.orEmpty()+listOfNotNull(source.avatar,source.parentId,source.conversationId,source.relationId,source.sourceParentId))+
+                size(features.tokens+features.numbers+features.negatives+features.urls+features.destinations+features.media+features.clips+candidates)+
+                source.media.sumOf {512L+size(listOfNotNull(it.url,it.preview,it.description,it.mimeType,it.audioUrl,it.audioMimeType))}+
+                (decoration?.let {1024L+size(listOf(it.text,it.symbols)+it.tokens+it.resources+it.claims)+it.chunks.size*4L} ?: 0L)
+            val entry=SourceFeatures(source,features.copy(post=source,decoration=null),decorative,decorationKnown,decoration?.copy(post=source),candidates,cost)
+            synchronized(gate) {
+                // Replace a revision rather than accumulating this original's
+                // old text. Overflow only disables reuse, never matching.
+                entries.remove(originalKey(post))?.let {bytes-=it.bytes}
+                if(entries.size<maxEntries&&cost<=maxBytes-bytes){entries[originalKey(post)]=entry;bytes+=cost}
+            }
+        }
+        fun stats()=synchronized(gate){SourcePreparationStats(hits,misses,entries.size,bytes)}
+        fun restrictTo(keys:Set<String>)=synchronized(gate) {
+            val iterator=entries.iterator()
+            while(iterator.hasNext())iterator.next().takeIf {it.key !in keys}?.let {bytes-=it.value.bytes;iterator.remove()}
+        }
+    }
     private fun uri(value: String)=CrossPostFusion.parsedUri(value)?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
     private fun origin(value: URI)=value.host.lowercase()+":"+(if(value.port==-1)443 else value.port)
     fun originalKey(post: Post)=post.identityKey
@@ -974,13 +1031,21 @@ object CrossPosts {
         posts.forEach {post->checkpoint();val key=originalKey(post);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
         return unique.values.toList()
     }
-    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,sharedFootage:((Post,Post)->SharedVideoFootage?)?=null,checkpoint:()->Unit={}):List<PostGroup> {
+    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,sharedFootage:((Post,Post)->SharedVideoFootage?)?=null,preparation:FeaturePreparation?=null,checkpoint:()->Unit={}):List<PostGroup> {
         val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
         val postOrder=compareByDescending<Post> {it.publishedAt ?: Long.MIN_VALUE}.thenBy(::originalKey)
-        val prepared=originalSnapshots(posts,checkpoint).sortedWith(postOrder).map {checkpoint();features(it,accounts,memberships)}
-        val decorativeOwners=prepared.filter {checkpoint();it.owner!=null&&DecoratedPostCopies.mayChange(it.post)}.mapTo(hashSetOf()){it.owner}
-        val ordered=if(decorativeOwners.isEmpty())prepared else prepared.map {row->
-            checkpoint();if(row.owner in decorativeOwners)row.copy(decoration=DecoratedPostCopies.prepare(row.post))else row
+        val selected=originalSnapshots(posts,checkpoint).sortedWith(postOrder)
+        preparation?.restrictTo(selected.mapTo(hashSetOf(),::originalKey))
+        val retained=selected.map {checkpoint();preparation?.find(it)}
+        val prepared=selected.mapIndexed {i,post->checkpoint();retained[i]?.features?.copy(post=post) ?: features(post,accounts,memberships)}
+        val decorative=prepared.mapIndexed {i,row->checkpoint();retained[i]?.decorative ?: (row.owner!=null&&DecoratedPostCopies.mayChange(row.post))}
+        val decorativeOwners=prepared.indices.filter {decorative[it]}.mapTo(hashSetOf()){prepared[it].owner}
+        val ordered=if(decorativeOwners.isEmpty())prepared else prepared.mapIndexed {i,row->
+            checkpoint()
+            if(row.owner in decorativeOwners) {
+                val old=retained[i]
+                row.copy(decoration=if(old?.decorationKnown==true)old.decoration?.copy(post=row.post)else DecoratedPostCopies.prepare(row.post))
+            }else row
         }
         fun nominate(keys:List<Set<String>>,exactKeys:List<String>):List<Set<Int>?> {
         val index=mutableMapOf<String,MutableList<Int>>()
@@ -1008,7 +1073,13 @@ object CrossPosts {
             }
         }
         }
-        val candidates=nominate(ordered.map {checkpoint();candidateKeys(it)},ordered.map {"text:"+it.text})
+        val nominationKeys=ordered.mapIndexed {i,row->checkpoint();retained[i]?.candidates ?: candidateKeys(row)}
+        if(preparation!=null)ordered.forEachIndexed {i,row->
+            checkpoint()
+            if(retained[i]==null||retained[i]?.decorationKnown==false&&row.owner in decorativeOwners)
+                preparation.retain(row.post,row,decorative[i],row.owner in decorativeOwners,row.decoration,nominationKeys[i])
+        }
+        val candidates=nominate(nominationKeys,ordered.map {"text:"+it.text})
         // This route has its own nomination budget. Adding cosmetic-copy hints
         // must never displace candidates from any established detector.
         val decorationExact=if(decorativeOwners.isEmpty())emptyList()else ordered.map {row->row.decoration?.let {"decoration:${row.owner}:${it.text.length}:${it.text.hashCode()}"}.orEmpty()}

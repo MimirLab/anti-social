@@ -177,10 +177,16 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         else->"following:${state.platform.id}:group:${Repository.hash(group)}"
     }
     LaunchedEffect(repo,matchingCandidates){if(matchingCandidates!=null)repo.videos.restore()}
-    val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships,preparationFeed) {
+    // A page/reading-position change can restart preparation without changing
+    // the actual source window. Keep that window's completed analysis, while
+    // the matcher serializes cancelled/replacement observation collectors.
+    val editionMatcher=remember(repo,matchingCandidates,loadedFollows,matchingMemberships) {
+        if(matchingCandidates==null||loadedFollows==null)null else FeedEditionMatcher(loadedFollows,matchingMemberships)
+    }
+    val knownGroups by produceState<KnownPostGroups?>(null,editionMatcher,preparationFeed) {
         val candidates=matchingCandidates;val accounts=loadedFollows
-        if(candidates==null||accounts==null){value=null;return@produceState}
-        val matcher=FeedEditionMatcher(accounts,matchingMemberships)
+        val matcher=editionMatcher
+        if(candidates==null||accounts==null||matcher==null){value=null;return@produceState}
         if(preparationFeed!=null) {
             repo.feedMemory.awaitReady()
             val anchor=repo.feedMemory.get(preparationFeed).anchorKey

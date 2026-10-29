@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.66: reuse unchanged preparation while checking current evidence
+
+[Source-analysis reuse](ATTACHMENT_COLLECTIONS.md#reuse-source-analysis-without-reusing-an-admission-decision-03866)
+reduces repeat work during progressive media collection. Only pure source
+features, nomination keys and decorative-caption preparation survive between
+passes. Complete source equality, immutable subscription/membership context,
+2,048 entries and an eight-MiB estimated allowance bound this memory. Current
+posts are reattached and candidate, pair, gallery, ambiguity and destination
+checks still run. No accepted pair or image comparison is retained here.
+
+The completed base matcher also survives a reading-scope change when the exact
+source and effective image-bank contents agree. A per-window coroutine mutex
+prevents cancelled and replacement collectors from racing that base. Ad-hoc
+callbacks cannot claim this reuse. Native controls cover image expiry, changed
+source claims, current pixels, cancellation, independent source windows and
+withdrawn video proof. Final footage admission is always reapplied.
+
+In an API 35 local experiment over 991 captured posts and 25 subscriptions,
+repeat retained passes take **2,914/2,775 ms**, versus independent fresh passes
+of **4,162/4,159 ms**. Every pass returns the identical 822 groups and grouping
+hash. The selected allowance retains 524 rows; smaller four-MiB retention had
+retained 280. A separate forced-GC experiment, outside every timing interval,
+confirms the owner is collected and approximately **3.6 MB** of managed memory
+is released. This is neither an exact heap bound nor a physical-device memory
+measurement. Initial fresh/retained timings are not a cold-start comparison.
+
+Identical displayed/source reading lists are now projected once per operation.
+Changed text, links and media retain separate projections. The captured local
+reading stage takes **226 ms**, versus **514 ms** for the legacy duplicate
+projection, with identical output and all 991 content observations retained.
+No cross-operation presentation cache, reading-baseline or saved-copy policy
+changes.
+
+The actual application also replays the same cold gallery on official 0.38.65
+and the candidate. Both first screens contain one complete four-original card,
+its required root caption and six distinct pictures, without supplied fingerprints
+or a publisher-thread read. In the candidate, first complete display is
+**12,085 ms after opening**, so startup remains substantial. After work settles,
+the real Subscriptions → Following journey takes **1,567 ms** to its first
+complete card, versus **2,380 ms** for the control. The recorded matching job
+falls from **5,736 ms to 237 ms**. These are dated same-emulator observations,
+not phone p95 figures or a universal speed guarantee.
+
+The stronger 991-post live-video replay opens at **503 ms**, first shows its
+target at **9,720 ms**, completes the three required recording observations at
+**22,009 ms** and displays the six-original family at **23,436 ms**. Proof-to-card
+processing is **1,427 ms**. Opening the existing captured-details disclosure
+adopts the complete body at **26,090 ms**: all four distinct literal captions
+appear once and the established card top moves no more than two pixels. The
+inspected caption screenshot shows the actual source labels and all four variants.
+Network metadata and sampling times vary; this does not establish instant merging.
+The run respects Wi-Fi-only automatic sampling on an unmetered connection.
+
+Nine additional native presentation/save replays cover **21 announcement
+families and 72 originals**, with zero failures. Each family renders one card
+and its shared passage once, retains its expected distinct attachments and
+preserves every original in its protected save. The current six-original video
+case retains all four playable recordings. These replays qualify presentation
+and retention separately from the cold full-feed acquisition timings above.
+
+The full JVM run covers **2,600 cases: 2,596 passes, four optional skips and zero
+failures/errors**. The shipping-release API 35 selection covers **210 named
+native checks: 208 passes, two opt-in skips and zero failures**, with returned
+method identities verified. Release/test assembly and lint pass with zero
+errors/fatals; lint still reports 182 warnings and one hint. Eight Python privacy
+controls pass. No model, dependency, permission, database migration or native
+runtime is added. Source-dependent acquisition, cold full-feed startup and
+physical-phone latency/energy measurements remain open work.
+
 ## 0.38.65: process current evidence before painting collected feeds
 
 [Current matching inputs and bounded local preparation](ATTACHMENT_COLLECTIONS.md#use-current-evidence-for-the-first-useful-card-03865)

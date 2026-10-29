@@ -22,8 +22,15 @@ import kotlin.math.roundToInt
 
 /** One comparison pass uses one immutable local observation set. It cannot
  * acquire a new image or borrow evidence learned halfway through that pass. */
-internal class MediaIdentitySnapshot(val posts:List<Post>,private val compare:(Post,Post)->Boolean) {
+internal class MediaIdentitySnapshot private constructor(val posts:List<Post>,private val compare:(Post,Post)->Boolean,private val bankIdentity:Any?) {
+    constructor(posts:List<Post>,compare:(Post,Post)->Boolean):this(posts,compare,null)
     fun same(a:Post,b:Post)=compare(a,b)
+    /** Only the bank can supply a complete immutable comparison identity.
+     * An ad-hoc callback never gains reuse from equal-looking source records. */
+    fun sameInput(other:MediaIdentitySnapshot)=this===other||bankIdentity!=null&&bankIdentity==other.bankIdentity&&posts==other.posts
+    companion object {
+        fun observed(posts:List<Post>,bankIdentity:Any,compare:(Post,Post)->Boolean)=MediaIdentitySnapshot(posts,compare,bankIdentity)
+    }
 }
 
 /** Local evidence from images the reader has already decoded. This never fetches an image.
@@ -75,7 +82,7 @@ class MediaIdentityStore(
             }
         }.distinctUntilChanged().map {evidence->
             withContext(Dispatchers.Default) {
-                MediaIdentitySnapshot(posts.map {capturedWith(it,evidence::get)}) {a,b->
+                MediaIdentitySnapshot.observed(posts.map {capturedWith(it,evidence::get)},evidence) {a,b->
                     val first=images(a).mapNotNull(evidence::get);val second=images(b).mapNotNull(evidence::get)
                     first.any {left->second.any {right->matches(left,right)}}
                 }

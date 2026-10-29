@@ -9,6 +9,39 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FeedEditionMatcherTest {
+    @Test fun aCancelledCollectorCannotRaceItsReplacementAndDoesNotBlockAnotherSource():Unit=runBlocking {
+        val first=MediaIdentitySnapshot(posts){_,_->false};val second=MediaIdentitySnapshot(posts.map {it.copy(body=it.body+" Updated.")}){_,_->false}
+        val entered=CompletableDeferred<Unit>();val nextEntered=CompletableDeferred<Unit>();val hold=CompletableDeferred<Unit>();var published=false
+        val matcher=FeedEditionMatcher(follows,emptyMap()){image->
+            if(image===first){entered.complete(Unit);hold.await()}else nextEntered.complete(Unit)
+            image.posts.map {PostGroup(listOf(it))}
+        }
+        val old=launch {matcher.project(first,{it},{_,_->null});published=true}
+        try {
+            withTimeout(5000){entered.await()}
+            val next=async {matcher.project(second,{it},{_,_->null})}
+            repeat(6){yield()};assertFalse("Only this source projection waits for its retiring collector",nextEntered.isCompleted)
+            val independent=FeedEditionMatcher(follows,emptyMap()){image->image.posts.map {PostGroup(listOf(it))}}
+            assertEquals(2,withTimeout(5000){independent.project(second,{it},{_,_->null})}.size)
+            old.cancelAndJoin();assertFalse(published)
+            assertEquals(second.posts.toSet(),withTimeout(5000){next.await()}.flatMap {it.posts}.toSet())
+            assertTrue(nextEntered.isCompleted)
+        }finally {old.cancelAndJoin();hold.complete(Unit)}
+    }
+    @Test fun newImageEvidenceAndSourceEditsUseFreshAdmissionWithTheDefaultMatcher():Unit=runBlocking {
+        val originals=listOf(
+            Post("81000001",Platform.X,"https://x.com/workshop/status/81000001","workshop","We really got flying cars before GTA 6",publishedAt=1_800_000_000_000L,media=listOf(Media("https://one.example.org/first.jpg"))),
+            Post("second",Platform.BLUESKY,"https://bsky.app/profile/workshop.example/post/second","workshop.example","We really got flying cars before GTA 6",publishedAt=1_800_000_002_000L,media=listOf(Media("https://two.example.org/second.jpg"))))
+        val matcher=FeedEditionMatcher(emptyList(),emptyMap())
+        for((i,same)in listOf(false,true,false,true).withIndex()) {
+            val posts=originals.map {p->p.copy(media=p.media.map {it.copy(attachmentFingerprint="observation-$i")})}
+            val actual=matcher.project(MediaIdentitySnapshot(posts){_,_->same},{it},{_,_->null})
+            assertEquals(if(same)1 else 2,actual.size)
+            assertEquals(posts.toSet(),actual.flatMap {it.posts}.toSet())
+        }
+        val edited=originals.mapIndexed {i,p->if(i==0)p else p.copy(body=p.body.replace("6","7"))}
+        assertEquals(2,matcher.project(MediaIdentitySnapshot(edited){_,_->true},{it},{_,_->null}).size)
+    }
     private val at=1_800_000_000_000L
     private val follows=listOf(Platform.X,Platform.FACEBOOK).map {p->
         Follow(p.id,Target(p,TargetKind.PROFILE,"publicstudio","https://${if(p==Platform.X)"x.com" else "www.facebook.com"}/publicstudio"),"Public studio",personId="studio")

@@ -16,6 +16,7 @@ import app.antisocial.core.Media
 import app.antisocial.core.Platform
 import app.antisocial.core.Post
 import app.antisocial.core.VisualFrames
+import app.antisocial.core.CrossPosts
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Test
@@ -25,10 +26,35 @@ import kotlin.math.sin
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun aReenteredBankSnapshotReusesCompletedMatchingButNotChangedSourcesOrExpiredPictures()=runBlocking {
+        var now=100L;val bank=MediaIdentityStore(ttlMs=100,clock={now});val picture=landscape()
+        val originals=listOf(
+            Post("81000001",Platform.X,"https://x.com/workshop/status/81000001","workshop","We really got flying cars before GTA 6",publishedAt=1_800_000_000_000L,media=listOf(Media("https://one.example.org/first.jpg"))),
+            Post("second",Platform.BLUESKY,"https://bsky.app/profile/workshop.example/post/second","workshop.example","We really got flying cars before GTA 6",publishedAt=1_800_000_002_000L,media=listOf(Media("https://two.example.org/second.jpg"))))
+        var passes=0
+        val matcher=FeedEditionMatcher(emptyList(),emptyMap()){image->passes++;CrossPosts.groupCancellable(image.posts,emptyList(),sameMedia=image::same)}
+        suspend fun snapshot(posts:List<Post> = originals)=bank.matchingSnapshots(posts).first()
+        suspend fun groups(image:MediaIdentitySnapshot)=matcher.project(image,{it},{_,_->null}).size
+        try {
+            val first=snapshot();assertEquals(2,groups(first))
+            val reentry=snapshot();assertNotSame(first,reentry);assertTrue(first.sameInput(reentry));assertEquals(2,groups(reentry));assertEquals(1,passes)
+            originals.forEach {bank.observe(it.media.single().url,picture)}
+            val known=snapshot();assertFalse(known.sameInput(first));assertEquals(1,groups(known));assertEquals(2,passes)
+            now++;originals.forEach {bank.observe(it.media.single().url,picture)}
+            val newerTime=snapshot();assertTrue(known.sameInput(newerTime));assertEquals(1,groups(newerTime));assertEquals(2,passes)
+            val edit=snapshot(originals.mapIndexed {i,p->if(i==0)p else p.copy(body=p.body.replace("6","7"))})
+            assertFalse(edit.sameInput(known));assertEquals(2,groups(edit));assertEquals(3,passes)
+            assertEquals(1,groups(known));assertEquals(4,passes)
+            now+=101
+            val expired=snapshot();assertFalse(expired.sameInput(known));assertEquals(2,groups(expired));assertEquals(5,passes)
+            assertTrue(expired.sameInput(snapshot()))
+        }finally {picture.recycle()}
+    }
     @Test fun matchingChangesIgnoreUnrelatedImagesButRetainRelevantCopiesAndExpiry()=runBlocking {
         var now=100L;val bank=MediaIdentityStore(ttlMs=10,clock={now});val picture=landscape()
         val url="https://images.example.org/scoped-picture.jpg";val other="https://images.example.net/another-picture.jpg"

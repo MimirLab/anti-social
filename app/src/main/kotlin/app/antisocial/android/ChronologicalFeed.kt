@@ -42,6 +42,13 @@ import kotlin.math.min
 internal data class FrozenFeedRow(val key: String,val aliases: List<String>,val posts: List<Post>,val bodyPosts: List<Post> = posts,val explanation: FeedRuleExplanation?=null,val orderAt:Long?=posts.first().publishedAt) {
     val primary get()=posts.first()
 }
+/** Initial rows normally have identical displayed and admitted editions. Do
+ * their pure presentation projection once. A late revision remains separate;
+ * original keys alone cannot establish that the two bodies are identical. */
+internal fun projectFeedReadingRows(rows:List<FrozenFeedRow>,project:(Post)->Post):List<Triple<FrozenFeedRow,List<Post>,List<Post>>> = rows.map {row->
+    val body=row.bodyPosts.map(project)
+    Triple(row,body,if(row.bodyPosts==row.posts)body else row.posts.map(project))
+}
 /** A late, fully qualified component owns one reading card. Preserve the visible
  * card's body/key, or the first established position when it is off screen.
  * Partial overlaps never bridge two previously admitted announcements. */
@@ -265,7 +272,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             .sortedWith(compareByDescending<FrozenFeedRow> {it.orderAt ?: Long.MIN_VALUE}.thenBy {it.key})
     }
     suspend fun prepareReadAliases(values: List<FrozenFeedRow>,observe: Boolean=false): ()->Unit = withContext(Dispatchers.Default) {
-        val projected=values.map {row->Triple(row,row.bodyPosts.map {filterProjection(repo,it)},row.posts.map {filterProjection(repo,it)})}
+        val projected=projectFeedReadingRows(values){filterProjection(repo,it)}
         val observations=if(observe)ContentRevisions.observations(projected.flatMap {it.second})else emptyList()
         val commit: ()->Unit = {
             if(observe)store.observePrepared(observations)

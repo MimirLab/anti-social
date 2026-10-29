@@ -43,6 +43,8 @@ class FullFeedVideoLiveTest {
         val follows=raw.getAsJsonArray("follows").map {repo.gson.fromJson(it,Follow::class.java)}
         val members=raw.getAsJsonObject("memberships").entrySet().associate {(k,v)->k to v.asJsonArray.map {it.asString}.toSet()}
         val focus=raw.getAsJsonArray("focusKeys").map {it.asString}.toSet()
+        val requiredBody=raw.getAsJsonArray("expectedBodyPassages")?.map {it.asString}.orEmpty()
+        require(requiredBody.size<=8&&requiredBody.all {it.length in 1..500&&it.isNotBlank()})
         require(posts.size in 1..1000&&follows.size in 1..2000&&focus.size in 2..CrossPosts.MAX_EDITIONS)
         require(posts.map(repo::key).distinct().size==posts.size&&posts.map(repo::key).containsAll(focus))
         val output=File(ui.activity.getExternalFilesDir("validation"),"full-feed-video-live").apply {mkdirs()}
@@ -138,6 +140,36 @@ class FullFeedVideoLiveTest {
             ui.waitForIdle()
             File(output,"semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
             screenshot("settled.png")
+            if(args.getString("antisocialFeedVerifyAdoptedBody")=="true") {
+                require(requiredBody.isNotEmpty())
+                fun compact(text:String)=text.lowercase(java.util.Locale.ROOT).filterNot {it.isWhitespace()||Character.isSpaceChar(it)}
+                fun contents()=visibleRows().firstOrNull {node->words(node).any {it.startsWith("${focus.size} originals ·")||it.startsWith("${focus.size} platforms ·")}}
+                fun occurrences(text:String,needle:String):Int {var count=0;var from=0;while(true){val at=text.indexOf(needle,from);if(at<0)return count;count++;from=at+needle.length}}
+                fun complete()=contents()?.let {node->val text=compact(words(node).joinToString(" "));requiredBody.all {occurrences(text,compact(it))==1}}==true
+                if(!complete()) {
+                    val activity=SemanticsMatcher("target family captured-details offer") {node->
+                        node.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Card activity ")in focus&&
+                            node.config.getOrNull(SemanticsProperties.StateDescription)=="New details ready"
+                    }
+                    ui.waitUntil(60_000){ui.onAllNodes(activity,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+                    val activityTag=requireNotNull(ui.onAllNodes(activity,useUnmergedTree=true).fetchSemanticsNodes().first().config.getOrNull(SemanticsProperties.TestTag))
+                    val before=requireNotNull(contents()).boundsInRoot.top
+                    event("stage" to "captured-body-offered")
+                    // Independent work can switch Ready to Updating between
+                    // observation and touch. The card's identity stays stable.
+                    ui.onNodeWithTag(activityTag,useUnmergedTree=true).performClick()
+                    ui.waitUntil(10_000){ui.onAllNodesWithText("Show details").fetchSemanticsNodes().isNotEmpty()}
+                    ui.onNodeWithText("Show details").performClick()
+                    ui.waitUntil(30_000){complete()};ui.waitForIdle()
+                    assertTrue("Captured details must preserve the established row's pixel anchor",kotlin.math.abs(requireNotNull(contents()).boundsInRoot.top-before)<=2f)
+                }
+                event("stage" to "complete-body-visible")
+                File(output,"adopted-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString());screenshot("adopted.png")
+                val rowTag=requireNotNull(requireNotNull(contents()).config.getOrNull(SemanticsProperties.TestTag))
+                val passage=hasText(requiredBody.first(),substring=true,ignoreCase=true) and hasAnyAncestor(hasTestTag(rowTag))
+                ui.onNode(passage,useUnmergedTree=true).performScrollTo().assertIsDisplayed()
+                ui.waitForIdle();Thread.sleep(100);screenshot("adopted-captions.png")
+            }
             val observed=posts.map(repo.videos::captured)
             val groups=runBlocking {withContext(Dispatchers.Default){CrossPosts.groupWithVideoFootage(observed,follows,members,sharedFootage={a,b->repo.videos.related(a,b){}})}}
             val family=groups.filter {g->g.posts.any {repo.key(it)in focus}}

@@ -167,3 +167,21 @@ routing acquire the missing child. Assertions cover parent provenance, exclusive
 author membership, one complete visible family and distinct-picture retention.
 No child metadata or comparison evidence is injected. Inputs and native evidence
 remain private; the test does not run without both opt-in flags.
+
+
+The optional full-video flag `antisocialFeedVerifyAdoptedBody=true` additionally
+requires private `expectedBodyPassages` in the captured plan. It opens the real
+captured-details disclosure, adopts its body and checks each required literal
+variant exactly once while retaining the card's pixel position. Source-count
+adoption alone does not pass this stronger check. A caption screenshot is retained
+separately from the top of the card.
+
+The cached-file gallery restart uses `antisocialFullFeedGalleryCold=true` and
+private `files/full-gallery-cold-packet/input.json`; the child must already be
+present and every focused picture must have unambiguous retained bytes. It must
+perform zero publisher-continuation reads. With
+`antisocialFeedVerifyWarmReentry=true`, the same check waits for relevant work to
+settle, leaves through Subscriptions, returns through Following and records the
+new complete-card time and any matching jobs. Inputs and screenshots remain in
+the private external evidence area. These flags qualify engineering journeys;
+they do not enable a user-facing import or change ordinary acquisition policy.

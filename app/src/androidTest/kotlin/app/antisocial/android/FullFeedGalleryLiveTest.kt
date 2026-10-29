@@ -18,6 +18,8 @@ import app.antisocial.core.*
 import com.google.gson.JsonParser
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.json.JSONObject
 import org.junit.*
 import org.junit.Assert.*
@@ -65,8 +67,10 @@ class FullFeedGalleryLiveTest {
         var vm:AntiSocialViewModel?=null;var imported=false;var threadReads=0
         val started=SystemClock.elapsedRealtime()
         fun event(vararg fields:Pair<String,Any?>) {
+            synchronized(events) {
             events+=mapOf("atMs" to SystemClock.elapsedRealtime()-started)+fields.toMap()
             File(output,"events.json").writeText(repo.gson.toJson(events))
+            }
         }
         fun screenshot(name:String) {
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
@@ -159,6 +163,37 @@ class FullFeedGalleryLiveTest {
             assertEquals(1,family.size);assertEquals(expectedOriginals,family.single().posts.size)
             val plan=collectionPlan(family.single().posts,repo.images.identities)
             assertEquals(expectedPictures,plan.attachments.size)
+            if(cold&&args.getString("antisocialFeedVerifyWarmReentry")=="true") {
+                fun quiet():Boolean=repo.cardWork.active.value.none {it.label in setOf("Matching editions","Images")}
+                fun awaitQuiet() {
+                    var since=0L
+                    ui.waitUntil(60_000){val now=SystemClock.elapsedRealtime();if(!quiet())since=0L else if(since==0L)since=now;since>0&&now-since>=1000}
+                }
+                awaitQuiet()
+                val watching=CompletableDeferred<Unit>()
+                val observer=scope.launch {
+                    val active=mutableMapOf<Long,Long>()
+                    repo.cardWork.active.map {tasks->tasks.filter {it.label=="Matching editions"}.map {it.id}.toSet()}.distinctUntilChanged().collect {tasks->
+                        val now=SystemClock.elapsedRealtime()
+                        for(id in active.keys.toList())if(id !in tasks){event("stage" to "warm-matching-finished","job" to id,"durationMs" to now-active.getValue(id));active.remove(id)}
+                        tasks.filterNot(active::containsKey).forEach {id->active[id]=now;event("stage" to "warm-matching-started","job" to id)}
+                        watching.complete(Unit)
+                    }
+                }
+                try {
+                    runBlocking {withTimeout(5000){watching.await()}}
+                    ui.onNodeWithTag("Primary destination follows").performClick()
+                    ui.waitUntil(10_000){model.screen.value.section=="follows"};ui.waitForIdle()
+                    event("stage" to "warm-reentry-start")
+                    ui.onNodeWithTag("Primary destination feed").performClick()
+                    ui.waitUntil(30_000){visibleRows().any {node->val text=words(node);text.any {it.startsWith("$expectedOriginals originals ·")}&&(requiredCaption==null||text.any {requiredCaption in it})}}
+                    ui.waitForIdle();Thread.sleep(100)
+                    event("stage" to "warm-first-complete");screenshot("warm-reentry.png")
+                    assertTrue("Returning to Following retains All",model.screen.value.combined)
+                    awaitQuiet();event("stage" to "warm-reentry-quiet")
+                    assertEquals("Navigation must not refetch the retained publisher continuation",0,threadReads)
+                }finally {observer.cancel()}
+            }
             File(output,"result.json").writeText(repo.gson.toJson(mapOf("family" to family.single(),"events" to events,"work" to repo.cardWork.active.value,"threadReads" to threadReads)))
             if(cold)assertEquals("Retained source data must not require a new thread read",0,threadReads)
         }catch(e:Throwable) {

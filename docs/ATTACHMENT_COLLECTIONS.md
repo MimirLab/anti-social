@@ -1,5 +1,43 @@
 # Attachment collections
 
+## Reuse source analysis without reusing an admission decision (0.38.66)
+
+A retained source window often receives several successive image observations.
+`CrossPosts.SourceProjection` keeps its pure caption features, nomination keys
+and decorative-caption preparation. Its equality key is the complete source
+post with only the three derived image/attachment/footage observation fields
+removed. Captions, links, author declarations, provenance, parents, timestamps
+and media identities must still agree exactly. Each pass reattaches the current
+post, nominates candidates and applies all existing pair, ambiguity, gallery,
+destination and current-media guards. It never retains an accepted pair or group.
+
+This memory belongs to one immutable subscription/membership context, with at
+most 2,048 entries and an eight-MiB estimated analysis allowance. Revisions replace
+old entries; absent originals are removed. Oversized sources and overflow use
+ordinary fresh computation. The allowance estimates retained analysis, rather
+than promising an exact managed-heap limit. Leaving that source context releases
+the owner. There is no new database or hidden account service.
+
+Returning to the same retained feed can reuse its completed base comparison only
+when both the complete source posts and the bank's immutable effective image
+observations agree. Timestamp refresh alone does not change image evidence;
+expiry, conflicting aliases, changed pixels or source edits invalidate reuse.
+Ad-hoc comparison callbacks have no cross-object reuse. Replacement collectors
+serialize only this window's projection and cancellation cannot install unfinished
+work. Current video proof is recaptured and checked every time, including proof
+withdrawal. A change in reading scope never authorizes stale admission.
+
+Reading preparation also projects identical displayed and source-edition lists
+once per operation. A late body with different text, links or media is projected
+separately, even when its original identity is unchanged. This does not retain a
+cross-operation presentation cache or alter reading receipts and saved copies.
+
+Private full-feed checks separately verify source counts, every literal caption
+variant, distinct pictures, saved originals and visible-body adoption. Their
+optional warm-navigation path uses the actual Subscriptions and Following controls;
+no direct screen-state mutation is used. Dated measurements and their limits are
+recorded in [release qualification](RELEASE_QUALIFICATION.md).
+
 ## Use current evidence for the first useful card (0.38.65)
 
 The combined image/video/gallery observation stream keeps only its newest

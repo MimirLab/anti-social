@@ -7,6 +7,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Finish one coherent projection; retain only the newest waiting state.
  * combine's own input buffer otherwise queues old snapshots behind CPU work.
@@ -21,20 +23,20 @@ internal fun feedMatchingInputs(images:Flow<MediaIdentitySnapshot>,videos:Flow<L
 internal class FeedEditionMatcher(
     private val follows:List<Follow>,
     private val memberships:Map<String,Set<String>>,
-    private val group:suspend (MediaIdentitySnapshot)->List<PostGroup> = {evidence->
-        CrossPosts.groupCancellable(evidence.posts,follows,memberships,evidence::same)
-    }
+    private val group:(suspend (MediaIdentitySnapshot)->List<PostGroup>)? = null
 ) {
+    private val source by lazy {CrossPosts.sourceProjection(follows,memberships)}
+    private val gate=Mutex()
     private var snapshot:MediaIdentitySnapshot?=null
     private var base=emptyList<PostGroup>()
-    suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?):List<PostGroup> {
+    suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?):List<PostGroup> = gate.withLock {
         val context=currentCoroutineContext()
-        if(snapshot!==evidence) {
-            val next=group(evidence)
+        if(snapshot?.sameInput(evidence)!=true) {
+            val next=group?.invoke(evidence) ?: source.group(evidence.posts,evidence::same)
             context.ensureActive()
             base=next;snapshot=evidence
         }
         val observed=base.map {g->context.ensureActive();g.copy(posts=g.posts.map(captured))}
-        return CrossPosts.withVideoFootage(observed,follows,memberships,related){context.ensureActive()}
+        CrossPosts.withVideoFootage(observed,follows,memberships,related){context.ensureActive()}
     }
 }
