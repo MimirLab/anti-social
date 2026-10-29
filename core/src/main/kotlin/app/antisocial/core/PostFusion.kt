@@ -183,11 +183,13 @@ object CrossPostFusion {
             match.range.first until match.range.last+1-match.value.takeLastWhile {it=='.'}.length
         }.toList()
         if(mentions.size>64)return null
-        val words=word.findAll(text).take(MAX_WORDS+1).map {
-            val spelling=Normalizer.normalize(it.value,Normalizer.Form.NFC).replace('’','\'')
-            val inUrl=urls.any {url->it.range.first in url}
-            Token(if(inUrl)spelling else spelling.lowercase(Locale.ROOT),it.range.first,it.range.last+1,inUrl)
-        }.toList()
+        val words=ArrayList<Token>()
+        val matcher=word.toPattern().matcher(text)
+        while(words.size<MAX_WORDS+1&&matcher.find()) {
+            val spelling=Normalizer.normalize(matcher.group(),Normalizer.Form.NFC).replace('’','\'')
+            val start=matcher.start();val inUrl=urls.any {url->start in url}
+            words+=Token(if(inUrl)spelling else spelling.lowercase(Locale.ROOT),start,matcher.end(),inUrl)
+        }
         if(words.size !in MIN_WORDS..MAX_WORDS)return null
         val gaps=(0 until words.size-1).map {i->normalizeGap(text.substring(words[i].end,words[i+1].start))}
         val all=(0..words.size-SHINGLE).map {i->Anchor(buildString {repeat(SHINGLE){j->if(j>0)append(gaps[i+j-1]);append(words[i+j].text)}},i)}
@@ -324,7 +326,11 @@ object CrossPostFusion {
         source.parts.filter {it.words>=3}.forEach {add("part:"+it.key.length+":"+it.key.hashCode())}
     }}.orEmpty()
 
-    private fun contextWords(value: String)=word.findAll(value).map {it.value.lowercase(Locale.ROOT).replace('’','\'')}.toList()
+    private fun contextWords(value: String):List<String> {
+        val result=ArrayList<String>();val matcher=word.toPattern().matcher(value)
+        while(matcher.find())result+=matcher.group().lowercase(Locale.ROOT).replace('’','\'')
+        return result
+    }
     private fun comparisonContext(value:String):ComparisonContext {
         val current=workspace.get()
         current?.contexts?.get(value)?.let {return it}

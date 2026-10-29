@@ -56,7 +56,8 @@ internal object DecoratedPostCopies {
         val raw=TextWhitespace.collapse(PostPresentation.proseWithoutLinks(content)).replace('’','\'').lowercase(Locale.ROOT).trim()
         if(short&&(raw.endsWith("…")||raw.endsWith("...")))return null
         val text=if(short)raw.trimEnd('.','!',' ')else raw
-        val tokens=words.findAll(text).take(257).map {it.value}.toList()
+        val tokens=ArrayList<String>();val matcher=words.toPattern().matcher(text)
+        while(tokens.size<257&&matcher.find())tokens+=matcher.group()
         if(text.length<(if(short)12 else 40)||tokens.size !in (if(short)3 else 8)..256||tokens.distinct().size<(if(short)3 else 6))return null
         val attached=post.media.flatMap {listOfNotNull(it.url,it.preview)}.toSet()
         val resources=(PostPresentation.destinationLabels(PostPresentation.content(post)).toList()+post.links.orEmpty().take(16))

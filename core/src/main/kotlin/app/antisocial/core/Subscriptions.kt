@@ -61,10 +61,6 @@ object CrossPosts {
     private const val UNLINKED_WINDOW=6L*60*60*1000
     private const val MAX_TEXT=16_384
     private const val MAX_CANDIDATES=128
-    // Punctuation around a number can reverse its claim. Keep operators, signs,
-    // currency, decimal/group separators and percentages as part of the token.
-    private val words=Regex("(?:[<>!]=?|[≤≥≠≈=])?\\s*(?:[+\\-−\\p{Sc}]\\s*){0,3}\\p{N}+(?:[.,]\\p{N}+)*(?:\\s*[%‰\\p{Sc}])?|[\\p{L}\\p{N}]+(?:'[\\p{L}\\p{N}]+)?")
-    private val tokenWhitespace=Regex("[\\p{Z}\\s]+")
     private val meaningfulSymbols=Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]")
     private val urlPattern=Regex("https://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
     private val invisible=Regex("[\u00ad\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]")
@@ -567,7 +563,7 @@ object CrossPosts {
         repeat(2){result=org.jsoup.parser.Parser.unescapeEntities(result,false)}
         return invisible.replace(Normalizer.normalize(result,Normalizer.Form.NFKC),"").replace('’','\'').replace('‘','\'')
     }
-    private fun tokens(value: String)=words.findAll(value.lowercase()).map {tokenWhitespace.replace(it.value,"").replace('−','-')}.toList()
+    private fun tokens(value: String)=CrossPostTokens.read(value)
     private fun normalizedUrl(value: String)=CrossPostFusion.normalizedUrl(value){normalizeUrl(value)}
     /** Additional link-inventory entries for actual media are transport data.
      * A literal publisher link or a social work URL remains editorial evidence. */

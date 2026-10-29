@@ -127,6 +127,14 @@ class FullFeedGalleryLiveTest {
             val top=raw["anchorKey"]?.asString?.let {key->posts.single {repo.key(it)==key}} ?: posts.filter {repo.key(it)in focus}.maxBy {it.publishedAt ?: 0}
             repo.feedMemory.reconcile("all",posts.map(repo::key));repo.feedMemory.anchor("all",repo.key(top),0)
             val model=AntiSocialViewModel(repo).also {vm=it}
+            if(cold&&args.getString("antisocialFeedWorkTrace")=="true") {
+                scope.launch {
+                    repo.cardWork.active.map {tasks->tasks.filter {it.label=="Matching editions"}.map {it.id to it.keys.size}}
+                        .distinctUntilChanged().collect {event("stage" to "matching-work","jobs" to it)}
+                }
+                scope.launch {repo.images.identities.revision.collect {event("stage" to "image-revision","revision" to it)}}
+                scope.launch {repo.videos.revision.collect {event("stage" to "video-revision","revision" to it)}}
+            }
             if(cold&&args.getString("antisocialTracePrivateFeed")=="true") {
                 Debug.startMethodTracingSampling(File(output,"cold-feed.trace").path,32*1024*1024,2_000);tracing=true
             }

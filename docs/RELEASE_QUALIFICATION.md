@@ -9,6 +9,70 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.69: reduce literal-matching allocation
+
+Caption matching, fusion word preparation and decorative-copy preparation now
+advance call-local native matchers. The exact compiled expressions, Unicode
+handling, word bounds, UTF-16 source offsets and comparison guards remain in
+place. Numeric signs/operators, negation, destination conflicts, ownership,
+separate pictures and distinct recordings retain their existing semantics.
+No additional network request, model, dependency, permission, database migration
+or persistent reader cache is introduced.
+
+The [controlled performance comparison](FEED_PERFORMANCE.md#03869-less-allocation-during-literal-matching)
+uses one candidate between two 0.38.68 controls over the same 991-post window.
+Local grouping takes **4.167 seconds**, versus **4.604/4.657 seconds** in the
+controls. Complete focused-family observation is **10.011 seconds after opening**,
+versus **10.572/10.838 seconds**. All three first visible focused cards already
+contain their complete four-original family and six distinct pictures, with zero
+continuation reads. Ordered group membership and all 991 content-observation
+digests match exactly. These are modest emulator gains from three observations,
+not a phone latency distribution or a claim that delayed merging is solved.
+
+Six new core methods compare the token contract against the frozen previous
+Kotlin expression: all 1,114,112 Unicode codepoint values, seeded mixed input,
+7,560 numeric-grammar combinations, long failed-prefix runs and simultaneous
+readers. The two new native methods check the runtime-specific expressions and
+the same Unicode range. Compiled patterns are shared; mutable matchers belong
+to individual calls.
+
+The shipping candidate also passes both token methods on the minimum API 26
+emulator in **28.412 seconds**, then opens the native reader without a fatal
+startup error. Its engineering session uses the ordinary shell. The independent
+JVM reference retains the previous `findAll` implementation; the native stress
+oracle reuses its own matchers to bound allocation while checking the same fixed
+expressions and complete input coverage.
+
+The full JVM run covers **2,623 cases: 2,619 passes, four optional skips and zero
+failures/errors**. The frozen shipping APK's native selection covers **219 named
+checks: 216 passes, three opt-in skips and zero failures**, with returned method
+identities verified. Release/test assembly and lint pass; lint retains 182
+warnings and one hint, with zero errors/fatals. Eight Python privacy controls and
+four retention-scoring controls pass.
+
+Ten captured native presentation/save replays cover **22 family cases and 73
+original editions**. Each retains one card, one checked shared passage, its
+expected distinct attachments and every saved source original. The actual
+source-bound link-preview preservation check also passes. Native caption, card
+and adopted-body screenshots are inspected directly; private captures remain
+outside the source tree.
+
+The final application video replay opens at **536 ms**, first shows its focused
+card at **8,131 ms**, observes the three required recordings at **20,018 ms** and
+shows the six-original family at **21,414 ms**. At **24,331 ms**, its adopted body
+contains all four required literal variants once, while preserving the existing
+two-pixel card-position bound. These timestamps share the replay's starting clock.
+The remaining **13.283-second first-card-to-family gap** is a user-visible problem;
+this local allocation increment does not repair source-dependent video evidence
+acquisition. Sampling retains its unmetered/Wi-Fi resource policy.
+
+A separate final cold-gallery replay shows its complete family **9.603 seconds
+after opening**, and the Subscriptions → Following return shows the complete
+card in **1.600 seconds**. It retains all six pictures and performs zero child
+continuation reads. These unpaired smoke measurements do not replace the
+controlled comparison or establish physical-phone p95, battery or sustained
+scrolling performance. Cold preparation and late video proof remain open work.
+
 ## 0.38.68: preserve source-bound link previews
 
 The public Nitter reader now retains an own post's declared link-preview image

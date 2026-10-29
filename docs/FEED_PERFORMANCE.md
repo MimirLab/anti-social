@@ -1,5 +1,57 @@
 # Feed performance qualification
 
+## 0.38.69: less allocation during literal matching
+
+Native sampling of the 0.38.68 cold cached-file feed identifies caption
+matching as a substantial part of the initial wait. In this replay, retained
+pictures finish decoding before the first grouping pass completes; adding
+network reads would not address that wait.
+
+The pinned [Kotlin 2.2.21 implementation](https://github.com/JetBrains/kotlin/blob/v2.2.21/libraries/stdlib/jvm/src/kotlin/text/regex/Regex.kt#L356)
+creates another native matcher when advancing each `findAll` result. Caption
+tokenization now advances one call-local matcher instead. Numeric whitespace
+replacement also reuses one matcher within the call. The same change covers
+fusion word preparation, comparison context and decorative-copy preparation.
+Compiled expressions, Unicode rules, token limits, UTF-16 offsets, numeric
+operators, case handling and all admission guards stay unchanged. No mutable
+matcher or source text is shared between readers or retained after the call.
+There is no additional fetch, model, dependency or persistent cache.
+
+An untraced control → candidate → control comparison uses the same captured
+991-post followed window, exact memberships and retained picture bytes on the
+API 35 emulator. Each application replay starts a new process, opens the actual
+native feed, waits for the focused family and returns through Subscriptions →
+Following. A separate process measures local stages. Owned compiler daemons are
+stopped before these serialized measurements to reduce host-memory interference.
+
+| Measured stage | 0.38.68 before | Candidate | 0.38.68 after |
+| --- | ---: | ---: | ---: |
+| Local grouping | 4.604 s | 4.167 s | 4.657 s |
+| Open → first visible focused card | 10.255 s | 9.712 s | 10.479 s |
+| Open → complete focused family | 10.572 s | 10.011 s | 10.838 s |
+| Warm return → complete focused family | 1.617 s | 1.469 s | 1.651 s |
+
+Every first visible focused card already contains the four-original family.
+The replay retains six distinct pictures and performs zero publisher-continuation
+reads. All three local-stage results have identical ordered membership digests
+for 822 groups and identical content-observation digests for all 991 originals.
+Existing request planning also stays at 12 video and zero gallery requests;
+those counts describe planning, not new network operations by this change.
+
+These three observations show a modest improvement in this workload: local
+grouping is about 9.5–10.5% lower and complete-card observation is 0.56–0.83 seconds
+earlier than the surrounding controls. They are not a latency distribution,
+physical-phone result, exact frame-paint measurement or proof of instant merging.
+The approximately ten-second cold wait and source-dependent video-proof delay
+remain open work. Earlier whitespace-scan and parse-cache prototypes are rejected
+because their controlled replays show no consistent complete-card benefit.
+
+The native gallery engineering check additionally offers an opt-in
+`antisocialFeedWorkTrace` flag for matching-job and image/video revision events.
+It defaults off and is excluded from the timing comparison. Captured inputs,
+screenshots, raw timings, traces and rejected prototypes remain in the private
+external build area under `evidence/feed-first-card-20261029`.
+
 ## 0.38.54: scoped image updates and reusable comparison records
 
 Native sampling of the released 0.38.53 cached-picture reader found substantial
