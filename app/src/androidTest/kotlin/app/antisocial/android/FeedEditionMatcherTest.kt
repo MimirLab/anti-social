@@ -3,6 +3,8 @@ package app.antisocial.android
 
 import app.antisocial.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.*
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -50,5 +52,47 @@ class FeedEditionMatcherTest {
         try {matcher.project(image,{it},{_,_->null});fail("Expected cancellation")}catch(_:CancellationException){}
         assertEquals(2,matcher.project(image,{it},{_,_->null}).size)
         assertEquals(2,attempts)
+    }
+    @Test fun aBusyProjectionFinishesItsCoherentPassThenUsesOnlyTheNewestPendingSnapshot():Unit=runBlocking {
+        val first=MediaIdentitySnapshot(posts){_,_->false}
+        val updates=(1..3).map {i->MediaIdentitySnapshot(posts.map {it.copy(body=it.body+" Evidence $i.")}){_,_->false}}
+        val commands=Channel<MediaIdentitySnapshot>();val emitted=Channel<Unit>(Channel.UNLIMITED)
+        val images=flow {emit(first);for(next in commands){emit(next);emitted.send(Unit)}}
+        val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val received=mutableListOf<MediaIdentitySnapshot>()
+        val task=launch {feedMatchingInputs(images,MutableStateFlow(0L),MutableStateFlow(0L)).take(2).collect {image->
+            if(received.isEmpty()){entered.complete(Unit);finish.await()}
+            received+=image
+        }}
+        try {
+            withTimeout(5_000){entered.await()}
+            for(next in updates){commands.send(next);withTimeout(5_000){emitted.receive()};repeat(4){yield()}}
+            assertTrue("Current coherent work must remain active",task.isActive);assertTrue(received.isEmpty())
+            finish.complete(Unit);withTimeout(5_000){task.join()}
+            assertEquals(2,received.size);assertSame(first,received[0]);assertSame("Intermediate evidence must not queue whole-window passes",updates.last(),received[1])
+        }finally {finish.complete(Unit);commands.close();task.cancelAndJoin()}
+    }
+    @Test fun unchangedImagesStillDeliverNewFootageAndGalleryActivity():Unit=runBlocking {
+        val image=MediaIdentitySnapshot(posts){_,_->false};val videos=MutableStateFlow(0L);val galleries=MutableStateFlow(0L)
+        val received=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED)
+        val task=launch {feedMatchingInputs(flowOf(image),videos,galleries).collect {received.send(it)}}
+        try {
+            assertSame(image,withTimeout(5_000){received.receive()})
+            videos.value=1;assertSame(image,withTimeout(5_000){received.receive()})
+            galleries.value=1;assertSame(image,withTimeout(5_000){received.receive()})
+        }finally {task.cancelAndJoin()}
+    }
+    @Test fun retiringASourceEpochCancelsItsRunningAndBufferedInputs():Unit=runBlocking {
+        val image=MediaIdentitySnapshot(posts){_,_->false};val newest=MediaIdentitySnapshot(posts.reversed()){_,_->false}
+        val entered=CompletableDeferred<Unit>();val stopped=CompletableDeferred<Unit>();val gate=CompletableDeferred<Unit>()
+        val commands=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED);val received=mutableListOf<MediaIdentitySnapshot>()
+        val images=flow {try {emit(image);for(next in commands)emit(next)}finally {stopped.complete(Unit)}}
+        val task=launch {feedMatchingInputs(images,MutableStateFlow(0L),MutableStateFlow(0L)).collect {next->
+            entered.complete(Unit);gate.await();received+=next
+        }}
+        try {
+            withTimeout(5_000){entered.await()};commands.send(newest);repeat(4){yield()}
+            task.cancelAndJoin();withTimeout(5_000){stopped.await()};assertTrue(received.isEmpty())
+            assertSame(newest,feedMatchingInputs(flowOf(newest),MutableStateFlow(0L),MutableStateFlow(0L)).first())
+        }finally {task.cancelAndJoin();commands.close();gate.complete(Unit)}
     }
 }

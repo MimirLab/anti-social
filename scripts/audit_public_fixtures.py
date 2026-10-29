@@ -43,7 +43,7 @@ def scan(entries, needles, reviewed=None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument('--denylist-file', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
@@ -51,6 +51,8 @@ def main():
     parser.add_argument('--zip-prefix', default='')
     parser.add_argument('--reviewed-hashes', type=Path, help='Outside-checkout JSON map of reviewed public files to SHA-256; changed bytes lose the exemption.')
     args = parser.parse_args()
+    if args.zip_prefix and not args.source_zip:
+        parser.error('--zip-prefix requires --source-zip; no checkout scan was performed.')
     root = args.root.resolve()
     for path in (args.denylist_file, args.report, *([args.reviewed_hashes] if args.reviewed_hashes else [])):
         if path.resolve().is_relative_to(root):

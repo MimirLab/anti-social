@@ -93,7 +93,7 @@ object CrossPosts {
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
         val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>,val decoration:DecoratedPostCopies.Prepared?) {
     }
-    private fun uri(value: String)=runCatching {URI(value)}.getOrNull()?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
+    private fun uri(value: String)=CrossPostFusion.parsedUri(value)?.takeIf {it.scheme=="https"&&it.host!=null&&it.userInfo==null}
     private fun origin(value: URI)=value.host.lowercase()+":"+(if(value.port==-1)443 else value.port)
     fun originalKey(post: Post)=post.identityKey
     /** An author-bearing original URL or qualified source declaration identifies

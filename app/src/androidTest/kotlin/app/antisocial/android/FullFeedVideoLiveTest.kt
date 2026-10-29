@@ -4,6 +4,7 @@ package app.antisocial.android
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.os.Debug
 import androidx.activity.compose.setContent
 import androidx.compose.material3.Text
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -18,6 +19,8 @@ import app.antisocial.core.*
 import com.google.gson.JsonParser
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.json.JSONObject
 import org.junit.*
 import org.junit.Assert.*
@@ -48,11 +51,13 @@ class FullFeedVideoLiveTest {
         val memory=File(ui.activity.cacheDir,"full-feed-video-memory.json")
         val sampler=repo.videos.sample;val metadata=repo.videos.metadata
         val events=CopyOnWriteArrayList<Map<String,Any?>>()
-        var vm:AntiSocialViewModel?=null;var imported=false
+        var vm:AntiSocialViewModel?=null;var imported=false;var tracing=false
         val started=SystemClock.elapsedRealtime()
         fun event(vararg fields:Pair<String,Any?>) {
-            events+=mapOf("atMs" to SystemClock.elapsedRealtime()-started)+fields.toMap()
-            File(output,"events.json").writeText(repo.gson.toJson(events))
+            synchronized(events) {
+                events+=mapOf("atMs" to SystemClock.elapsedRealtime()-started)+fields.toMap()
+                File(output,"events.json").writeText(repo.gson.toJson(events))
+            }
         }
         fun screenshot(name:String) {
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
@@ -91,10 +96,30 @@ class FullFeedVideoLiveTest {
             val top=posts.filter {repo.key(it)in focus}.maxBy {it.publishedAt ?: 0}
             repo.feedMemory.reconcile("all",posts.map(repo::key));repo.feedMemory.anchor("all",repo.key(top),0)
             val model=AntiSocialViewModel(repo).also {vm=it}
+            if(args.getString("antisocialFeedMethodTrace")=="true"||args.getString("antisocialFeedWorkTrace")=="true") {
+                scope.launch {
+                    repo.cardWork.active.map {tasks->tasks.filter {it.label=="Matching editions"}.map {it.id to it.keys.size}}
+                        .distinctUntilChanged().collect {event("stage" to "matching-work","jobs" to it)}
+                }
+                scope.launch {repo.images.identities.revision.collect {event("stage" to "image-revision","revision" to it)}}
+                scope.launch {repo.videos.revision.collect {event("stage" to "video-revision","revision" to it)}}
+                scope.launch {repo.follows.map {Repository.hash(repo.gson.toJson(it))}.distinctUntilChanged().collect {event("stage" to "follow-snapshot","hash" to it)}}
+                scope.launch {repo.followedSnapshot().map {Repository.hash(repo.gson.toJson(it))}.distinctUntilChanged().collect {event("stage" to "source-snapshot","hash" to it)}}
+            }
+            if(args.getString("antisocialFeedMethodTrace")=="true") {
+                Debug.startMethodTracingSampling(File(output,"feed-sampling.trace").path,32*1024*1024,5_000)
+                tracing=true;event("stage" to "profiling-enabled","intervalUs" to 5_000)
+            }
             event("stage" to "open","posts" to posts.size)
             ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
             val rows=SemanticsMatcher("focused real feed card"){it.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Feed row ")in focus}
-            ui.waitUntil(60_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+            fun visibleRows():List<androidx.compose.ui.semantics.SemanticsNode> {
+                val viewport=ui.onAllNodesWithTag("Combined feed").fetchSemanticsNodes().singleOrNull()?.boundsInRoot ?: return emptyList()
+                return ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().filter {node->
+                    val area=node.boundsInRoot.intersect(viewport);area.width>0&&area.height>=80
+                }
+            }
+            ui.waitUntil(60_000){visibleRows().isNotEmpty()};ui.waitForIdle()
             event("stage" to "first-visible");screenshot("first-visible.png")
             // Observe the shipping dwell, worker and catalogue. This does not
             // invoke enrich() or insert observations from the test itself.
@@ -105,10 +130,11 @@ class FullFeedVideoLiveTest {
             event("stage" to "three-recordings-observed")
             fun words(node:androidx.compose.ui.semantics.SemanticsNode):List<String> =
                 node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}+node.children.flatMap(::words)
-            ui.waitUntil(60_000){ui.onAllNodes(rows,useUnmergedTree=true).fetchSemanticsNodes().any {node->
+            ui.waitUntil(60_000){visibleRows().any {node->
                 words(node).any {it.startsWith("${focus.size} originals ·")||it.startsWith("${focus.size} platforms ·")}
             }}
             event("stage" to "full-family-visible")
+            if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.waitForIdle()
             File(output,"semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
             screenshot("settled.png")
@@ -123,6 +149,7 @@ class FullFeedVideoLiveTest {
             event("stage" to "failed","error" to e.toString().take(500),"work" to repo.cardWork.active.value)
             throw e
         }finally {
+            if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.runOnIdle {vm?.viewModelScope?.cancel();ui.activity.setContent {Text("Private full-window replay complete")}}
             repo.videos.sample=sampler;repo.videos.metadata=metadata
             runBlocking {

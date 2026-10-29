@@ -52,6 +52,20 @@ class PublicFixtureAuditTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual({'textFiles': 1, 'binaryFiles': 1, 'reviewedUnchangedFiles': 0, 'findings': 1}, json.loads(result.stdout))
 
+    def test_misspelled_archive_option_cannot_silently_scan_a_clean_checkout(self):
+        (self.root / 'public.txt').write_text('Unrelated public text')
+        archive = self.base / 'source.zip'
+        with zipfile.ZipFile(archive, 'w') as out:
+            out.writestr('App/fixture.txt', 'Private Fixture Region')
+        result = self.run_audit('--zip', str(archive), '--zip-prefix', 'App/')
+        self.assertEqual(2, result.returncode)
+        self.assertFalse(self.report.exists())
+
+    def test_archive_prefix_requires_an_explicit_archive(self):
+        result = self.run_audit('--zip-prefix', 'App/')
+        self.assertEqual(2, result.returncode)
+        self.assertFalse(self.report.exists())
+
     def test_private_rules_and_reports_cannot_be_written_in_the_checkout(self):
         inside = self.root / 'private.json'
         inside.write_bytes(self.rules.read_bytes())

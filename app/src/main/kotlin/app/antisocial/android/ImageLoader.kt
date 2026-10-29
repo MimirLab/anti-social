@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.yield
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.coroutineContext
 import app.antisocial.core.Post
 import kotlinx.coroutines.sync.Semaphore
@@ -31,6 +32,26 @@ class ImageLoader(private val repo: Repository) {
     }
     private val keys=KeyedMutex<String>()
     private val decoders=Semaphore(2)
+    /** A small local head start for the first projection. A cold/missing cache,
+     * busy decoder or slow file never holds the entire deck behind a cache scan.
+     * The ordinary paced restore continues with anything not completed here. */
+    internal suspend fun prepareCachedIdentities(urls:List<String>)=withContext(Dispatchers.IO) {
+        withTimeoutOrNull(750) {
+            for(url in urls.take(24)) {
+                coroutineContext.ensureActive()
+                if(identities.knows(url))continue
+                val file=repo.availableMedia(url) ?: continue
+                if(!decoders.tryAcquire())break
+                try {
+                    val bitmap=repo.contentSandbox.image(file,512)
+                    try {coroutineContext.ensureActive();identities.observe(url,bitmap)}finally {bitmap.recycle()}
+                }catch(e:CancellationException){throw e}
+                catch(_:Exception){/* Undecodable cache contributes no comparison evidence. */}
+                finally {decoders.release()}
+            }
+        }
+        Unit
+    }
     /** Rebuild the bounded comparison bank from bytes already on this device.
      * Never calls media(), a route or a downloader. Essential reads take priority. */
     internal suspend fun restoreCachedIdentities(posts: List<Post>)=withContext(Dispatchers.IO) {

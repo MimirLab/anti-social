@@ -31,11 +31,12 @@ object ContentIdentity {
         Platform.BLUESKY to Regex("/profile/([^/]+)/post/([^/]+)"),
         Platform.IFUNNY to Regex("/(?:picture|video|gif|meme)/([^/]+)")
     )
-    fun key(platform: Platform,url: String): String {
+    fun key(platform: Platform,url: String): String=CrossPostFusion.contentIdentity(platform,url){keyUncached(platform,url)}
+    private fun keyUncached(platform: Platform,url: String): String {
         // Feed entry permalinks may intentionally differ only by a fragment.
         if(platform==Platform.YOUTUBE)YouTubeUrls.videoId(url)?.let {id->return YouTubeUrls.commentId(url)?.let {"comment:$id:$it"} ?: "post:$id"}
         if(platform==Platform.RSS)return url.trim()
-        val uri=runCatching {URI(url)}.getOrNull()
+        val uri=CrossPostFusion.parsedUri(url)
         val path=uri?.path.orEmpty().ifEmpty {url.substringBefore('?').substringBefore('#')}
         expanded(platform,uri,path)?.let {return it}
         val match=patterns[platform]?.find(path)

@@ -9,6 +9,79 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.65: process current evidence before painting collected feeds
+
+[Current matching inputs and bounded local preparation](ATTACHMENT_COLLECTIONS.md#use-current-evidence-for-the-first-useful-card-03865)
+reduce delayed collection without changing admission thresholds. A combined-flow
+buffer was retaining intermediate image snapshots while a coherent comparison
+ran. An independent native counterexample holds that first comparison open,
+publishes three changes and reproduces the obsolete next input. Conflating the
+combined output now finishes the current comparison and retains only the newest
+waiting state. Native controls also preserve video/gallery-only notifications,
+source-epoch cancellation, base reuse and withdrawal of footage proof.
+
+An open feed can prepare up to 24 already-cached image/preview files around its
+reading anchor, within 750 ms and the existing decoder pool. Same-account
+parent/children and nearby locally linked publisher galleries get priority.
+Missing files and unfinished preparation return to the ordinary paced scan.
+There is no network request, whole-cache startup barrier or new identity claim.
+Existing matching, source, Tor, retention and saved-copy rules remain in force.
+
+The stronger actual-application gallery replay independently fails on official
+0.38.64: its four-original source count eventually appears, but the shared root
+caption remains absent after the 60-second assertion window, with no card work
+still running. In the candidate control, retained files inform the initial
+collection and the inspected first screen contains one four-original card with
+its root caption. All six distinct pictures remain in the rendered semantics
+and collection, and the already acquired child requires zero thread reads.
+Neither replay injects fingerprints. The baseline overlaps test compilation and
+establishes a correctness failure, rather than comparative latency.
+
+Operation-local URI and content-identity reuse shares the existing bounded
+preparation workspace. All-platform literal identity, comment/fragment/origin,
+destination-policy, concurrency, oversized-input and cleanup controls pass. A
+quiet native replay of the same 991 captured posts takes **6,322 ms** for baseline
+grouping and **5,517 ms** with reuse. Both produce exactly the same 822 groups
+and 991 content observations, with identical grouping and observation hashes.
+These are local operation measurements, not complete-search or phone timings.
+
+The full JVM run covers **2,588 cases: 2,584 passes, four optional skips and zero
+failures/errors**. The API 35 shipping-release selection covers **204 named
+native checks: 202 passes, two opt-in skips and zero failures**, with returned
+method identities verified against the selection. Release assembly and lint
+pass with zero errors/fatals. There is no new model, dependency, permission,
+database migration or native-runtime change.
+
+Nine additional private native presentation/save replays cover **21 announcement
+families and 72 originals**: one card/common passage, distinct attachments,
+preserved originals and faithful protected saves. In the shipping 991-post
+cold-gallery replay, opening occurs at **924 ms**, its first four-original card
+at **14,356 ms**, and final assertions at **14,739 ms** from harness start. Its
+first screenshot already contains the root caption; six rendered picture nodes
+and zero thread reads are verified. This still takes **13,432 ms after opening**.
+
+The actual-application 991-post video run opens at **485 ms**, shows its first
+target card at **11,334 ms**, completes the required footage observations at
+**25,279 ms**, and shows the six-original source family at **26,855 ms**. The
+proof-to-card interval is **1,576 ms**; the preceding release's recorded interval
+was **8,785 ms**. This is a dated unmetered emulator replay with live-source
+variability, not a controlled phone benchmark. Source-count adoption and visible
+body adoption remain different observations: an already visible reading body
+retains its existing captured-details/idle-adoption behavior.
+
+A separate release-guard counterexample shows that an abbreviated archive flag
+could silently select a checkout scan instead of the requested source ZIP.
+The privacy scanner now rejects abbreviated flags and a ZIP prefix without its
+explicit archive. All eight Python controls pass. This correction has no app
+runtime cost; the prior release's actual source ZIP was separately scanned.
+
+Full-feed startup latency and source-dependent acquisition remain open work.
+No physical-device p95, sustained energy measurement or instant-merging guarantee
+is inferred from these emulator and local-operation checks. Clean-source stamps,
+frozen-artifact comparison, corresponding-source/privacy checks, compatible
+preview promotion and anonymous permanent-download verification remain release
+gates.
+
 ## 0.38.64: acquire missing gallery members before publishing them
 
 [Demand-scoped gallery acquisition](ATTACHMENT_COLLECTIONS.md#acquire-a-missing-gallery-continuation-03864)

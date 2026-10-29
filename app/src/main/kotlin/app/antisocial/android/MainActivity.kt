@@ -169,18 +169,30 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val matchingMemberships=remember(globalSnapshot,storedSnapshot){buildMap<String,Set<String>> {
         (if(useGlobal)listOfNotNull(globalSnapshot?.memberships)else listOfNotNull(globalSnapshot?.memberships,storedSnapshot?.memberships)).forEach {map->map.forEach {(key,ids)->put(key,get(key).orEmpty()+ids)}}
     }}
-    LaunchedEffect(repo,matchingCandidates) {
-        matchingCandidates?.let {posts->delay(300);launch {repo.videos.restore()};repo.images.restoreCachedIdentities(posts)}
+    val preparationFeed=when {
+        state.section=="subscription"->"person:${state.subscriptionId}"
+        state.section!="feed"||state.target!=null->null
+        activeChannel!=null->"channel:${activeChannel.id}:${PersonalChannels.fingerprint(activeChannel)}:${if(state.combined)"all"else state.platform.id}"
+        state.combined->"all"
+        else->"following:${state.platform.id}:group:${Repository.hash(group)}"
     }
-    val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships) {
+    LaunchedEffect(repo,matchingCandidates){if(matchingCandidates!=null)repo.videos.restore()}
+    val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships,preparationFeed) {
         val candidates=matchingCandidates;val accounts=loadedFollows
         if(candidates==null||accounts==null){value=null;return@produceState}
         val matcher=FeedEditionMatcher(accounts,matchingMemberships)
+        if(preparationFeed!=null) {
+            repo.feedMemory.awaitReady()
+            val anchor=repo.feedMemory.get(preparationFeed).anchorKey
+            val urls=withContext(Dispatchers.Default){feedImagePreparation(candidates,storedPosts,accounts,matchingMemberships,anchor)}
+            repo.images.prepareCachedIdentities(urls)
+        }
+        launch {delay(300);repo.images.restoreCachedIdentities(candidates)}
         // A cached-picture scan can publish a revision every few milliseconds.
         // Finish the current coherent grouping rather than repeatedly cancelling
-        // the first readable deck. StateFlow conflates later revisions while we
-        // work; source/membership changes still cancel this whole projection.
-        combine(repo.images.identities.matchingSnapshots(candidates),repo.videos.revision,repo.galleries.revision){evidence,_,_->evidence}.collect {evidence->
+        // the first readable deck. The combined output retains only the latest
+        // pending revision; source/membership changes cancel this projection.
+        feedMatchingInputs(repo.images.identities.matchingSnapshots(candidates),repo.videos.revision,repo.galleries.revision).collect {evidence->
             value=withContext(Dispatchers.Default) {
                 val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
                     val context=currentCoroutineContext()

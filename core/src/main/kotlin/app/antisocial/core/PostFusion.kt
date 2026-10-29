@@ -18,7 +18,9 @@ data class PostFusion(val segments: List<FusionSegment>,val weave:List<FusionRun
 object CrossPostFusion {
     internal data class PreparationStats(val computations:Int,val hits:Int,val entries:Int,val bytes:Long,
         val urlComputations:Int,val urlHits:Int,val urlEntries:Int,
-        val frameComputations:Int,val frameHits:Int,val frameEntries:Int)
+        val frameComputations:Int,val frameHits:Int,val frameEntries:Int,
+        val uriComputations:Int,val uriHits:Int,val uriEntries:Int,
+        val identityComputations:Int,val identityHits:Int,val identityEntries:Int)
     private class Workspace {
         val documents=java.util.IdentityHashMap<Post,Prepared?>()
         val contexts=HashMap<String,ComparisonContext>()
@@ -27,9 +29,13 @@ object CrossPostFusion {
         val normalizedUrls=HashMap<String,String?>()
         val imageAssets=HashMap<String,String?>()
         val frames=HashMap<Pair<String,Boolean>,VisualFrames.Frame?>()
+        val uris=HashMap<String,java.net.URI?>()
+        val identities=HashMap<Pair<Platform,String>,String>()
         var bytes=0L;var computations=0;var hits=0
         var urlComputations=0;var urlHits=0
         var frameComputations=0;var frameHits=0
+        var uriComputations=0;var uriHits=0
+        var identityComputations=0;var identityHits=0
     }
     private val workspace=ThreadLocal<Workspace>()
     /** Reuse pure caption analysis inside one synchronous operation only.
@@ -40,7 +46,35 @@ object CrossPostFusion {
         workspace.set(Workspace())
         return try {block()}finally {workspace.remove()}
     }
-    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size,it.frameComputations,it.frameHits,it.frames.size)}
+    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size,it.frameComputations,it.frameHits,it.frames.size,it.uriComputations,it.uriHits,it.uris.size,it.identityComputations,it.identityHits,it.identities.size)}
+    /** Exact syntax parsing only. Origin, credential, scheme and source policy
+     * stay with each caller. A parsed URI is never network admission evidence. */
+    internal fun parsedUri(value:String):java.net.URI? {
+        val current=workspace.get()
+        if(current==null||value.length>8192)return runCatching {java.net.URI(value)}.getOrNull()
+        if(current.uris.containsKey(value)){current.uriHits++;return current.uris[value]}
+        current.uriComputations++
+        val result=runCatching {java.net.URI(value)}.getOrNull()
+        val bytes=256L+value.length*10L
+        if(current.uris.size<2048&&current.bytes+bytes<=8L*1024*1024) {
+            current.uris[value]=result;current.bytes+=bytes
+        }
+        return result
+    }
+    /** Platform is part of the key: a feed fragment, social comment and another
+     * federated origin keep their distinct identities. No retained history. */
+    internal fun contentIdentity(platform:Platform,url:String,resolve:()->String):String {
+        val current=workspace.get()
+        if(current==null||url.length>8192)return resolve()
+        val key=platform to url
+        current.identities[key]?.let {current.identityHits++;return it}
+        current.identityComputations++
+        val result=resolve();val bytes=96L+(url.length.toLong()+result.length)*2
+        if(current.identities.size<2048&&current.bytes+bytes<=8L*1024*1024) {
+            current.identities[key]=result;current.bytes+=bytes
+        }
+        return result
+    }
     /** Parsed comparison evidence shares the existing operation's byte bound.
      * Coarse and detailed reads remain separate: parsing a header cannot certify
      * its raster. Nulls are reusable, but no evidence survives this operation. */

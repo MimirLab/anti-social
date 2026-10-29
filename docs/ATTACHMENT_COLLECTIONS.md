@@ -1,5 +1,40 @@
 # Attachment collections
 
+## Use current evidence for the first useful card (0.38.65)
+
+The combined image/video/gallery observation stream keeps only its newest
+waiting snapshot while a coherent matching pass finishes. Conflation belongs
+after the combination: otherwise its input buffer can retain obsolete image
+snapshots and schedule several whole-window comparisons after useful evidence
+has already arrived. A video-only or gallery-only change must still be delivered
+even when its image snapshot is unchanged. Source/membership changes cancel the
+old producer and its waiting work; completed footage groups remain uncached.
+
+Before that first pass, an open feed gives cached pictures around its retained
+reading position a bounded head start. The schedule uses that post, its nearby
+same-account parent/children and explicitly locally linked publisher editions,
+prioritizing larger galleries. It inspects at most 12 posts and 24 image/preview
+URLs, with a 750 ms allowance and the existing decoder pool. It never downloads
+a file, samples a video, guesses identity from a shared handle or delays startup
+for a whole-cache scan. Missing files, busy decoders and expired time leave work
+to the ordinary paced restoration path. Scheduling a peer does not admit it as
+a match; all existing text, gallery, account, time and media checks still apply.
+
+The existing operation-local preparation workspace also reuses exact URI syntax
+and platform-specific content identities. Both maps expire with the operation,
+share its 8 MiB allowance and retain at most 2,048 entries each. Oversized values
+are parsed without caching. Scheme/origin/credential policy remains with each
+caller; parsing a URI does not grant permission to fetch it. Different feed
+fragments, comments, platforms and federated origins retain their identities.
+
+The opt-in full-gallery restart replay supplies genuine retained files without
+fingerprints and can require its original caption in the displayed card. Its
+first-card screenshots allow visual review separately from final source counts.
+This catches an incomplete frozen body that a source-link-only assertion misses.
+See the dated [qualification](RELEASE_QUALIFICATION.md) for counterexamples,
+measured scope and remaining startup latency. No database, model, dependency,
+permission or native runtime is added.
+
 ## Apply new footage without repeating caption matching (0.38.63)
 
 A feed source/membership projection owns one `FeedEditionMatcher`. It caches the

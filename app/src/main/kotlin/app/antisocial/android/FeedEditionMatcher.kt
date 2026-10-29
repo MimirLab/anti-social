@@ -4,6 +4,15 @@ package app.antisocial.android
 import app.antisocial.core.*
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+
+/** Finish one coherent projection; retain only the newest waiting state.
+ * combine's own input buffer otherwise queues old snapshots behind CPU work.
+ * Identical image objects must still flow when footage or gallery state changes. */
+internal fun feedMatchingInputs(images:Flow<MediaIdentitySnapshot>,videos:Flow<Long>,galleries:Flow<Long>):Flow<MediaIdentitySnapshot> =
+    combine(images,videos,galleries){image,_,_->image}.conflate()
 
 /** Owned by one source/membership projection, on its grouping worker only.
  * Video observations do not invalidate already completed caption/image work.

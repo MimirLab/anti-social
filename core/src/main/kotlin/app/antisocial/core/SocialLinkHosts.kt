@@ -34,7 +34,7 @@ object SocialLinkHosts {
     )
     private val shorteners=setOf("t.co","redd.it","reddit.app.link","t.umblr.com","vm.tiktok.com","vt.tiktok.com","pin.it","fb.me","www.fb.me","fb.watch","lnkd.in","t.snapchat.com")
     private val federated=setOf(Platform.MASTODON,Platform.LEMMY,Platform.PIXELFED,Platform.MISSKEY)
-    private fun parsed(value: String): URI?=runCatching {URI(value.trim())}.getOrNull()?.takeIf {
+    private fun parsed(value: String): URI?=runCatching {CrossPostFusion.parsedUri(value.trim())}.getOrNull()?.takeIf {
         it.scheme?.lowercase(Locale.ROOT) in setOf("http","https")&&it.host!=null&&it.userInfo==null&&it.port in setOf(-1,80,443)&&
             (it.port==-1||it.scheme.equals("http",true)&&it.port==80||it.scheme.equals("https",true)&&it.port==443)
     }
