@@ -9,6 +9,73 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.64: acquire missing gallery members before publishing them
+
+[Demand-scoped gallery acquisition](ATTACHMENT_COLLECTIONS.md#acquire-a-missing-gallery-continuation-03864)
+addresses a missing-input defect, rather than lowering similarity thresholds.
+An observed four-picture X edition inside a larger linked-publisher gallery can
+request its author's continuation. The bounded unrolled-thread route precedes
+the existing discussion fallback. Explicit parent extraction validates the
+account, source ID and destination together; unrelated authors, quoted records,
+disconnected chains and contradictory declarations are excluded. Each ancestor
+must still fit the same frozen gallery. Ordinary post reads remain unchanged.
+
+The new worker decodes candidate pictures and proves gallery membership before
+transactional followed-post publication. Current source inputs, enabled account
+bindings, memberships and purge generation are checked again at commit. No
+commenter enumeration becomes a subscription. The existing Gateway, Tor policy,
+foreground priority, bounded ordinary cache and protected Library copies remain
+in force. No model, dependency, permission, schema migration or native-library
+change is involved.
+
+An independent native counterexample on official 0.38.63 held a video comparison
+open while its card observed no work: worker keys lacked the card's `post:`
+prefix. Corrected keys now cover active and queued comparisons. A queued task
+also registers before waiting for the decoder lane, so purge cancels it before
+it can sample in a newer generation. Positive native controls cover both cases,
+uncooperative responses, subsequent successful retry and saved-record retention.
+Continuation-only misses do not contaminate ordinary POST health; a 404 followed
+by a working post succeeds, while an explicit 429 still pauses subsequent reads.
+Unavailable selected Tor issues no request in the narrow-route control.
+
+The full JVM run covers **2,584 cases: 2,581 passes, three optional skips and zero
+failures/errors**, including the explicit private captured-input replay. The
+API 35 release selection covers **197 named native checks: 195 passes, two opt-in
+skips and zero failures**. Nine private native presentation/save replays cover
+**21 announcement families and 72 originals**. They check one reading card and
+one shared passage per family, distinct attachments, source retention and faithful
+Library saves. All source images for the newly acquired-family replay were
+decoded from actual cached/Gateway or supplied genuine files, with no injected
+fingerprints. Native card pixels and the full-feed before/after screens were
+reviewed, alongside the assertion reports.
+
+A separate actual-application replay starts with **990 captured followed posts**,
+exact memberships and three initial gallery editions. The expected child is
+absent from the input. The shipping visible-card dwell obtains that actual
+same-author reply; only its author's follow membership is added. The thread
+read takes **2,861 ms**, both child pictures are decoded by **3,515 ms**, and
+commit occurs at **3,681 ms**, measured from read start. The original card stays
+in place and finishes with four originals and six distinct pictures. First-card
+delivery takes **11,443 ms after opening**; the updated source count appears
+**7,806 ms after commit**. This confirms acquisition/preservation and also
+identifies remaining whole-window reconciliation latency.
+
+A second actual-application replay uses the **991-post video window**, real
+memberships and the Gateway sampler. From harness start, opening occurs at
+**533 ms**, the first target card at **11,464 ms**, the three required recording
+observations at **25,743 ms**, and the six-original family at **34,528 ms**.
+These are single dated emulator observations with a different accumulated media
+cache, not a controlled comparison with 0.38.63 or phone performance percentiles.
+The remaining delay during changing image evidence and cold caption preparation
+is explicitly open; these checks do not establish invisible or instantaneous
+merging. Physical-device latency distributions, memory/energy measurements and
+unlocated captionless-source cases remain outside this increment's qualification.
+
+The matching non-debuggable APK retains its application ID and signing identity.
+Clean-source assembly, lint, frozen code/resource equivalence, corresponding
+source, privacy scan, native-library equality, retained preview state and the
+permanent anonymous download are checked before promotion/publication.
+
 ## 0.38.63: reduce the delay before a collected card appears
 
 [Footage projection reuse](ATTACHMENT_COLLECTIONS.md#apply-new-footage-without-repeating-caption-matching-03863)

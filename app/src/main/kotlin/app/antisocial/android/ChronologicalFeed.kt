@@ -570,6 +570,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                         }
                         if(decision(row)==null)PendingFilterCard()else FilteredPost(decision(row)!!,repo.key(row.bodyPosts.first()),filtering,onEdit={filtering.managing=true}) {
                             FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
+                            FeedGalleryDwell(list,row.key,row.aliases.firstNotNullOfOrNull {LocalGalleryRequests.current[it]},repo)
                             PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts},
                                 onShowUpdate=if(changes?.details?.contains(row.key)==true)({showCapturedDetails(row.key)})else null){repo.postTarget(row.primary)?.let {vm.open(it)}}
                         }
@@ -706,6 +707,25 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
                 finally {monitor.cancel()}
             }
         }
+    }
+}
+
+/** One proven gallery's continuation, only while its card is settled. */
+@Composable internal fun FeedGalleryDwell(list:LazyListState,key:String,request:GalleryContinuationRequest?,repo:Repository) {
+    if(request==null)return
+    val view=LocalView.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
+    var resumed by remember(lifecycle){mutableStateOf(lifecycle.currentState==Lifecycle.State.RESUMED)}
+    var focused by remember(view){mutableStateOf(view.hasWindowFocus())}
+    val paused=LocalArchiveChecksPaused.current
+    val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
+        info.visibleItemsInfo.firstOrNull {it.key.toString()==key}?.let {FeedDwellGeometry(it.offset,it.size,info.viewportStartOffset,info.viewportEndOffset,list.isScrollInProgress).readable}==true
+    }}}
+    DisposableEffect(lifecycle){val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
+    DisposableEffect(view){val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
+    LaunchedEffect(request,settled,resumed,focused,paused) {
+        if(!settled||!resumed||!focused||paused)return@LaunchedEffect
+        delay(1200)
+        if(repo.galleries.allowed())repo.galleries.enrich(request)
     }
 }
 

@@ -81,6 +81,7 @@ data class PostCacheRow(val key: String,val bytes: Long,val createdAt: Long,val 
     @Query("SELECT * FROM posts WHERE `key`=:key") suspend fun post(key: String): PostRow?
     @Query("SELECT * FROM posts WHERE `key` IN (:keys)") suspend fun postsByKeys(keys: List<String>): List<PostRow>
     @Query("SELECT * FROM post_follows WHERE postKey IN (:keys)") fun postMemberships(keys: List<String>): Flow<List<PostFollowRow>>
+    @Query("SELECT followId FROM post_follows WHERE postKey=:key") suspend fun postFollowIds(key:String):List<String>
     @Transaction suspend fun putPost(row: PostRow) {upsertPost(row);row.followId?.let {putPostFollow(PostFollowRow(row.key,it))}}
     @Upsert suspend fun upsertPost(row: PostRow)
     @Insert(onConflict=OnConflictStrategy.IGNORE) suspend fun putPostFollow(row: PostFollowRow)

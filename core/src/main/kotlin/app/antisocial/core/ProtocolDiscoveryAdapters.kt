@@ -151,7 +151,34 @@ object ProtocolDiscoveryParsing {
         }}
         val body=node.pText("text");if(body.isBlank()&&images.isEmpty()&&videos.isEmpty())return null
         val card=node.pObject("card");val links=listOfNotNull(pUrl(card.pText("url"),provenance.finalUrl))
-        return Post(ContentIdentity.key(platform,canonical.canonicalUrl),platform,canonical.canonicalUrl,author.pText("name").ifBlank {handle},body,publishedAt=pStamp(node.pText("created_timestamp","created_at")),avatar=pUrl(author.pText("avatar_url"),provenance.finalUrl),media=images+videos,replyCount=node.pLong("replies"),score=node.pLong("likes"),provenance=provenance,links=links,contextNotes=PublicContextNotes.fx(node,platform,canonical.canonicalUrl))
+        val parent=fxParent(node,platform,canonical,routes)
+        return Post(ContentIdentity.key(platform,canonical.canonicalUrl),platform,canonical.canonicalUrl,author.pText("name").ifBlank {handle},body,publishedAt=pStamp(node.pText("created_timestamp","created_at")),avatar=pUrl(author.pText("avatar_url"),provenance.finalUrl),media=images+videos,replyCount=node.pLong("replies"),score=node.pLong("likes"),provenance=provenance,links=links,contextNotes=PublicContextNotes.fx(node,platform,canonical.canonicalUrl),
+            parentId=parent?.let {ContentIdentity.key(platform,it.canonicalUrl)},relationId=id,sourceParentId=parent?.let {node.pObject("replying_to").pText("status")},
+            extractionCoverage=parent?.let {ExtractionCoverage(text=if(body.isNotBlank())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,attachments=if(images.isNotEmpty()||videos.isNotEmpty())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,replyParent=ExtractionStatus.PRESENT)})
+    }
+    private fun fxParent(node:JsonObject,platform:Platform,selected:Target,routes:DarwinRoutes):Target? {
+        val reply=node.pObject("replying_to");val account=reply.pText("screen_name");val id=reply.pText("status")
+        val x=platform==Platform.X
+        if(platform !in setOf(Platform.X,Platform.BLUESKY)||!account.matches(if(x)Regex("[A-Za-z0-9_]{1,15}")else Regex("[A-Za-z0-9.:-]{1,253}"))||
+            !id.matches(if(x)Regex("[0-9]{1,30}")else Regex("[A-Za-z0-9_-]{1,100}")))return null
+        val expected=routes.recognize(if(x)"https://x.com/$account/status/$id"else "https://bsky.app/profile/$account/post/$id",platform) ?: return null
+        val supplied=reply.pText("url")
+        if(supplied.isNotBlank()) {
+            val url=supplied.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()} ?: return null
+            val actual=routes.recognize(url.toString(),platform)?.takeIf {it.platform==platform&&it.kind==TargetKind.POST} ?: return null
+            val parts=actual.canonicalUrl.toHttpUrlOrNull()?.pathSegments ?: return null
+            if(x) {if(parts.size!=3||!parts[0].equals(account,true)||parts[1]!="status"||parts[2]!=id)return null}
+            else if(parts.size!=4||parts[0]!="profile"||parts[1]!=account||parts[2]!="post"||parts[3]!=id)return null
+            if(ContentIdentity.key(platform,actual.canonicalUrl)!=ContentIdentity.key(platform,expected.canonicalUrl))return null
+        }
+        return expected.takeUnless {ContentIdentity.key(platform,it.canonicalUrl)==ContentIdentity.key(platform,selected.canonicalUrl)}
+    }
+    /** A bounded, declared thread array, never a recursive walk through quotes
+     * or recommendations. Only descendants of the selected post, by its actual
+     * source author, can extend this unrolled publisher thread. */
+    fun fxThread(data:JsonObject,selected:Post,provenance:Provenance,routes:DarwinRoutes):List<Post> {
+        val candidates=data.pArray("thread").take(64).mapNotNull {it.pObj()?.let {node->fxStatus(node,selected.platform,provenance,routes)}}
+        return listOf(selected)+PublisherThreads.descendants(selected,candidates)
     }
     /** Tumblr v1 is JSON with one known assignment wrapper, never arbitrary JavaScript. */
     fun tumblrDocument(text: String): JsonObject {
@@ -250,7 +277,7 @@ private class FxEmbedDataAdapter(source: Source,gateway: NetworkGateway,routes: 
         validate(target);val token=pToken(source,target,cursor);val root=source.root.trimEnd('/');val post=target.kind in setOf(TargetKind.POST,TargetKind.THREAD);val search=target.kind in setOf(TargetKind.SEARCH,TargetKind.TAG)
         val path=target.canonicalUrl.toHttpUrlOrNull()?.pathSegments.orEmpty();var handle=""
         val endpoint=when {
-            post->{require(cursor==null){"This selected-post route has no pagination"};if(source.platform==Platform.X){val id=path.getOrNull(2).orEmpty();require(path.getOrNull(1)=="status"&&id.matches(Regex("[0-9]{1,30}")));"/2/status/$id"}else {handle=path.getOrNull(1).orEmpty();val id=path.getOrNull(3).orEmpty();require(path.getOrNull(0)=="profile"&&path.getOrNull(2)=="post"&&handle.matches(Regex("[A-Za-z0-9.:-]{1,253}"))&&id.matches(Regex("[A-Za-z0-9_-]{1,100}")));"/2/status/${DarwinRoutes.encode(handle)}/$id"}}
+            post->{require(cursor==null){"This selected-post route has no pagination"};val method=if(target.kind==TargetKind.THREAD)"thread"else "status";if(source.platform==Platform.X){val id=path.getOrNull(2).orEmpty();require(path.getOrNull(1)=="status"&&id.matches(Regex("[0-9]{1,30}")));"/2/$method/$id"}else {handle=path.getOrNull(1).orEmpty();val id=path.getOrNull(3).orEmpty();require(path.getOrNull(0)=="profile"&&path.getOrNull(2)=="post"&&handle.matches(Regex("[A-Za-z0-9.:-]{1,253}"))&&id.matches(Regex("[A-Za-z0-9_-]{1,100}")));"/2/$method/${DarwinRoutes.encode(handle)}/$id"}}
             search->{var query=if(target.kind==TargetKind.TAG)"#"+target.identity.removePrefix("#")else target.identity;val scope=SearchScopes.from(target);if(scope!=null)query=when(scope.kind){SearchScopeKind.ACCOUNT->"from:${scope.value} ($query)";SearchScopeKind.TAG->"#${scope.value} ($query)";else->throw SourceFailure(HealthStatus.UNSUPPORTED,"This search scope needs a selected public feed")};require(query.length in 1..2000);"/2/search?q=${DarwinRoutes.encode(query)}&feed=latest&count=30"}
             target.kind in setOf(TargetKind.PROFILE,TargetKind.FEED)->{handle=if(source.platform==Platform.X)path.firstOrNull().orEmpty()else path.getOrNull(1).orEmpty();require(handle.matches(if(source.platform==Platform.X)Regex("[A-Za-z0-9_]{1,15}")else Regex("[A-Za-z0-9.:-]{1,253}")));"/2/profile/${DarwinRoutes.encode(handle)}/statuses?count=20"}
             else->throw SourceFailure(HealthStatus.UNSUPPORTED,"This route reads public posts, profiles and search results")
@@ -283,7 +310,8 @@ private class FxEmbedDataAdapter(source: Source,gateway: NetworkGateway,routes: 
             ?: namedAuthors.maxByOrNull {it.first}?.second
         val profile=if(!post&&!search&&posts.isNotEmpty())Profile(target,namedAccount?.pText("name") ?: handle,
             namedAccount?.pText("description").orEmpty(),namedAccount?.pText("avatar_url")?.let {pUrl(it,provenance.finalUrl)},displayNameSupplied=namedAccount!=null)else null
-        return pUsable(Page(pChronological(posts),pCursor(source,target,bottom),profile,provenance,notice=null))
+        val editions=if(target.kind==TargetKind.THREAD)posts.singleOrNull()?.let {ProtocolDiscoveryParsing.fxThread(data,it,provenance,routes)}.orEmpty()else posts
+        return pUsable(Page(pChronological(editions),pCursor(source,target,bottom),profile,provenance,notice=null))
     }
 }
 

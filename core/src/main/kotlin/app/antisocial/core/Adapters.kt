@@ -690,7 +690,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }finally {readFinished()}
     }
     @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun load(target: Target, feed: Boolean=false, cursor: String?=null, originalFallback: Boolean=true,progress: (String)->Unit=onProgress,requestedCapability: Capability?=null,background: Boolean=false,profileNameOnly: Boolean=false,mediaMetadataOnly:Boolean=false): Page = withContext(Dispatchers.IO) {
+    suspend fun load(target: Target, feed: Boolean=false, cursor: String?=null, originalFallback: Boolean=true,progress: (String)->Unit=onProgress,requestedCapability: Capability?=null,background: Boolean=false,profileNameOnly: Boolean=false,mediaMetadataOnly:Boolean=false,publisherThreadOnly:Boolean=false): Page = withContext(Dispatchers.IO) {
         val supplementalJob=if(background)currentCoroutineContext()[Job]else null
         readStarted(background,supplementalJob)
         val capability=requestedCapability ?: when {feed->Capability.FEED;target.kind==TargetKind.MEDIA->Capability.MEDIA;target.kind in setOf(TargetKind.POST,TargetKind.THREAD)->Capability.POST;target.kind==TargetKind.SEARCH->Capability.SEARCH;else->Capability.TIMELINE}
@@ -702,6 +702,12 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         try {
         require(!profileNameOnly||capability==Capability.PROFILE){"Name lookups require an exact profile"}
         require(!mediaMetadataOnly||capability==Capability.MEDIA&&target.platform==Platform.X&&target.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&!originalFallback&&cursor==null){"Video metadata needs an exact public X post and alternate-only reads"}
+        require(!publisherThreadOnly||capability==Capability.POST&&target.platform==Platform.X&&target.kind==TargetKind.THREAD&&!originalFallback&&cursor==null&&!mediaMetadataOnly){"Publisher continuations need an exact alternate-only X thread"}
+        fun usablePublisherThread(page:Page):Boolean {
+            if(!publisherThreadOnly)return true
+            val root=page.posts.singleOrNull {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)} ?: return false
+            return PublisherThreads.descendants(root,page.posts).isNotEmpty()
+        }
         fun usableMediaMetadata(page:Page)=!mediaMetadataOnly||page.posts.any {post->
             post.platform==target.platform&&!post.preview&&ContentIdentity.key(post.platform,post.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)&&
                 post.media.any {m->m.type=="video"&&VideoAssetIdentity.validSampling(m)&&
@@ -719,7 +725,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         fun directoryOnly(page: Page)=capability==Capability.SEARCH&&target.kind==TargetKind.SEARCH&&SearchScopes.from(target)==null&&
             page.posts.isEmpty()&&page.collections.none {it.target.kind==TargetKind.POST}&&
             (page.accounts.isNotEmpty()||page.collections.any {PublicSearchAdapter.entityAllowed(it.target)})
-        fun usableProgress(page: Page)=searchProgress(page,capability,target)&&usableProfileName(page)&&usableMediaMetadata(page)&&!directoryOnly(page)&&
+        fun usableProgress(page: Page)=searchProgress(page,capability,target)&&usableProfileName(page)&&usableMediaMetadata(page)&&usablePublisherThread(page)&&!directoryOnly(page)&&
             (history==null||historyContent(page,target))
         progress("Preparing a secure connection")
         gateway.prepare()
@@ -734,17 +740,17 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val tor=gateway.currentPolicy().tor
         val now=clock()
         val candidates=requestedOrder(sourcesFor(target,capability).filter {
-            it.role!=SourceRole.CACHE&&(!mediaMetadataOnly||it.role==SourceRole.ALTERNATE&&it.frontend=="fxembed-api")&&
+            it.role!=SourceRole.CACHE&&(!(mediaMetadataOnly||publisherThreadOnly)||it.role==SourceRole.ALTERNATE&&it.frontend=="fxembed-api")&&
                 (history==null||history.allows(it))&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)
-        },capability).let {if(mediaMetadataOnly)it.take(2)else it}
+        },capability).let {if(mediaMetadataOnly||publisherThreadOnly)it.take(2)else it}
         var last: Exception?=sourcesFor(target,capability,originalFallback).filter {
-            !mediaMetadataOnly||it.role==SourceRole.ALTERNATE&&it.frontend=="fxembed-api"
+            !(mediaMetadataOnly||publisherThreadOnly)||it.role==SourceRole.ALTERNATE&&it.frontend=="fxembed-api"
         }.firstNotNullOfOrNull {learning.failure(it,capability,usesTor(it),target)}
         var partial: Page?=null
         var originalRedirect: Page?=null
         fun previewOnly(page: Page)=capability==Capability.POST&&page.posts.firstOrNull {ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)}?.preview==true
         fun retainPartial(page: Page) {
-            if(profileNameOnly||mediaMetadataOnly||history!=null)return
+            if(profileNameOnly||mediaMetadataOnly||publisherThreadOnly||history!=null)return
             val candidate=if(capability==Capability.POST)page.copy(posts=page.posts.filter {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)},profile=null,collections=emptyList(),accounts=emptyList())else page
             if(candidate.posts.isEmpty()&&candidate.profile==null&&candidate.collections.isEmpty()&&candidate.accounts.isEmpty())return
             if(partial==null||previewOnly(candidate)&&partial!!.posts.isEmpty())partial=candidate
@@ -801,16 +807,18 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
                             checkAccess(source)
                             val redirected=redirectedOriginal(source,page)
                             val r=ProbeResult(source,capability,if(redirected)HealthStatus.UNSUPPORTED else if(content)HealthStatus.HEALTHY else HealthStatus.EMPTY,(System.nanoTime()-started)/1_000_000,clock(),tor,if(redirected)ORIGINAL_REDIRECT else if(content)"Requested public content extracted"else if(mediaMetadataOnly)"No supported current video metadata"else if(previewOnly(page))"Public preview only; full content unavailable"else "Profile information only; no timeline entries")
-                            recordRead(r,feedback,target,delivery=!redirected)
+                            // A continuation-only miss/unsupported endpoint is
+                            // not evidence that the ordinary post reader broke.
+                            if(!publisherThreadOnly)recordRead(r,feedback,target,delivery=!redirected)
                         }catch(e: CancellationException) {
                             currentCoroutineContext().ensureActive()
                             page=null;failure=e
-                            if(e is TimeoutCancellationException&&admitted)record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,clock(),tor,"Timed out"),target)
+                            if(e is TimeoutCancellationException&&admitted&&!publisherThreadOnly)record(ProbeResult(source,capability,HealthStatus.UNAVAILABLE,0,clock(),tor,"Timed out"),target)
                         }catch(e: Exception) {
                             currentCoroutineContext().ensureActive()
                             page=null;failure=runCatching {checkAccess(source);feedback?.check(gateway)}.exceptionOrNull() as? Exception ?: e
                             val r=ProbeResult(source,capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,clock(),tor,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
-                            if(admitted&&failure !is CancellationException)record(r,target)
+                            if(admitted&&failure !is CancellationException&&(!publisherThreadOnly||e is SourceFailure&&(e.status==HealthStatus.RATE_LIMITED||e.retryAfterMs!=null)))record(r,target)
                         }
                         completed.send(Triple(index,page,failure))
                     }
@@ -910,7 +918,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }
         // Independent archives are a recovery tier. They cannot win a race with
         // fresh content or confirm that a chronological subscription refreshed.
-        if(capability!=Capability.FEED&&!profileNameOnly&&!mediaMetadataOnly&&history==null) {
+        if(capability!=Capability.FEED&&!profileNameOnly&&!mediaMetadataOnly&&!publisherThreadOnly&&history==null) {
             val cached=withTimeoutOrNull(if(tor)55_000L else 24_000L) {
                 for(source in sourcesFor(target,capability).filter {it.role==SourceRole.CACHE&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)}.sortedBy {learning.score(it,capability,usesTor(it))}) {
                     val started=System.nanoTime()
@@ -929,6 +937,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             if(cached!=null)return@withContext cached
         }
         partial?.let {return@withContext if(target.kind==TargetKind.SEARCH&&it.accounts.isNotEmpty()&&last!=null)it.copy(notice="Public accounts are available; posts could not be loaded on this connection.")else it}
+        if(publisherThreadOnly&&last==null)throw SourceFailure(HealthStatus.EMPTY,"No connected publisher continuation was supplied")
         if(target.kind==TargetKind.SEARCH) {
             val failure=last as? SourceFailure
             throw SourceFailure(failure?.status ?: HealthStatus.UNAVAILABLE,"Public ${target.platform.label} search is unavailable. ${failure?.message ?: "Try an @username or a direct link; see source details for access restrictions or connection failures."}",failure?.retryAfterMs,failure?.httpStatus)
@@ -939,7 +948,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
             else last ?: SourceFailure(HealthStatus.UNAVAILABLE,"No working public data source")
         }catch(e: CancellationException){throw e}
         catch(e: Exception) {
-            if(!profileNameOnly&&!mediaMetadataOnly&&attempted.get()&&maintenanceTarget(target,capability)&&gateway.currentPolicy().let {it.tor==requestedMode&&(!it.tor||it.ready)}) {
+            if(!profileNameOnly&&!mediaMetadataOnly&&!publisherThreadOnly&&attempted.get()&&maintenanceTarget(target,capability)&&gateway.currentPolicy().let {it.tor==requestedMode&&(!it.tor||it.ready)}) {
                 val reason=ProbeResult(Source(target.platform,"requested",target.platform.origin),capability,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,clock(),requestedMode,e.message.orEmpty())
                 if(AdaptiveRouting.isTargetSpecific(reason))heartbeat.observePlan(heartbeatScope(target,capability),plan(target,capability,originalFallback))
                 else heartbeat.observeRead(heartbeatScope(target,capability),null,plan(target,capability,originalFallback),successful=false)

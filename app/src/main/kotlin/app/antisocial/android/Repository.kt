@@ -103,6 +103,7 @@ class Repository(val context: Context) {
     val cardWork=CardWork()
     val images by lazy {ImageLoader(this)}
     internal val videos=VideoEvidenceStore(this)
+    internal val galleries=GalleryEvidenceStore(this)
     val aiMetadata by lazy {AiMetadataStore(scope,onWork={url->cardWork.begin(listOf(mediaWorkKey(url)),"Image information")})}
     private val mediaInfoStore=lazy {MediaInfoStore(this)}
     internal val mediaInfo get()=mediaInfoStore.value
@@ -799,6 +800,34 @@ class Repository(val context: Context) {
             if(!ProfilePosts.supported(follow.target)||!prefs.originalFallback)throw e
             discoverProfilePosts(follow.target,Page(emptyList())).also {if(it.posts.isEmpty())throw e}
         }
+    internal suspend fun publisherGalleryPage(root:Post):Page {
+        val target=routes.recognize(root.canonicalUrl,Platform.X)?.takeIf {it.kind==TargetKind.POST} ?: throw SourceFailure(HealthStatus.UNSUPPORTED,"No publisher thread address")
+        val direct=try {withTimeoutOrNull(8_000) {
+            pool.load(target.copy(kind=TargetKind.THREAD),originalFallback=false,progress={},background=true,publisherThreadOnly=true)
+        }}catch(e:CancellationException){throw e}catch(_:Exception){null}
+        return direct ?: withTimeout(10_000) {pool.load(target,originalFallback=false,progress={},requestedCapability=Capability.COMMENTS,background=true)}
+    }
+    /** Admission is rechecked under Room's transaction, including after writes.
+     * A purge/unsubscribe/revision while waiting cannot revive obsolete data. */
+    internal suspend fun storeGalleryContinuation(request:GalleryContinuationRequest,children:List<Post>,admit:()->Boolean):Boolean=db.withTransaction {
+        if(!admit())return@withTransaction false
+        val currentFollows=dao.allFollows().map {gson.fromJson(it.payload,Follow::class.java)}.associateBy {it.id}
+        if(request.bindings.isEmpty()||request.bindings.any {old->currentFollows[old.id]?.let {it.enabled&&it.target==old.target&&Subscriptions.id(it)==Subscriptions.id(old)}!=true})return@withTransaction false
+        val root=dao.post(key(request.root))?.let {gson.fromJson(it.payload,Post::class.java)} ?: return@withTransaction false
+        val peer=dao.post(key(request.peer))?.let {gson.fromJson(it.payload,Post::class.java)} ?: return@withTransaction false
+        if(!GalleryContinuations.sameInput(root,request.root)||!GalleryContinuations.sameInput(peer,request.peer))return@withTransaction false
+        val ids=dao.postFollowIds(key(root)).toSet().intersect(request.followIds)
+        if(ids.isEmpty()||dao.postFollowIds(key(peer)).none {id->request.bindings.any {it.id==id}})return@withTransaction false
+        var added=false
+        for(child in children) {
+            val old=dao.post(key(child))?.let {gson.fromJson(it.payload,Post::class.java)}
+            if(old!=null&&(!GalleryContinuations.sameInput(old,child)||(old.provenance?.fetchedAt ?: 0)>(child.provenance?.fetchedAt ?: 0)))continue
+            if(dao.seen(key(child))?.purged==true)continue
+            ids.forEach {storeRows(Page(listOf(child)),it)};added=true
+        }
+        if(!admit())throw CancellationException("Gallery evidence was retired before commit")
+        added
+    }
     /** The scheduled connection wait is a pending check, never an old success.
      * It holds no refresh lock, so a foreground read can still proceed. */
     suspend fun refreshWhenConnected() {
@@ -916,6 +945,7 @@ class Repository(val context: Context) {
         cleanup()
         images.retryFailed()
         videos.retryFailures()
+        galleries.retry()
     }}
     suspend fun viewed(post: Post) {val now=System.currentTimeMillis();dao.touchPost(key(post),now);dao.putHistory(HistoryRow(key(post),post.platform.id,post.canonicalUrl,post.title.ifBlank {post.body.take(90)},now));library.recordHistory(post,now)}
     suspend fun bookmark(post: Post,save: Boolean) {
@@ -1064,6 +1094,7 @@ class Repository(val context: Context) {
         if(sourceRecordStore.isInitialized())sourceRecords.cleanup(clearAll)
         mediaInfo.cleanup(clearAll)
         videos.cleanup(clearAll)
+        if(clearAll)galleries.clear()
         if(localDiscoveryStore.isInitialized())localDiscovery.cleanup(clearAll)
         if(localLinkStore.isInitialized())localLinks.cleanup(clearAll)
         PlaceSearchVocabulary.cleanup(clearAll)

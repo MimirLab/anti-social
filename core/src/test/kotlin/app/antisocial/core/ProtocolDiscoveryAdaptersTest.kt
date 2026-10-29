@@ -52,6 +52,34 @@ class ProtocolDiscoveryAdaptersTest {
         assertNull(ProtocolDiscoveryParsing.fxStatus(obj(fx().replace("\"name\":\"Jack\"","\"name\":\"Jack\",\"protected\":true")),Platform.X,fxProvenance(),routes))
         assertNull(ProtocolDiscoveryParsing.fxStatus(obj(fx().replace("Public body 20","")),Platform.X,fxProvenance(),routes))
     }
+    @Test fun fxRetainsOnlyConsistentExplicitReplyParentIdentity() {
+        fun parsed(reply:String,platform:Platform=Platform.X)=ProtocolDiscoveryParsing.fxStatus(
+            obj(fx(platform=platform,handle=if(platform==Platform.X)"jack"else "studio.test",extra=",\"replying_to\":$reply")),platform,fxProvenance(platform),routes)!!
+        val fields="\"screen_name\":\"publiclab\",\"status\":\"19\""
+        val child=parsed("{$fields,\"url\":\"https://twitter.com/publiclab/status/19\"}")
+        assertEquals("post:19",child.parentId)
+        assertEquals("19",child.sourceParentId)
+        assertEquals("20",child.relationId)
+        assertEquals(ExtractionStatus.PRESENT,child.extractionCoverage?.replyParent)
+        assertEquals(child.parentId,parsed("{$fields}").parentId)
+        assertEquals("post:2115503363458732331",parsed("{\"screen_name\":\"publiclab\",\"status\":2115503363458732331}").parentId)
+        val destinations=listOf("https://evil.example/publiclab/status/19","https://x.com/publiclab/status/18",
+            "https://x.com/other/status/19","https://x.com/publiclab/status/20","https://x.com/user:password@publiclab/status/19",
+            "https://user:password@x.com/publiclab/status/19","http://x.com/publiclab/status/19","https://x.com:444/publiclab/status/19",
+            "https://bsky.app/profile/publiclab/post/19")
+        for(url in destinations) {
+            val post=parsed("{$fields,\"url\":\"$url\"}")
+            assertNull(url,post.parentId);assertEquals("Public body 20",post.body)
+        }
+        assertNull(parsed("null").parentId)
+        assertNull(parsed("{\"screen_name\":\"publiclab\",\"status\":\"20\"}").parentId)
+        assertNull(parsed("{\"screen_name\":\"publiclab/path\",\"status\":\"19\"}").parentId)
+        assertNull(parsed("{\"screen_name\":\"publiclab\",\"status\":\"1e20\"}").parentId)
+        val blue=parsed("{\"screen_name\":\"other.test\",\"status\":\"3Abc\",\"url\":\"https://bsky.app/profile/other.test/post/3Abc\"}",Platform.BLUESKY)
+        assertEquals(ContentIdentity.key(Platform.BLUESKY,"https://bsky.app/profile/other.test/post/3Abc"),blue.parentId)
+        assertEquals("3Abc",blue.sourceParentId)
+        assertNull(blue.conversationId) // An immediate parent is not necessarily the thread root.
+    }
     @Test fun fxRejectsWrongSelectedPostInsteadOfCallingItHealthy(): Unit=runBlocking {
         MockWebServer().use {server->server.start();server.enqueue(MockResponse().setBody("""{"code":200,"status":${fx("21")}}"""))
             val failure=assertThrows(SourceFailure::class.java){runBlocking {adapter(server).fetch(routes.target(Platform.X,"https://x.com/jack/status/20"))}}
@@ -63,6 +91,23 @@ class ProtocolDiscoveryAdaptersTest {
             val reader=adapter(server);val selected=routes.target(Platform.X,"jack");val page=reader.fetch(selected);assertEquals(1,page.posts.size);assertNotNull(page.next)
             assertThrows(IllegalArgumentException::class.java){runBlocking {reader.fetch(routes.target(Platform.X,"other"),page.next)}}
             server.enqueue(MockResponse().setBody("""{"code":200,"results":[${fx("19")}]}"""));reader.fetch(selected,page.next);server.takeRequest();val request=server.takeRequest();assertEquals("opaque+/=",request.requestUrl!!.queryParameter("cursor"));assertEquals(2,server.requestCount)
+        }
+    }
+    @Test fun fxThreadReadsOnlyTheSelectedAuthorsConnectedDescendants():Unit=runBlocking {
+        fun reply(id:String,parent:String,who:String="jack")=fx(id,who,extra=",\"replying_to\":{\"screen_name\":\"jack\",\"status\":\"$parent\",\"url\":\"https://x.com/jack/status/$parent\"}")
+        val body="""{"code":200,"status":${fx()},"thread":[${reply("22","21")},${fx("19")},${reply("21","20")},${reply("23","20","other")},${fx("24")},${reply("25","26")},${reply("26","25")}],"recommendations":[${reply("27","20")}]}"""
+        MockWebServer().use {server->
+            server.start();server.enqueue(MockResponse().setBody(body))
+            val reader=adapter(server);val selected=routes.target(Platform.X,"https://x.com/jack/status/20")
+            val page=reader.fetch(selected.copy(kind=TargetKind.THREAD))
+            assertEquals(setOf("post:20","post:21","post:22"),page.posts.map {it.id}.toSet())
+            assertEquals("post:21",page.posts.single {it.id=="post:22"}.parentId)
+            assertEquals("/2/thread/20",server.takeRequest().path);assertNull(page.next)
+            server.enqueue(MockResponse().setBody(body))
+            assertEquals(listOf("post:20"),reader.fetch(selected).posts.map {it.id})
+            assertEquals("/2/status/20",server.takeRequest().path)
+            server.enqueue(MockResponse().setBody(body.replace("\"status\":"+fx(),"\"status\":"+fx("99"))))
+            assertThrows(SourceFailure::class.java){runBlocking {reader.fetch(selected.copy(kind=TargetKind.THREAD))}}
         }
     }
     @Test fun fxSearchUsesLatestAndNativeAccountScope(): Unit=runBlocking {

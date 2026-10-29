@@ -372,12 +372,19 @@ object CrossPosts {
         // original. A supplied caption still needs the ordinary literal gallery
         // relation below; an unrelated reply cannot borrow its parent's prose.
         val account=originalAccount(post) ?: return false
-        val parent=scope.firstOrNull {it.platform==post.platform&&it.id==post.parentId&&it.parentId==null&&originalAccount(it)==account} ?: return false
-        return galleryContains(anchor,parent,sameMedia)&&galleryContains(anchor,post.copy(parentId=null),sameMedia,parentQualified=true)
+        val path=mutableListOf<Post>();val seen=hashSetOf<String>();var current=post
+        while(current.parentId!=null) {
+            if(!seen.add(originalKey(current))||path.size>=MAX_EDITIONS)return false
+            path+=current
+            current=scope.singleOrNull {it.platform==post.platform&&it.id==current.parentId&&originalAccount(it)==account} ?: return false
+        }
+        // Every generation must fit the same frozen gallery. A path of shared
+        // pictures is never permission to bridge different announcements.
+        return galleryContains(anchor,current,sameMedia)&&path.all {galleryContains(anchor,it.copy(parentId=null),sameMedia,parentQualified=true)}
     }
     private fun galleryAnchor(post: Post)=post.media.size in 2..12&&post.media.all {it.type=="image"&&it.url!=post.avatar}&&
         tokens(decoded(PostPresentation.content(post))).size>=8
-    private fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean,parentQualified:Boolean=false): Boolean {
+    internal fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean,parentQualified:Boolean=false): Boolean {
         if(anchor.preview||post.preview||anchor.parentId!=null||post.parentId!=null)return false
         val a=anchor.publishedAt?.takeIf {it>0} ?: return false;val b=post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(a>=b)a.toULong()-b.toULong()else b.toULong()-a.toULong()
@@ -932,6 +939,16 @@ object CrossPosts {
             originalKey(post) to publisherOwner(post,accounts,memberships).takeIf {realOriginal(post)}
         }
         SharedVideoCollections.requests(groups,owners)
+    }
+    fun galleryContinuationRequests(groups:List<PostGroup>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap()):List<GalleryContinuationRequest> = CrossPostFusion.withPrepared {
+        val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
+        groups.mapNotNull {group->
+            if(!GalleryContinuations.potential(group.posts))return@mapNotNull null
+            val owners=group.posts.associate {post->originalKey(post) to publisherOwner(post,accounts,memberships).takeIf {realOriginal(post)}}
+            GalleryContinuations.request(group.posts,owners) {root->
+                follows.filter {it.enabled&&it.id in memberships[originalKey(root)].orEmpty()&&own(root,it)}.mapTo(linkedSetOf()){it.id}
+            }?.let {request->request.copy(bindings=follows.filter {it.enabled&&Subscriptions.id(it)==owners[originalKey(request.root)]&&it.id in memberships[originalKey(request.root)].orEmpty()+memberships[originalKey(request.peer)].orEmpty()}.map {it.copy(name="",personName=null)})}
+        }
     }
     /** Demand-scoped fallback after the visible-card dwell. Reuse current
      * observations without repeating caption matching or issuing any read. */

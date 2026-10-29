@@ -154,3 +154,16 @@ First-card, actual-sample and visible-collection times are separate events.
 Supplying arbitrary cached records without follow memberships is rejected;
 source refusal and resource-policy denial are not successful collection results.
 The input, screenshots and detailed events remain private outside the checkout.
+
+`FullFeedGalleryLiveTest` requires both `antisocialIsolatedFixtureDevice=true`
+and `antisocialFullFeedGalleryLive=true`, an empty disposable installation and
+private `files/full-gallery-private-packet/input.json`. It imports a captured
+followed window with exact memberships and initial `focusKeys`; `rootKey`,
+`expectedChildUrl`, `expectedOriginals` and `expectedPictures` declare expectations.
+The expected child must be absent from the input. Optional `files` restore
+genuine initial-edition image bytes; ambiguous CDN aliases are rejected. The
+shipping decoder derives fingerprints, while the real feed dwell, Gateway and
+routing acquire the missing child. Assertions cover parent provenance, exclusive
+author membership, one complete visible family and distinct-picture retention.
+No child metadata or comparison evidence is injected. Inputs and native evidence
+remain private; the test does not run without both opt-in flags.

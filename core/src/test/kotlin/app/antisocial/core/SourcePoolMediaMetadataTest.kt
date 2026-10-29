@@ -7,6 +7,8 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.CopyOnWriteArrayList
@@ -58,6 +60,25 @@ class SourcePoolMediaMetadataTest {
             }finally {client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()}
         }
     }
+    @Test fun publisherThreadRequiresAConnectedChildWithoutPoisoningOrdinaryPostHealth():Unit=runBlocking {
+        MockWebServer().use {server->
+            server.start();repeat(2){server.enqueue(MockResponse().setBody(response(false)))}
+            val requests=CopyOnWriteArrayList<String>();val gateway=gateway(server,requests);val client=gateway.client();val routes=routes()
+            try {
+                val pool=SourcePool(gateway,routes,pathways(3));val target=routes.target(Platform.X,"https://x.com/publicstudio/status/710001").copy(kind=TargetKind.THREAD)
+                val error=runCatching {pool.load(target,originalFallback=false,publisherThreadOnly=true)}.exceptionOrNull() as SourceFailure
+                assertEquals(HealthStatus.EMPTY,error.status);assertEquals(2,server.requestCount)
+                assertTrue(pool.results(Platform.X).isEmpty())
+                assertTrue(requests.none {it.contains("html.example")||it.contains("archive.example")||it.contains("x.com")})
+                assertTrue(runCatching {pool.load(target,originalFallback=true,publisherThreadOnly=true)}.exceptionOrNull()is IllegalArgumentException)
+                assertTrue(runCatching {pool.load(target.copy(kind=TargetKind.POST),originalFallback=false,publisherThreadOnly=true)}.exceptionOrNull()is IllegalArgumentException)
+                val closed=gateway(server,CopyOnWriteArrayList());val closedClient=closed.client();closed.configure(NetworkPolicy(tor=true,ready=false))
+                try {assertTrue(runCatching {SourcePool(closed,routes,pathways(1)).load(target,originalFallback=false,publisherThreadOnly=true)}.isFailure)}
+                finally {closedClient.dispatcher.executorService.shutdownNow();closedClient.connectionPool.evictAll()}
+                assertEquals(2,server.requestCount)
+            }finally {client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()}
+        }
+    }
     @Test fun metadataCannotEnableOriginalFallbackOrDefeatUnavailableSelectedTor()=runBlocking {
         MockWebServer().use {server->
             server.start();val requests=CopyOnWriteArrayList<String>();val gateway=gateway(server,requests);val client=gateway.client();val routes=routes()
@@ -67,6 +88,31 @@ class SourcePoolMediaMetadataTest {
                 gateway.configure(NetworkPolicy(tor=true,ready=false))
                 assertTrue(runCatching {pool.load(target,originalFallback=false,requestedCapability=Capability.MEDIA,mediaMetadataOnly=true)}.isFailure)
                 assertEquals(0,server.requestCount);assertTrue(requests.isEmpty())
+            }finally {client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()}
+        }
+    }
+    @Test fun unsupportedContinuationLeavesOrdinaryPostUsableButExplicitServerPauseStillApplies():Unit=runBlocking {
+        val onlyFx=PublicPathways(JsonParser.parseString("""{"sources":[{"enabled":true,"platform":"twitter","frontend":"fxembed-api","root":"https://api0.example"}]}""").asJsonObject)
+        MockWebServer().use {server->
+            server.start();server.dispatcher=object:Dispatcher() {
+                override fun dispatch(request:RecordedRequest)=if(request.path?.startsWith("/2/thread/")==true)MockResponse().setResponseCode(404)
+                    else MockResponse().setBody(response(false))
+            }
+            val gateway=gateway(server,CopyOnWriteArrayList());val client=gateway.client();val routes=routes()
+            try {
+                val pool=SourcePool(gateway,routes,onlyFx);val target=routes.target(Platform.X,"https://x.com/publicstudio/status/710001")
+                assertTrue(runCatching {pool.load(target.copy(kind=TargetKind.THREAD),originalFallback=false,publisherThreadOnly=true)}.isFailure)
+                assertTrue(pool.results(Platform.X).isEmpty())
+                assertEquals(1,pool.load(target,originalFallback=false).posts.size)
+                assertEquals(2,server.requestCount);assertEquals(HealthStatus.HEALTHY,pool.results(Platform.X).single().status)
+                server.dispatcher=object:Dispatcher() {
+                    override fun dispatch(request:RecordedRequest)=MockResponse().setResponseCode(429).setHeader("Retry-After","120")
+                }
+                val paused=SourcePool(gateway,routes,onlyFx)
+                assertTrue(runCatching {paused.load(target.copy(kind=TargetKind.THREAD),originalFallback=false,publisherThreadOnly=true)}.isFailure)
+                assertEquals(HealthStatus.RATE_LIMITED,paused.results(Platform.X).single().status)
+                assertTrue(runCatching {paused.load(target,originalFallback=false)}.isFailure)
+                assertEquals("A server pause must also protect the ordinary route",3,server.requestCount)
             }finally {client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()}
         }
     }

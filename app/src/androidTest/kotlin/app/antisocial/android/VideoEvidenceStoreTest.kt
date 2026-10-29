@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.antisocial.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import org.junit.*
 import org.junit.Assert.*
 import org.junit.runner.RunWith
@@ -36,6 +37,33 @@ class VideoEvidenceStoreTest {
     })
     private fun result(media:Media)=GatewayVideoSampler.Result(frames(),1024,1,VideoAssetIdentity.sampleUrl(media))
     private fun store(clock:()->Long=System::currentTimeMillis)=VideoEvidenceStore(repo,clock,directory)
+    @Test fun runningVideoComparisonOwnsTheKeyObservedByItsCard():Unit=runBlocking {
+        val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val bank=store()
+        bank.sample={m,_->entered.complete(Unit);finish.await();result(m)}
+        val task=launch {bank.enrich(request,automatic=false)}
+        try {
+            withTimeout(10_000){entered.await()}
+            assertTrue(repo.cardWork.activity(setOf(postWorkKey(first))).first().contains("Comparing video editions"))
+        }finally {task.cancelAndJoin();finish.complete(Unit)}
+        assertTrue(repo.cardWork.activity(setOf(postWorkKey(first))).first().isEmpty())
+    }
+    @Test fun queuedComparisonIsVisibleAndPurgingRetiresItBeforeItCanSample():Unit=runBlocking {
+        val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val calls=AtomicInteger();val bank=store()
+        bank.sample={m,_->calls.incrementAndGet();entered.complete(Unit);finish.await();result(m)}
+        val changed=first.copy(id="710003",canonicalUrl="https://x.com/publicstudio/status/710003")
+        val pending=VideoFootageRequest(changed,second,setOf(changed.identityKey,second.identityKey))
+        val firstJob=launch {bank.enrich(request,automatic=false)}
+        var queued:Job?=null
+        try {
+            withTimeout(10_000){entered.await()}
+            queued=launch {bank.enrich(pending,automatic=false)}
+            withTimeout(5_000){repo.cardWork.activity(setOf(postWorkKey(changed))).first {"Comparing video editions" in it}}
+            bank.cleanup(true)
+            withTimeout(5_000){firstJob.join();queued.join()}
+            assertTrue(firstJob.isCancelled);assertTrue(queued.isCancelled);assertEquals(1,calls.get());assertEquals(0,bank.bytes())
+        }finally {firstJob.cancelAndJoin();queued?.cancelAndJoin();finish.complete(Unit)}
+        assertTrue(repo.cardWork.activity(setOf(postWorkKey(changed))).first().isEmpty())
+    }
 
     @Test fun repeatedAndRestartedReadersReuseBoundedObservationsWithoutFetchingAgain():Unit=runBlocking {
         val calls=AtomicInteger();val bank=store();bank.sample={m,_->calls.incrementAndGet();result(m)}

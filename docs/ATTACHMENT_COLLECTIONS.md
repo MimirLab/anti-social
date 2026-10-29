@@ -471,3 +471,42 @@ six originals in Library saves. Provided images are decoded before presentation;
 this qualifies collection, display and saving, not cold live image acquisition.
 The failed pre-fix runs and actual native screens remain private. The release
 qualification records the broader regression scope.
+
+## Acquire a missing gallery continuation, 0.38.64
+
+A successfully matched caption cannot supply pictures the reader never acquired.
+The feed now schedules a narrow publisher-thread read when a four-picture X
+edition is already observed inside a larger gallery from the same linked
+publisher, but its known pictures do not cover that gallery. Actual enabled
+subscription memberships are required. A settled visible card triggers the
+work; ordinary scrolling, overlays and foreground requests retain priority.
+
+The first route uses FxEmbed's documented
+[`/2/thread/{id}`](https://docs.fxembed.com/api/twitter/operations/2threadid/),
+through SourcePool and NetworkGateway. At most two eligible alternative endpoints
+are tried before the existing routed discussion fallback. A readable root alone
+does not establish a working thread. Unavailable continuation support does not
+poison ordinary post delivery health; explicit server rate limits still apply.
+All-traffic Tor remains fail-closed, and this read never enables original fallback.
+
+Only bounded, connected descendants from the selected original author can be
+candidates. Fx parent extraction retains actual parent IDs and their coverage;
+it does not substitute a conversation root for an unknown immediate parent.
+Older discussion routes retain their existing incomplete-parent coverage. Each
+generation of a self-reply chain must fit the same frozen gallery. The worker
+fetches and decodes a candidate's actual pictures before applying the existing
+gallery containment checks. A shared caption or parent is insufficient evidence.
+Unrelated commenters are not inserted into followed feeds.
+
+One acquisition lane has a 25-second deadline, an eight-request/eight-MiB parent
+allowance and at most one new child with four pictures per pass. A bounded
+20-minute session cache avoids repeating the same unsuccessful input; manual
+refresh permits retry. Wi-Fi and power-saving preferences apply. Source revision,
+subscription membership and purge generation are rechecked inside the database
+transaction, so obsolete work cannot restore removed data. No database migration,
+model, permission or new dependency is needed.
+
+Video comparison work also uses the actual card activity keys, including while
+queued for its decoder lane. The card therefore observes this pending work, and
+cache purge cancels queued comparisons before they can enter a newer generation.
+The existing native status indicator is reused.

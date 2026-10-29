@@ -139,13 +139,15 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         repo.context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
         return !info.lowMemory
     }
-    suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true)=withContext(Dispatchers.IO) {lane.withLock {
-        repo.awaitReady();restore()
-        if(automatic&&!automaticAllowedNow())return@withLock
+    suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true):Unit=withContext(Dispatchers.IO) {
         val job=currentCoroutineContext()[Job]!!
+        // Queued work belongs to its cards too, and a purge must retire it
+        // before it acquires the decoder lane in a newer evidence generation.
         val epoch=synchronized(lock){running+=job;generation}
-        try {withTimeout(45_000) {repo.cardWork.track(request.originalKeys,"Comparing video editions") {
-            repo.gateway.boundedVideoComparison {
+        try {repo.cardWork.track(request.originalKeys.map {"post:$it"},"Comparing video editions") {lane.withLock {
+            repo.awaitReady();restore()
+            if(synchronized(lock){epoch!=generation}||automatic&&!automaticAllowedNow())return@withLock
+            withTimeout(45_000) {repo.gateway.boundedVideoComparison {
                 for(post in listOf(request.first,request.second)) {
                     currentCoroutineContext().ensureActive()
                     var retries=0
@@ -159,10 +161,10 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                         delay(700)
                     }
                 }
-            }
+            }}
         }}}catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive()}
         finally {synchronized(lock){running-=job};repo.scheduleCleanup()}
-    }}
+    }
     private fun trim(clear:Boolean) {
         if(clear){directory.deleteRecursively();return}
         val files=directory.listFiles().orEmpty().filter {it.isFile}.sortedBy {it.lastModified()}.toMutableList()
