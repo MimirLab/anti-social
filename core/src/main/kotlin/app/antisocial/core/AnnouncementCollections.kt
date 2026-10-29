@@ -82,7 +82,11 @@ internal object AnnouncementCollections {
                 val reduced=leaf.posts.map {post->
                     val cap=caption(post) ?: return@map null
                     if(cap.referenceTokens.isEmpty()||cap.referenceTokens.any {!AnnouncementEditions.isMention(it)&&!CrossPosts.opaqueLink(it)&&!CrossPosts.originalLink(it,post)})return@map null
-                    DecoratedPostCopies.short(post.copy(title="",body=cap.message))?.copy(post=post)
+                    // The message projection has intentionally detached the
+                    // reference suffix. Classify acquired mention navigation
+                    // against the original body before that suffix is absent.
+                    val links=post.links?.filterNot {CrossPosts.nitterMentionLink(post,it)}
+                    DecoratedPostCopies.short(post.copy(title="",body=cap.message,links=links))?.copy(post=post)
                 }
                 if(reduced.all {it!=null}) {
                     val values=reduced.filterNotNull()

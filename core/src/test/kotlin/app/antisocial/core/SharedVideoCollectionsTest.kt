@@ -29,6 +29,31 @@ class SharedVideoCollectionsTest {
         assertEquals(posts.map(Post::canonicalUrl).toSet(),merged.posts.map(Post::canonicalUrl).toSet())
         assertEquals(merged,CrossPosts.groupWithVideoFootage(posts.reversed(),accounts,members,sharedFootage=::proof).single())
     }
+    @Test fun incrementalFootageOverlayAgreesWithCompleteGroupingAndCanWithdrawProof():Unit=runBlocking {
+        val posts=listOf(post(Platform.X,"A public workshop demonstration."),
+            post(Platform.BLUESKY,"A public workshop demonstration.",minute=1),
+            post(Platform.FACEBOOK,"See the completed build in action.",minute=2),
+            post(Platform.INSTAGRAM,"See the completed build in action.",minute=3),
+            post(Platform.TIKTOK,"W.O.R.K.",minute=4))
+        val members=posts.associate {CrossPosts.originalKey(it) to setOf(it.platform.id)}
+        val base=CrossPosts.group(posts,accounts,members)
+        assertEquals(3,base.size)
+        val proofs=listOf<(Post,Post)->SharedVideoFootage?>(
+            {_,_->null},
+            {a,b->if(a.platform!=Platform.TIKTOK&&b.platform!=Platform.TIKTOK)proof(a,b)else null},
+            ::proof,
+            {_,_->null})
+        for(compare in proofs) {
+            val incremental=CrossPosts.withVideoFootage(base,accounts,members,compare)
+            assertEquals(CrossPosts.groupWithVideoFootage(posts,accounts,members,sharedFootage=compare),incremental)
+            assertEquals(posts.toSet(),incremental.flatMap {it.posts}.toSet())
+        }
+        assertEquals(3,CrossPosts.withVideoFootage(base,accounts.map {it.copy(personId=it.id)},members,::proof).size)
+        assertEquals(3,CrossPosts.withVideoFootage(base,accounts.map {it.copy(enabled=false)},members,::proof).size)
+        assertThrows(CancellationException::class.java) {
+            CrossPosts.withVideoFootage(base,accounts,members,::proof){throw CancellationException("Stopped")}
+        }
+    }
     @Test fun aPosterOrTwoScenesCannotGrantFootageAdmission() {
         val groups=listOf(PostGroup(listOf(post(Platform.X,"Workshop instructions."))),PostGroup(listOf(post(Platform.FACEBOOK,"An independent caption."))))
         assertEquals(2,SharedVideoCollections.collect(groups,owners(groups),{_,_->null}).size)
@@ -109,6 +134,21 @@ class SharedVideoCollectionsTest {
         assertTrue(CrossPosts.videoFootageRequests(listOf(groups.first(),PostGroup(listOf(b.copy(media=listOf(Media("https://media.example.org/playlist.m3u8","video")))))),accounts).isEmpty())
         val many=(0..30).map {PostGroup(listOf(post(Platform.X,"Different source wording $it.",id="7100${it+100}",minute=it.toLong())))}
         assertEquals(12,CrossPosts.videoFootageRequests(many,accounts).size)
+    }
+    @Test fun dottedInitialsPrioritizeAnEligibleSpelledOutPeerWithoutProvingARecordingMatch() {
+        val short=post(Platform.TIKTOK,"B.A.B.N.",minute=10)
+        val correct=post(Platform.X,"Building. A. Better. Neighborhood.",minute=0)
+        val unrelated=post(Platform.FACEBOOK,"A nearby different public demonstration.",minute=9)
+        val groups=listOf(short,correct,unrelated).map {PostGroup(listOf(it))}
+        val eligible=groups
+        val plans=CrossPosts.focusedVideoFootageRequests(eligible,accounts,emptyMap(),setOf(CrossPosts.originalKey(short)))
+        assertEquals(2,plans.size)
+        assertEquals(setOf(short,correct),setOf(plans.first().first,plans.first().second))
+        assertEquals(3,CrossPosts.withVideoFootage(eligible,accounts,sharedFootage={_,_->null}).size)
+        assertEquals(3,CrossPosts.withVideoFootage(eligible,accounts,sharedFootage={_,_->SharedVideoFootage(2,.999)}).size)
+        val changed=correct.copy(body="Building. Completely. Different. Workshops.")
+        val ordinary=CrossPosts.focusedVideoFootageRequests(listOf(groups[0],PostGroup(listOf(changed)),groups[2]),accounts,emptyMap(),setOf(CrossPosts.originalKey(short)))
+        assertEquals(setOf(short,unrelated),setOf(ordinary.first().first,ordinary.first().second))
     }
     @Test fun compatibleRuntimesCanNominateExtensionlessVideosWithoutScanningUnknownOrAdaptiveMedia() {
         val a=post(Platform.X,"First clip.").copy(media=listOf(Media("https://media.example.org/first","video",durationMs=120_000)))

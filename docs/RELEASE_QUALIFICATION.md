@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.63: reduce the delay before a collected card appears
+
+[Footage projection reuse](ATTACHMENT_COLLECTIONS.md#apply-new-footage-without-repeating-caption-matching-03863)
+keeps caption/image matching separate from completed video observations. The
+caller-owned base is invalidated by source/membership or effective image changes.
+The final footage pass retains the existing owner, time, scene and complete-link
+checks. Dotted-initial candidate ordering improves the first useful comparison;
+it is not an admission proof. No model, dependency, permission, migration or
+native-library change is involved.
+
+An official 0.38.62 counterexample mounted the actual application with a private
+**991-post followed window**, real memberships and six target editions. Actual
+Gateway sampling completed the required observations at **28.191 s**, while the
+six-original collection appeared at **40.862 s**. With projection reuse alone,
+those points were **27.307 s** and **28.551 s**. The final candidate's improved
+ordering observed the required recordings at **23.424 s** and displayed the
+collection at **25.225 s**. First-card times were **10.884 / 9.835 / 10.778 s**;
+opening started at **0.534 / 0.552 / 0.575 s**, respectively. These are single,
+dated API 35 emulator replays with live source variability, unmetered networking
+and the default Wi-Fi-only video-download setting. They establish neither phone
+percentiles nor an improvement in every acquisition or cold-opening cost.
+
+A separate local replay measured the 991-post caption pass at **6,370 ms**. A
+caller-owned first projection took **5,399 ms**, while three footage-only revisions
+took **146 / 146 / 146 ms** with unchanged admitted groups. Native guards verify
+image/source changes, cancellation and withdrawal of proof. The six originals
+and their different captions remain inspectable; native card pixels were reviewed.
+
+A real short-announcement miss was independently reproduced: two source editions
+collected, while a third acquired a mention-navigation URL that was treated as a
+competing article after reference detachment. The existing collection rule now
+classifies that navigation against the original text. A full private replay
+checks raw records without waiting for picture observations. Synthetic controls
+retain distinctions for changed claims/questions/numbers, in-sentence names,
+literal destinations, unrelated hosts and query-bearing URLs. The optional
+packet presenter was also corrected to exercise the shipped collected-edition
+composer before its older fallback paths.
+
+The full JVM run has **2,576 cases: 2,573 passes, zero failures/errors and three
+optional skips**, with the explicit private captured-input case enabled.
+The API 35 release selection covers **191 named native checks: 189 passes,
+zero failures and two opt-in skips**, with returned method identities checked
+against the selection. It retains feed position, late-content adoption, refresh,
+Library, media, source, worker and connection-policy controls. Separate opt-in
+full-window and image-snapshot-cache runs pass. Eight native fixture replays
+cover **20 captured families and 68 originals**, with one card/common passage
+per family, distinct attachments and faithful protected saves. This includes
+two galleries retaining six/five pictures, the newly repaired three-edition
+short announcement, and six video editions with all four selectable recordings.
+The full-window latency replay is separate from those small-family checks.
+
+Release packaging compares the final application and release-test APKs against
+the frozen qualified code, resources and assets, excluding META-INF source-stamp
+metadata. The source archive is checked against the clean tagged commit and
+unchanged upstream archives. Preview replacement retains a fresh private backup
+and checks retained-file hashes before first launch; the permanent fixed-name
+APK is verified with a full anonymous download.
+
+Two related reports remain distinct: a missing quotation-panel self-reply was
+recovered through the production comments route, but was absent from the retained
+feed capture. Existing gallery replay accepts it when acquired; this increment
+does not add automatic thread collection. A reported captionless article-image
+edition was not independently located in that capture or its root discussion.
+Neither is declared fixed by this performance change.
+
+An initial debug-test/release-target ABI mismatch and an invalid input containing
+unfollowed cache rows were harness failures. The corrected release-compatible
+replay uses the actual followed query; the invalid transaction committed no rows.
+
 ## 0.38.62: adopt captured details on the current card
 
 [Captured-detail disclosure](ATTACHMENT_COLLECTIONS.md#captured-details-without-a-feed-jump-03862)

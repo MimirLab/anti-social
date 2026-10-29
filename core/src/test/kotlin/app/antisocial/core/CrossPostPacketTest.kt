@@ -36,7 +36,7 @@ class CrossPostPacketTest {
             assertEquals(selected,groups.flatMap {it.posts}.map(CrossPosts::originalKey).toSet().intersect(selected))
             packet.getAsJsonArray("oncePassages")?.let {passages->
                 val editions=groups.single {g->g.posts.any {CrossPosts.originalKey(it) in selected}}.posts
-                val fusion=CrossPostFusion.compose(editions) ?: CrossPostFusion.composeMedia(editions) ?: CrossPostFusion.composeRelated(editions)
+                val fusion=CrossPostFusion.composeCollectedEditions(editions) ?: CrossPostFusion.compose(editions) ?: CrossPostFusion.composeMedia(editions) ?: CrossPostFusion.composeRelated(editions)
                 assertNotNull("The collected caption must be presentable",fusion)
                 val text=TextWhitespace.collapse(fusion!!.segments.joinToString("\n"){it.text}).lowercase()
                 passages.forEach {value->assertEquals("A shared passage must be read once",1,Regex(Regex.escape(TextWhitespace.collapse(value.asString).lowercase())).findAll(text).count())}

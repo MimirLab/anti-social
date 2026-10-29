@@ -809,7 +809,7 @@ object CrossPosts {
             a.numbers==b.numbers&&a.negatives==b.negatives&&a.symbols==b.symbols&&
                 (left.isEmpty()||right.isEmpty()||left==right)&&sameAnnouncementArtwork(a.post,b.post,sameMedia)
         }
-    private fun nitterMentionLink(post:Post,value:String):Boolean {
+    internal fun nitterMentionLink(post:Post,value:String):Boolean {
         val source=post.provenance?.source ?: return false
         if(post.platform!=Platform.X||source.frontend!="nitter"||PostPresentation.destinationLabels(PostPresentation.content(post)).any {it==value})return false
         val url=uri(value) ?: return false
@@ -911,6 +911,19 @@ object CrossPosts {
     suspend fun groupWithVideoFootage(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap(),sameMedia:(Post,Post)->Boolean={_,_->false},sharedFootage:(Post,Post)->SharedVideoFootage?):List<PostGroup> {
         val context=currentCoroutineContext()
         return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia,sharedFootage){context.ensureActive()}}
+    }
+    /** Apply completed footage observations to an unchanged caption/image
+     * projection. Source or image changes require a new base projection. This
+     * is the same final admission step as groupWithVideoFootage; no cover or
+     * caption similarity substitutes for a footage proof. */
+    fun withVideoFootage(groups:List<PostGroup>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap(),
+        sharedFootage:(Post,Post)->SharedVideoFootage?,checkpoint:()->Unit={}):List<PostGroup> = CrossPostFusion.withPrepared {
+        val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
+        val owners=groups.flatMap {it.posts}.associate {post->
+            checkpoint();originalKey(post) to publisherOwner(post,accounts,memberships).takeIf {realOriginal(post)}
+        }
+        SharedVideoCollections.collect(groups,owners,sharedFootage,checkpoint)
+            .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
     fun videoFootageRequests(groups:List<PostGroup>,follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap()):List<VideoFootageRequest> = CrossPostFusion.withPrepared {
         if(groups.size<2)return@withPrepared emptyList()

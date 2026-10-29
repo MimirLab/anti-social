@@ -17,6 +17,45 @@ import java.io.File
 /** No fixture data is bundled, imported into Room or transmitted. The caller
  * supplies a private captured pool on an explicitly disposable installation. */
 class CachedFeedProfileTest {
+    /** Inspect the real complete candidate window before any acquisition. A
+     * diagnostic pass is not a claim that the visible feed has merged. */
+    @Test fun inspectCapturedVideoCandidatePlans():Unit=runBlocking {
+        val args=InstrumentationRegistry.getArguments()
+        assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialPrivateVideoPlans")=="true")
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val repo=(context.applicationContext as AntiSocialApplication).repo;repo.awaitReady()
+        val file=File(context.getExternalFilesDir("validation"),"private-captured-video-plan.json")
+        require(file.isFile&&file.length()in 1..8L*1024*1024)
+        val raw=JsonParser.parseString(file.readText()).asJsonObject
+        val posts=raw.getAsJsonArray("posts").map {repo.gson.fromJson(it,Post::class.java)}
+        val follows=raw.getAsJsonArray("follows").map {repo.gson.fromJson(it,Follow::class.java)}
+        val members=raw.getAsJsonObject("memberships").entrySet().associate {(k,v)->k to v.asJsonArray.map {it.asString}.toSet()}
+        val focus=raw.getAsJsonArray("focusKeys").map {it.asString}.toSet()
+        require(posts.size in 1..2000&&follows.size in 1..2000&&focus.size in 1..CrossPosts.MAX_EDITIONS)
+        val output=File(context.getExternalFilesDir("validation"),"captured-video-plan.json")
+        val started=System.nanoTime()
+        val groups=withContext(Dispatchers.Default){CrossPosts.groupCancellable(posts,follows,members)}
+        val groupMs=(System.nanoTime()-started)/1_000_000.0
+        assertEquals(posts.map(repo::key).toSet(),groups.flatMap {it.posts}.map(repo::key).toSet())
+        val selected=groups.filter {g->g.posts.any {repo.key(it)in focus}}
+        val global=withContext(Dispatchers.Default){CrossPosts.videoFootageRequests(groups,follows,members)}
+        val focused=withContext(Dispatchers.Default){selected.associate {g->
+            repo.key(g.primary)to CrossPosts.focusedVideoFootageRequests(groups,follows,members,setOf(repo.key(g.primary)))
+        }}
+        val stages=mutableListOf<Map<String,Any?>>()
+        withContext(Dispatchers.Default) {
+            val matcher=FeedEditionMatcher(follows,members)
+            val image=MediaIdentitySnapshot(posts){_,_->false}
+            repeat(4){pass->
+                val start=System.nanoTime()
+                val result=matcher.project(image,{it},{_,_->null})
+                stages+=mapOf("pass" to pass,"elapsedMs" to (System.nanoTime()-start)/1e6,"groups" to result.size)
+                assertEquals(groups,result)
+            }
+        }
+        output.writeText(repo.gson.toJson(mapOf("posts" to posts.size,"groups" to groups.size,"groupingMs" to groupMs,
+            "focusGroups" to selected,"globalRequests" to global,"focusedRequests" to focused,"unchangedImageVideoRevisions" to stages)))
+    }
     @Test fun measureCapturedPoolGroupingAndReadingPreparation():Unit=runBlocking {
         val args=InstrumentationRegistry.getArguments()
         assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString("antisocialPrivateFeedProfile")=="true")

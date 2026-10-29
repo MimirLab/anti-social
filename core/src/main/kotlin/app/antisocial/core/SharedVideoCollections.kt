@@ -16,6 +16,21 @@ data class VideoFootageRequest(val first:Post,val second:Post,val originalKeys:S
  */
 internal object SharedVideoCollections {
     private data class Row(val index:Int,val group:PostGroup,val owner:String,val first:Long,val last:Long)
+    private data class CaptionHint(val abbreviation:String?,val initials:String?)
+    private data class Plan(val distance:Long,val request:VideoFootageRequest,val captionHint:Boolean)
+    private val dottedInitials=Regex("[A-Z](?:\\.[A-Z]){2,7}\\.?")
+    private val captionWords=Regex("[\\p{L}]+")
+    /** Scheduling only. A dotted abbreviation can nominate its spelled-out
+     * caption ahead of an unrelated nearby clip. It never admits a collection,
+     * reduces the required scenes or changes any acquisition allowance. */
+    private fun captionHint(post:Post):CaptionHint? {
+        val text=post.body.ifBlank {post.title}.trim()
+        if(text.length !in 5..512)return null
+        val abbreviation=text.takeIf(dottedInitials::matches)?.replace(".","")
+        val words=captionWords.findAll(text).take(9).map {it.value}.toList()
+        val initials=words.takeIf {it.size in 3..8&&it.all {w->w.length in 1..64}}?.joinToString(""){it.first().uppercaseChar().toString()}
+        return CaptionHint(abbreviation,initials)
+    }
     private fun rows(groups:List<PostGroup>,owners:Map<String,String?>,checkpoint:()->Unit)=groups.mapIndexedNotNull {index,group->
             checkpoint()
             if(group.posts.any {it.preview||it.parentId!=null||it.recoveredArchive!=null||it.publishedAt?.let {time->time>0}!=true})return@mapIndexedNotNull null
@@ -58,7 +73,8 @@ internal object SharedVideoCollections {
             .thenBy {resolvable[it]!=true}.thenBy(CrossPosts::originalKey))
         val selected=candidates.associate {it.index to selected(it.group)}
         val metadata=candidates.associate {it.index to (resolvable[selected[it.index]]==true)}
-        val plans=mutableListOf<Pair<Long,VideoFootageRequest>>()
+        val hints=selected.mapValues {(_,post)->post?.let(::captionHint)}
+        val plans=mutableListOf<Plan>()
         for(i in candidates.indices)for(j in i+1 until candidates.size) {
             checkpoint();val a=candidates[i];val b=candidates[j]
             if(focused.isNotEmpty()&&a !in focused&&b !in focused)continue
@@ -76,10 +92,13 @@ internal object SharedVideoCollections {
             if(missing&&!resolve)continue
             if(left.videoFootage?.scenes?.size?.let {it>=3}==true&&right.videoFootage?.scenes?.size?.let {it>=3}==true)continue
             if(leftDuration?.let {l->rightDuration?.let {r->kotlin.math.abs(l-r)>maxOf(750L,maxOf(l,r)/100)}}==true)continue
-            plans+=kotlin.math.abs(a.last-b.last) to VideoFootageRequest(first,second,(a.group.posts+b.group.posts).mapTo(linkedSetOf(),CrossPosts::originalKey),resolve)
+            val x=hints[a.index];val y=hints[b.index]
+            val hint=x?.abbreviation?.let {it==y?.initials}==true||y?.abbreviation?.let {it==x?.initials}==true
+            plans+=Plan(kotlin.math.abs(a.last-b.last),VideoFootageRequest(first,second,(a.group.posts+b.group.posts).mapTo(linkedSetOf(),CrossPosts::originalKey),resolve),hint)
         }
-        return plans.sortedWith(compareBy<Pair<Long,VideoFootageRequest>> {it.second.resolveMetadata}.thenBy {it.first}.thenByDescending {maxOf(it.second.first.publishedAt ?: 0,it.second.second.publishedAt ?: 0)}.thenBy {it.second.key})
-            .map {it.second}.distinctBy {it.key}.take(limit)
+        return plans.sortedWith(compareBy<Plan> {it.request.resolveMetadata}.thenByDescending {it.captionHint}.thenBy {it.distance}
+            .thenByDescending {maxOf(it.request.first.publishedAt ?: 0,it.request.second.publishedAt ?: 0)}.thenBy {it.request.key})
+            .map {it.request}.distinctBy {it.key}.take(limit)
     }
     fun collect(groups:List<PostGroup>,owners:Map<String,String?>,proof:(Post,Post)->SharedVideoFootage?,checkpoint:()->Unit={}):List<PostGroup> {
         if(groups.size<2)return groups

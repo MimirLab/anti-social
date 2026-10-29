@@ -38,7 +38,7 @@ internal object DecoratedPostCopies {
         return changed(post.title)||changed(post.body)
     }
     private fun resource(raw:String,post:Post):String? {
-        if(CrossPosts.opaqueLink(raw)||CrossPosts.originalLink(raw,post))return null
+        if(CrossPosts.opaqueLink(raw)||CrossPosts.originalLink(raw,post)||CrossPosts.nitterMentionLink(post,raw))return null
         val url=raw.toHttpUrlOrNull()?.takeIf {it.username.isEmpty()&&it.password.isEmpty()} ?: return null
         SocialLinkHosts.platform(raw)?.let {if(!ContentIdentity.key(it,raw).startsWith("post:"))return null}
         return url.newBuilder().fragment(null).apply {

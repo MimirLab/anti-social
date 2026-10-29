@@ -81,6 +81,33 @@ class AnnouncementCollectionsTest {
         assertEquals(2,collect(listOf(PostGroup(brief),PostGroup(listOf(reference)))).size)
         assertEquals(1,collect(listOf(PostGroup(brief),PostGroup(listOf(reference))),{_,_->true}).size)
     }
+    @Test fun acquiredMentionNavigationDoesNotBecomeACompetingArticleDestination() {
+        val statement="Not at the public laboratory. 🎯"
+        val base=listOf(Platform.FACEBOOK,Platform.INSTAGRAM).map {post(it,statement).let {p->p.copy(media=p.media.map {it.copy(type="image")})}}
+        val root="https://reader.example.org"
+        val mention="$root/MuseumTeam"
+        val source=Source(Platform.X,"nitter",root)
+        val x=post(Platform.X,"$statement @MuseumTeam",minutes=1).let {p->p.copy(media=p.media.map {it.copy(type="image")})}.copy(links=listOf(mention),
+            provenance=Provenance(source,at,root+"/publiclab/status/123456789"))
+        assertEquals(2,group(base+x).size) // Short caption still needs artwork.
+        val originals=group(base+x,{_,_->true}).single().posts
+        assertEquals((base+x).toSet(),originals.toSet())
+        val fusion=requireNotNull(CrossPostFusion.composeCollectedEditions(originals))
+        assertEquals(1,Regex("Not at the public laboratory").findAll(fusion.segments.single().text).count())
+        assertTrue(fusion.segments.single().text.contains("@MuseumTeam"))
+        assertTrue(originals.single {it.platform==Platform.X}.links!!.contains(mention))
+        for(changed in listOf(
+            x.copy(links=listOf("https://unrelated.example.org/MuseumTeam")),
+            x.copy(links=listOf("$mention?article=1")),
+            x.copy(links=listOf("$root/AnotherTeam")),
+            x.copy(body="$statement [@MuseumTeam]($mention)"),
+            x.copy(provenance=x.provenance!!.copy(source=source.copy(frontend="other"))),
+            x.copy(body=x.body.replace("Not at","Open at")),
+            x.copy(body="Not at the public laboratory? 🎯 @MuseumTeam"),
+            x.copy(body="Not at the public laboratory 2. 🎯 @MuseumTeam"),
+            x.copy(body="Not at @MuseumTeam's public laboratory. 🎯")
+        ))assertEquals(changed.body+changed.links,2,group(base+changed,{_,_->true}).size)
+    }
     @Test fun exactBroadcastAndDistinctiveHeadingCanJoinAFullerEstablishedAnnouncement() {
         val heading="Quiet music from our public laboratory"
         val body="$heading 🎶 The team has prepared a new recording with several musicians and a detailed explanation of the instruments visitors can build during the next public workshop."

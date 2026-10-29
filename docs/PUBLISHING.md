@@ -141,3 +141,16 @@ The initial official release, 0.35.45, uses the existing development signing key
 and is non-debuggable. Publication does not change that key or retroactively
 qualify physical-phone GPU behavior. Those limits remain documented in the
 release notes and validation record.
+
+
+`FullFeedVideoLiveTest` additionally accepts a private captured followed window
+through external `validation/private-captured-video-plan.json`, with `posts`,
+`follows`, exact `memberships` and `focusKeys`. It requires an empty disposable
+installation, `antisocialIsolatedFixtureDevice=true` and
+`antisocialFullFeedVideoLive=true`. It mounts `AntiSocialApp`, imports only those
+explicitly supplied records, restores the target anchor and observes the shipping
+visible-card dwell and Gateway sampler. It never fabricates scene evidence.
+First-card, actual-sample and visible-collection times are separate events.
+Supplying arbitrary cached records without follow memberships is rejected;
+source refusal and resource-policy denial are not successful collection results.
+The input, screenshots and detailed events remain private outside the checkout.

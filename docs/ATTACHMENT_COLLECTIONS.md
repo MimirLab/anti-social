@@ -1,5 +1,34 @@
 # Attachment collections
 
+## Apply new footage without repeating caption matching (0.38.63)
+
+A feed source/membership projection owns one `FeedEditionMatcher`. It caches the
+completed caption/image groups against the immutable effective image snapshot.
+A new video observation recaptures the current footage fields and runs the same
+final footage-admission step over that base. It does not rerun caption alignment
+across the entire retained window. A changed source, membership or effective
+image snapshot requires fresh caption matching. Cancellation cannot install an
+unfinished base; joined video groups are never cached as admission evidence.
+Withdrawn or expired footage proof can therefore separate a family again.
+
+Dotted initials can prioritize an eligible spelled-out caption during video
+candidate scheduling. They cannot establish recording equality or reduce the
+required sampled scenes. Time, linked-publisher, distinct-recording, request,
+resource and Gateway limits still apply.
+
+A separate short-announcement correction classifies acquired Nitter mention
+navigation using the original caption, before detaching its reference suffix.
+It no longer mistakes that navigation for a competing article. Unrelated hosts,
+query-bearing paths and literal authored destinations retain their distinctions;
+every original link and account reference remains available.
+
+The real application now has an opt-in full-window replay, rather than relying
+only on a small family fixture. The dated [qualification](RELEASE_QUALIFICATION.md)
+separates first-card delivery, actual sampling and visible collection delivery.
+These changes reduce processing delay; source acquisition still takes time. A
+missing self-reply is an acquisition gap, and cannot be repaired by declaring
+unrelated quotation artwork equivalent.
+
 ## Captured details without a feed jump (0.38.62)
 
 A visible card can retain its reading body while an admitted source supplies

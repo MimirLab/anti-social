@@ -174,16 +174,16 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     val knownGroups by produceState<KnownPostGroups?>(null,matchingCandidates,loadedFollows,matchingMemberships) {
         val candidates=matchingCandidates;val accounts=loadedFollows
         if(candidates==null||accounts==null){value=null;return@produceState}
+        val matcher=FeedEditionMatcher(accounts,matchingMemberships)
         // A cached-picture scan can publish a revision every few milliseconds.
         // Finish the current coherent grouping rather than repeatedly cancelling
         // the first readable deck. StateFlow conflates later revisions while we
         // work; source/membership changes still cancel this whole projection.
         combine(repo.images.identities.matchingSnapshots(candidates),repo.videos.revision){evidence,_->evidence}.collect {evidence->
             value=withContext(Dispatchers.Default) {
-                val observed=evidence.posts.map(repo.videos::captured)
                 val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
                     val context=currentCoroutineContext()
-                    CrossPosts.groupWithVideoFootage(observed,accounts,matchingMemberships,evidence::same) {a,b->
+                    matcher.project(evidence,repo.videos::captured) {a,b->
                         repo.videos.related(a,b){context.ensureActive()}
                     }
                 }
