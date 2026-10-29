@@ -1,5 +1,32 @@
 # Attachment collections
 
+## Retain declared link previews before matching (0.38.68)
+
+Nitter's public HTML separates ordinary attachments from a shared link's
+[preview container](https://github.com/zedeus/nitter/blob/145ca9eb68d195a74598ae39a4d6da002b252c38/src/views/tweet.nim).
+The native reader now retains its declared image and destination. Preview title,
+excerpt and image description stay labelled in the attachment description;
+the source's authored title/body are unchanged. Existing image loading, matching,
+Context, saving and offline-download consumers receive this ordinary media record.
+There is no additional discovery or metadata request at extraction time.
+
+This reader is scoped to X through an admitted alternate Nitter document. Its own
+post container must supply one unambiguous permalink agreeing with the selected
+original identity. Quoted, nested, caption-inserted and ambiguous containers do
+not supply preview evidence. Native video cards keep their existing parser.
+At most four own cards and two images per card are inspected, with bounded HTTPS
+references and labelled text. Asset requests still use NetworkGateway and the
+reader's existing loading and connection policy.
+
+A fresh production-Gateway response independently reproduces the omitted image
+on official 0.38.67. The corrected extraction preserves every existing field and
+attachment across all 24 captured posts while adding the declared preview. A
+separate image comparison keeps a standalone article photograph and a larger
+graphic containing a small inset as distinct pictures. Collection still applies
+its existing caption, image and relationship guards. Dated native controls,
+parser timings and saved-copy checks appear in
+[release qualification](RELEASE_QUALIFICATION.md).
+
 ## Freeze current image evidence after text preparation (0.38.67)
 
 Source-only preparation can take long enough for more cached pictures to be

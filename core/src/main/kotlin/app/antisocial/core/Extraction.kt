@@ -398,7 +398,14 @@ object Extraction {
             val rat=sourceFrontend(provenance)=="ratAintTieba"
             val content=copy.attr("data-desc").ifBlank {textNode?.text().orEmpty()}.ifBlank {if(rat)copy.selectFirst(".content,.summary > div:not(.title)")?.text().orEmpty()else ""}
             val title=copy.selectFirst(".post_title,.title,.pin-title,h1,h2,h3")?.clone()?.apply {select(".post_flair").remove()}?.text().orEmpty().ifBlank {if(rat&&node.id()=="1")d.selectFirst(".thread-nav .title")?.text().orEmpty()else ""}
+            val linkCard=if(target.platform==Platform.X&&provenance.source.platform==Platform.X&&sourceFrontend(provenance)=="nitter"&&provenance.source.role==SourceRole.ALTERNATE)
+                NitterLinkCards.read(copy,provenance.finalUrl) {declared->
+                    val expected=link?.let {routes.recognize(it)};val original=routes.recognize(declared)
+                    expected?.platform==Platform.X&&original?.platform==Platform.X&&expected.kind==TargetKind.POST&&original.kind==TargetKind.POST&&
+                        ContentIdentity.key(Platform.X,expected.canonicalUrl)==ContentIdentity.key(Platform.X,original.canonicalUrl)
+                }else null
             val media=(copy.select(".attachments img[src],.post-content img[src],img.post_media[src],img.media[src],.post_image[src],.image img[src],.pin img[src],.post-image img[src],.tile-item-media img[src],.grid-item img[src],.pin-container > img[src],.pins-grid img[src],.grid-container img[src],.post-media img[src],.slides img[src]").mapNotNull { m ->safe(m.attr("src"),provenance.finalUrl)?.let { Media(it,description=m.attr("alt")) } }+VideoExtraction.html(copy,provenance.finalUrl)).toMutableList()
+            media+=linkCard?.images.orEmpty()
             safe(copy.attr("data-video_url"),provenance.finalUrl)?.let {url->media.add(Media(url,"video",copy.selectFirst("img[src]")?.attr("src")?.let {safe(it,provenance.finalUrl)}))}
             if(rat)copy.select(".content img[src]").forEach {image->safe(image.attr("src"),provenance.finalUrl)?.let {media.add(Media(it,description=image.attr("alt")))}}
             // Tile nodes are selected individually; only their own image is content.
@@ -415,7 +422,7 @@ object Extraction {
             // Nitter explicitly separates replies/continuation from related tweets and ancestors.
             // It does not expose every immediate parent ID; retain the known conversation root.
             val parent=if(nitterReply)target.canonicalUrl else if(floor!=null&&floor!="1")thread else node.parents().firstOrNull {it.hasClass("comment")}?.selectFirst("a.comment_permalink,a[href*=comments]")?.absUrl("href")?.let {routes.recognize(it)?.canonicalUrl ?: it} ?: target.canonicalUrl.takeIf {node.hasClass("comment")&&target.kind==TargetKind.POST}
-            Post(canonical,target.platform,canonical,author.ifBlank { if(target.kind==TargetKind.PROFILE)target.identity.removePrefix("@") else "" },content,title,published,avatar,media.distinctBy {it.url},parentId=parent,provenance=provenance,links=textNode?.select("a[href]")?.mapNotNull {safe(it.attr("href"),provenance.finalUrl)},
+            Post(canonical,target.platform,canonical,author.ifBlank { if(target.kind==TargetKind.PROFILE)target.identity.removePrefix("@") else "" },content,title,published,avatar,media.distinctBy {it.url},parentId=parent,provenance=provenance,links=if(linkCard==null)textNode?.select("a[href]")?.mapNotNull {safe(it.attr("href"),provenance.finalUrl)}else (textNode?.select("a[href]")?.mapNotNull {safe(it.attr("href"),provenance.finalUrl)}.orEmpty()+linkCard.links).distinct(),
                 conversationId=target.canonicalUrl.takeIf {nitterReply},extractionCoverage=if(nitterReply)ExtractionCoverage(text=if(content.isNotBlank()||title.isNotBlank())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,attachments=if(media.isNotEmpty())ExtractionStatus.PRESENT else ExtractionStatus.UNKNOWN,replyParent=ExtractionStatus.UNAVAILABLE)else null,
                 publicRelations=curator?.relation(copy))
         }.toMutableList()

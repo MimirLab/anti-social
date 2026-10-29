@@ -340,9 +340,15 @@ class FusionFeedTest {
             val expected=spec.get("expectedAttachments")?.asInt
             val save=runBlocking {runCatching {
                 val roots=collected.single().posts
-                repo.library.save(roots.first(),emptyList(),fusionRoots=roots)
-                val retained=repo.library.details(repo.key(roots.first()))!!.fusionRoots.orEmpty()
-                require(retained.map(repo::key).toSet()==keys)
+                if(roots.size>1)repo.library.save(roots.first(),emptyList(),fusionRoots=roots)
+                else repo.bookmark(roots.single(),true)
+                val owner=repo.key(roots.first())
+                val saved=repo.dao.bookmarksByKeys(listOf(owner)).single()
+                val savedRoot=repo.gson.fromJson(saved.payload,Post::class.java)
+                // A singleton has only its bookmark root. Fused editions are
+                // additional captured originals, not the only saved records.
+                val retained=(listOf(savedRoot)+repo.library.details(owner)?.fusionRoots.orEmpty()).distinctBy(repo::key)
+                require(retained.map(repo::key).toSet()==keys) {"The saved copy lost an original"}
                 fun source(post:Post)=post.copy(archivedVersion=null,media=post.media.map {it.copy(aiMetadata=null,visualFingerprint=null,attachmentFingerprint=null)})
                 roots.forEach {root->require(source(root)==source(retained.single {repo.key(it)==repo.key(root)})) {"A saved original lost source text or media"}}
             }}

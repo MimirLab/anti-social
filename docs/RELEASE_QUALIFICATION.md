@@ -9,6 +9,83 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.68: preserve source-bound link previews
+
+The public Nitter reader now retains an own post's declared link-preview image
+and destination. Its title, excerpt and image description remain labelled
+attachment metadata; authored title/body stay unchanged. This feeds the existing
+media, matching, Context and Library consumers. Extraction performs no additional
+network request and adds no model, dependency, permission or database migration.
+
+The [bounded reader](ATTACHMENT_COLLECTIONS.md#retain-declared-link-previews-before-matching-03868)
+requires one unambiguous own permalink agreeing with the selected original.
+Quoted, nested, caption-inserted, competing-permalink and mismatched containers
+cannot supply the preview. Native video cards keep their existing parser.
+Nine core controls and two regular native methods cover these boundaries,
+URL restrictions, ordinary galleries and retained authored content.
+
+An actual production-Gateway request independently reproduces the missing preview
+on unmodified official 0.38.67: one response supplies 24 posts in 2.38 seconds,
+while the selected post loses its declared image. The old APK also fails the
+new synthetic destination control. Repeating those controls against the candidate
+passes; all existing fields, links and attachments in the same 24-post capture
+are preserved, apart from the allowed observation timestamp. These are dated
+source observations, not a claim about every Nitter deployment.
+
+In a separate native source-image comparison, an article photograph and a larger
+announcement graphic containing a small inset remain two distinct attachments.
+This increment does not weaken image equality or merge separate publications by
+topic. Connected author-thread markup is a further investigation lead; no
+unqualified parent relationship is introduced here. Some related posts therefore
+still remain separate cards.
+
+A local parser-only candidate/control comparison uses 12 parses per invocation,
+discards the first two, and records thread CPU separately from wall time. Official
+0.38.67 before/after controls have median CPU times **56.04/61.21 ms**; the candidate
+is **62.46 ms**, over the same 71,735-character, 24-post response. Corresponding
+wall medians are **56.31/62.55 ms** and **64.13 ms**. This demonstrates a small
+processing cost for recovering additional source material, not a speedup or
+physical-phone latency measurement. Fetching, decoding and presentation are
+outside this particular timing.
+
+The full JVM run covers **2,617 cases: 2,613 passes, four optional skips and zero
+failures/errors**. The frozen shipping-release native selection covers **217 named
+checks: 214 passes, three opt-in skips and zero failures**, with returned method
+identities verified. Release/test assembly and lint pass; lint retains 182 warnings
+and one hint with zero errors/fatals. Eight Python privacy controls and four
+retention-scoring controls pass.
+
+The new single-original card/save replay initially fails because the engineering
+helper examines only optional fused editions, overlooking the saved bookmark
+root. The production save succeeds. The helper now follows the single-post or
+fused save path as appropriate and verifies the persisted root plus every distinct
+captured edition. The failed report is retained rather than attributed to a
+production saving defect.
+
+Ten native presentation/save replays now cover **22 families and 73 originals**:
+the nine existing collection packets retain one shared passage per family,
+expected distinct attachments and all 72 source originals; the added single-post
+packet retains its exact caption, declared image and saved original. A separate
+opt-in native replay verifies the actual source capture against its prior Page.
+Native caption, media and full-feed screenshots are inspected directly.
+
+The final 991-post application replay opens at **590 ms**, shows the focused
+video card at **8,728 ms**, observes the three required recordings at **22,166 ms**
+and displays its six-original family at **23,646 ms**. The complete body is adopted
+at **26,441 ms**; all four required literal captions appear once and the retained
+card position remains within the existing two-pixel bound. These timestamps share
+the replay's starting clock. The approximately 15-second first-card-to-family gap
+remains a user-visible latency problem; this extraction increment does not claim
+to repair it. Sampling retains the Wi-Fi-only policy on an unmetered connection.
+
+The cached-file cold-gallery replay first shows the focused card **9,768 ms after
+opening**, and its complete four-original family at **10,038 ms**, preserving six
+distinct pictures and making zero continuation reads. The actual Subscriptions →
+Following return shows its complete card in **1,683 ms**. These unpaired emulator
+observations qualify retained behavior, not a causal speedup, instant merging or
+physical-phone p95/energy performance. Cold startup and source-dependent proof
+acquisition remain open work.
+
 ## 0.38.67: later coherent image capture and cheaper literal preparation
 
 [Matching preparation](ATTACHMENT_COLLECTIONS.md#freeze-current-image-evidence-after-text-preparation-03867)

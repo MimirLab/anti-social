@@ -185,3 +185,15 @@ settle, leaves through Subscriptions, returns through Following and records the
 new complete-card time and any matching jobs. Inputs and screenshots remain in
 the private external evidence area. These flags qualify engineering journeys;
 they do not enable a user-facing import or change ordinary acquisition policy.
+
+
+`NitterLinkCardsNativeTest.suppliedPrivatePreviewSurvivesTheRealCapturedRepresentation`
+requires `antisocialPrivateNitterCard=true` and
+`antisocialIsolatedFixtureDevice=true`. Its private `files/nitter-card-private`
+folder contains an `input.json` identifying the installed source, selected
+original, exact authored fields, image, destination and excerpt, plus a bounded
+captured HTML file. An optional `before` Page JSON checks every pre-existing
+record field, link and attachment against the corrected extraction. Parser CPU
+and wall timings are recorded separately from fetch/decoder/display work.
+Captured source material and outputs stay outside the public checkout. The
+ordinary native batch skips this opt-in source-capture check.
