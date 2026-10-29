@@ -68,27 +68,29 @@ class MediaIdentityStore(
     internal fun matchingSnapshots(posts:List<Post>):Flow<MediaIdentitySnapshot> {
         val urls=posts.flatMap(::images).distinct()
         return revision.map {
-            withContext(Dispatchers.Default) {
-                // Copy only bounded bank references under its monitor. URL and
-                // raster comparison can then run without holding up a visible
-                // image's own lookup/observation on another thread.
-                val bank=synchronized(observations) {
-                    if(expire(clock()))changes.value+=1
-                    if(urls.isEmpty()||observations.isEmpty())null
-                    else observations.toMap() to assetUrls.mapValues {it.value.toSet()}
-                }
-                if(bank==null)urls.associateWith {null}
-                else urls.associateWith {observedFingerprint(it,bank.first,bank.second)}
-            }
+            withContext(Dispatchers.Default) {matchingEvidence(urls)}
         }.distinctUntilChanged().map {evidence->
-            withContext(Dispatchers.Default) {
-                MediaIdentitySnapshot.observed(posts.map {capturedWith(it,evidence::get)},evidence) {a,b->
-                    val first=images(a).mapNotNull(evidence::get);val second=images(b).mapNotNull(evidence::get)
-                    first.any {left->second.any {right->matches(left,right)}}
-                }
-            }
+            withContext(Dispatchers.Default) {matchingSnapshot(posts,evidence)}
         }
     }
+    /** Matching-worker only: no file, decoder or network operation. */
+    internal fun matchingSnapshot(posts:List<Post>)=matchingSnapshot(posts,matchingEvidence(posts.flatMap(::images).distinct()))
+    private fun matchingEvidence(urls:List<String>):Map<String,Fingerprint?> {
+        // Copy only bounded bank references under its monitor. URL and raster
+        // comparison do not hold up another image's own lookup/observation.
+        val bank=synchronized(observations) {
+            if(expire(clock()))changes.value+=1
+            if(urls.isEmpty()||observations.isEmpty())null
+            else observations.toMap() to assetUrls.mapValues {it.value.toSet()}
+        }
+        return if(bank==null)urls.associateWith {null}
+            else urls.associateWith {observedFingerprint(it,bank.first,bank.second)}
+    }
+    private fun matchingSnapshot(posts:List<Post>,evidence:Map<String,Fingerprint?>)=
+        MediaIdentitySnapshot.observed(posts.map {capturedWith(it,evidence::get)},evidence) {a,b->
+            val first=images(a).mapNotNull(evidence::get);val second=images(b).mapNotNull(evidence::get)
+            first.any {left->second.any {right->matches(left,right)}}
+        }
 
     fun knows(url: String): Boolean=synchronized(observations) {
         if(expire(clock()))changes.value+=1

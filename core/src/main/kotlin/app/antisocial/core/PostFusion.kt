@@ -20,7 +20,8 @@ object CrossPostFusion {
         val urlComputations:Int,val urlHits:Int,val urlEntries:Int,
         val frameComputations:Int,val frameHits:Int,val frameEntries:Int,
         val uriComputations:Int,val uriHits:Int,val uriEntries:Int,
-        val identityComputations:Int,val identityHits:Int,val identityEntries:Int)
+        val identityComputations:Int,val identityHits:Int,val identityEntries:Int,
+        val textComputations:Int,val textHits:Int,val textEntries:Int)
     private class Workspace {
         val documents=java.util.IdentityHashMap<Post,Prepared?>()
         val contexts=HashMap<String,ComparisonContext>()
@@ -31,11 +32,13 @@ object CrossPostFusion {
         val frames=HashMap<Pair<String,Boolean>,VisualFrames.Frame?>()
         val uris=HashMap<String,java.net.URI?>()
         val identities=HashMap<Pair<Platform,String>,String>()
+        val comparisonTexts=HashMap<String,String>()
         var bytes=0L;var computations=0;var hits=0
         var urlComputations=0;var urlHits=0
         var frameComputations=0;var frameHits=0
         var uriComputations=0;var uriHits=0
         var identityComputations=0;var identityHits=0
+        var textComputations=0;var textHits=0
     }
     private val workspace=ThreadLocal<Workspace>()
     /** Reuse pure caption analysis inside one synchronous operation only.
@@ -46,7 +49,22 @@ object CrossPostFusion {
         workspace.set(Workspace())
         return try {block()}finally {workspace.remove()}
     }
-    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size,it.frameComputations,it.frameHits,it.frames.size,it.uriComputations,it.uriHits,it.uris.size,it.identityComputations,it.identityHits,it.identities.size)}
+    internal fun preparationStats():PreparationStats?=workspace.get()?.let {PreparationStats(it.computations,it.hits,it.documents.size,it.bytes,it.urlComputations,it.urlHits,it.normalizedUrls.size,it.frameComputations,it.frameHits,it.frames.size,it.uriComputations,it.uriHits,it.uris.size,it.identityComputations,it.identityHits,it.identities.size,it.textComputations,it.textHits,it.comparisonTexts.size)}
+    /** Pure presentation normalization of the exact input string. Different
+     * source editions often repeat an author, heading or caption within this
+     * operation. Keep their normalization under its existing shared allowance;
+     * a normalized result never becomes the key or a matching decision. */
+    internal fun comparisonText(value:String,resolve:()->String):String {
+        val current=workspace.get()
+        if(current==null||value.length>MAX_TEXT)return resolve()
+        current.comparisonTexts[value]?.let {current.textHits++;return it}
+        current.textComputations++
+        val result=resolve();val bytes=96L+(value.length.toLong()+result.length)*2
+        if(current.comparisonTexts.size<2048&&current.bytes+bytes<=8L*1024*1024) {
+            current.comparisonTexts[value]=result;current.bytes+=bytes
+        }
+        return result
+    }
     /** Exact syntax parsing only. Origin, credential, scheme and source policy
      * stay with each caller. A parsed URI is never network admission evidence. */
     internal fun parsedUri(value:String):java.net.URI? {
@@ -229,7 +247,15 @@ object CrossPostFusion {
         return Prepared(text,words,gaps,anchors.values.toList(),parts)
     }
     private fun normalizeQuote(value: Char)=when(value){'’','‘'->'\'';'“','”'->'"';else->value}
-    private fun normalizeGap(value: String)=numericWhitespace.replace(value," ").map(::normalizeQuote).joinToString("")
+    internal fun normalizeGap(value:String):String {
+        val spaced=TextWhitespace.collapse(value)
+        val first=spaced.indexOfFirst {normalizeQuote(it)!=it}
+        if(first<0)return spaced
+        return buildString(spaced.length) {
+            append(spaced,0,first)
+            for(i in first until spaced.length)append(normalizeQuote(spaced[i]))
+        }
+    }
     private fun prepare(post:Post):Prepared? {
         val current=workspace.get() ?: return preparePost(post)
         if(current.documents.containsKey(post)){current.hits++;return current.documents[post]}

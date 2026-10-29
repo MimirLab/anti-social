@@ -29,12 +29,22 @@ internal class FeedEditionMatcher(
     private val gate=Mutex()
     private var snapshot:MediaIdentitySnapshot?=null
     private var base=emptyList<PostGroup>()
-    suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?):List<PostGroup> = gate.withLock {
+    suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?)=
+        projectWithImages(evidence,captured,related,null)
+    suspend fun projectCurrent(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?,currentImages:()->MediaIdentitySnapshot)=
+        projectWithImages(evidence,captured,related,currentImages)
+    private suspend fun projectWithImages(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?,currentImages:(()->MediaIdentitySnapshot)?):List<PostGroup> = gate.withLock {
         val context=currentCoroutineContext()
-        if(snapshot?.sameInput(evidence)!=true) {
-            val next=group?.invoke(evidence) ?: source.group(evidence.posts,evidence::same)
+        context.ensureActive()
+        var used=currentImages?.invoke() ?: evidence
+        if(snapshot?.sameInput(used)!=true) {
+            val next=if(group!=null)group.invoke(used)else if(currentImages==null)source.group(used.posts,used::same)
+            else source.groupWithCurrentMedia(used.posts) {
+                context.ensureActive();val latest=currentImages();used=latest
+                CrossPostMediaSnapshot(latest.posts,latest::same)
+            }
             context.ensureActive()
-            base=next;snapshot=evidence
+            base=next;snapshot=used
         }
         val observed=base.map {g->context.ensureActive();g.copy(posts=g.posts.map(captured))}
         CrossPosts.withVideoFootage(observed,follows,memberships,related){context.ensureActive()}

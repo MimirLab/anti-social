@@ -4,6 +4,7 @@ package app.antisocial.android
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.os.Debug
 import androidx.activity.compose.setContent
 import androidx.compose.material3.Text
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -64,7 +65,7 @@ class FullFeedGalleryLiveTest {
         val reader=repo.galleries.read;val decoder=repo.galleries.image
         val cached=linkedMapOf<String,MediaRow?>();val staged=mutableListOf<File>()
         val events=CopyOnWriteArrayList<Map<String,Any?>>()
-        var vm:AntiSocialViewModel?=null;var imported=false;var threadReads=0
+        var vm:AntiSocialViewModel?=null;var imported=false;var threadReads=0;var tracing=false
         val started=SystemClock.elapsedRealtime()
         fun event(vararg fields:Pair<String,Any?>) {
             synchronized(events) {
@@ -126,6 +127,9 @@ class FullFeedGalleryLiveTest {
             val top=raw["anchorKey"]?.asString?.let {key->posts.single {repo.key(it)==key}} ?: posts.filter {repo.key(it)in focus}.maxBy {it.publishedAt ?: 0}
             repo.feedMemory.reconcile("all",posts.map(repo::key));repo.feedMemory.anchor("all",repo.key(top),0)
             val model=AntiSocialViewModel(repo).also {vm=it}
+            if(cold&&args.getString("antisocialTracePrivateFeed")=="true") {
+                Debug.startMethodTracingSampling(File(output,"cold-feed.trace").path,32*1024*1024,2_000);tracing=true
+            }
             event("stage" to "open","posts" to posts.size)
             ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
             val rows=SemanticsMatcher("focused real gallery card"){it.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Feed row ")in focus}
@@ -156,6 +160,7 @@ class FullFeedGalleryLiveTest {
             ui.waitUntil(60_000){visibleRows().any {node->words(node).any {it.startsWith("$expectedOriginals originals ·")}}}
             if(requiredCaption!=null)ui.waitUntil(60_000){visibleRows().any {node->words(node).any {requiredCaption in it}}}
             event("stage" to "full-family-visible");ui.waitForIdle();screenshot("settled.png")
+            if(tracing){Debug.stopMethodTracing();tracing=false}
             File(output,"semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
             val observed=(posts+child).distinctBy(repo::key).map(repo.images.identities::captured)
             val bindings=members+(repo.key(child) to runBlocking {repo.dao.postFollowIds(repo.key(child))}.toSet())
@@ -201,6 +206,7 @@ class FullFeedGalleryLiveTest {
             event("stage" to "failed","error" to e.toString().take(500),"work" to repo.cardWork.active.value)
             throw e
         }finally {
+            if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.runOnIdle {vm?.viewModelScope?.cancel();ui.activity.setContent {Text("Private gallery replay complete")}}
             repo.galleries.clear();repo.galleries.read=reader;repo.galleries.image=decoder
             runBlocking {

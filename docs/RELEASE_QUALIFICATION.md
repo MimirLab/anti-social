@@ -9,6 +9,87 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.67: later coherent image capture and cheaper literal preparation
+
+[Matching preparation](ATTACHMENT_COLLECTIONS.md#freeze-current-image-evidence-after-text-preparation-03867)
+now captures current local image evidence after source-only analysis. Pictures
+which finish decoding during that work can inform the same pass. Every comparison
+still uses one immutable bank; changed source facts or original membership are
+rejected, and later evidence waits for another pass. The matcher retains the bank
+it actually used, avoiding another full comparison for a queued notification
+already covered by that snapshot. No fetch, file read, decoder, admission threshold
+or video-sampling policy is added at this boundary.
+
+Deterministic core and native controls place new image evidence at this boundary,
+verify collection in that first pass and verify reuse on the queued old input.
+Withdrawal, source edits, changed media identities, cancellation and conflicting
+or expired image aliases retain independent controls. Current video admission is
+always reapplied rather than inherited from an older complete group.
+
+Exact raw-string normalization shares the existing operation-local allowance;
+normalized results never key ownership or an admission decision. Unchanged
+caption tokenization is reused. String allocation estimates count references
+and actual shared instances within one retained entry, while equal-but-distinct
+instances remain separate. Gap normalization uses the existing runtime-aware
+whitespace routine and avoids a matcher/list/join for every token gap. One
+exhaustive unit method compares all 65,536 UTF-16 code units with the previous
+quote/whitespace contract, including controls and lone surrogates.
+
+The same investigation independently reproduces two correctness failures on
+unmodified official 0.38.66: U+FFFF after an HTML token can hide a changed trailing
+negation in collection presentation and can make a real heading disappear as an
+echo of its body. The candidate preserves complete literal fields for that
+unsupported representation. Native checks preserve changed negation and quantities,
+reconstruct exact case-sensitive URL source paths and retain ordinary equivalent
+HTML/Unicode captions. Original source fields are unchanged.
+
+In the same API 35 pure local experiment over 991 captured posts and 25
+subscriptions, independent fresh repeat grouping takes **3,557/3,449 ms**, versus
+**4,348/4,438 ms** on official 0.38.66. Retained repeats take **2,608/2,592 ms**,
+versus **2,985/2,938 ms**. Every pass returns the same 822 groups and exact grouping
+hash. The eight-MiB estimated source allowance retains 541 rows. The separate
+forced-GC ownership experiment releases approximately 3.66 MB of managed memory;
+this is not an exact heap/RSS bound or a physical-phone measurement.
+
+In a quiet actual-application candidate → control → candidate cold-gallery
+comparison, first complete display takes **10,647/10,182 ms after opening** for
+the candidate and **12,021 ms** for official 0.38.66. All first screens contain
+one four-original card and its required root caption; all six distinct pictures
+and zero publisher-continuation reads are verified. Returning through the actual
+Subscriptions → Following controls takes **1,717/1,634 ms**, versus **1,631 ms**
+for the control, so this run establishes no warm-navigation improvement.
+Earlier prototypes failed to establish a first-card gain and were revised;
+the plain-DOM shortcut and compiled mention-pattern cache were excluded. Startup
+remains substantial. These short same-emulator comparisons do not establish a
+phone p95 distribution, battery improvement or instant merging.
+
+The frozen release selection covers **214 named native checks: 212 passes, two
+opt-in skips and zero failures**, with returned method identities verified.
+Nine additional native presentation/save replays cover **21 families and 72
+originals**: one card and shared passage per family, expected distinct attachments
+and every original preserved in the protected save. Inspected native screens
+include short captions, gallery continuations and the six-original video family.
+
+The final versioned cold-gallery replay first displays its complete card
+**9,678 ms after opening**, retains all six pictures with zero thread reads and
+returns to the complete card in **1,746 ms** through the real navigation controls.
+The separate actual-video replay opens at **485 ms**, first shows the target at
+**8,979 ms**, records the three required recording observations at **19,979 ms**
+and displays its six-original family at **21,234 ms**. Proof-to-card processing
+is **1,255 ms**. The existing captured-details disclosure adopts the complete body
+at **24,198 ms**: all four required literal captions appear once and the card's
+established top moves no more than two pixels. The caption screenshot is inspected
+separately. Sampling respects the Wi-Fi-only policy on an unmetered connection.
+These live acquisition times have no paired network control; they are dated
+journey observations rather than an attributed network speedup.
+
+The full JVM run covers **2,608 cases: 2,604 passes, four optional skips and zero
+failures/errors**. Release/test assembly and lint pass with zero errors/fatals;
+lint retains 182 warnings and one hint. Eight Python privacy controls and four
+retention-scoring controls pass. No model, dependency, permission, database
+migration or native-runtime change is introduced. Cold startup, source-dependent
+acquisition and physical-phone latency/energy qualification remain open work.
+
 ## 0.38.66: reuse unchanged preparation while checking current evidence
 
 [Source-analysis reuse](ATTACHMENT_COLLECTIONS.md#reuse-source-analysis-without-reusing-an-admission-decision-03866)

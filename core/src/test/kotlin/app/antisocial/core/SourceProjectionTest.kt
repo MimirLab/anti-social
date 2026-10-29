@@ -123,4 +123,41 @@ class SourceProjectionTest {
         parity(projection,posts);assertEquals(1,projection.stats().entries)
         projection.group(emptyList());assertEquals(0,projection.stats().entries);assertEquals(0,projection.stats().bytes)
     }
+    @Test fun mediaIsCapturedAfterSourcePreparationAndOneCoherentSetOwnsEveryComparison():Unit=runBlocking {
+        val projection=CrossPosts.sourceProjection(emptyList())
+        for(same in listOf(true,false,true)) {
+            val current=posts.map {p->p.copy(media=p.media.map {it.copy(attachmentFingerprint="current-$same")})}
+            var captured=false
+            val actual=projection.groupWithCurrentMedia(posts) {
+                assertEquals(2,projection.stats().entries);captured=true
+                CrossPostMediaSnapshot(current){a,b->
+                    assertTrue(captured)
+                    assertEquals(current.toSet(),setOf(a,b))
+                    same
+                }
+            }
+            assertTrue(captured);assertEquals(if(same)1 else 2,actual.size)
+            assertEquals(current.toSet(),actual.flatMap {it.posts}.toSet())
+        }
+    }
+    @Test fun mediaRefreshCannotChangeSourcesOrPublishAfterCancellation():Unit=runBlocking {
+        val projection=CrossPosts.sourceProjection(emptyList())
+        val invalid=listOf(posts.drop(1),posts+posts.first().copy(id="other",canonicalUrl="https://x.com/workshop/status/81000002"),
+            listOf(posts.first().copy(body="This was not approved."),posts.last()),
+            listOf(posts.first().copy(media=listOf(Media("https://other.example.org/changed.jpg"))),posts.last()))
+        for(values in invalid) {
+            try {projection.groupWithCurrentMedia(posts){CrossPostMediaSnapshot(values){_,_->true}};fail("A media refresh must keep the exact source facts")}
+            catch(_:IllegalArgumentException){}
+        }
+        var published=false
+        val job=launch(Dispatchers.Default) {
+            val context=currentCoroutineContext()
+            projection.groupWithCurrentMedia(posts){context[Job]!!.cancel();CrossPostMediaSnapshot(posts){_,_->true}}
+            published=true
+        }
+        job.join();assertTrue(job.isCancelled);assertFalse(published)
+        assertEquals(1,parity(projection,posts,same=true).size)
+        assertEquals(2,parity(projection,posts,same=false).size)
+        assertNull(CrossPostFusion.preparationStats())
+    }
 }

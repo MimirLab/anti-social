@@ -13,6 +13,8 @@ data class AccountCandidate(val target: Target,val evidence: String,val kind:Acc
 data class AccountNameHint(val target:Target,val name:String,val kind:AccountLinkKind,val sourceUrl:String,val checkedAt:Long,val identityGroup:String?=null)
 data class AccountDiscovery(val name: String,val candidates: List<AccountCandidate>,val notice: String?=null,val complete:Boolean=true,val nameHints:List<AccountNameHint> = emptyList(),val publicAccounts:List<PublicAccount>?=null)
 data class PostGroup(val posts: List<Post>) { val primary get()=posts.first() }
+/** One caller-owned immutable media observation set, not an identity claim. */
+class CrossPostMediaSnapshot(posts:List<Post>,val same:(Post,Post)->Boolean) {val posts=posts.toList()}
 
 /** Local, explicitly linked identities. A matching handle is never identity evidence. */
 object Subscriptions {
@@ -105,6 +107,13 @@ object CrossPosts {
             val context=currentCoroutineContext()
             return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,sameMedia,preparation=preparation){context.ensureActive()}}
         }
+        /** Source analysis cannot use pixels. Freeze those observations after
+         * analysis, before the first admission guard, so slow preparation does
+         * not immediately schedule another comparison of the whole window. */
+        suspend fun groupWithCurrentMedia(posts:List<Post>,capture:()->CrossPostMediaSnapshot):List<PostGroup> {
+            val context=currentCoroutineContext()
+            return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,{_,_->false},preparation=preparation,refreshMedia=capture){context.ensureActive()}}
+        }
         internal fun stats()=preparation.stats()
     }
     fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap())=SourceProjection(follows,memberships)
@@ -123,6 +132,7 @@ object CrossPosts {
         private fun source(post:Post)=post.copy(links=post.links?.toList(),media=post.media.map {
             it.copy(visualFingerprint=null,attachmentFingerprint=null,videoFootage=null)
         })
+        fun sameSource(a:Post,b:Post)=a==b||source(a)==source(b)
         fun find(post:Post):SourceFeatures? {
             val key=post.takeIf(::eligible)?.let(::source)
             return synchronized(gate) {entries[originalKey(post)]?.takeIf {key!=null&&it.source==key}.also {if(it==null)misses++else hits++}}
@@ -130,7 +140,11 @@ object CrossPosts {
         fun retain(post:Post,features:Features,decorative:Boolean,decorationKnown:Boolean,decoration:DecoratedPostCopies.Prepared?,candidates:Set<String>) {
             if(!eligible(post)){synchronized(gate){entries.remove(originalKey(post))?.let {bytes-=it.bytes}};return}
             val source=source(post)
-            fun size(values:Iterable<String>)=values.sumOf {64L+it.length*2L}
+            // Charge each reference, but a shared String instance owns only one
+            // backing value in this entry. Keep equal-but-distinct instances
+            // separate; this is allocation accounting, not text equivalence.
+            val strings=java.util.IdentityHashMap<String,Boolean>()
+            fun size(values:Iterable<String>)=values.sumOf {8L+if(strings.put(it,true)==null)56L+it.length*2L else 0L}
             val cost=1024L+size(listOf(source.title,source.body,source.author,source.canonicalUrl,features.text,features.base,features.symbols))+
                 size(source.links.orEmpty()+listOfNotNull(source.avatar,source.parentId,source.conversationId,source.relationId,source.sourceParentId))+
                 size(features.tokens+features.numbers+features.negatives+features.urls+features.destinations+features.media+features.clips+candidates)+
@@ -638,12 +652,14 @@ object CrossPosts {
         }else ""
         val plain=PostPresentation.proseWithoutLinks(content).trim()
         val wordTokens=tokens(plain)
-        val base=tokens(trailingTags.replace(plain,"")).joinToString(" ")
+        val text=wordTokens.joinToString(" ")
+        val untagged=trailingTags.replace(plain,"")
+        val base=if(untagged==plain)text else tokens(untagged).joinToString(" ")
         val literalLinks=PostPresentation.destinationLabels(content).mapNotNull(::normalizedUrl).toSet()
         val urls=(post.links.orEmpty().take(16).filterNot {escapedEntityTag(post,it)}.mapNotNull(::normalizedUrl)+literalLinks).toSet()
         val enclosures=enclosureLinks(post,literalLinks)
         val media=post.media.take(12).mapNotNull {if(it.type=="image")ImageAssetIdentity.key(it.url) ?: normalizedUrl(it.url)else normalizedUrl(it.url)}.toSet()
-        return Features(post,owner,wordTokens.joinToString(" "),base,wordTokens,wordTokens.filter {it.any(Char::isDigit)},wordTokens.filter {it in negations},meaningfulSymbols.findAll(plain).joinToString(""){it.value},urls,
+        return Features(post,owner,text,base,wordTokens,wordTokens.filter {it.any(Char::isDigit)},wordTokens.filter {it in negations},meaningfulSymbols.findAll(plain).joinToString(""){it.value},urls,
             // A literal non-social site address can itself be the announced
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
@@ -1031,7 +1047,7 @@ object CrossPosts {
         posts.forEach {post->checkpoint();val key=originalKey(post);val old=unique[key];if(old==null||better(post,old))unique[key]=post}
         return unique.values.toList()
     }
-    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,sameMedia:(Post,Post)->Boolean,sharedFootage:((Post,Post)->SharedVideoFootage?)?=null,preparation:FeaturePreparation?=null,checkpoint:()->Unit={}):List<PostGroup> {
+    private fun groupPrepared(posts:List<Post>,follows:List<Follow>,memberships:Map<String,Set<String>>,initialMedia:(Post,Post)->Boolean,sharedFootage:((Post,Post)->SharedVideoFootage?)?=null,preparation:FeaturePreparation?=null,refreshMedia:(()->CrossPostMediaSnapshot)?=null,checkpoint:()->Unit={}):List<PostGroup> {
         val accounts=follows.filter {it.enabled}.map {Subscriptions.id(it) to it}.groupBy {it.second.target.platform}
         val postOrder=compareByDescending<Post> {it.publishedAt ?: Long.MIN_VALUE}.thenBy(::originalKey)
         val selected=originalSnapshots(posts,checkpoint).sortedWith(postOrder)
@@ -1040,7 +1056,7 @@ object CrossPosts {
         val prepared=selected.mapIndexed {i,post->checkpoint();retained[i]?.features?.copy(post=post) ?: features(post,accounts,memberships)}
         val decorative=prepared.mapIndexed {i,row->checkpoint();retained[i]?.decorative ?: (row.owner!=null&&DecoratedPostCopies.mayChange(row.post))}
         val decorativeOwners=prepared.indices.filter {decorative[it]}.mapTo(hashSetOf()){prepared[it].owner}
-        val ordered=if(decorativeOwners.isEmpty())prepared else prepared.mapIndexed {i,row->
+        var ordered=if(decorativeOwners.isEmpty())prepared else prepared.mapIndexed {i,row->
             checkpoint()
             if(row.owner in decorativeOwners) {
                 val old=retained[i]
@@ -1078,6 +1094,18 @@ object CrossPosts {
             checkpoint()
             if(retained[i]==null||retained[i]?.decorationKnown==false&&row.owner in decorativeOwners)
                 preparation.retain(row.post,row,decorative[i],row.owner in decorativeOwners,row.decoration,nominationKeys[i])
+        }
+        val media=refreshMedia?.invoke();checkpoint()
+        val sameMedia=media?.same ?: initialMedia
+        if(media!=null) {
+            val latest=originalSnapshots(media.posts,checkpoint).associateBy(::originalKey)
+            require(latest.keys==selected.mapTo(hashSetOf(),::originalKey)) {"Media observations changed source membership"}
+            val source=checkNotNull(preparation)
+            ordered=ordered.map {row->
+                checkpoint();val current=latest.getValue(originalKey(row.post))
+                require(source.sameSource(row.post,current)) {"Media observations changed source facts"}
+                row.copy(post=current,decoration=row.decoration?.copy(post=current))
+            }
         }
         val candidates=nominate(nominationKeys,ordered.map {"text:"+it.text})
         // This route has its own nomination budget. Adding cosmetic-copy hints

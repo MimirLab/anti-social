@@ -121,7 +121,7 @@ class CachedFeedProfileTest {
         val output=File(context.getExternalFilesDir("validation"),"cached-feed-profile").apply {mkdirs()}
         val trace=args.getString("antisocialTracePrivateFeed")=="true"
         val traceStage=args.getString("antisocialTracePrivateStage")
-        require(traceStage==null||traceStage in setOf("decode","grouping","projection","readingProjectionLegacy","readingProjection","observations","capturedReadComparisons","allReadComparisons","unreadComparisons"))
+        require(traceStage==null||traceStage in setOf("decode","grouping","videoRequestPlanning","galleryRequestPlanning","projection","readingProjectionLegacy","readingProjection","observations","capturedReadComparisons","allReadComparisons","unreadComparisons"))
         val timings=linkedMapOf<String,Double>()
         suspend fun <T> measure(name:String,block:suspend ()->T):T {
             val tracing=trace&&(traceStage==null||name==traceStage)
@@ -148,6 +148,8 @@ class CachedFeedProfileTest {
             assertEquals(posts.map(repo::key).toSet(),groups.flatMap {it.posts}.map(repo::key).toSet())
             val groupingIdentity=groups.joinToString("\n") {group->group.posts.joinToString("\u0000",transform=repo::key)}
             val groupingHash=java.security.MessageDigest.getInstance("SHA-256").digest(groupingIdentity.toByteArray()).joinToString(""){"%02x".format(it)}
+            val videoRequests=measure("videoRequestPlanning"){withContext(Dispatchers.Default){CrossPosts.videoFootageRequests(groups,follows,members)}}
+            val galleryRequests=measure("galleryRequestPlanning"){withContext(Dispatchers.Default){CrossPosts.galleryContinuationRequests(groups,follows,members)}}
             val projected=measure("projection"){withContext(Dispatchers.Default){groups.map {group->group.posts.map {filterProjection(repo,it)} to group.posts.map {filterProjection(repo,it)}}}}
             val frozen=groups.map {group->FrozenFeedRow(repo.key(group.primary),group.posts.map(repo::key),group.posts)}
             val reading=measure("readingProjection"){withContext(Dispatchers.Default){projectFeedReadingRows(frozen){filterProjection(repo,it)}}}
@@ -159,7 +161,7 @@ class CachedFeedProfileTest {
             val inherited=inheritance("capturedReadComparisons",read)
             inheritance("allReadComparisons",posts.map(repo::key).toSet())
             inheritance("unreadComparisons",emptySet())
-            val result=mapOf("scope" to "Private captured pool; pure local stages only. No Room import, actual paint, cached-image rebuild, phone or live-provider timing claim.","posts" to posts.size,"groups" to groups.size,"groupingSha256" to groupingHash,"sources" to follows.size,"capturedReadKeys" to read.size,"capturedInheritedGroups" to inherited,"observations" to observations.size,"observationsSha256" to observationHash,"timingsMs" to timings)
+            val result=mapOf("scope" to "Private captured pool; pure local stages only. No Room import, actual paint, cached-image rebuild, phone or live-provider timing claim.","posts" to posts.size,"groups" to groups.size,"groupingSha256" to groupingHash,"sources" to follows.size,"videoRequests" to videoRequests.size,"galleryRequests" to galleryRequests.size,"capturedReadKeys" to read.size,"capturedInheritedGroups" to inherited,"observations" to observations.size,"observationsSha256" to observationHash,"timingsMs" to timings)
             File(output,"results.json").writeText(gson.toJson(result))
             assertTrue(repo.gateway.currentPolicy().tor);assertFalse(repo.gateway.currentPolicy().ready)
         }finally {

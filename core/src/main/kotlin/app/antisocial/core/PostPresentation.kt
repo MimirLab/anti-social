@@ -39,11 +39,16 @@ object PostPresentation {
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
 
-    fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: textUncached(post).let {text->
+    fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: (if('\uffff' in post.title||'\uffff' in post.body)
+        // CharacterReader uses this noncharacter as its end marker at token
+        // boundaries. Keep every literal field rather than accepting a partial
+        // DOM as evidence that a real heading is only an echo of its body.
+        PostTextPresentation(post.title,post.body)
+    else textUncached(post).let {text->
         if(text.attribution!=null)text else NitterReposts.handle(post)?.let {
             text.copy(title=if(NitterReposts.emptyMediaHeading(post,it))""else text.title,attribution="Reposted by @$it")
         } ?: text
-    }.also {CrossPostFusion.rememberPresentation(post,it)}
+    }).also {CrossPostFusion.rememberPresentation(post,it)}
     /** RSS-Bridge's Bluesky renderer adds its author/posted header before the
      * authored text (getPostDescription in bridges/BlueskyBridge.php). Remove
      * exactly that root header, scoped to its source and canonical handle.
@@ -192,7 +197,11 @@ object PostPresentation {
      */
     internal fun comparableContent(post: Post): String=CrossPostFusion.comparison(post) ?: comparison(content(post)).also {CrossPostFusion.rememberComparison(post,it)}
 
-    private fun comparison(value: String): String {
+    private fun comparison(value:String)=CrossPostFusion.comparisonText(value){comparisonUncached(value)}
+    private fun comparisonUncached(value: String): String {
+        // Unsupported parser end markers must never hide a changed trailing
+        // clause. Literal equality remains safe; no HTML equivalence is claimed.
+        if('\uffff' in value)return value
         val plain=Jsoup.parseBodyFragment(value).apply {select("script,style,noscript").remove()}.text()
         val normalized=TextWhitespace.collapse(Normalizer.normalize(plain,Normalizer.Form.NFC).replace("\u200b","").replace("\ufeff","")).trim()
         // RSS headings may spell out a link whose body shows its scheme-less

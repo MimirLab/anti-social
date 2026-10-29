@@ -31,6 +31,38 @@ import kotlinx.coroutines.flow.first
 /** Real Android decoders and scaling: no public hosts or extra image fetches are involved. */
 @RunWith(AndroidJUnit4::class)
 class MediaIdentityTest {
+    @Test fun matchingUsesTheBankAfterPreparationAndSkipsAnAlreadyCapturedQueuedUpdate()=runBlocking {
+        val bank=MediaIdentityStore();val picture=landscape()
+        val originals=listOf(
+            Post("81000001",Platform.X,"https://x.com/workshop/status/81000001","workshop","We really got flying cars before GTA 6",publishedAt=1_800_000_000_000L,media=listOf(Media("https://one.example.org/first.jpg"))),
+            Post("second",Platform.BLUESKY,"https://bsky.app/profile/workshop.example/post/second","workshop.example","We really got flying cars before GTA 6",publishedAt=1_800_000_002_000L,media=listOf(Media("https://two.example.org/second.jpg"))))
+        try {
+            val initial=bank.matchingSnapshot(originals)
+            assertEquals(2,CrossPosts.group(initial.posts,emptyList(),sameMedia=initial::same).size)
+            val matcher=FeedEditionMatcher(emptyList(),emptyMap());var captures=0
+            fun current():MediaIdentitySnapshot {
+                if(++captures==2)originals.forEach {bank.observe(it.media.single().url,picture)}
+                return bank.matchingSnapshot(originals)
+            }
+            val first=matcher.projectCurrent(initial,{it},{_,_->null},::current)
+            assertEquals(1,first.size);assertEquals(2,captures)
+            assertTrue(first.single().posts.all {it.media.single().visualFingerprint!=null})
+            assertEquals(first,matcher.projectCurrent(initial,{it},{_,_->null},::current))
+            assertEquals("The queued old input must reuse the newer completed bank",3,captures)
+            bank.clear()
+            assertEquals(2,matcher.projectCurrent(initial,{it},{_,_->null},::current).size)
+            assertEquals(5,captures)
+            originals.forEach {bank.observe(it.media.single().url,picture)}
+            val known=bank.matchingSnapshot(originals);var withdrawalCaptures=0
+            val independent=FeedEditionMatcher(emptyList(),emptyMap())
+            val withdrawn=independent.projectCurrent(known,{it},{_,_->null}) {
+                if(++withdrawalCaptures==2)bank.clear()
+                bank.matchingSnapshot(originals)
+            }
+            assertEquals("Withdrawn pixels cannot admit a group from the older input",2,withdrawn.size)
+            assertEquals(2,withdrawalCaptures)
+        }finally {picture.recycle()}
+    }
     @Test fun aReenteredBankSnapshotReusesCompletedMatchingButNotChangedSourcesOrExpiredPictures()=runBlocking {
         var now=100L;val bank=MediaIdentityStore(ttlMs=100,clock={now});val picture=landscape()
         val originals=listOf(

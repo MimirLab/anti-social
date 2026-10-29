@@ -1,5 +1,38 @@
 # Attachment collections
 
+## Freeze current image evidence after text preparation (0.38.67)
+
+Source-only preparation can take long enough for more cached pictures to be
+decoded before comparisons begin. The feed now captures its immutable effective
+image bank after that preparation, immediately before candidate admission. All
+pair, detail, gallery and contradiction checks use that one snapshot. Evidence
+arriving during comparisons still waits for the next pass; comparisons never
+mix observation generations.
+
+The recapture must contain the same original identities and exactly the same
+source facts. Only derived image, attachment and footage observations may differ.
+Changed captions, URLs, provenance, memberships or media shape require another
+source projection. Cancellation cannot publish an incomplete result. The completed
+matcher records the snapshot it actually used, allowing an already-covered queued
+notification to reuse that base. Current video proof remains independently applied.
+This recapture performs no fetch, file read or bitmap decode.
+
+Repeated normalization of an identical raw string shares the existing operation's
+eight-MiB allowance, with 2,048 entries and a 16,384-character input limit. Keys
+are exact input strings; normalized output never establishes source identity or
+pair admission. Unchanged caption tokenization and repeated string references
+also avoid redundant work. Gap normalization reuses the runtime-aware whitespace
+routine and preserves the previous quote, punctuation and control-character rules.
+No threshold, route budget, persistent cache or saved-record policy changes.
+
+A separate literal-preservation correction handles U+FFFF, which the resolved
+HTML parser can interpret as its end marker. A partial DOM must not erase a
+changed trailing clause or classify a real heading as a body echo. Marker-containing
+title/body fields retain their complete literal presentation instead. Ordinary
+HTML handling is unchanged; this is no claim of equivalence between unsupported
+representations. Native counterexamples on unmodified 0.38.66 reproduce both losses.
+The candidate retains negation, changed quantities and exact URL source paths.
+
 ## Reuse source analysis without reusing an admission decision (0.38.66)
 
 A retained source window often receives several successive image observations.

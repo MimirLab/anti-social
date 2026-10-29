@@ -202,9 +202,9 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
             value=withContext(Dispatchers.Default) {
                 val groups=repo.cardWork.track(candidates.map(::postWorkKey),"Matching editions") {
                     val context=currentCoroutineContext()
-                    matcher.project(evidence,repo.videos::captured) {a,b->
-                        repo.videos.related(a,b){context.ensureActive()}
-                    }
+                    matcher.projectCurrent(evidence,repo.videos::captured,
+                        related={a,b->repo.videos.related(a,b){context.ensureActive()}},
+                        currentImages={repo.images.identities.matchingSnapshot(candidates)})
                 }
                 val requests=buildMap<String,VideoFootageRequest> {
                     CrossPosts.videoFootageRequests(groups,accounts,matchingMemberships).filter(repo.videos::available).forEach {request->request.originalKeys.forEach {key->putIfAbsent(key,request)}}
