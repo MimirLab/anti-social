@@ -679,3 +679,60 @@ Physical-phone speed, sustained battery/thermal behavior, and live-source latenc
 are separate qualifications. This pass does not claim them. The signed laptop
 preview is updated only after backing up and comparing its protected local state;
 the official Latest release retains its existing physical-phone gate.
+
+
+## 0.38.73: initial video prefixes and complete short-caption collections
+
+Video comparison can prepare one unused 256 KiB prefix for the retained reading
+position while the first local deck is prepared. It uses the existing single
+lane, selected Gateway session, exact source/input, 45-second parent, byte and
+request allowances. Frame decoding waits for the actual readable card. A drag,
+overlay, stopped Activity, changed ownership/caption/input or ordinary-cache purge
+retires the work. Resource policy is checked again after waiting. Decoder retries
+still revalidate their prefix; the initial handoff cannot create another budget.
+Only one linked, nearby pair is prepared, never a global video crawl.
+
+Optional metadata failure now has a separate in-memory pause from failure of the
+retained playback route. Once one peer has measured scenes, the next peer need
+not retain an obsolete metadata prerequisite. Exact published 0.38.72 controls
+reproduce the blocked-direct-route failures; the new route regressions retain
+successful peers, genuine raw failures, explicit retry, purge and expiry behavior.
+A metadata-dependent initial route waits for real visibility too.
+
+A fresh four-platform capture exposed a separate correctness gap. Two editions
+already agreed, another supplied a still preview with different decoration, and
+the fourth used a shorter video caption. The established-announcement collector
+now admits a distinctive, complete decorative equivalent without requiring an
+off-screen picture download. Weaker captions still need actual artwork. Publisher
+scope, distinct-platform ambiguity, time, claim, question, destination and
+regional flag checks remain separate from media equivalence. No recording is discarded by this
+caption route.
+
+The first native candidate joined those originals but still repeated their text.
+That failed the stronger display assertion and was retained as a failure. Short
+caption composition now collates a literal common prefix and shares continuations
+among their actual source subsets. Branches keep complete coupled tails. Every
+original reconstructs through its own normalized token path, including
+same-platform editions; exact source records remain unchanged.
+URLs retain case-sensitive identity. This is presentation after independent
+admission, never another post detector. All existing formatting, passage, media,
+field and quotation composers run first.
+The broader native selection caught an earlier candidate placing this fallback
+too early: a punctuation-only edition stopped using its existing concise display.
+That candidate was rejected, and the corrected fallback order has its own native
+formatting and case-sensitive inline-destination regression.
+The corrected native replay displays the common heading and continuation once,
+retains all four originals and three media entries, and passes the saved-copy
+preservation check. Actual native caption and media-selector screens were inspected.
+
+These changes do not eliminate source-dependent merging latency. On the final
+frozen APK, the large six-original replay first displayed a card after 6.3 seconds,
+formed the complete family 12.5 seconds later and adopted its body at 22.4 seconds
+from opening. The smaller four-platform replay first displayed a card after
+1.1 seconds, formed its family 13.3 seconds later and adopted its body at
+15.3 seconds. Both preserve the two-pixel adoption bound and all required literal
+variants exactly once. They are different captured windows, not a cold/warm or
+physical-phone comparison. Foreground preemption and real Gateway media reads
+remain visible in the private receipts. No test-only scheduling switch or
+fabricated scene qualified these runs. Controlled phone latency, energy and the
+remaining reported families still need their own observations.

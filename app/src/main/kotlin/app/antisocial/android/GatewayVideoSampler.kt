@@ -23,7 +23,9 @@ internal class GatewayVideoSampler(private val repo:Repository) {
         val selected=VideoAssetIdentity.sampleUrl(media)
         val attempt=currentCoroutineContext()[VideoSamplingAttempt]
         val ranges=if(attempt==null)repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null)
-            else attempt.ranges(media,sourceUrl){previous->repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null,previous=previous)}
+            else attempt.preparedRanges(media,sourceUrl,
+                claim={repo.gateway.claimPreparedMediaRanges(it,selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null)},
+                open={previous->repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null,previous=previous)})
         // The range view already owns its initial block. Classifying an
         // extensionless recording adds no exchange and never hands an HTML,
         // image, unknown or adaptive response to this video worker.

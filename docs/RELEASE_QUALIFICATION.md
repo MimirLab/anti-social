@@ -9,6 +9,67 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.73: prepared prefixes and complete short-caption presentation
+
+One unused video prefix can be prepared for the retained reading position;
+decoding waits for the real readable card. Session, source, input, parent budget,
+foreground priority, lifecycle cancellation and resource checks remain in force.
+Retries still validate their prefixes. Optional metadata failure no longer cools
+a usable direct recording route after its peer becomes measured.
+
+The established-announcement collector can attach a distinctive complete
+decorative equivalent without waiting for an off-screen picture. Shorter claims
+still need artwork; ambiguity, publisher, time, question, destination, protected
+symbol and regional flag checks remain. A final presentation fallback shares
+literal prefixes and source-subset continuations in short captions. It preserves
+coupled tails and each original's normalized token path, with exact source records
+and case-sensitive destinations retained. Existing composers run first. No new
+dependency, permission, database migration or model call is introduced.
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,647 cases, 2,643 passes, four optional skips and zero
+  failures/errors**. Frozen API 35 release selection: **259 named methods,
+  255 passes, four opt-in skips and zero failures**. Returned method identities
+  exactly match the requested set. Android 8/API 26: **17 passes, zero skips
+  or failures**, including preparation, cancellation, details, resource policy
+  and actual presentation-path destination/formatter checks; native startup and
+  the ordinary shell are checked separately.
+- The Android power-saver transition is qualified in a fresh instrumentation
+  process. Earlier mixed-suite runs stalled in Compose/Espresso idle after the
+  configuration transition; they remain incomplete runs, not successes. The
+  guard passes separately; the other process records 254 passes and four opt-in
+  skips. Neither the assertions nor production power-saver policy are bypassed.
+- An earlier broad candidate recorded **253 passes, one failure and four
+  skips**. It placed the new prefix composer before an existing punctuation
+  formatter. That regression was rejected. The final fallback order passes
+  the original full UI regression and a new Android check preserving both
+  ordinary formatting and case-sensitive inline destinations.
+- Two actual full-application video replays pass through production preparation,
+  Gateway and isolated sampling, without an engineering scheduling switch or
+  fabricated scene. One retains six originals and four literal variants once;
+  the other retains four platform editions and displays its common heading and
+  continuation once. Both retain the two-pixel body-adoption bound. A separate
+  fresh saved-copy replay passes with all four originals and three media entries.
+  Native video-selector and attributed-caption screens are inspected privately.
+- Nine additional native captured-packet replays pass: **21 announcement
+  families and 72 originals**, one card and required common passage once per
+  family, expected distinct attachments and faithful saved originals. Source
+  inputs, acquired media and screenshots stay private outside the repository.
+- Privacy-guard controls: **eight passes**; Context retention scoring controls:
+  **four passes**. Release lint has **zero errors, 182 warnings and one hint**.
+  The source-tree privacy audit has zero findings with two unchanged reviewed
+  upstream exemptions. Source archives and signing/promotion checks follow the
+  [publishing procedure](PUBLISHING.md), including frozen member comparison and
+  the anonymously downloaded permanent APK.
+
+The final large-window replay still takes **12.487 seconds from first card to
+complete family**; the smaller one takes **13.283 seconds**. These are different
+captured windows and dated public-media reads, not a phone p95 or a cold/warm
+comparison. Other reported families and controlled phone/energy measurements
+remain open. This increment does not establish instant or universal deduplication.
+See [the measured feed investigation](FEED_PERFORMANCE.md#03873-initial-video-prefixes-and-complete-short-caption-collections).
+
 ## 0.38.72: coverage priority, captured details and reader-attention cancellation
 
 The settled-card video scheduler tries current missing-platform coverage before

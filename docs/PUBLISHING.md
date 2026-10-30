@@ -95,6 +95,11 @@ Search-tab behavior without embedding an owner's queries or reader state in sour
 For a source-specific routing observation, optional `sourceFrontend` disambiguates
 multiple installed methods sharing `sourceRoot`; both must match the existing
 source inventory. Omitting `sourceRoot` exercises the normal production pool.
+For a deeper private feed capture, `feedWindowPages` (one through four) uses
+the existing `FeedCatchUp` and source-owned `continuePage` path, with at most
+100 posts and a 90-second window inside the target deadline. It records the
+page count and pending reason. This diagnostic scope does not change ordinary
+refresh allowances or turn a limited public snapshot into exhausted history.
 
 `CollectedMediaPacketTest` additionally accepts an explicit private
 `files/collected-media-packet/input.json` with up to eight cases, each containing
@@ -182,10 +187,14 @@ started recordings and candidates outside the packet's declared focus. Such a
 candidate can still reveal another useful edition: this is a timing observation,
 not permission to prune that discovery path or reduce the existing allowance.
 
-`antisocialFeedExperimentEarlyVideo=true` is an opt-in engineering experiment
-inside that disposable full-video test. It starts one existing focused pair
-during local preparation, records its focus and latency, and cancels/joins its
-job before restoring the fixture. It is not the shipped scheduling policy.
+Older retained APK/tester pairs support the engineering-only
+`antisocialFeedExperimentEarlyVideo=true` experiment. The current tester rejects
+that flag: it observes production prefix preparation and viewport-gated frame
+sampling without scheduling an extra comparison itself. Private inputs may set
+`minimumObservedRecordings` (one through four, default three) to match the actual
+number of recording representatives. This changes the observation milestone,
+not the required complete family, literal-body or pixel-anchor assertions.
+Actual acquired image/video observations are retained privately on failure too.
 `VideoRetryLiveTest` separately requires `antisocialVideoRetryLive=true`, the
 isolation flag, an empty disposable installation and the same private captured
 plan. It uses an explicitly supplied focused public recording, a one-byte

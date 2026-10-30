@@ -44,6 +44,8 @@ class FullFeedVideoLiveTest {
         val members=raw.getAsJsonObject("memberships").entrySet().associate {(k,v)->k to v.asJsonArray.map {it.asString}.toSet()}
         val focus=raw.getAsJsonArray("focusKeys").map {it.asString}.toSet()
         val requiredBody=raw.getAsJsonArray("expectedBodyPassages")?.map {it.asString}.orEmpty()
+        val minimumRecordings=raw["minimumObservedRecordings"]?.asInt ?: 3
+        require(minimumRecordings in 1..4)
         require(requiredBody.size<=8&&requiredBody.all {it.length in 1..500&&it.isNotBlank()})
         require(posts.size in 1..1000&&follows.size in 1..2000&&focus.size in 2..CrossPosts.MAX_EDITIONS)
         require(posts.map(repo::key).distinct().size==posts.size&&posts.map(repo::key).containsAll(focus))
@@ -51,9 +53,12 @@ class FullFeedVideoLiveTest {
         val prefs=repo.prefs.export().toString();val oldMemory=repo.feedMemory
         val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
         val memory=File(ui.activity.cacheDir,"full-feed-video-memory.json")
-        val sampler=repo.videos.sample;val metadata=repo.videos.metadata
+        val sampler=repo.videos.sample;val metadata=repo.videos.metadata;val prefix=repo.videos.preparePrefix
+        require(args.getString("antisocialFeedExperimentEarlyVideo")!="true") {
+            "The older early-sampling experiment requires its matching retained APK/tester."
+        }
         val events=CopyOnWriteArrayList<Map<String,Any?>>()
-        var vm:AntiSocialViewModel?=null;var imported=false;var tracing=false;var early:Job?=null
+        var vm:AntiSocialViewModel?=null;var imported=false;var tracing=false
         val started=SystemClock.elapsedRealtime()
         fun event(vararg fields:Pair<String,Any?>) {
             synchronized(events) {
@@ -64,6 +69,10 @@ class FullFeedVideoLiveTest {
         fun screenshot(name:String) {
             val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
             try {File(output,name).outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}}finally {bitmap.recycle()}
+        }
+        fun capturedEvidence() {
+            val observed=posts.map {repo.images.identities.captured(repo.videos.captured(it))}
+            File(output,"observed-posts.json").writeText(repo.gson.toJson(observed))
         }
         try {
             ui.runOnIdle {
@@ -80,12 +89,23 @@ class FullFeedVideoLiveTest {
             runBlocking {repo.feedMemory.awaitReady();repo.videos.cleanup(true)}
             event("stage" to "resource-policy","metered" to ui.activity.getSystemService(android.net.ConnectivityManager::class.java).isActiveNetworkMetered,
                 "automaticAllowed" to runBlocking {repo.videos.automaticAllowed()},"wifiOnlyVideoDownloads" to repo.prefs.videoDownloadWifiOnly)
+            repo.videos.preparePrefix={media,source->
+                val key=Repository.hash(media.url);event("stage" to "prefix-start","urlHash" to key,"route" to "production")
+                try {prefix(media,source);event("stage" to "prefix-prepared","urlHash" to key,
+                    "blocks" to currentCoroutineContext()[VideoSamplingAttempt]?.retainedBlocks)}
+                catch(e:Exception){event("stage" to "prefix-failed","urlHash" to key,"error" to e.toString().take(500));throw e}
+            }
             repo.videos.sample={media,source->
-                val key=Repository.hash(media.url);event("stage" to "sample-start","urlHash" to key)
+                val key=Repository.hash(media.url)
+                event("stage" to "sample-start","urlHash" to key)
                 try {sampler(media,source).also {r->event("stage" to "sample-end","urlHash" to key,"bytes" to r.fetchedBytes,"blocks" to r.fetchedBlocks,"scenes" to r.frames.scenes.size)}}
                 catch(e:Exception){event("stage" to "sample-failed","urlHash" to key,"error" to e.toString().take(500));throw e}
             }
-            repo.videos.metadata={post->event("stage" to "metadata-start","key" to repo.key(post));metadata(post).also {event("stage" to "metadata-end","key" to repo.key(post),"found" to (it!=null))}}
+            repo.videos.metadata={post->
+                event("stage" to "metadata-start","key" to repo.key(post))
+                (if(args.getString("antisocialFeedExperimentMetadataUnavailable")=="true")null else metadata(post))
+                    .also {event("stage" to "metadata-end","key" to repo.key(post),"found" to (it!=null))}
+            }
             runBlocking {repo.db.withTransaction {
                 follows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
                 posts.forEach {post->
@@ -113,24 +133,6 @@ class FullFeedVideoLiveTest {
                 tracing=true;event("stage" to "profiling-enabled","intervalUs" to 5_000)
             }
             event("stage" to "open","posts" to posts.size)
-            if(args.getString("antisocialFeedExperimentEarlyVideo")=="true") {
-                // Explicit engineering prototype, not shipped scheduling.
-                // Reuse the qualified planner and actual automatic sampler;
-                // one early pair may overlap the initial local preparation.
-                early=scope.launch {
-                    val planStart=SystemClock.elapsedRealtime()
-                    val request=withContext(Dispatchers.Default) {
-                        val context=currentCoroutineContext()
-                        CrossPosts.focusedVideoFootageRequests(posts.map {PostGroup(listOf(repo.videos.captured(it)))},follows,members,setOf(repo.key(top)),
-                            sharedFootage={a,b->repo.videos.related(a,b){context.ensureActive()}},checkpoint={context.ensureActive()})
-                            .firstOrNull(repo.videos::available)
-                    }
-                    event("stage" to "early-video-plan","plannedMs" to SystemClock.elapsedRealtime()-planStart,"request" to request?.key,
-                        "bothWithinDeclaredFocus" to request?.let {repo.key(it.first)in focus&&repo.key(it.second)in focus})
-                    if(request!=null)repo.videos.enrich(request)
-                    event("stage" to "early-video-finished")
-                }
-            }
             ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
             val rows=SemanticsMatcher("focused real feed card"){it.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Feed row ")in focus}
             fun visibleRows():List<androidx.compose.ui.semantics.SemanticsNode> {
@@ -141,14 +143,13 @@ class FullFeedVideoLiveTest {
             }
             ui.waitUntil(60_000){visibleRows().isNotEmpty()};ui.waitForIdle()
             event("stage" to "first-visible");screenshot("first-visible.png")
-            // Observe the shipping dwell, worker and catalogue. This does not
-            // invoke enrich() unless the explicitly labelled early prototype
-            // above was selected. Neither path inserts fabricated observations.
+            // Observe the production preparation, dwell and catalogue. This
+            // tester never schedules enrich() itself or fabricates observations.
             ui.waitUntil(150_000){
                 val captured=posts.filter {repo.key(it)in focus}.map(repo.videos::captured)
-                captured.count {p->p.media.any {it.videoFootage?.scenes?.size?.let {n->n>=3}==true}}>=3
+                captured.count {p->p.media.any {it.videoFootage?.scenes?.size?.let {n->n>=3}==true}}>=minimumRecordings
             }
-            event("stage" to "three-recordings-observed")
+            event("stage" to "required-recordings-observed","required" to minimumRecordings)
             fun words(node:androidx.compose.ui.semantics.SemanticsNode):List<String> =
                 node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}+node.children.flatMap(::words)
             ui.waitUntil(60_000){visibleRows().any {node->
@@ -206,15 +207,16 @@ class FullFeedVideoLiveTest {
             File(output,"result.json").writeText(repo.gson.toJson(mapOf("focusGroups" to family,"work" to repo.cardWork.active.value,"events" to events)))
             assertEquals("Captured counterparts must finish as one full-window family",1,family.size)
             assertTrue(family.single().posts.map(repo::key).containsAll(focus))
+            capturedEvidence()
         }catch(e:Throwable) {
+            runCatching {capturedEvidence()}
             runCatching {File(output,"failure-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString());screenshot("failure.png")}
             event("stage" to "failed","error" to e.toString().take(500),"work" to repo.cardWork.active.value)
             throw e
         }finally {
             if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.runOnIdle {vm?.viewModelScope?.cancel();ui.activity.setContent {Text("Private full-window replay complete")}}
-            runBlocking {early?.cancelAndJoin()}
-            repo.videos.sample=sampler;repo.videos.metadata=metadata
+            repo.videos.sample=sampler;repo.videos.metadata=metadata;repo.videos.preparePrefix=prefix
             runBlocking {
                 repo.feedMemory.flush();scope.coroutineContext[Job]?.cancelAndJoin()
                 if(imported)repo.db.withTransaction {

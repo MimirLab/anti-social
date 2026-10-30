@@ -68,7 +68,15 @@ class ReaderRoutingLiveTest {
                             val pathways=PublicPathways(JsonParser.parseReader(context.assets.open("public-pathways.json").reader()).asJsonObject)
                             (repo.routes.sources+pathways.sources(target)).distinctBy {it.key}.single {it.platform==platform&&it.root==root&&(frontend==null||it.frontend==frontend)}
                         }
-                        val page=if(source==null)repo.pool.load(target,feed=feed,requestedCapability=if(spec["comments"]?.asBoolean==true)Capability.COMMENTS else null,progress={row.addProperty("progress",it);save()})
+                        val window=spec["feedWindowPages"]?.asInt
+                        require(window==null||feed&&source==null&&window in 1..4)
+                        val page=if(window!=null) {
+                            val result=FeedCatchUp(maxPages=window,maxPosts=100,timeoutMillis=90_000,initialPages=window,initialPosts=100).collect(platform,emptySet(),
+                                first={repo.pool.load(target,feed=true,progress={row.addProperty("progress",it);save()})},
+                                next={previous->repo.pool.continuePage(target,previous,requestedCapability=Capability.FEED)})
+                            row.addProperty("windowPages",result.pages);row.addProperty("windowPendingReason",result.pendingReason)
+                            result.page
+                        }else if(source==null)repo.pool.load(target,feed=feed,requestedCapability=if(spec["comments"]?.asBoolean==true)Capability.COMMENTS else null,progress={row.addProperty("progress",it);save()})
                             else repo.pool.sourceReader(source).let {reader->
                                 if(!reader.accepts(target))throw SourceFailure(HealthStatus.UNSUPPORTED,"The selected method does not serve this target")
                                 if(feed)reader.feed(target)else reader.fetch(target)

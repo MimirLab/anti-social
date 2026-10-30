@@ -32,6 +32,49 @@ class AnnouncementCollectionsTest {
         AnnouncementCollections.collect(groups,owners(groups.flatMap {it.posts}),artwork)
     private fun anchor()=platforms.take(3).map {post(it,"Our workshop is open. 🎷",minutes=1)}
 
+    private val decoratedStatement="The laboratory team demonstrates the winter telescope workshop. Visitors can build their own instruments during the open afternoon."
+    private fun decoratedAnchor(statement:String=decoratedStatement):List<Post> {
+        val video=post(Platform.X,"$statement 👻",minutes=1)
+        return listOf(video,post(Platform.FACEBOOK,"$statement 👻",minutes=2).copy(media=emptyList()))
+    }
+    @Test fun aDecoratedStillPreviewJoinsAnEstablishedVideoAnnouncementWithMissingMediaOnOneEdition() {
+        val base=decoratedAnchor()
+        val still=post(Platform.INSTAGRAM,decoratedStatement,minutes=3).copy(media=listOf(Media(base.first().media.single().preview!!)))
+        for(input in listOf(base+still,(base+still).reversed())) {
+            val result=group(input).single()
+            assertEquals(input.toSet(),result.posts.toSet())
+            assertEquals(1,result.posts.flatMap {it.media}.count {it.type=="video"})
+            val fusion=requireNotNull(CrossPostFusion.composeCollectedEditions(result.posts))
+            assertEquals(1,Regex("The laboratory team").findAll(fusion.segments.joinToString(" "){it.text}).count())
+        }
+    }
+    @Test fun decorativeArtworkAdmissionKeepsAmbiguityClaimAndOwnershipBoundaries() {
+        val statement="The laboratory telescope workshop opens for local visitors this afternoon."
+        val base=PostGroup(decoratedAnchor(statement))
+        val still=post(Platform.INSTAGRAM,statement,minutes=3).copy(media=listOf(Media("https://media.example.org/still.jpg")))
+        assertEquals(2,collect(listOf(base,PostGroup(listOf(still)))).size)
+        assertEquals(1,collect(listOf(base,PostGroup(listOf(still))),{_,_->true}).size)
+        for(changed in listOf(still.copy(body=statement.replace("opens","does not open")),
+            still.copy(body="$statement ❌"),still.copy(body="$statement 2"),
+            still.copy(body=statement.replace("afternoon.","afternoon?")),still.copy(links=listOf("https://example.org/different")),
+            still.copy(publishedAt=at+32*60_000),still.copy(preview=true),still.copy(parentId="other")))
+            assertEquals(changed.body,2,collect(listOf(base,PostGroup(listOf(changed))),{_,_->true}).size)
+        val other=PostGroup(base.posts.map {it.copy(id="other-${it.id}",canonicalUrl=it.canonicalUrl+"0",publishedAt=it.publishedAt!!+60_000)})
+        assertEquals(3,collect(listOf(base,other,PostGroup(listOf(still))),{_,_->true}).size)
+        val twin=still.copy(id="987654321",canonicalUrl=still.canonicalUrl.replace("123456789","987654321"))
+        assertEquals(3,collect(listOf(base,PostGroup(listOf(still)),PostGroup(listOf(twin))),{_,_->true}).size)
+        assertEquals(2,AnnouncementCollections.collect(listOf(base,PostGroup(listOf(still))),owners(base.posts),{_,_->true}).size)
+    }
+    @Test fun longDecorativeAgreementDoesNotEraseChangedFlagsOrAuthorizeATransitiveAnchor() {
+        val base=PostGroup(decoratedAnchor())
+        val still=post(Platform.INSTAGRAM,decoratedStatement,minutes=3).copy(media=emptyList())
+        assertEquals(1,collect(listOf(base,PostGroup(listOf(still)))).size)
+        for(text in listOf("$decoratedStatement 🇨🇦",decoratedStatement.replace("winter","summer"),"$decoratedStatement..."))
+            assertEquals(2,collect(listOf(base,PostGroup(listOf(still.copy(body=text)))),{_,_->true}).size)
+        val noAnchor=base.posts.take(1)+still
+        assertEquals(2,collect(noAnchor.map {PostGroup(listOf(it))},{_,_->true}).size)
+    }
+
     @Test fun delayedShortEditionJoinsEstablishedCollectionInEitherInputOrder() {
         val originals=anchor()+post(Platform.TIKTOK,"Our workshop is open",minutes=23)
         for(input in listOf(originals,originals.reversed())) {

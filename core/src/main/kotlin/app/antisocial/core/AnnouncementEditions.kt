@@ -4,6 +4,7 @@ package app.antisocial.core
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.parser.Parser
 import java.text.Normalizer
+import java.util.Locale
 
 /** Reference suffixes do not disappear: each original retains its own path
  * through the shared message and attributed additions. This is not a detector. */
@@ -76,6 +77,61 @@ internal object AnnouncementEditions {
             it.visibleText+" — "+PlatformOrder.sort(it.platforms).joinToString(" · "){p->p.label}
         }}
         return PostFusion(listOf(FusionSegment(text,posts.mapTo(linkedSetOf()){it.platform},false,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))),runs)
+    }
+
+    /** Literal prefix collation for short, independently admitted captions.
+     * Branches retain complete coupled tails. A shorter source can finish while
+     * the remaining sources share their continuation; nothing is synthesized
+     * and every original has an explicit path, including same-platform edits.
+     * Long captions retain the existing passage aligners. */
+    fun composePrefixes(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        val docs=posts.map {caption(it) ?: return null}
+        val words=docs.map {doc->word.findAll(doc.message).map {it.value}.toList()}
+        if(words.all {it.size>=24})return null
+        fun token(value:String)=if(value.contains("://")||'@' in value||PostPresentation.urlMatches(value).any())key(value)else key(value).lowercase(Locale.ROOT)
+        val keys=words.map {it.map(::token)}
+        if(keys.distinct().size !in 2..8)return null
+        var common=0
+        while(common<keys.minOf {it.size}&&keys.all {it[common]==keys.first()[common]})common++
+        val heading=words.first().take(common)
+        if(heading.count {it.any(Char::isLetterOrDigit)&&!it.startsWith("https://")}<8||heading.joinToString(" ").length<40||keys.first().take(common).distinct().size<6)return null
+        val positions=IntArray(docs.size)
+        val all=docs.indices.toList();val allKeys=posts.mapTo(linkedSetOf(),CrossPosts::originalKey)
+        val runs=mutableListOf<FusionRun>()
+        fun emit(indices:List<Int>,text:String) {
+            val variants=mutableListOf(FusionVariant(text,indices.mapTo(linkedSetOf()){posts[it].platform},indices.mapTo(linkedSetOf()){CrossPosts.originalKey(posts[it])}))
+            val absent=all.filter {it !in indices}
+            if(absent.isNotEmpty())variants+=FusionVariant("",absent.mapTo(linkedSetOf()){posts[it].platform},absent.mapTo(linkedSetOf()){CrossPosts.originalKey(posts[it])})
+            runs+=FusionRun(absent.isEmpty(),variants)
+        }
+        fun branch(indices:List<Int>) {
+            var length=0
+            while(indices.all {positions[it]+length<keys[it].size}&&indices.all {keys[it][positions[it]+length]==keys[indices.first()][positions[indices.first()]+length]})length++
+            if(length>0) {
+                val preferred=indices.maxBy {words[it].size}
+                emit(indices,words[preferred].subList(positions[preferred],positions[preferred]+length).joinToString(" "))
+                indices.forEach {positions[it]+=length}
+            }
+            indices.filter {positions[it]<keys[it].size}.groupBy {keys[it][positions[it]]}.values.forEach(::branch)
+        }
+        branch(all)
+        if(docs.any {it.references.isNotBlank()})runs+=FusionRun(false,all.groupBy {key(docs[it].references)}.values.map {indices->
+            FusionVariant(docs[indices.first()].references,indices.mapTo(linkedSetOf()){posts[it].platform},indices.mapTo(linkedSetOf()){CrossPosts.originalKey(posts[it])},
+                docs[indices.first()].referenceTokens.filter(::isMention).joinToString(" "))
+        })
+        if(runs.size>16)return null
+        for(i in docs.indices) {
+            val original=CrossPosts.originalKey(posts[i])
+            val projected=runs.flatMap {run->
+                val selected=run.variants.singleOrNull {original in it.originalKeys} ?: return null
+                word.findAll(selected.text).map {token(it.value)}.toList()
+            }
+            if(projected!=word.findAll(docs[i].text).map {token(it.value)}.toList())return null
+        }
+        val text=runs.filter {it.variants.any {v->v.visibleText.isNotBlank()}}.joinToString(" "){run->if(run.shared)run.variants.single().visibleText else
+            run.variants.filter {it.visibleText.isNotBlank()}.joinToString(" / ","[","]"){it.visibleText+" — "+PlatformOrder.sort(it.platforms).joinToString(" · "){p->p.label}}}
+        return PostFusion(listOf(FusionSegment(text,posts.mapTo(linkedSetOf()){it.platform},false,allKeys)),runs)
     }
 
     /** Called only for an already admitted collection. Supports one literal

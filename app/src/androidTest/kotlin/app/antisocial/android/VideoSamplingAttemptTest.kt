@@ -28,6 +28,48 @@ class VideoSamplingAttemptTest {
         override fun close(){socket.close();serving.join(5000)}
     }
     private fun gateway()=NetworkGateway(UrlCleaner(JsonObject().apply {add("providers",JsonObject())}),object:RequestFilter {override fun check(url:String,sourceUrl:String,type:String)=FilterDecision(false)},true)
+    @Test fun anUnusedPrefixTransfersToItsFirstDecoderButNeverSkipsRetryValidation():Unit=runBlocking {
+        Ranges().use {server->
+            val g=gateway();val attempt=VideoSamplingAttempt();val media=Media(server.url,"video");val source="https://studio.fixture.invalid/post/1"
+            try {g.boundedVideoComparison {
+                attempt.prepare(media,source){g.prepareMediaRanges(media.url,source)}
+                assertEquals(1,attempt.retainedBlocks);assertEquals(1,server.requests.get())
+                suspend fun view()=attempt.preparedRanges(media,source,{g.claimPreparedMediaRanges(it,media.url,source)},{g.mediaRanges(media.url,source,previous=it)})
+                val first=view();assertEquals(1,server.requests.get());first.read(256L*1024,1)
+                val retry=view();assertNotSame(first,retry);assertEquals(3,server.requests.get())
+                retry.read(256L*1024,1);assertEquals(3,server.requests.get())
+            }}finally {attempt.close()}
+            assertEquals(0,attempt.retainedBlocks)
+        }
+    }
+    @Test fun changedInputAndClosureWithdrawAnUnconsumedPrefix():Unit=runBlocking {
+        Ranges().use {server->
+            val g=gateway();val attempt=VideoSamplingAttempt();val media=Media(server.url,"video");val source="https://studio.fixture.invalid/post/1";var claims=0
+            try {g.boundedVideoComparison {
+                attempt.prepare(media,source){g.prepareMediaRanges(media.url,source)}
+                val changed=media.copy(durationMs=120_000)
+                attempt.preparedRanges(changed,source,{claims++;g.claimPreparedMediaRanges(it,changed.url,source)},{assertNull(it);g.mediaRanges(changed.url,source)})
+                assertEquals(0,claims);assertEquals(2,server.requests.get())
+            }}finally {attempt.close()}
+            val next=VideoSamplingAttempt()
+            g.boundedVideoComparison {next.prepare(media,source){g.prepareMediaRanges(media.url,source)}}
+            next.close();assertEquals(0,next.retainedBlocks)
+            assertThrows(IllegalStateException::class.java){runBlocking {next.preparedRanges(media,source,{claims++;g.claimPreparedMediaRanges(it,media.url,source)},{g.mediaRanges(media.url,source)})}}
+            assertEquals(0,claims);assertEquals(3,server.requests.get())
+        }
+    }
+    @Test fun aPreparedPrefixCannotCrossTheComparisonParent():Unit=runBlocking {
+        Ranges().use {server->
+            val g=gateway();val attempt=VideoSamplingAttempt();val media=Media(server.url,"video");val source="https://studio.fixture.invalid/post/1"
+            try {
+                g.boundedVideoComparison {attempt.prepare(media,source){g.prepareMediaRanges(media.url,source)}}
+                assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking {g.boundedVideoComparison {
+                    attempt.preparedRanges(media,source,{g.claimPreparedMediaRanges(it,media.url,source)},{error("A wrong parent must not fall back to a new acquisition")})
+                }}}
+                assertEquals(1,server.requests.get());assertEquals(0,attempt.retainedBlocks)
+            }finally {attempt.close()}
+        }
+    }
     @Test fun interruptedDecoderRevalidatesPrefixAndReusesOtherCompletedBlocks():Unit=runBlocking {
         Ranges().use {server->
             val g=gateway();val attempt=VideoSamplingAttempt();val media=Media(server.url,"video");val source="https://studio.fixture.invalid/post/1"

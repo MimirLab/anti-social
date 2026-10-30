@@ -10,7 +10,8 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.IOException
 
-/** Only a settled visible card requests a pair. One decoder/network lane,
+/** A reading intent may prepare one prefix; frames wait for its visible card.
+ * One decoder/network lane,
  * expiring derived observations and finite parent allowances keep it behind
  * foreground reading. Saved copies own their own observation fields. */
 internal class VideoEvidenceStore(private val repo:Repository,private val clock:()->Long=System::currentTimeMillis,
@@ -20,7 +21,8 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     private val lane=Mutex()
     private val entries=linkedMapOf<String,Entry>()
     private val aliases=mutableMapOf<String,MutableSet<String>>()
-    private val failures=linkedMapOf<VideoAcquisitionKey,Long>()
+    private data class FailedInput(val acquisition:VideoAcquisitionKey,val metadata:Boolean)
+    private val failures=linkedMapOf<FailedInput,Long>()
     private val proofs=object:LinkedHashMap<Pair<VideoFootageEvidence,VideoFootageEvidence>,SharedVideoFootage?>(16,.75f,true){}
     private val running=linkedSetOf<Job>()
     private var generation=0L
@@ -34,6 +36,13 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     fun playback(active:Boolean){playing.value=active}
     internal var sample:suspend (Media,String)->GatewayVideoSampler.Result=GatewayVideoSampler(repo)::sample
     internal var metadata:suspend (Post)->Media?=repo::videoMetadata
+    internal var preparePrefix:suspend (Media,String)->Unit={media,source->
+        require(media.type=="video"&&media.audioUrl==null&&!VideoFormats.adaptive(VideoFormats.mime(media))&&VideoAssetIdentity.validSampling(media))
+        val selected=VideoAssetIdentity.sampleUrl(media)
+        requireNotNull(currentCoroutineContext()[VideoSamplingAttempt]).prepare(media,source) {
+            repo.gateway.prepareMediaRanges(selected,source,observationOnly=VideoAssetIdentity.key(selected)!=null)
+        }
+    }
 
     private fun fresh(e:VideoFootageEvidence)=clock()-e.sampledAt in 0 until 7*CachePolicy.DAY
     private fun remove(url:String) {
@@ -52,6 +61,13 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         return aliases[key].orEmpty().mapNotNull {entries[it]?.evidence?.takeIf(::fresh)}
             .maxWithOrNull(compareBy<VideoFootageEvidence> {it.scenes.size}.thenBy {it.sampledAt})
     }
+    // Observation/cooldown lookups run under lock. Ordinary sampling is allowed once
+    // a peer is measured; a frozen request must not retain its older metadata
+    // prerequisite, and metadata refusal is not failure of the recording URL.
+    private fun observed(media:Media)=lookup(media)!=null||media.videoFootage?.let {it.scenes.size>=3&&VideoFootage.valid(media)}==true
+    private fun metadataNeeded(request:VideoFootageRequest)=request.resolveMetadata&&listOf(request.first,request.second).none {p->p.media.singleOrNull {it.type=="video"}?.let(::observed)==true}
+    private fun cooling(input:VideoAcquisitionKey,metadata:Boolean)=failures[FailedInput(input,metadata)]?.let {clock()-it in 0 until 5*60_000L}==true
+    private fun metadataRoute(post:Post,media:Media,resolve:Boolean)=resolve&&media.samplingUrl==null&&VideoAssetIdentity.canResolveMetadata(post)
     /** In-memory references only. Call on the matching worker, never decode,
      * fetch, touch Room or read a cache file while projecting a feed. */
     fun captured(post:Post):Post=synchronized(lock) {
@@ -62,9 +78,11 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
      * slot ahead of another usable peer. This is an in-memory scheduling check;
      * no failed read becomes evidence that two recordings differ. */
     fun available(request:VideoFootageRequest):Boolean=synchronized(lock) {
-        val media=listOf(request.first,request.second).map {it.media.singleOrNull {m->m.type=="video"} ?: return false}
-        val needed=media.filter {it.videoFootage?.scenes?.size?.let {count->count>=3}!=true&&lookup(it)==null}
-        needed.isNotEmpty()&&needed.none {m->failures[VideoAssetIdentity.acquisitionKey(m)]?.let {clock()-it in 0 until 5*60_000L}==true}
+        val media=listOf(request.first,request.second).map {post->post to (post.media.singleOrNull {m->m.type=="video"} ?: return false)}
+        val needed=media.filter {(_,m)->!observed(m)}
+        val resolve=metadataNeeded(request)
+        needed.any {(post,m)->val input=VideoAssetIdentity.acquisitionKey(m)
+            !cooling(input,false)&&!(resolve&&cooling(input,true)&&metadataRoute(post,m,true))}
     }
     fun related(a:Post,b:Post,checkpoint:()->Unit):SharedVideoFootage? {
         for(left in a.media)for(right in b.media) {
@@ -100,20 +118,25 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             if(epoch==generation){loaded=true;if(entries.isNotEmpty())changes.value+=1}
         }
     }
-    private suspend fun acquire(post:Post,epoch:Long,resolveMetadata:Boolean) {
+    private suspend fun acquire(post:Post,epoch:Long,resolveMetadata:Boolean,beforeMetadata:(suspend ()->Boolean)?,beforeSample:(suspend (Media,String)->Boolean)?) {
         val media=post.media.singleOrNull {it.type=="video"} ?: return
         val input=VideoAssetIdentity.acquisitionKey(media)
+        val useMetadata=metadataRoute(post,media,resolveMetadata)
         if(media.videoFootage?.scenes?.size?.let {it>=3}==true&&VideoFootage.valid(media))return
         synchronized(lock) {
             if(lookup(media)!=null)return
-            failures[input]?.let {if(clock()-it in 0 until 5*60_000L)return}
+            if(cooling(input,false)||useMetadata&&cooling(input,true))return
         }
         try {
-            val prepared=if(resolveMetadata&&media.samplingUrl==null&&VideoAssetIdentity.canResolveMetadata(post)) {
+            // A metadata-dependent route is not cheap prefix preparation.
+            // Its lookup waits for the actual card just like frame decoding.
+            if(useMetadata&&beforeMetadata?.invoke()==false)return
+            val prepared=if(useMetadata) {
                 val supplied=metadata(post) ?: throw IOException("No supported current video metadata")
                 currentCoroutineContext().ensureActive()
                 VideoAssetIdentity.withMetadata(media,supplied) ?: throw IOException("Video metadata belongs to another recording")
             }else media
+            if(beforeSample?.invoke(prepared,post.contentSourceUrl)==false)return
             val result=sample(prepared,post.contentSourceUrl)
             currentCoroutineContext().ensureActive()
             val observation=VideoFootageEvidence(result.renditionUrl,result.frames.durationMs,clock(),result.frames.scenes.toList())
@@ -123,10 +146,10 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             synchronized(lock) {
                 if(epoch!=generation)return
                 directory.mkdirs();Repository.atomic(File(directory,Repository.hash(media.url)+".json"),bytes)
-                put(row);failures.remove(input);trim(false);changes.value+=1
+                put(row);failures.remove(FailedInput(input,false));failures.remove(FailedInput(input,true));trim(false);changes.value+=1
             }
         }catch(e:CancellationException){throw e}
-        catch(_:Exception){synchronized(lock){if(epoch==generation){failures[input]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}}
+        catch(_:Exception){synchronized(lock){if(epoch==generation){failures[FailedInput(input,useMetadata)]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}}
     }
     /** The same resource decision gates demand planning and the eventual
      * acquisition. No cached decision can outlive a queue wait or mode change. */
@@ -139,7 +162,24 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         repo.context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
         return !info.lowMemory
     }
-    suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true):Unit=withContext(Dispatchers.IO) {
+    suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true):Unit=enrichInternal(request,automatic,null,null)
+    /** Prepare just the first unused prefix. Frames wait for real reader
+     * interest inside the original lane/parent; the sampler keeps its 20s limit. */
+    suspend fun enrichPrepared(request:VideoFootageRequest,awaitInterest:suspend ()->Unit) {
+        var prefixed=false
+        val waitToRead:suspend ()->Boolean={
+            awaitInterest()
+            while(repo.gateway.hasForegroundRequests||playing.value)delay(300)
+            automaticAllowedNow()
+        }
+        enrichInternal(request,true,waitToRead) {media,source->
+            if(!automaticAllowedNow())false else {
+                if(!prefixed){preparePrefix(media,source);prefixed=true}
+                waitToRead()
+            }
+        }
+    }
+    private suspend fun enrichInternal(request:VideoFootageRequest,automatic:Boolean,beforeMetadata:(suspend ()->Boolean)?,beforeSample:(suspend (Media,String)->Boolean)?):Unit=withContext(Dispatchers.IO) {
         val job=currentCoroutineContext()[Job]!!
         // Queued work belongs to its cards too, and a purge must retire it
         // before it acquires the decoder lane in a newer evidence generation.
@@ -155,7 +195,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                         var retries=0
                         while(true)try {
                             while(repo.gateway.hasForegroundRequests||playing.value)delay(300)
-                            repo.gateway.deferredRead {acquire(post,epoch,request.resolveMetadata)}
+                            repo.gateway.deferredRead {acquire(post,epoch,synchronized(lock){metadataNeeded(request)},beforeMetadata,beforeSample)}
                             break
                         }catch(e:CancellationException) {
                             currentCoroutineContext().ensureActive()

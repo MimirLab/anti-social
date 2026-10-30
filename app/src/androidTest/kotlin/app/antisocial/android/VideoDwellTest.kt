@@ -9,11 +9,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleCallback
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewModelScope
@@ -24,12 +27,16 @@ import org.json.JSONObject
 import org.junit.*
 import org.junit.Assert.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class VideoDwellTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     private val repo get()=(ui.activity.application as AntiSocialApplication).repo
     private lateinit var prefs:String
     private lateinit var originalSampler:suspend (Media,String)->GatewayVideoSampler.Result
+    private val fixtureHost=AtomicReference<((MainActivity)->Unit)?>(null)
+    private val mountedActivity=AtomicReference<MainActivity?>(null)
+    private var lifecycleCallback:ActivityLifecycleCallback?=null
     private val at=System.currentTimeMillis()
     private val first=Post("710001",Platform.TIKTOK,"https://www.tiktok.com/@publicstudio/video/710001","Public studio","First film.",publishedAt=at,
         media=listOf(Media("https://media.fixture.invalid/first.mp4","video",durationMs=120_000)))
@@ -47,11 +54,24 @@ class VideoDwellTest {
         ui.runOnIdle {ui.activity.setContent {Text("Preparing video scheduling fixture")}}
         prefs=repo.prefs.export().toString();originalSampler=repo.videos.sample
         repo.prefs.videoDownloadWifiOnly=false;repo.videos.playback(false);repo.videos.cleanup(true)
+        // Battery saver can recreate the Activity for a night-mode change
+        // between show() and Espresso's next idle check. Restore the fixture
+        // on that new host before waiting for idle, not after the wait stalls.
+        ui.runOnUiThread {
+            lifecycleCallback=ActivityLifecycleCallback {activity,stage->
+                if(stage==Stage.RESUMED&&activity is MainActivity&&mountedActivity.get()!==activity)fixtureHost.get()?.invoke(activity)
+            }.also {ActivityLifecycleMonitorRegistry.getInstance().addLifecycleCallback(it)}
+        }
     }
     @After fun restore() {
         if(::prefs.isInitialized) {
             val retained=repo
-            ui.runOnIdle {ui.activity.setContent {Text("Video scheduling fixture complete")}}
+            ui.runOnUiThread {
+                fixtureHost.set(null);mountedActivity.set(null)
+                lifecycleCallback?.let {ActivityLifecycleMonitorRegistry.getInstance().removeLifecycleCallback(it)}
+                lifecycleCallback=null
+                ui.activity.setContent {Text("Video scheduling fixture complete")}
+            }
             retained.videos.cleanup(true);retained.videos.sample=originalSampler;retained.videos.playback(false);retained.prefs.restore(JSONObject(prefs))
         }
     }
@@ -63,7 +83,8 @@ class VideoDwellTest {
         return GatewayVideoSampler.Result(SampledVideoFrames(120_000,scenes),1024,1,media.url)
     }
     private fun show(catalog:State<Int>,offered:State<VideoFootageRequest?>,paused:State<Boolean>,lookup:VideoRequestLookup,counterparts:State<Map<String,List<Post>>> =mutableStateOf(emptyMap()),videoRevision:State<Long?> =mutableStateOf(null)) {
-        ui.runOnUiThread {ui.activity.setContent {
+        val bank=repo
+        val host:(MainActivity)->Unit={activity->mountedActivity.set(activity);activity.setContent {
             val resolver=remember(catalog.value) {
                 val revision=catalog.value
                 val current:VideoRequestLookup={key,excluded->check(revision>=0);lookup(key,excluded)}
@@ -73,12 +94,14 @@ class VideoDwellTest {
                 val list=rememberLazyListState()
                 LazyColumn(Modifier.fillMaxSize(),state=list) {
                     item(key=CrossPosts.originalKey(first)) {Column(Modifier.fillMaxWidth().height(320.dp)) {
-                        FeedVideoDwell(list,CrossPosts.originalKey(first),first,true,offered.value,repo)
+                        FeedVideoDwell(list,CrossPosts.originalKey(first),first,true,offered.value,bank)
                         Text("Public workshop film")
                     }}
                 }
             }}
         }}
+        fixtureHost.set(host)
+        ui.runOnUiThread {host(ui.activity)}
     }
     @Test fun freshGlobalOffersStayCheapWhileStaleSuccessorsWaitForCurrentEvidence():Unit=runBlocking {
         val catalog=mutableStateOf(0);val offered=mutableStateOf<VideoFootageRequest?>(request);val paused=mutableStateOf(false)

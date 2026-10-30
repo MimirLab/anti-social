@@ -11,6 +11,17 @@ internal class GatewayRangeScope(private val session:NetworkSession,private val 
 }
 internal data class GatewayRangeSeed(val blocks:Map<Long,ByteArray>,val active:()->Boolean)
 
+/** One unused initial prefix. Claiming it continues the original view and its
+ * allowance; it cannot transfer a retry, source, session or parent budget. */
+class GatewayMediaPreparation internal constructor(private var view:GatewayMediaRanges?):AutoCloseable {
+    @Synchronized internal fun claim(owner:GatewayRangeScope):GatewayMediaRanges {
+        val initial=checkNotNull(view){"Recording preparation already ended"};view=null
+        initial.requireOwner(owner)
+        return initial
+    }
+    @Synchronized override fun close(){view=null}
+}
+
 /** A short-lived byte view, not a playable/offline download. Only the Gateway
  * creates it. The decoder cannot choose a destination or acquire networking. */
 class GatewayMediaRanges internal constructor(val length:Long,private val blockSize:Int,

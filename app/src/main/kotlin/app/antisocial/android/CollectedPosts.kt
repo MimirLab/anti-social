@@ -27,6 +27,7 @@ internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusi
     ?: CaptionFieldBlocks.compose(posts)
     ?: CrossPostFusion.composeRelated(posts)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}
+    ?: CrossPostFusion.composeCollectedPrefixes(posts)
     ?: sourceCaptionBlocks(posts)
 
 /** Compression is optional after admission. A failed aligner must not choose a

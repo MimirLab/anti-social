@@ -13,6 +13,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 import java.io.FileInputStream
+import java.util.concurrent.CopyOnWriteArrayList
 
 /** This is not a foreground/background product acquisition path. It measures
  * externally supplied public recordings on an explicitly disposable device.
@@ -21,6 +22,20 @@ import java.io.FileInputStream
  * Frame decoding here is a diagnostic, not qualification of parser isolation.
  */
 class VideoEvidenceProbeTest {
+    /** Existing Gateway events only: no alternate transport, decoder or fetch
+     * shape. Diagnostic hosts/receipts remain in the supplied private output. */
+    private suspend fun rangeSample(repo:Repository,post:Post,media:Media,trace:Boolean,row:JsonObject,gson:Gson,start:Long):GatewayVideoSampler.Result {
+        if(!trace)return GatewayVideoSampler(repo).sample(media,post.contentSourceUrl)
+        val events=CopyOnWriteArrayList<Map<String,Any>>()
+        val old=repo.gateway.onNetworkEvent
+        repo.gateway.onNetworkEvent={event->
+            old?.invoke(event)
+            if(events.size<512)events+=mapOf("atMs" to SystemClock.elapsedRealtime()-start,"host" to event.host,
+                "stage" to event.stage,"callElapsedMs" to event.elapsedMs)
+        }
+        try {return GatewayVideoSampler(repo).sample(media,post.contentSourceUrl)}
+        finally {repo.gateway.onNetworkEvent=old;row.add("rangeTrace",gson.toJsonTree(events))}
+    }
     private fun sha256(file:File)=file.inputStream().use {stream->val digest=java.security.MessageDigest.getInstance("SHA-256");val b=ByteArray(8192);while(true){val n=stream.read(b);if(n<0)break;digest.update(b,0,n)};digest.digest().joinToString(""){"%02x".format(it)}}
     @Test fun inspectSuppliedRecordingsAndTheirBoundedLocalFrames():Unit=runBlocking(Dispatchers.IO) {
         val args=InstrumentationRegistry.getArguments()
@@ -52,7 +67,7 @@ class VideoEvidenceProbeTest {
                             row.addProperty("rangeProbeStatus",headers.status)
                             row.add("rangeHeaders",gson.toJsonTree(headers.headers.filterKeys {it.lowercase() in setOf("etag","last-modified","date","content-range","content-encoding","content-length")}));save()
                         }
-                        val result=GatewayVideoSampler(repo).sample(media,post.contentSourceUrl)
+                        val result=rangeSample(repo,post,media,raw["rangeTrace"]?.asBoolean==true,row,gson,start)
                         row.add("rangeFrames",gson.toJsonTree(result.frames));row.addProperty("rangeBytes",result.fetchedBytes);row.addProperty("rangeBlocks",result.fetchedBlocks)
                         row.addProperty("rangeMs",SystemClock.elapsedRealtime()-start);save()
                         return@forEachIndexed

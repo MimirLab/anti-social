@@ -42,6 +42,22 @@ internal object AnnouncementCollections {
             if(first.messageTokens.size<12||first.messageTokens.distinct().size<10||first.message.length<80||docs.any {AnnouncementEditions.messageKey(it)!=AnnouncementEditions.messageKey(first)})return@mapNotNull null
             (row.owner to AnnouncementEditions.messageKey(first)) to row
         }.groupBy({it.first},{it.second})
+        // A finite public reader can return a still preview while another
+        // edition supplies a video or no media. Do not require off-screen
+        // downloads to establish a complete distinctive caption already
+        // corroborated on two linked platforms. Weaker captions still need
+        // observed artwork; neither route declares recordings identical.
+        val decorated=mutableMapOf<String,DecoratedPostCopies.Prepared?>()
+        fun decoration(post:Post)=decorated.getOrPut(CrossPosts.originalKey(post)) {
+            DecoratedPostCopies.prepare(post)?.takeUnless {it.text.endsWith("...")||it.text.endsWith('…')}
+        }
+        fun flagKey(post:Post)=PostPresentation.content(post).codePoints().filter {it in 0x1f1e6..0x1f1ff}.toArray().toList()
+        val decoratedAnchors=rows.filter {it.platforms.size>=2}.mapNotNull {row->
+            val values=row.posts.map {decoration(it) ?: return@mapNotNull null}
+            if(!matches(values)||row.posts.map(::flagKey).distinct().size!=1)return@mapNotNull null
+            Short(row,values)
+        }.groupBy {it.key}
+        val decorativeByOwner=decoratedAnchors.values.flatten().groupBy {it.row.owner}
         val broadcasts=mutableMapOf<String,Set<String>>()
         fun streams(post:Post)=broadcasts.getOrPut(CrossPosts.originalKey(post)){AnnouncementEditions.broadcasts(post)}
         val streamAnchors=mutableMapOf<Pair<String,String>,MutableSet<Int>>()
@@ -51,13 +67,26 @@ internal object AnnouncementCollections {
             if(text.messageTokens.size<20)return@post
             ids.forEach {streamAnchors.getOrPut(row.owner to it){linkedSetOf()}.add(row.index)}
         }}
-        if(anchors.isEmpty()&&streamAnchors.isEmpty()&&bodyAnchors.isEmpty())return groups
+        if(anchors.isEmpty()&&streamAnchors.isEmpty()&&bodyAnchors.isEmpty()&&decoratedAnchors.isEmpty())return groups
         val byIndex=rows.associateBy {it.index}
         val choices=linkedMapOf<Int,Set<Int>>()
         for(leaf in rows.filter {it.platforms.size==1}) {
             checkpoint()
             val own=leaf.posts.mapNotNull {projection(it)}.takeIf {it.size==leaf.posts.size&&matches(it)}
             val possible=linkedSetOf<Int>()
+            val eligibleDecoration=decorativeByOwner[leaf.owner].orEmpty().any {anchor->
+                leaf.platforms.none {it in anchor.row.platforms}&&close(leaf,anchor.row,30*60_000L)
+            }
+            val variants=if(eligibleDecoration)leaf.posts.mapNotNull(::decoration).takeIf {it.size==leaf.posts.size&&matches(it)}else null
+            val decoratedTargets=variants?.let {decoratedAnchors[leaf.owner to it.first().text]}.orEmpty()
+            if(variants!=null&&decoratedTargets.size<=128)for(anchor in decoratedTargets) {
+                if(leaf.platforms.any {it in anchor.row.platforms}||!close(leaf,anchor.row,30*60_000L)||!matches(anchor.captions+variants))continue
+                if((anchor.captions+variants).none {it.changed})continue
+                val all=anchor.row.posts+leaf.posts
+                if(all.map(::flagKey).distinct().size!=1)continue
+                val distinctive=variants.all {it.tokens.size>=12&&it.tokens.distinct().size>=10&&it.text.length>=80}
+                if(distinctive||leaf.posts.all {post->anchor.row.posts.any {artwork(post,it)}})possible+=anchor.row.index
+            }
             val bodies=leaf.posts.mapNotNull {post->
                 if(PostPresentation.text(post).title.isBlank()||post.body.isBlank()||!CrossPostFusion.neutralCopyFraming(post))null
                 else AnnouncementEditions.caption(post.copy(title=""))

@@ -142,6 +142,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     val available=remember(ordered){ordered.associateBy(repo::key)}
     val availableKeys=remember(ordered){ordered.map(repo::key)}
     var rows by remember {mutableStateOf<List<FrozenFeedRow>?>(null)}
+    var preparingVideoKeys by remember {mutableStateOf<Set<String>>(emptySet())}
     var baseline by remember {mutableStateOf<Set<String>>(emptySet())}
     var restoreMemory by remember {mutableStateOf<FeedMemory?>(null)}
     var restored by remember {mutableStateOf(false)}
@@ -571,6 +572,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             }
         if(!ready||rows==null&&!counterpartsReady)LinearProgressIndicator(Modifier.fillMaxWidth())
         CompositionLocalProvider(LocalArchiveChecksPaused provides (LocalArchiveChecksPaused.current||why!=null)) {
+        FeedVideoPreparation(list,ordered,store.get(feedId),ready,!restored||filtersPending,frozen.filter(::readable),filtering,
+            showSources||showOptions||filtering.managing||filtering.reviewing||filtering.candidate!=null||preparing||restored&&navigating,repo) {preparingVideoKeys=it}
         // Restore the full native pull arrow/spinner. Matching and pixel
         // checkpoint work are independent of this visible request feedback.
         PullToRefreshBox(isRefreshing=updating||manualRefresh!=null,state=pullState,onRefresh={requestRefresh()},
@@ -595,7 +598,9 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                             if(unreadRow)Text(if(newRow)"New"else "Unread",fontSize=11.sp,color=if(newRow)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Feed row status ${row.key}"))
                         }
                         if(decision(row)==null)PendingFilterCard()else FilteredPost(decision(row)!!,repo.key(row.bodyPosts.first()),filtering,onEdit={filtering.managing=true}) {
-                            FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
+                            CompositionLocalProvider(LocalVideoPreparationPending provides row.aliases.any {it in preparingVideoKeys}) {
+                                FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
+                            }
                             FeedGalleryDwell(list,row.key,row.aliases.firstNotNullOfOrNull {LocalGalleryRequests.current[it]},repo)
                             PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts},
                                 onShowUpdate=if(changes?.details?.contains(row.key)==true)({showCapturedDetails(row.key)})else null){repo.postTarget(row.primary)?.let {vm.open(it)}}
@@ -669,7 +674,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
     }
 }
 
-private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: Int,val end: Int,val moving: Boolean) {
+internal data class FeedDwellGeometry(val offset: Int,val size: Int,val start: Int,val end: Int,val moving: Boolean) {
     val readable: Boolean get() {
         val viewport=end-start;if(size<=0||viewport<=0||moving)return false
         val visible=(min(offset+size,end)-max(offset,start)).coerceAtLeast(0)
@@ -689,6 +694,7 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
     val latestOfferRevision by rememberUpdatedState(LocalVideoOfferRevision.current)
     val latestLookup by rememberUpdatedState(LocalVideoRequestLookup.current)
     val latestCounterparts by rememberUpdatedState(LocalPostCounterparts.current)
+    val preparationPending by rememberUpdatedState(LocalVideoPreparationPending.current)
     val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
         info.visibleItemsInfo.firstOrNull {it.key.toString()==key}?.let {FeedDwellGeometry(it.offset,it.size,info.viewportStartOffset,info.viewportEndOffset,list.isScrollInProgress).readable}==true
     }}}
@@ -699,6 +705,9 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
         val job=currentCoroutineContext()[Job]!!;running.set(job)
         try {
         delay(1200)
+        // Count real viewport dwell while the initial pair owns the lane.
+        // Handoff uses fresh evidence without resetting another 1.2s delay.
+        snapshotFlow {preparationPending}.first {!it}
         val attempted=linkedSetOf<VideoComparisonInput>()
         // Keep the same finite comparison allowance, but spend it on the
         // settled card instead of letting an unrelated global prefix own it.

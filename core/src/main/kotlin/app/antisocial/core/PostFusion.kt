@@ -578,6 +578,10 @@ object CrossPostFusion {
         ?: if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)else null
         ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
 
+    /** Last presentation fallback after ordinary formatting, passage, media,
+     * field and quotation composers. Never used for collection admission. */
+    fun composeCollectedPrefixes(posts:List<Post>):PostFusion?=AnnouncementEditions.composePrefixes(posts)
+
     fun compose(posts: List<Post>): PostFusion? {
         composeOrdinary(posts)?.let {return it}
         if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)?.let {return it}

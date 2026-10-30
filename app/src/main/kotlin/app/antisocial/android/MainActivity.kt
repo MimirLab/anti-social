@@ -223,6 +223,10 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         }
     }
     val discussionGroups=knownGroups?.groups.orEmpty()
+    val videoPreparation=remember(preparationFeed,matchingCandidates,loadedFollows,matchingMemberships) {
+        if(preparationFeed==null||matchingCandidates==null||loadedFollows==null)null
+        else FeedVideoPreparationSource(matchingCandidates,loadedFollows,matchingMemberships)
+    }
     val videoLookup:VideoRequestLookup=remember(repo,knownGroups) {
         val snapshot=knownGroups
         val lookup:VideoRequestLookup={focus,excluded->repo.cardWork.track(setOf("post:$focus"),"Comparing video editions"){withContext(Dispatchers.Default) {
@@ -272,7 +276,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     }
     val colors=if(dark)darkColorScheme(primary=Mint,secondary=Mint,secondaryContainer=Color(0xFF253D31),onSecondaryContainer=Mint,background=Ink,surface=Ink,surfaceVariant=Panel,onSurface=Color(0xFFECEFEA),onSurfaceVariant=Muted) else lightColorScheme(primary=Color(0xFF236849),secondary=Color(0xFF236849),secondaryContainer=Color(0xFFDDEDE3),onSecondaryContainer=Color(0xFF236849),background=Color(0xFFF7F9F6),surface=Color.White,surfaceVariant=Color(0xFFF0F3EF),onSurface=Ink,onSurfaceVariant=Color(0xFF64726B))
     MaterialTheme(colorScheme=colors,typography=Typography()) {
-        CompositionLocalProvider(LocalMentionOpenAccount provides {url->vm.openLink(url)},LocalArchiveChecksPaused provides (showFollow||showSearch||showConnection||showChannels||showFeedChooser||sharingChannel!=null||discussion!=null),LocalPostCounterparts provides discussionGroups,LocalVideoRequests provides knownGroups?.videoRequests.orEmpty(),LocalVideoOfferRevision provides knownGroups?.videoRevision,LocalGalleryRequests provides knownGroups?.galleryRequests.orEmpty(),LocalVideoRequestLookup provides videoLookup,LocalSavedPostKeys provides savedKeys,LocalImageSearch provides vm::searchImage) {
+        CompositionLocalProvider(LocalMentionOpenAccount provides {url->vm.openLink(url)},LocalArchiveChecksPaused provides (showFollow||showSearch||showConnection||showChannels||showFeedChooser||sharingChannel!=null||discussion!=null),LocalPostCounterparts provides discussionGroups,LocalVideoRequests provides knownGroups?.videoRequests.orEmpty(),LocalVideoOfferRevision provides knownGroups?.videoRevision,LocalGalleryRequests provides knownGroups?.galleryRequests.orEmpty(),LocalVideoRequestLookup provides videoLookup,LocalFeedVideoPreparation provides videoPreparation,LocalSavedPostKeys provides savedKeys,LocalImageSearch provides vm::searchImage) {
         BackHandler(enabled=state.target!=null||state.section!="feed"){vm.back()}
         ContextSheet(repo,onOpenLink={vm.openLink(it,true)})
         ArticleReaderSheet(vm.articles,onOpenLink={vm.openLink(it,true)},onBrowser=vm::openBrowser)

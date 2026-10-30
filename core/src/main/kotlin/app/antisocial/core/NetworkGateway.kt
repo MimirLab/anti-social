@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.coroutines.resume
@@ -780,6 +781,19 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
         GatewayMediaRanges(requireNotNull(identity).total,block,first,::fetch,requireNotNull(identity).validator==null,
             active=seed?.active ?: {currentSession(route)===session&&System.nanoTime()-started<=45_000_000_000L},
             seed=seed?.blocks.orEmpty(),scope=owner,representation=identity)
+    }
+    /** An initial prefix may wait inside its original finite comparison. No
+     * decoder runs here. Ordinary retries still use mediaRanges and revalidate. */
+    suspend fun prepareMediaRanges(url:String,sourceUrl:String=url,observationOnly:Boolean=false):GatewayMediaPreparation {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        check(kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]!=null){"Recording preparation needs a bounded parent"}
+        return GatewayMediaPreparation(mediaRanges(url,sourceUrl,observationOnly))
+    }
+    suspend fun claimPreparedMediaRanges(preparation:GatewayMediaPreparation,url:String,sourceUrl:String=url,observationOnly:Boolean=false):GatewayMediaRanges {
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        val route=routeFor(Request.Builder().url(url).build())
+        return preparation.claim(GatewayRangeScope(currentSession(route),url,sourceUrl,observationOnly,
+            kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]))
     }
     /** A redirect-aware bounded prefix proves that a recovery URL really leads
      * to the selected recording, without downloading an entire video. */

@@ -37,6 +37,71 @@ class VideoEvidenceStoreTest {
     })
     private fun result(media:Media)=GatewayVideoSampler.Result(frames(),1024,1,VideoAssetIdentity.sampleUrl(media))
     private fun store(clock:()->Long=System::currentTimeMillis)=VideoEvidenceStore(repo,clock,directory)
+    @Test fun preparedMetadataWaitsForTheActualCardAndCancellationKeepsItRetryable():Unit=runBlocking {
+        val bank=store();val entered=CompletableDeferred<Unit>();val interest=CompletableDeferred<Unit>()
+        val lookups=AtomicInteger();val prefixes=AtomicInteger();val samples=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val pair=VideoFootageRequest(legacy,second,request.originalKeys,resolveMetadata=true)
+        val wifi=repo.prefs.videoDownloadWifiOnly
+        repo.prefs.videoDownloadWifiOnly=false
+        bank.metadata={lookups.incrementAndGet();first.media.single()}
+        bank.preparePrefix={_,_->prefixes.incrementAndGet()}
+        bank.sample={m,_->samples.incrementAndGet();result(m)}
+        try {
+            val cancelled=launch {bank.enrichPrepared(pair){entered.complete(Unit);interest.await()}}
+            withTimeout(5_000){entered.await()};delay(100)
+            assertEquals(0,lookups.get());assertEquals(0,prefixes.get());assertEquals(0,samples.get())
+            cancelled.cancelAndJoin();assertTrue(bank.available(pair))
+            interest.complete(Unit);bank.enrichPrepared(pair){interest.await()}
+            assertEquals(1,lookups.get());assertEquals(1,prefixes.get());assertEquals(2,samples.get())
+            assertNotNull(bank.captured(legacy).media.single().videoFootage)
+        }finally {interest.complete(Unit);bank.cleanup(true);repo.prefs.videoDownloadWifiOnly=wifi}
+    }
+    @Test fun aMeasuredFirstPeerMakesTheSecondPeersOptionalMetadataUnnecessary():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val samples=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        bank.metadata={lookups.incrementAndGet();null}
+        bank.sample={m,_->samples.incrementAndGet();result(m)}
+        bank.enrich(VideoFootageRequest(raw,legacy,setOf(raw.identityKey,legacy.identityKey),resolveMetadata=true),automatic=false)
+        assertEquals("A newly measured peer already permits the ordinary bounded sampling route",0,lookups.get())
+        assertEquals(2,samples.get());assertNotNull(bank.captured(raw).media.single().videoFootage);assertNotNull(bank.captured(legacy).media.single().videoFootage)
+    }
+    @Test fun failedMetadataDoesNotCoolTheDirectRouteAfterItsPeerBecomesMeasured():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val samples=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        val pair=VideoFootageRequest(legacy,raw,setOf(legacy.identityKey,raw.identityKey),resolveMetadata=true)
+        bank.metadata={lookups.incrementAndGet();null};bank.sample={m,_->samples.incrementAndGet();result(m)}
+        bank.enrich(pair,automatic=false)
+        assertEquals(1,lookups.get());assertEquals(1,samples.get());assertNotNull(bank.captured(raw).media.single().videoFootage)
+        assertTrue("Metadata availability is separate from the now-qualified direct recording route",bank.available(pair))
+        bank.enrich(pair,automatic=false)
+        assertEquals(1,lookups.get());assertEquals(2,samples.get());assertNotNull(bank.captured(legacy).media.single().videoFootage)
+    }
+    @Test fun failedMetadataAndSamplingStayQuietUntilTheirRoutesCanBeRetried():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val samples=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        val pair=VideoFootageRequest(legacy,raw,setOf(legacy.identityKey,raw.identityKey),resolveMetadata=true)
+        bank.metadata={lookups.incrementAndGet();null};bank.sample={_,_->samples.incrementAndGet();throw java.io.IOException("Fixture recording unavailable")}
+        bank.enrich(pair,automatic=false);assertFalse(bank.available(pair));bank.enrich(pair,automatic=false)
+        assertEquals(1,lookups.get());assertEquals(1,samples.get())
+        bank.retryFailures();assertTrue(bank.available(pair))
+    }
+    @Test fun aFailedMetadataRenditionDoesNotCoolTheRetainedPlaybackRoute():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val samples=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        val pair=VideoFootageRequest(legacy,raw,setOf(legacy.identityKey,raw.identityKey),resolveMetadata=true)
+        val small="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        bank.metadata={lookups.incrementAndGet();first.media.single().copy(samplingUrl=small)}
+        bank.sample={m,_->samples.incrementAndGet();if(m.samplingUrl==small)throw java.io.IOException("Fixture small rendition unavailable");result(m)}
+        bank.enrich(pair,automatic=false);assertEquals(2,samples.get());assertEquals(1,lookups.get())
+        assertTrue(bank.available(pair));bank.enrich(pair,automatic=false)
+        assertEquals(3,samples.get());assertEquals(1,lookups.get());assertNotNull(bank.captured(legacy).media.single().videoFootage)
+        assertNull(legacy.media.single().samplingUrl)
+    }
     @Test fun preemptedRetriesShareOnlyTheirRecordingAttemptAndEveryAttemptCloses():Unit=runBlocking {
         val bank=store();val attempts=linkedMapOf<String,MutableList<VideoSamplingAttempt>>()
         bank.sample={m,_->
