@@ -235,11 +235,19 @@ object CrossPosts {
         val provenance=post.provenance ?: return null;val source=provenance.source
         if(source.platform!=Platform.X||source.frontend!="nitter"||source.role!=SourceRole.ALTERNATE)return null
         val root=source.root.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&it.query==null&&it.fragment==null} ?: return null
-        val final=provenance.finalUrl.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&it.query==null&&it.fragment==null} ?: return null
+        val final=provenance.finalUrl.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()} ?: return null
         if(root.host!=final.host||root.port!=final.port)return null
         val base=root.encodedPath.trimEnd('/');val path=final.encodedPath
         if(!path.startsWith("$base/"))return null
         val parts=path.removePrefix("$base/").trimEnd('/').split('/')
+        // The HTML parser binds this sharing role to the requested profile's
+        // linked name/handle and its outer repost header. It is a curator, not
+        // evidence that the curator controls the original author's account.
+        val declared=NitterReposts.handle(post)
+        if(declared!=null&&parts.size==1&&parts.single().equals(declared,true)&&final.fragment in setOf(null,"m")&&
+            final.queryParameterNames.all {it=="cursor"}&&final.queryParameterValues("cursor").let {it.size<=1&&it.all {v->!v.isNullOrBlank()&&v.length<=4096}})
+            return Platform.X.id+":"+declared.lowercase(java.util.Locale.ROOT)
+        if(final.query!=null||final.fragment!=null)return null
         if(parts.size!=2||parts[1]!="rss"||!parts[0].matches(Regex("[A-Za-z0-9_]{1,15}")))return null
         val handle=parts[0]
         val key="twitter:"+handle.lowercase(java.util.Locale.ROOT)
@@ -278,6 +286,7 @@ object CrossPosts {
     fun relatedVisualUpdates(posts: List<Post>): Boolean=posts.size in 2..MAX_EDITIONS&&posts.map(::originalKey).distinct().size==posts.size&&
         posts.indices.all {i->(i+1 until posts.size).all {j->relatedVisualPair(posts[i],posts[j])}}
     private fun clipIds(post: Post)=post.media.mapNotNull {media->
+        DeclaredVideo.key(post,media)?.let {return@mapNotNull it.removePrefix("twitter:")}
         val url=media.url.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.username.isEmpty()&&it.password.isEmpty()&&it.host in setOf("pbs.twimg.com","video.twimg.com","video-s.twimg.com")} ?: return@mapNotNull null
         val match=Regex("^/(amplify_video|ext_tw_video)(?:_thumb)?/([0-9]{1,40})/").find(url.encodedPath) ?: return@mapNotNull null
         match.groupValues[1]+":"+match.groupValues[2]
@@ -315,6 +324,25 @@ object CrossPosts {
         if(AnnouncementEditions.sameBroadcast(posts))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->repeatMatch(prepared[i],prepared[j],sameMedia)}}
+    }
+    /** Portable proof for an exact declared recording and its already-matching
+     * caption editions. Sharing stays distinct from original authorship. Every
+     * other edition needs a direct existing content/composition proof against
+     * a recording witness; it cannot borrow another leaf's evidence. */
+    fun declaredRecordingCollection(posts:List<Post>):Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size||posts.any {
+            it.preview||it.parentId!=null||it.recoveredArchive!=null||!realOriginal(it)||it.body.length.toLong()+it.title.length>MAX_TEXT||it.publishedAt?.let {t->t>0}!=true
+        })return false
+        val times=posts.map {requireNotNull(it.publishedAt)}
+        if(times.max()-times.min()>6*60*60_000L)return false
+        val videos=posts.filter {DeclaredVideo.recording(it)!=null}
+        if(videos.size<2||videos.indices.any {i->(i+1 until videos.size).any {j->
+            !repeatIdentity(videos[i],videos[j])||!DeclaredVideo.same(videos[i],videos[j])
+        }})return false
+        return posts.filter {it !in videos}.all {post->videos.any {witness->
+            val pair=listOf(witness,post)
+            sameContentCopies(pair)||CrossPostFusion.composeCollectedEditions(pair)!=null||CrossPostFusion.compose(pair)!=null
+        }}
     }
     /** Content evidence, not account ownership. Every supplied original and its
      * discussion remains distinct; the UI must retain each publisher attribution. */
@@ -919,7 +947,7 @@ object CrossPosts {
             x!=null&&y!=null&&kotlin.math.abs(x-y)<=600_000&&headingMatch(a,b){_,_->false}
         }}
     }
-    private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
+    private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean,includeDeclared:Boolean=true): Boolean {
         if(a.post.platform!=b.post.platform||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated)return false
         // Fold proven extraction aliases before they become two competing
         // candidates for another platform's one counterpart slot.
@@ -939,7 +967,7 @@ object CrossPosts {
         val timeA=a.post.publishedAt?.takeIf {it>0} ?: return false;val timeB=b.post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>MAX_REPEAT_WINDOW.toULong())return false
-        return matches(a,b,sameMedia,repeated=true)||fusionMatch(a,b,sameMedia,repeated=true)||videoExcerpt(a.post,b.post)||relatedVisualPair(a.post,b.post)
+        return includeDeclared&&DeclaredVideo.same(a.post,b.post)||matches(a,b,sameMedia,repeated=true)||fusionMatch(a,b,sameMedia,repeated=true)||videoExcerpt(a.post,b.post)||relatedVisualPair(a.post,b.post)
     }
     private fun decoratedMatch(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean {
         if(a.owner==null||a.owner!=b.owner||!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null)return false
@@ -1119,7 +1147,7 @@ object CrossPosts {
         val fusionEdges=Array(ordered.size){mutableSetOf<Int>()}
         ordered.indices.forEach {i->candidates[i]?.filter {it>i&&i in candidates[it].orEmpty()}?.forEach {j->
             checkpoint()
-            if(repeatMatch(ordered[i],ordered[j],sameMedia)||copyMatch(ordered[i],ordered[j],sameMedia)){repeatEdges[i]+=j;repeatEdges[j]+=i}
+            if(repeatMatch(ordered[i],ordered[j],sameMedia,includeDeclared=false)||copyMatch(ordered[i],ordered[j],sameMedia)){repeatEdges[i]+=j;repeatEdges[j]+=i}
             val exact=matches(ordered[i],ordered[j],sameMedia)
             if(exact||fusionMatch(ordered[i],ordered[j],sameMedia)) {
                 edges[i]+=j;edges[j]+=i
@@ -1187,7 +1215,8 @@ object CrossPosts {
         val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia))
         val owners=ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}}
         val announcements=AnnouncementCollections.collect(established,owners,{a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
-        return (if(sharedFootage==null)announcements else SharedVideoCollections.collect(announcements,owners,sharedFootage,checkpoint))
+        val declared=DeclaredVideo.collect(announcements,::declaredRecordingCollection,checkpoint)
+        return (if(sharedFootage==null)declared else SharedVideoCollections.collect(declared,owners,sharedFootage,checkpoint))
             .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
 }

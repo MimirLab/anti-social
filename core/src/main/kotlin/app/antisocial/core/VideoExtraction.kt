@@ -56,6 +56,30 @@ internal object VideoExtraction {
         }.let {alternatives->alternatives.firstOrNull {it.mimeType in setOf("video/mp4","video/webm")} ?: alternatives.firstOrNull()}
     }.distinctBy {it.url}
 
+    /** A disabled HLS player still offers its public progressive download.
+     * Read only this post's own gallery, never a quoted post or generic link.
+     * The signed proxy stays intact and its nested provider clip is qualified
+     * as data only; fetching it still belongs to NetworkGateway. */
+    fun nitterDownloads(root:Element,provenance:Provenance):List<Media> {
+        val excluded=setOf("quote","quote-big","quoted-tweet","quote-tweet","tweet-content","replies","related-tweets")
+        fun own(node:Element):Boolean {
+            var current:Element?=node
+            while(current!=null&&current!==root) {
+                if(current.classNames().any {it in excluded}||current!==node&&current.hasClass("timeline-item"))return false
+                current=current.parent()
+            }
+            return current===root&&!root.classNames().any {it in excluded}
+        }
+        return root.select(".gallery-video").asSequence().filter(::own).take(16).mapNotNull {gallery->
+            if(html(gallery,provenance.finalUrl).isNotEmpty())return@mapNotNull null
+            val link=gallery.select("a.video-download[href]").filter(::own).singleOrNull() ?: return@mapNotNull null
+            val url=safe(link.attr("href"),provenance.finalUrl) ?: return@mapNotNull null
+            if(DeclaredVideo.proxyRecording(url,provenance)==null)return@mapNotNull null
+            val poster=gallery.select("img[src]").filter(::own).singleOrNull()?.let {safe(it.attr("src"),provenance.finalUrl)}
+            candidate(url,provenance.finalUrl,preview=poster)?.takeIf {it.mimeType in setOf("video/mp4","video/webm")}
+        }.distinctBy {it.url}.toList()
+    }
+
     fun reddit(post: JsonObject,base: String): Media? {
         fun nested(parent: String,child: String)=post[parent]?.takeIf {it.isJsonObject}?.asJsonObject?.get(child)?.takeIf {it.isJsonObject}?.asJsonObject
         val sources=listOfNotNull(nested("secure_media","reddit_video"),nested("media","reddit_video"),nested("preview","reddit_video_preview"))

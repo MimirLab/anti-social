@@ -744,6 +744,48 @@ class FusionFeedTest {
         evidence("short-literal-source-blocks-preserve-text-and-media")
     }
 
+    @Test fun declaredRecordingCollectsAuthoredAndRepostedCaptionsBeforeAnyFootageWork() {
+        val source=repo.routes.sources.first {it.platform==Platform.X&&it.frontend=="nitter"}
+        val base=source.root.trimEnd('/');val original="https://video.twimg.com/amplify_video/710001/vid/avc1/1920x1080/demo.mp4?tag=29"
+        val proxy="$base/video/signed/"+DarwinRoutes.encode(original)
+        val poster="https://declared-video-$suffix.invalid/cover.png"
+        val first=Post("98${suffix}1001",Platform.X,"https://x.com/$handle/status/98${suffix}1001",handle,
+            "The workshop team demonstrates the complete repair process.",publishedAt=now-60_000,
+            media=listOf(Media(proxy,"video",poster,mimeType="video/mp4")),provenance=Provenance(source,now,"$base/$handle"))
+        val mirror="https://declared-reader-$suffix.example"
+        val second=first.copy(id="98${suffix}1002",canonicalUrl="https://x.com/RepairCrew/status/98${suffix}1002",author="RepairCrew",
+            body="Here is how we restored the machine, with instructions for every step.",publishedAt=now-59_000,
+            media=first.media.map {it.copy(url=it.url.replace(base,mirror))},
+            provenance=Provenance(source.copy(root=mirror),now,"$mirror/$handle?cursor=next"),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,"https://x.com/$handle")))
+        val facebook=first.copy(id="98${suffix}1003",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1003",
+            publishedAt=now-58_000,media=listOf(Media(poster)),provenance=null)
+        records+=listOf(first,second,facebook);val account=follow(Platform.X)
+        listOf(first,second).forEach {store(it,account)};store(facebook,follow(Platform.FACEBOOK))
+        cacheGalleryPicture(poster,1)
+        originalVideoSampler=repo.videos.sample;repo.videos.sample={_,_->error("A declared recording needs no sampled footage")}
+        val grouped=CrossPosts.group(records,accounts).single();assertEquals(records.toSet(),grouped.posts.toSet())
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(first)
+        row(second).assertDoesNotExist();row(facebook).assertDoesNotExist()
+        ui.onAllNodesWithText(first.body).assertCountEquals(1);ui.onAllNodesWithText(second.body).assertCountEquals(1)
+        val plan=collectionPlan(grouped.posts);assertEquals(1,plan.attachments.size)
+        assertEquals(records.mapTo(linkedSetOf(),repo::key),plan.attachments.single().originalKeys)
+        assertEquals("twitter:repaircrew",CrossPosts.originalAccount(second))
+        val snapshot=contextSnapshot(repo,first,records)
+        assertTrue(snapshot.text.contains(first.body));assertTrue(snapshot.text.contains(second.body))
+        runBlocking {repo.library.save(first,emptyList(),fusionRoots=records)}
+        val saved=runBlocking {repo.library.details(repo.key(first))}!!.fusionRoots!!
+        assertEquals(records.map(repo::key).toSet(),saved.map(repo::key).toSet())
+        // Quick Save retains declared source records without downloading a
+        // playable video. The image-only fixture helper requires cached bytes
+        // for every attachment and is deliberately inappropriate here.
+        fun source(post:Post)=post.copy(media=post.media.map {it.copy(aiMetadata=null,visualFingerprint=null,attachmentFingerprint=null,videoFootage=null)})
+        records.forEach {original->assertEquals(source(original),source(saved.single {repo.key(it)==repo.key(original)}))}
+        assertNull(runBlocking {repo.availableMedia(first.media.single().url)})
+        assertNull(runBlocking {repo.availableMedia(second.media.single().url)})
+        evidence("declared-video-one-card-two-authored-captions-faithful-save")
+    }
+
     @Test fun sameBatchSnapshotSelectionRetainsTheCompleteGalleryBeforeStorageAndPageReplay() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val rich=oldX.copy(body=shared,media=(1..5).map {Media("https://fusion-x-$suffix.invalid/complete-$it.png")})

@@ -88,6 +88,7 @@ class LocalLibrary(private val repo: Repository) {
         require(roots.size<=CrossPosts.MAX_EDITIONS){"This fused copy contains too many source editions"}
         if(roots.size<2)return emptyList()
         val contentCopies=CrossPosts.sameContentCopies(roots,repo.images.identities::same)
+        val declared=CrossPosts.declaredRecordingCollection(roots)
         val footage by lazy(LazyThreadSafetyMode.NONE){VideoFootage.collection(roots)}
         val gallery=CrossPosts.galleryCollection(roots,repo.images.identities::same)
         roots.forEach {p->
@@ -99,9 +100,9 @@ class LocalLibrary(private val repo: Repository) {
         val times=roots.mapNotNull {it.publishedAt}
         require(contentCopies||times.max()-times.min()<=48*60*60*1000L){"Captured source editions are too far apart"}
         roots.groupBy {it.platform}.values.filter {it.size>1}.forEach {repeated->
-            require(contentCopies||CrossPosts.sameSourceRepeats(repeated,repo.images.identities::same)||CrossPosts.sameContentCopies(repeated,repo.images.identities::same)||footage){"Repeated source editions need matching content and a proven shared account or reposting source"}
+            require(contentCopies||declared||CrossPosts.sameSourceRepeats(repeated,repo.images.identities::same)||CrossPosts.sameContentCopies(repeated,repo.images.identities::same)||footage){"Repeated source editions need matching content and a proven shared account or reposting source"}
         }
-        val repeatedOnly=contentCopies||roots.map {it.platform}.distinct().size==1&&CrossPosts.sameSourceRepeats(roots,repo.images.identities::same)
+        val repeatedOnly=contentCopies||declared||roots.map {it.platform}.distinct().size==1&&CrossPosts.sameSourceRepeats(roots,repo.images.identities::same)
         require(repeatedOnly||CrossPostFusion.composeCollectedEditions(roots)!=null||CrossPostFusion.compose(roots)!=null||CrossPostFusion.compose(fusionCaptionRoots(roots))!=null||footage){"Captured source editions do not share a substantial caption or sampled footage"}
         return roots
     }

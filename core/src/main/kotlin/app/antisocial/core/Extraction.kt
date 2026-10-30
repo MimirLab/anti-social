@@ -406,6 +406,12 @@ object Extraction {
                 }else null
             val media=(copy.select(".attachments img[src],.post-content img[src],img.post_media[src],img.media[src],.post_image[src],.image img[src],.pin img[src],.post-image img[src],.tile-item-media img[src],.grid-item img[src],.pin-container > img[src],.pins-grid img[src],.grid-container img[src],.post-media img[src],.slides img[src]").mapNotNull { m ->safe(m.attr("src"),provenance.finalUrl)?.let { Media(it,description=m.attr("alt")) } }+VideoExtraction.html(copy,provenance.finalUrl)).toMutableList()
             media+=linkCard?.images.orEmpty()
+            if(target.platform==Platform.X) {
+                val downloads=VideoExtraction.nitterDownloads(copy,provenance)
+                val posters=downloads.mapNotNull {it.preview}.toSet()
+                media.removeAll {it.type=="image"&&it.url in posters}
+                media+=downloads
+            }
             safe(copy.attr("data-video_url"),provenance.finalUrl)?.let {url->media.add(Media(url,"video",copy.selectFirst("img[src]")?.attr("src")?.let {safe(it,provenance.finalUrl)}))}
             if(rat)copy.select(".content img[src]").forEach {image->safe(image.attr("src"),provenance.finalUrl)?.let {media.add(Media(it,description=image.attr("alt")))}}
             // Tile nodes are selected individually; only their own image is content.

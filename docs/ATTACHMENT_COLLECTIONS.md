@@ -1,5 +1,41 @@
 # Attachment collections
 
+## Collect declared recording copies after caption families (0.38.74)
+
+A public Nitter timeline can offer a signed progressive download while its HLS
+player is disabled. The reader now retains that exposed download and its poster
+from the selected post's own gallery. It does not submit the playback form, run
+scripts, set a preference cookie or invent a stream. Nested/quoted galleries and
+unqualified download links remain excluded. The exact proxy URL is preserved;
+any subsequent read still uses NetworkGateway and the selected connection policy.
+
+Qualified X recording identifiers can connect differently worded editions from
+the same author or explicitly declared reposting feed. Percent-encoded and URL-safe
+base64 video proxies stay scoped to their supplying alternate Nitter source.
+Retained preview-only records can expose a recording identifier without becoming
+playable videos. A common cover, generic image URL or matching account name does
+not establish this relationship. Original authors and reposting curators remain
+different roles; collection never asserts common account control.
+
+This route runs **after** existing caption collections. A portable validation
+checks the complete union: qualified recording witnesses must agree on their
+identifier, author/curator relationship and six-hour window. Each other edition
+needs a direct existing content/composition proof against a recording witness.
+A leaf cannot lend its evidence to another leaf. Collections retain the existing
+64-original bound; recording buckets above 128 families remain unexamined. The
+same proof is used for saved copies without a subscription lookup or network read.
+
+Shared passages can read once while different captions remain attributed. Exact
+declared renditions can share an attachment while every original keeps its own
+media URL and source record. Distinct recordings and pictures retain their
+existing rules. Provider asset identity is neither a file hash nor signature
+validation, and does not transfer exact-byte metadata between files.
+
+The dated native replay corrects a captured two-card repost pair without waiting
+for image decoding or footage sampling. It does not establish instant merging
+for recordings without usable declared identifiers. See the
+[release qualification](RELEASE_QUALIFICATION.md#03874-declared-recordings-and-public-download-retention).
+
 ## Retain declared link previews before matching (0.38.68)
 
 Nitter's public HTML separates ordinary attachments from a shared link's

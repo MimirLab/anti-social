@@ -102,10 +102,14 @@ internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentitySto
     val observed=if(identities==null)posts else posts.map(identities::captured)
     val media=observed.flatMap {it.media}
     val assetKeys=media.filter {it.type=="image"}.mapNotNull {item->ImageAssetIdentity.key(item.url)?.let {item.url to it}}.toMap()
+    val declaredKeys=observed.flatMap {post->post.media.filter {it.type=="video"}.mapNotNull {item->
+        DeclaredVideo.key(post,item)?.let {item to it}
+    }}.groupBy({it.first},{it.second}).mapValues {it.value.distinct().singleOrNull()}
     val clusters=mutableListOf<MutableList<Edition>>()
     fun frame(m:Media)=m.attachmentFingerprint ?: m.visualFingerprint
     fun sameFrame(a:Media,b:Media)=VisualFrames.sameImage(frame(a),frame(b))
-    fun sameClip(a:Media,b:Media)=VideoAssetIdentity.key(a.url)?.let {it==VideoAssetIdentity.key(b.url)}==true
+    fun clip(m:Media)=VideoAssetIdentity.key(m.url) ?: declaredKeys[m]
+    fun sameClip(a:Media,b:Media)=clip(a)?.let {it==clip(b)}==true
     fun compatible(a:Media,b:Media):Boolean {
         val first=a.durationMs?.takeIf {it>0};val second=b.durationMs?.takeIf {it>0}
         if(a.type=="video"&&first!=null&&second!=null&&

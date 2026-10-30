@@ -9,6 +9,57 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.74: declared recordings and public download retention
+
+The reader retains an exposed public progressive download when a selected
+Nitter timeline gallery has disabled HLS playback. A source-scoped provider
+recording identifier can collect the original and a declared repost with
+different captions, including retained preview-only records. Existing caption
+families form first; the new collection validates the entire union and its
+portable saved-copy proof. Exact recording renditions can share one attachment.
+No new request, model, dependency, permission or database migration is introduced.
+The [collection contract](ATTACHMENT_COLLECTIONS.md#collect-declared-recording-copies-after-caption-families-03874)
+describes the source, identity, time and size bounds.
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,655 cases, 2,651 passes, four optional skips, zero failures or
+  errors**. New controls cover disabled-player downloads, retained previews,
+  source/proxy scope, author versus curator, unrelated covers, multiple clips,
+  time-window chaining and preserving an existing cross-platform caption family.
+- The first implementation failed a new mixed-family regression: early recording
+  cohorts could steal an original from its later caption counterpart. That order
+  was rejected. Collection now expands frozen caption families instead.
+- API 35 qualification covers **260 distinct named methods: 256 passes, four
+  opt-in skips, zero remaining failures** on the same frozen application. The
+  258-method regression process records 254 passes/four skips; the power-saver
+  guard and new recording check run separately. The recording check uses a
+  corrected tester build; other method bodies and the application are unchanged.
+- The initial new native check passed its card, caption and save assertions,
+  then incorrectly called an image-fixture helper requiring cached video bytes.
+  Its failure remains recorded. The corrected check verifies every original
+  source field and explicitly checks that Quick Save downloaded neither video.
+  It passes on API 35 and in the minimum Android 8/API 26 selection: **18 passes,
+  zero skips/failures**, with native reader startup checked separately.
+- The captured public repost pair reproduces two cards on 0.38.73. The corrected
+  native replay has **one card, both captions, one shared preview, both original
+  source records and a faithful protected save**. This replay exercises retained
+  source records; it is not a fresh media-acquisition or phone-latency benchmark.
+- Nine further native captured-packet replays pass: **21 families, 72 originals**,
+  expected distinct attachments, common passages once and faithful saved copies.
+  The actual attributed-caption and media-source screens are inspected privately.
+- Privacy-guard controls: **eight passes**; Context retention scoring controls:
+  **four passes**. Release lint has **zero errors, 179 warnings and one hint**.
+  The source-tree privacy audit has zero findings with two unchanged reviewed
+  upstream exemptions; source-archive auditing is performed separately.
+
+The additional escaped short-video edition, other reported announcement families,
+and source-dependent observation/adoption delays remain open. This increment
+removes a demonstrated need to wait for pixel/video evidence when an exact
+qualified recording identifier is already present; it does not establish
+universal or instantaneous merging. Signing, archive, privacy and promotion
+checks follow [publishing](PUBLISHING.md).
+
 ## 0.38.73: prepared prefixes and complete short-caption presentation
 
 One unused video prefix can be prepared for the retained reading position;
