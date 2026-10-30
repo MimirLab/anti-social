@@ -1,5 +1,37 @@
 # Attachment collections
 
+## Opening reminders in proven galleries (0.38.77)
+
+A shorter, complete heading can already join a gallery when every picture is
+proven inside one unambiguous gallery and the existing source, time and literal
+caption boundaries pass. An opening instruction such as “Never forget…” could
+incorrectly veto that proof as contradictory language. Retained copies need not
+contain a newer frontend's reply declaration or a separately acquired full
+thread edition.
+
+The additional path recognizes only an opening “Never forget” or “Do not forget”
+instruction preceding the shared heading. Its full introduction remains
+attributed. Other guarded claims and negation in the remainder—including
+“cannot” and ASCII or typographic negative contractions—still block this
+exception. Numbers, questions, meaningful symbols, destinations, whole-caption
+boundaries, timing, detailed picture inclusion and ambiguous-gallery protections
+remain required. No reply relationship is invented or source record rewritten.
+It adds no acquisition, model, dependency, permission or schema.
+
+The existing self-reply regression now uses an actual factual negation to keep
+testing its separate publisher-witness requirement. New controls distinguish an
+opening reminder from negated claims inside that reminder. A preliminary draft
+passed the original fourteen-case selection but admitted nested contractions;
+explicit counterexamples rejected that draft before preview installation or
+publication. Its failed controls and acquired-source baseline stay in private
+external evidence. The corrected cold-gallery controls pass on API 35 and 26,
+including the contraction counterexamples, Context and an actual save action.
+The retained three-original capture now presents one card and five distinct
+pictures, with the shared heading and attributed introduction each once. Every
+captured source survives the save. See the
+[dated qualification](RELEASE_QUALIFICATION.md#03877-opening-reminders-do-not-veto-proven-gallery-pictures)
+for the complete validation scope and remaining open cases.
+
 ## Preserve richer-copy evidence through extraction cohorts (0.38.76)
 
 A media-free extraction of a complete caption can already be a proven copy of a

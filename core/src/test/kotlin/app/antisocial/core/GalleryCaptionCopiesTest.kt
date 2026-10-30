@@ -13,15 +13,16 @@ class GalleryCaptionCopiesTest {
     private fun part()=Post("123",Platform.X,"https://x.com/workshop/status/123","Workshop",heading+" https://t.co/AbCd123",publishedAt=at+3000,
         media=listOf(gallery().media[1]))
     @Test fun aSourceDeclaredSelfReplyUsesItsPublishersFullEditionToKeepTheGalleryIntroduction() {
-        val full=gallery().copy(body="Never forget the work still ahead. $heading:")
+        val introduction="The latest repair results have not been finalized."
+        val full=gallery().copy(body="$introduction $heading:")
         val source=Source(Platform.X,"nitter","https://reader.example.org")
-        val root=part().copy(id="101",canonicalUrl="https://x.com/workshop/status/101",body="Never forget the work still ahead. $heading ⬇️",media=listOf(full.media[0]))
+        val root=part().copy(id="101",canonicalUrl="https://x.com/workshop/status/101",body="$introduction $heading ⬇️",media=listOf(full.media[0]))
         val child=part().copy(body=heading,title="R to @workshop: $heading",provenance=Provenance(source,at,source.root+"/workshop/rss"))
         for(input in listOf(listOf(full,root,child),listOf(child,root,full))) {
             val group=CrossPosts.group(input,emptyList()).single()
             assertEquals(input.toSet(),group.posts.toSet());assertTrue(CrossPosts.galleryCollection(group.posts))
             val fusion=requireNotNull(CrossPostFusion.composeMedia(group.posts))
-            assertEquals(listOf("Never forget the work still ahead.",heading),fusion.segments.map {it.text})
+            assertEquals(listOf(introduction,heading),fusion.segments.map {it.text})
             assertEquals(setOf(full.identityKey,root.identityKey),fusion.segments.first().originalKeys)
             assertEquals(input.map {it.identityKey}.toSet(),fusion.segments.last().originalKeys)
         }

@@ -1,5 +1,59 @@
 # Feed performance qualification
 
+## Post-0.38.76: distinguish delayed video qualification from a caption veto
+
+The October 30 investigation replays a retained five-edition video family on
+the 0.38.76 runtime, using the actual native feed, Gateway range sampler and
+isolated decoder. The shorter caption initially occupies a separate card. The
+existing planner selects the correct two recordings, and acquired footage
+collects all five editions without a new matcher or inferred account binding.
+
+| Private replay scope | First-visible checkpoint | Full-family checkpoint | Complete adopted caption |
+| --- | ---: | ---: | ---: |
+| Five captured originals, 25 subscriptions | 1,178 ms | 9,062 ms | 10,049 ms |
+| 904 retained originals with captured follow memberships, 25 subscriptions | 6,166 ms | 10,575 ms | 11,630 ms |
+
+Each row is **one observation**, not a median, p95, controlled comparison or
+physical-phone measurement. The first-visible checkpoint includes the native
+probe's idle wait; it is not a frame-presentation timestamp. Both reads acquire
+four scenes from each recording, transfer 2,240,374 range bytes across ten blocks,
+and record zero samples outside the target family. The larger input excludes
+55 retained records without captured follow bindings rather than inventing
+memberships. An initial malformed input retained those records and was correctly
+rejected before opening the feed; it supplies no performance result.
+Both replays import already captured posts and clear derived video observations;
+they do not time fresh timeline acquisition or reset every ordinary media cache.
+
+This establishes successful eventual collection for these captured inputs.
+It also leaves a substantial cold-delivery delay to investigate. The smaller
+46-post warm-URL replay from 0.38.76 cannot establish startup performance for a
+substantially accumulated database.
+
+A separate retained image-gallery replay fails after all eleven exact image
+URLs have been acquired and sandbox-decoded: two cards, six attachments and the
+same heading twice. Its opening reminder encounters the caption-negation guard.
+That reproducible admission defect is distinct from the video's acquisition and
+adoption delay; strengthening one path does not qualify the other.
+
+The 0.38.77 gallery change is also compared on the same frozen 959-original
+input, augmented only with the eleven actually acquired image observations.
+All source facts are checked unchanged. Rows fall from 768 to 767; all originals
+survive, no prior family splits, and only the intended three-original gallery
+becomes one collection.
+
+| Local desktop JVM pass | 0.38.76 | 0.38.77 |
+| --- | ---: | ---: |
+| First | 2,609 ms | 2,433 ms |
+| Second | 1,554 ms | 1,457 ms |
+| Third | 1,280 ms | 1,370 ms |
+| Fourth | 1,150 ms | 1,177 ms |
+| Fifth | 1,097 ms | 1,144 ms |
+
+These small sequential operation measurements do not demonstrate a consistent
+speed gain, phone latency, p95 or energy behavior. The change avoids an
+unnecessary request for absent thread evidence; it does not remove the separate
+cold-feed delivery cost observed above.
+
 ## 0.38.76: limit counterpart planning to relevant copy cohorts
 
 A private retained-window comparison contains 959 public-source originals across

@@ -434,8 +434,20 @@ class FusionFeedTest {
     }
 
     @Test fun aColdGalleryScanCollectsItsShorterHeadingWithoutDiscardingUniquePicturesOrContext() {
+        verifyColdGallery("Work will continue.","cold-gallery-short-heading-and-source-context")
+    }
+    @Test fun aColdGalleryReminderRetainsItsIntroductionWithoutRequiringReplyMetadata() {
+        verifyColdGallery("Never forget the volunteers who restored this equipment.","cold-gallery-reminder-without-invented-reply")
+        val captured=records.map(repo.images.identities::captured)
+        val gallery=captured.single {it.platform==Platform.INSTAGRAM};val short=captured.single {it.platform==Platform.X}
+        for(introduction in listOf("Never forget this isn't confirmed.","Never forget this cannot be confirmed.","Never forget the repairs aren’t complete.")) {
+            val changed=gallery.copy(body="$introduction REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT:")
+            assertEquals(introduction,2,CrossPosts.group(listOf(changed,short),accounts).size)
+        }
+    }
+    private fun verifyColdGallery(intro:String,evidenceName:String) {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
-        val heading="REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT";val intro="Work will continue."
+        val heading="REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT"
         val x=oldX.copy(body=heading+" https://t.co/AbCd123",media=listOf(Media("https://fusion-x-$suffix.invalid/gallery-one.png",description="Cold gallery single picture")))
         val gallery=oldInstagram.copy(body="$intro $heading:",media=(1..3).map {Media("https://fusion-instagram-$suffix.invalid/gallery-$it.png",description="Cold gallery picture $it")})
         records+=listOf(x,gallery);store(x,follow(Platform.X));store(gallery,follow(Platform.INSTAGRAM))
@@ -468,8 +480,15 @@ class FusionFeedTest {
         assertEquals(records.map(repo::key).toSet(),repo.library.normalizedFusionRoots(captured.first(),captured).map(repo::key).toSet())
         assertEquals(3,collectedAttachments(captured).size)
         assertEquals(listOf(intro,heading),collectedPostFusion(captured)!!.segments.map {it.text})
+        val snapshot=contextSnapshot(repo,x,captured)
+        assertEquals(1,Regex(Regex.escape(heading)).findAll(snapshot.text).count())
+        assertEquals(1,Regex(Regex.escape(intro)).findAll(snapshot.text).count());assertEquals(3,snapshot.media.size)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==records.size}
+        assertCapturedSources(records,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
         ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Cold gallery single picture").fetchSemanticsNodes().isNotEmpty()}
-        evidence("cold-gallery-short-heading-and-source-context")
+        evidence(evidenceName)
     }
 
     @Test fun complementaryGalleryEditionsCollectTheirChildrenAndSaveEverySource() {

@@ -9,6 +9,65 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.77: opening reminders do not veto proven gallery pictures
+
+A retained three-original gallery reproduced two cards and six displayed
+attachments even after its eleven exact image URLs were acquired through the
+Gateway and sandbox-decoded. An opening reminder encountered the caption's
+negation guard. The newer thread replay had supplied extra reply evidence that
+the retained copy did not contain; that earlier passing case did not establish
+correctness for this one. See the
+[collection contract](ATTACHMENT_COLLECTIONS.md#opening-reminders-in-proven-galleries-03877).
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,671 cases, 2,667 passes, four optional skips, zero failures or
+  errors**. The initial fourteen-case selection has three expected baseline
+  failures and eleven passes. It exercises literal reminders, source attribution,
+  changed pictures/claims, timing, whole-caption boundaries and ambiguous roots.
+  The existing publisher-reply control uses factual negation to continue testing
+  its separate full-edition witness requirement.
+- A preliminary reminder exception incorrectly accepted nested contractions and
+  “cannot.” Explicit counterexamples reproduce the defect; the expanded selection
+  fails one method before the correction. The unqualified draft and failed
+  controls are retained privately. It was never installed in the preview or
+  published. The corrected remainder guard is also tested natively with ASCII
+  and typographic apostrophes.
+- API 35: **265 distinct named methods, 261 passes, four opt-in skips, zero
+  failures** on the frozen application/tester. Android 8/API 26: **24 passes,
+  zero skips or failures**, plus native startup and screen inspection.
+- Two focused cold-gallery native controls pass, including actual local-byte
+  decoding, Context, all distinct pictures and a Save-button action retaining
+  both complete originals. The actual retained capture now presents **one card,
+  five distinct pictures, one shared heading and one attributed introduction**;
+  all three originals survive the save. Actual caption/source screens are
+  inspected privately. No reply identity or missing source edition is invented.
+- The preceding four-original clause-composition capture still passes: one card,
+  two pictures, both complete differing clauses once and faithful saves. All
+  nine earlier native capture packets also pass: **21 families, 72 originals**.
+  The fresh five-original gallery replay passes separately.
+- The 959-original comparison uses exactly the same source facts and acquired
+  image observations on both implementations. Rows fall from 768 to 767; every
+  original survives, zero prior families split, and only the intended family
+  changes. [Operation timings and their limits](FEED_PERFORMANCE.md#post-03876-distinguish-delayed-video-qualification-from-a-caption-veto)
+  do not establish a consistent speed gain or physical-phone behavior.
+- The warm 46-post video replay passes without renewed-URL resampling. The actual
+  904-post video replay also finishes as one five-original family with complete
+  wording. Its checkpoints are 5,728 ms first-visible, 10,175 ms full-family and
+  11,211 ms complete adopted caption. These single emulator observations retain
+  a significant delivery delay; they do not qualify phone p95 or energy use.
+- Privacy-guard controls: **eight passes**; Context retention controls: **four
+  passes**. The latter initially used an unsuitable module-import invocation;
+  running the established script directly passes all four. Release lint:
+  **zero errors, 182 warnings and one hint**. Clean-commit artifact/source,
+  signing, privacy/archive and preview-state checks follow
+  [publishing](PUBLISHING.md).
+
+No model, dependency, permission, schema change or new retrieval is added. Other
+reported image leaves, unavailable counterpart acquisition and cold-feed delays
+remain separate investigations. Topic-keyword inventory alone does not identify
+a reported captionless image or establish its equivalence.
+
 ## 0.38.76: media-free extractions retain their counterpart's proof
 
 A captured four-original announcement reproduced two cards despite matching

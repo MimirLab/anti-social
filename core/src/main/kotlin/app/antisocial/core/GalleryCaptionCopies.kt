@@ -12,6 +12,15 @@ internal object GalleryCaptionCopies {
     private val urls=Regex("https://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
     private val words=Regex("[\\p{L}\\p{N}]+(?:['’][\\p{L}\\p{N}]+)*")
     private val unsafe=Regex("\\b(?:no|not|never|without|false|fake|untrue|misleading|debunked|disputed|rejected|cancelled|canceled|correction|fact.check)\\b",RegexOption.IGNORE_CASE)
+    private val reminder=Regex("^(?:never|do not) forget\\s+",RegexOption.IGNORE_CASE)
+    private val reminderNegation=Regex("\\b(?:cannot|\\p{L}+n['’]t)\\b",RegexOption.IGNORE_CASE)
+    private fun reminderIntroduction(value:String):Boolean {
+        val text=value.trim();val prefix=reminder.find(text) ?: return false
+        // The imperative's negation does not contradict the gallery heading.
+        // Claims, corrections or further negation inside it still need proof.
+        val remainder=text.substring(prefix.range.last+1)
+        return !unsafe.containsMatchIn(remainder)&&!reminderNegation.containsMatchIn(remainder)
+    }
     private fun caption(post:Post):Caption? {
         if(post.preview||post.body.length.toLong()+post.title.length>4096)return null
         // Media enclosure links are not editorial destinations. Keep all URLs
@@ -56,7 +65,8 @@ internal object GalleryCaptionCopies {
         // its length alone need not defeat independently proven gallery media.
         if(extra.any {it.isDigit()||it=='?'||it=='@'}||
             Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]").containsMatchIn(extra)||
-            unsafe.containsMatchIn(extra)&&!(end==full.text.length&&publisherReply(full,part,scope)))return null
+            unsafe.containsMatchIn(extra)&&!(end==full.text.length&&
+                (publisherReply(full,part,scope)||start>0&&reminderIntroduction(extra))))return null
         return start until end
     }
     fun contains(anchor:Post,part:Post,scope:List<Post> = emptyList()):Boolean {
