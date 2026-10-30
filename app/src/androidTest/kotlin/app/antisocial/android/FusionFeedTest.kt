@@ -334,6 +334,8 @@ class FusionFeedTest {
             val spec=value.asJsonObject;val keys=spec.getAsJsonArray("posts").map {repo.key(repo.gson.fromJson(it,Post::class.java))}.toSet()
             val shown=seen.filterKeys {it in keys};val passage=compact(spec["once"].asString)
             val count=shown.values.sumOf {Regex(Regex.escape(passage)).findAll(compact(it)).count()}
+            val required=spec.getAsJsonArray("requiredPassages")?.also {require(it.size()<=16)}?.map {it.asString.also {text->require(text.length in 1..1024)}}.orEmpty()
+            val requiredOnce=required.all {text->shown.values.sumOf {Regex(Regex.escape(compact(text))).findAll(compact(it)).count()}==1}
             val collected=groups.filter {it.posts.any {post->repo.key(post) in keys}}
             val captured=collected.flatMap {it.posts}.map(repo::key).toSet()
             val attachments=collected.flatMap {collectionPlan(it.posts).attachments}
@@ -353,7 +355,7 @@ class FusionFeedTest {
                 roots.forEach {root->require(source(root)==source(retained.single {repo.key(it)==repo.key(root)})) {"A saved original lost source text or media"}}
             }}
             mapOf("case" to index,"rows" to shown.size,"passageOccurrences" to count,"shown" to shown,
-                "originalsPreserved" to (captured==keys),"attachments" to attachments.size,
+                "originalsPreserved" to (captured==keys),"attachments" to attachments.size,"requiredPassagesOnce" to requiredOnce,
                 "expectedAttachmentsPreserved" to (expected==null||expected==attachments.size),"savedOriginalsPreserved" to save.isSuccess,"saveError" to save.exceptionOrNull()?.message)
         }
         File(output,"report.json").writeText(repo.gson.toJson(reports))
@@ -397,7 +399,7 @@ class FusionFeedTest {
                 File(output,"card-$index-caption.png").outputStream().use {captionBitmap.compress(Bitmap.CompressFormat.PNG,100,it)};captionBitmap.recycle()
             }
         }
-        assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
+        assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["requiredPassagesOnce"]==true&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
     }
     private fun revealCombinedControl(matcher: SemanticsMatcher,listTag: String="Combined feed") {
         val list=ui.onNodeWithTag(listTag)
@@ -742,6 +744,58 @@ class FusionFeedTest {
         runBlocking {repo.library.save(x,emptyList(),fusionRoots=records)}
         assertEquals(records.map {it.body}.toSet(),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!.map {it.body}.toSet())
         evidence("short-literal-source-blocks-preserve-text-and-media")
+    }
+
+    @Test fun aMediaFreeExtractionCannotSplitTheCaptionFamilyOrClaimItsWitnessesPictures() {
+        verifyCaptionWitness(late=false)
+    }
+    @Test fun aLateMediaFreeExtractionKeepsTheReadCaptionAndPixelAnchorIntact() {
+        verifyCaptionWitness(late=true)
+    }
+    private fun verifyCaptionWitness(late:Boolean) {
+        val head="Community volunteers restored donated household tools during the weekend workshop, documented the completed repairs, and prepared replacement parts so everyone can keep useful equipment in service."
+        val prose="The work is supported by the Community Equipment Program and the Neighbors Repair Guild."
+        val mentions="The work is supported by @ToolPartners and @RepairGuildHQ."
+        val visibleMentions="The work is supported by ToolPartners and RepairGuildHQ."
+        val photos=(1..2).map {Media("https://caption-witness-$suffix.invalid/photo-$it.png")}
+        val x=Post("98${suffix}1101",Platform.X,"https://x.com/$handle/status/98${suffix}1101",handle,"$head $mentions",publishedAt=now-60_000,media=photos)
+        val facebook=Post("98${suffix}1102",Platform.FACEBOOK,"https://www.facebook.com/123456789012345/posts/98${suffix}1102",handle,"$head $prose",publishedAt=now-58_000,media=photos,
+            provenance=Provenance(Source(Platform.FACEBOOK,"original","https://www.facebook.com",role=SourceRole.ORIGINAL),now,"https://www.facebook.com/api/graphql/"))
+        val instagram=facebook.copy(id="Witness$suffix",platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/Witness$suffix/",publishedAt=now-59_000,provenance=null)
+        val alias=facebook.copy(id="pfbid0"+suffix+"A".repeat(50),canonicalUrl="https://www.facebook.com/$handle/posts/pfbid0"+suffix+"A".repeat(50),media=emptyList(),
+            provenance=Provenance(Source(Platform.FACEBOOK,"rss-bridge","https://reader.fixture.example"),now,"https://reader.fixture.example/?bridge=Facebook&u=$handle"))
+        records+=if(late)listOf(x,facebook,instagram)else listOf(x,facebook,instagram,alias)
+        val links=mapOf(Platform.X to follow(Platform.X),Platform.FACEBOOK to follow(Platform.FACEBOOK),Platform.INSTAGRAM to follow(Platform.INSTAGRAM))
+        records.forEach {store(it,links.getValue(it.platform))}
+        photos.forEachIndexed {i,m->cacheGalleryPicture(m.url,i+1)}
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        val before=top(x)
+        if(late) {
+            ui.onAllNodesWithText(head).assertCountEquals(1)
+            records+=alias;store(alias,links.getValue(Platform.FACEBOOK))
+        }
+        ui.waitUntil(10_000){ui.onAllNodesWithText("4 originals",substring=true).fetchSemanticsNodes().isNotEmpty()}
+        val captured=records.map(repo.images.identities::captured)
+        val memberships=records.associate {repo.key(it) to setOf(links.getValue(it.platform).id)}
+        val group=CrossPosts.group(captured,accounts,memberships,repo.images.identities::same).single()
+        assertEquals(records.map(repo::key).toSet(),group.posts.map(repo::key).toSet())
+        if(late)assertTrue("An extraction alias must not move the retained card",abs(top(x)-before)<=2f)
+        evidence("caption-witness-${if(late)"late"else"initial"}-before-text-check")
+        File(ui.activity.getExternalFilesDir("validation"),"caption-witness-${if(late)"late"else"initial"}-semantics.txt")
+            .writeText(ui.onRoot(useUnmergedTree=true).printToString())
+        row(alias).assertDoesNotExist();ui.onAllNodesWithText(head).assertCountEquals(1)
+        ui.onAllNodesWithText(prose).assertCountEquals(1);ui.onAllNodesWithText(visibleMentions).assertCountEquals(1)
+        val plan=collectionPlan(group.posts);assertEquals(2,plan.attachments.size)
+        assertTrue(plan.attachments.all {repo.key(alias) !in it.originalKeys})
+        val snapshot=contextSnapshot(repo,x,group.posts)
+        assertEquals(1,Regex(Regex.escape(head)).findAll(snapshot.text).count());assertTrue(snapshot.text.contains(prose)&&snapshot.text.contains(visibleMentions));assertEquals(2,snapshot.media.size)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==records.size}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertTrue(saved.single {repo.key(it)==repo.key(alias)}.media.isEmpty())
+        assertCapturedSources(records,saved)
+        evidence("caption-witness-${if(late)"late"else"initial"}-one-card-coupled-clauses-without-false-media-credit")
     }
 
     @Test fun declaredRecordingCollectsAuthoredAndRepostedCaptionsBeforeAnyFootageWork() {

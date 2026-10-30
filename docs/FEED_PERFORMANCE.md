@@ -1,5 +1,39 @@
 # Feed performance qualification
 
+## 0.38.76: limit counterpart planning to relevant copy cohorts
+
+A private retained-window comparison contains 959 public-source originals across
+25 subscriptions: the retained 958-post window plus one actually acquired missing
+counterpart. Only already acquired image observations were added to matching
+source records; their source facts were checked unchanged. The baseline produces
+769 rows and splits the four focus originals into groups of three and one. The
+candidate produces 768 rows with all four together. Every original is conserved,
+no previously accepted family is split, and only this family changes.
+
+A first implementation needlessly constructed witness lists across unrelated
+rows and parsed headings for impossible media-free cases. The final path plans
+lazily in mixed copy cohorts, preserves the existing all-rich composition path,
+and rejects the impossible case before parsing. Mutually nominated comparisons
+and the existing limits still determine eligibility.
+
+Five sequential desktop-JVM grouping passes, with input parsing excluded, are
+recorded below. These are small local-operation checks, not Android rendering,
+source-acquisition, physical-phone, energy or p95 measurements:
+
+| Pass | Baseline | Candidate |
+| --- | ---: | ---: |
+| 1 | 2,453 ms | 2,334 ms |
+| 2 | 1,384 ms | 1,388 ms |
+| 3 | 1,282 ms | 1,237 ms |
+| 4 | 1,212 ms | 1,158 ms |
+| 5 | 1,099 ms | 1,101 ms |
+
+This sample shows the repaired collection without an obvious added grouping
+cost; it does not establish a general speedup. Native checks separately exercise
+initial and late extraction arrival, complete visible clauses, the retained pixel
+anchor, Context and the actual Save-button path. See
+[qualification](RELEASE_QUALIFICATION.md#03876-media-free-extractions-retain-their-counterparts-proof).
+
 ## 0.38.75: renewed delivery URLs reuse prior scene work
 
 A privately retained 46-post window with four focused editions was replayed

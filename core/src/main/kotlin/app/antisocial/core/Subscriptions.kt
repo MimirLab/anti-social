@@ -940,11 +940,42 @@ object CrossPosts {
         }})return true
         return sameImages(a,b,sameMedia)
     }
+    /** A media-free extraction can share supporting comparison evidence with
+     * its directly proven, literal same-source edition. This never copies an
+     * attachment or attributes its publication to the media-free original. */
+    private fun headingWitnesses(row:Features,scope:List<Features>):List<Features> {
+        if(row.post.media.isNotEmpty())return listOf(row)
+        if(!row.validOriginal||row.truncated||row.post.preview||row.post.parentId!=null||row.post.recoveredArchive!=null||
+            row.post.provenance?.source?.role==SourceRole.CACHE||row.post.publishedAt?.let {it>0}!=true)return emptyList()
+        if(scope.none {it.post.media.isNotEmpty()&&it.post.platform==row.post.platform&&it.post.publishedAt==row.post.publishedAt})return emptyList()
+        val caption=PostPresentation.comparableContent(row.post)
+        return scope.filter {witness->
+            witness.post.media.isNotEmpty()&&witness.post.platform==row.post.platform&&witness.post.publishedAt==row.post.publishedAt&&
+                witness.validOriginal&&!witness.truncated&&!witness.post.preview&&witness.post.parentId==null&&witness.post.recoveredArchive==null&&
+                witness.post.provenance?.source?.role!=SourceRole.CACHE&&witness.destinations==row.destinations&&
+                PostPresentation.comparableContent(witness.post)==caption&&
+                (repeatIdentity(row.post,witness.post)||compactFacebookAlias(row,witness))&&copyMatch(row,witness){_,_->false}
+        }
+    }
+    private fun witnessedHeading(a:Features,b:Features,left:List<Features>,right:List<Features>,sameMedia:(Post,Post)->Boolean):Boolean {
+        if(a.post.platform==b.post.platform||a.owner==null||a.owner!=b.owner||!a.validOriginal||!b.validOriginal||
+            a.truncated||b.truncated||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||
+            !referenceIntegrity(a.post)||!referenceIntegrity(b.post))return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        return kotlin.math.abs(x-y)<=600_000&&left.isNotEmpty()&&right.isNotEmpty()&&
+            left.all {first->right.all {second->headingMatch(first,second,sameMedia)}}
+    }
     internal fun headingComposition(posts:List<Post>):Boolean {
         val rows=posts.map {features(it,emptyMap(),emptyMap())}
-        return rows.indices.all {i->(i+1 until rows.size).all {j->
+        if(posts.none {it.media.isEmpty()})return rows.indices.all {i->(i+1 until rows.size).all {j->
             val a=rows[i];val b=rows[j];val x=a.post.publishedAt?.takeIf {it>0};val y=b.post.publishedAt?.takeIf {it>0}
             x!=null&&y!=null&&kotlin.math.abs(x-y)<=600_000&&headingMatch(a,b){_,_->false}
+        }}
+        val witnesses=rows.map {headingWitnesses(it,rows)}
+        return rows.indices.all {i->(i+1 until rows.size).all {j->
+            val a=rows[i];val b=rows[j];val x=a.post.publishedAt?.takeIf {it>0};val y=b.post.publishedAt?.takeIf {it>0}
+            x!=null&&y!=null&&kotlin.math.abs(x-y)<=600_000&&witnesses[i].isNotEmpty()&&witnesses[j].isNotEmpty()&&
+                witnesses[i].all {first->witnesses[j].all {second->headingMatch(first,second){_,_->false}}}
         }}
     }
     private fun repeatMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean,includeDeclared:Boolean=true): Boolean {
@@ -1179,6 +1210,27 @@ object CrossPosts {
             }
             val existing=matching.singleOrNull()
             if(existing==null){cohortOf[i]=cohorts.size;cohorts+=mutableListOf(i)}else {cohortOf[i]=existing;cohorts[existing]+=i}
+        }
+        // A directly proven media-free extraction must not veto the existing
+        // heading proof of its richer counterpart. Witnesses stay inside the
+        // frozen complete-link copy cohort and the original mutual nomination
+        // allowance. Every rich witness still needs its own direct proof.
+        val witnesses=HashMap<Int,List<Features>>()
+        fun witness(i:Int)=witnesses.getOrPut(i){
+            if(ordered[i].post.media.isNotEmpty())listOf(ordered[i])
+            else headingWitnesses(ordered[i],cohorts[cohortOf[i]].map {ordered[it]})
+        }
+        for(cohort in cohorts)if(cohort.any {ordered[it].post.media.isEmpty()}&&cohort.any {ordered[it].post.media.isNotEmpty()}) {
+            for(i in cohort)if(ordered[i].post.media.isEmpty()&&witness(i).isNotEmpty()) {
+                for(j in candidates[i].orEmpty()) {
+                    checkpoint()
+                    if(i==j||i !in candidates[j].orEmpty()||j in edges[i])continue
+                    if(ordered[i].owner==null||ordered[i].owner!=ordered[j].owner||ordered[i].post.platform==ordered[j].post.platform)continue
+                    if(witnessedHeading(ordered[i],ordered[j],witness(i),witness(j),sameMedia)) {
+                        edges[i]+=j;edges[j]+=i;fusionEdges[i]+=j;fusionEdges[j]+=i
+                    }
+                }
+            }
         }
         // Cross-platform ambiguity counts cohorts, not every verified duplicate
         // of one account's post. All editions still need the original mutual

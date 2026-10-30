@@ -1,5 +1,44 @@
 # Attachment collections
 
+## Preserve richer-copy evidence through extraction cohorts (0.38.76)
+
+A media-free extraction of a complete caption can already be a proven copy of a
+richer edition. Previously, adding that useful copy could split an otherwise
+valid cross-platform family: the copy had no artwork for the heading comparator,
+and the whole-family composer rejected it for the same reason. Removing the copy
+made the richer editions combine. The existing composer already supported their
+differently written organization references as complete attributed clauses.
+
+The repair reuses that existing heading proof. A media-free original can use
+supporting evidence from a directly qualified counterpart with the same platform,
+publication instant, complete presented caption and destination inventory.
+Existing account/curator or Facebook extraction-alias checks and copy admission
+must also succeed. Truncated, preview, reply, recovered-archive and cache-source
+records cannot borrow this evidence. A record with its own artwork keeps that
+artwork's proof; it cannot substitute a more convenient picture from a peer.
+
+During grouping, witnesses stay inside the already established complete-link
+copy cohort. Only existing mutually nominated comparisons are examined; the
+publisher, ten-minute heading window, ambiguity rules and comparison budgets stay
+in force. Every richer witness must independently pass the existing heading/art
+comparison. Media-free records cannot form a chain that lends evidence onward.
+The same bounded witness selection validates complete composition and protected
+saved copies without querying a subscription database or website.
+
+**Comparison evidence is not media publication.** The original's attachment list
+remains empty. Captions, authors, original links and discussion roots remain
+separate, and attachment attribution includes only the originals supplying that
+attachment. Common text reads once; different complete clauses remain attributed.
+No organization-name equivalence or acronym relationship is inferred.
+
+Ordinary individual matching and heading nominations still require their own
+media. The new text admission for composition is not a new candidate route.
+Planning is restricted to mixed extraction cohorts; all-rich composition keeps
+its previous fast path, and impossible media-free cases exit before parsing.
+The operation performs no network request, file decode or model call and adds
+no dependency, permission or database migration. See the
+[dated qualification](RELEASE_QUALIFICATION.md#03876-media-free-extractions-retain-their-counterparts-proof).
+
 ## Reuse renewed video observations and qualify gallery reply headings (0.38.75)
 
 A refreshed signed delivery URL need not require another scene analysis. The

@@ -13,7 +13,7 @@ internal object AnnouncementHeadings {
     private val unsafeTail=Regex("\\b(?:no|not|never|without|cannot|can't|don't|doesn't|didn't|won't|isn't|aren't|cancelled|canceled|correction|instead|retracted|updated)\\b",RegexOption.IGNORE_CASE)
     private data class Edition(val head:String,val key:String,val tail:String,val resources:Set<String>?,val shortCall:Boolean,val longHead:Boolean,val articles:Set<String>)
     private fun prepare(post:Post):Edition? {
-        if(post.preview||post.parentId!=null||post.media.isEmpty()||post.title.length.toLong()+post.body.length>4096)return null
+        if(post.preview||post.parentId!=null||post.title.length.toLong()+post.body.length>4096)return null
         val text=PostPresentation.content(post).trim()
         if(text.endsWith("...")||text.endsWith('…'))return null
         val boundary=sentenceEnd.find(text)?.range?.last?.plus(1) ?: return null
@@ -37,8 +37,9 @@ internal object AnnouncementHeadings {
         return Edition(head,TextWhitespace.collapse(head).replace('’','\'').lowercase(Locale.ROOT),tail,resources.takeIf {rootsOnly},shortCall,
             head.length>=50&&terms.size>=10&&terms.distinct().size>=8,articles)
     }
-    fun key(post:Post):String?=prepare(post)?.key
+    fun key(post:Post):String?=if(post.media.isEmpty())null else prepare(post)?.key
     fun matches(first:Post,second:Post,sameImage:()->Boolean={false}):Boolean {
+        if(first.media.isEmpty()||second.media.isEmpty())return false
         val a=prepare(first) ?: return false;val b=prepare(second) ?: return false
         if(a.key!=b.key)return false
         if(a.shortCall&&b.shortCall&&a.resources!=null&&b.resources!=null&&(a.resources+b.resources).size==1)return true
@@ -46,6 +47,9 @@ internal object AnnouncementHeadings {
     }
     fun compose(posts:List<Post>):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
+        // Most failed caption alignments have no extraction counterpart. Do
+        // not parse their headings or build a witness plan for that case.
+        if(posts.any {post->post.media.isEmpty()&&posts.none {it.media.isNotEmpty()&&it.platform==post.platform&&it.publishedAt==post.publishedAt}})return null
         val values=posts.map {prepare(it) ?: return null}
         if(values.map {it.key}.distinct().size!=1||!CrossPosts.headingComposition(posts))return null
         CaptionWeave.compose(posts)?.let {return it}

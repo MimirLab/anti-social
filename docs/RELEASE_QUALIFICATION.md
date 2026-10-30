@@ -9,6 +9,68 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.76: media-free extractions retain their counterpart's proof
+
+A captured four-original announcement reproduced two cards despite matching
+pictures and an already functioning attributed-clause composer. Three richer
+editions combined when examined alone; adding a proven media-free Facebook copy
+prevented both complete-link grouping and whole-family composition. This pass
+repairs that evidence path rather than adding an organization-name matcher.
+See the [collection contract](ATTACHMENT_COLLECTIONS.md#preserve-richer-copy-evidence-through-extraction-cohorts-03876)
+for source, timing, scope, candidate and attribution boundaries.
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,667 cases, 2,663 passes, four optional skips, zero failures or
+  errors**. Six new controls exercise all input permutations, complete literal
+  source paths, changed claims/links/times/authors, missing and ineligible
+  witnesses, conflicting richer artwork, multiple matching witnesses and the
+  same rule on another platform. The initial four-case subset has two expected
+  failures on the previous implementation; its negative controls already pass.
+- Published 0.38.75 independently fails the new native initial-arrival and
+  late-arrival controls. The candidate passes both, including a retained pixel
+  anchor within two pixels, both complete visible alternatives, Context and an
+  actual Save-button action preserving all four originals. The media-free copy
+  remains media-free and receives no attachment-source credit.
+- Preliminary native assertions incorrectly expected raw `@` notation in
+  displayed account labels; one synthetic handle also exceeded X's length
+  limit. Captured screens/semantics showed the complete clauses with the honest
+  identifier fallback. The fixture now uses valid handles and checks visible
+  labels separately from literal source reconstruction and unchanged saved
+  originals. These failed controls remain recorded; no presentation guard was
+  removed to make them pass.
+- The actual four-original replay uses four downloaded image inputs. Baseline:
+  **two cards, four displayed attachments, two shared-heading occurrences**.
+  Candidate: **one card, two distinct pictures, the shared heading once, each
+  complete source-specific clause once, every original and a faithful save**.
+  Both pictures match their counterparts, and the crossed pairs differ. The
+  actual native card and caption/attribution screens are inspected privately.
+- The retained-window comparison covers **959 originals and 25 subscriptions**.
+  It adds the actually acquired missing counterpart to the retained 958-post
+  window and verifies the other source facts unchanged. All originals survive;
+  rows fall from 769 to 768, only this family changes, and **zero previously
+  accepted families split**. The [timing record](FEED_PERFORMANCE.md#03876-limit-counterpart-planning-to-relevant-copy-cohorts)
+  separates small desktop-JVM operation timings from Android/user experience.
+- API 35: **264 distinct named methods, 260 passes, four opt-in skips, zero
+  failures** on the frozen application/tester. The declared-recording and
+  power-saver checks run separately from the 262-method main selection.
+  Android 8/API 26: **22 passes, zero skips/failures**, plus native startup.
+- Nine earlier native captured-packet replays pass: **21 families, 72 originals**,
+  shared passages once, expected distinct attachments and faithful saves. The
+  preceding five-original gallery replay also passes. The final actual warm-feed
+  replay retains its complete four-original caption without renewed-URL sampling.
+- Privacy-guard controls: **eight passes**; Context retention controls: **four
+  passes**. Candidate release lint: **zero errors, 182 warnings and one hint**.
+  Clean-commit artifact/source, signing, archive/privacy and retained-preview
+  checks follow [publishing](PUBLISHING.md).
+
+No model, dependency, permission, schema change or additional retrieval request
+is introduced. This is not a claim that every reported duplicate is repaired:
+older gallery records lacking the needed reply evidence, other reported image
+leaves and source-dependent acquisition/adoption delays remain under
+investigation. Controlled physical-phone latency, p95 and energy measurements
+are not supplied by these native emulator and desktop-operation checks.
+
 ## 0.38.75: renewed video observations and qualified gallery replies
 
 This increment repairs two reproduced paths without adding a model, dependency,
