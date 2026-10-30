@@ -1,5 +1,36 @@
 # Attachment collections
 
+## Damaged trailing decorations (0.38.78)
+
+A public representation can contain a replacement character inside a trailing
+emoji sequence even when its complete prose and picture match other editions.
+The reader previously kept these announcements apart. The additional comparison
+recognizes only an emoji-only token after complete sentence punctuation, followed
+by whitespace or valid HTTPS links. Unknown characters inside words, amounts,
+meaningful signs or URLs, standalone replacement markers, truncated prose and
+later instructions retain their existing meaning in the comparison.
+
+This permission requires identical readable wording, claims, questions and
+destinations, plus matching non-avatar picture evidence or an existing qualified
+recording identity. Equal video covers and shared articles are insufficient.
+Contrary decoded pictures defeat an equal image address; empty, malformed,
+local-file or credential-bearing addresses cannot supply this new proof. The
+existing publisher, time, nomination and whole-family limits still apply.
+
+Composition chooses an actual intact source caption. It does not guess missing
+characters, rewrite the damaged original, discard a recording or
+change attachment attribution. The same portable comparison applies when
+validating protected saves. Original captions, media and provenance remain
+available. No crawling, decoding, model, dependency, permission or schema is
+added; the comparison uses evidence already acquired by the existing reader.
+
+The captured failure contains damaged characters in the source JSON itself.
+The Gateway's complete-response UTF-8 decoding is not the cause. A cleaner
+overlapping recovery page also exists, but blindly replacing the fresher head
+would lose its more precise time and change its media and provenance. This
+repair therefore leaves catch-up reconciliation and source records unchanged.
+See the [dated qualification](RELEASE_QUALIFICATION.md#03878-damaged-decorations-do-not-repeat-a-proven-announcement).
+
 ## Opening reminders in proven galleries (0.38.77)
 
 A shorter, complete heading can already join a gallery when every picture is

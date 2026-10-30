@@ -9,6 +9,66 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.78: damaged decorations do not repeat a proven announcement
+
+A captured three-platform announcement reproduced two reading cards, two copies
+of its picture and two occurrences of its prose. One public source returned
+literal replacement characters inside a trailing emoji sequence. Its intact
+wording, amounts and decoded picture agreed with the other editions, but the
+existing decoration projection preserved those malformed characters. The
+[bounded comparison](ATTACHMENT_COLLECTIONS.md#damaged-trailing-decorations-03878)
+now admits that case and displays an actual intact edition. Every raw original,
+including the damaged text, survives the protected save. No source fact,
+chronology, recovery preference or network allowance is changed.
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,680 cases, 2,676 passes, four optional skips, zero failures or
+  errors**. Nine new methods cover input order, actual-edition selection, raw
+  conservation, entity decoding, damaged words and amounts, signs, destinations,
+  questions, timing, avatars, conflicting pixels and video-cover ambiguity.
+  The initial thirteen-case selection reproduces three baseline failures. A
+  later counterexample catches empty image addresses in the preliminary draft;
+  its expanded nine-method selection has one expected failure before correction.
+  That draft was never installed in the live preview or published.
+- API 35 release instrumentation: **266 named methods, 262 passes, four opt-in
+  skips, zero failures**. API 26: **25 passes, zero skips or failures**, plus
+  normal reader startup. These are emulator observations, with actual native
+  screens inspected; the older API fixture is stopped afterwards.
+- Two focused native controls verify decoded media, one caption, all platform
+  attribution, Context and an actual Library save. The private three-source
+  reproduction now has **one card, one picture and one caption**, with every
+  captured source retained unchanged. The retained three-source gallery from
+  0.38.77 is also rechecked independently: one card and five distinct pictures.
+- Twelve additional private packet runs exercise **24 announcement-family
+  replays and 84 source-edition instances**, including earlier decorative,
+  gallery, wording and recording cases. Each family has one row, its expected
+  distinct attachments, one common passage and a faithful protected save. A
+  six-platform case retains all four distinct recordings and its differing title
+  while reading the common body once. These are retained-capture correctness
+  checks, not a fresh whole-feed latency benchmark or independent account count.
+- The same 959-original retained input has 767 rows on both 0.38.77 and this
+  candidate, with **all originals conserved, no previous family split and no
+  additional family combined**. This is a conservation check under concurrent
+  qualification work, not a latency comparison.
+- Release lint: **zero errors, 182 warnings and one hint**. Privacy-guard unit
+  checks: **eight passes**. Context-retention scoring controls: **four passes**.
+  The working-tree privacy audit reports zero findings and two explicitly
+  reviewed, unchanged upstream files. Corresponding-source, final APK integrity
+  and compatible preview promotion are verified separately before publication.
+
+**Remaining work:** a separate counterexample adds 128 unrelated synthetic
+galleries to that retained three-source family. The previously combined family
+splits again because a global gallery-anchor cap skips the entire bank. The
+added galleries lie outside the family's matching time window; the result
+reproduces the scope problem, not a failure of its individual picture proof.
+This limit remains unchanged in 0.38.78. A bounded time-scoped scheduler needs
+its own ambiguity, overflow, native and conservation qualification. It has not
+yet been established as the cause of a particular current reader's full-feed
+report. The earlier cold-feed/video delay also remains open; neither these
+correctness checks nor a method trace establishes physical-phone p95 or energy
+performance. This release does not claim that every feed duplicate is fixed.
+
 ## 0.38.77: opening reminders do not veto proven gallery pictures
 
 A retained three-original gallery reproduced two cards and six displayed

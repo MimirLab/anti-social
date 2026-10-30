@@ -15,26 +15,48 @@ internal object DecoratedPostCopies {
     private val words=Regex("[\\p{L}\\p{N}]+(?:'[\\p{L}\\p{N}]+)*")
     private val numbers=Regex("(?:[<>!]=?|[≤≥≠≈=])?\\s*(?:[+\\-−\\p{Sc}]\\s*){0,3}\\p{N}+(?:[.,]\\p{N}+)*(?:\\s*[%‰\\p{Sc}])?")
     private val negatives=setOf("no","not","never","without","cannot","can't","don't","doesn't","didn't","won't","wouldn't","shouldn't","isn't","aren't","wasn't","weren't","hasn't","haven't","hadn't","mustn't","couldn't")
-    data class Prepared(val post:Post,val text:String,val tokens:List<String>,val chunks:IntArray,val resources:Set<String>,val claims:List<String>,val symbols:String,val questions:Int,val changed:Boolean)
+    data class Prepared(val post:Post,val text:String,val tokens:List<String>,val chunks:IntArray,val resources:Set<String>,val claims:List<String>,val symbols:String,val questions:Int,val changed:Boolean,val damagedDecoration:Boolean)
     data class Match(val coverage:Double,val exact:Boolean,val sharedResource:Boolean)
     private fun decorative(c:Int)=(c in 0x1f000..0x1faff||c in 0x2600..0x27bf||c in extras)&&c !in protected&&
         Character.getType(c)!=Character.MATH_SYMBOL.toInt()&&Character.getType(c)!=Character.CURRENCY_SYMBOL.toInt()
-    private fun clean(value:String):String {
+    private data class Cleaned(val text:String,val damaged:Boolean)
+    private val nonSpace=Regex("\\S+")
+    private fun clean(value:String):Cleaned {
         var decoded=value;repeat(2){decoded=Parser.unescapeEntities(decoded,false)}
+        var normalized=Normalizer.normalize(decoded,Normalizer.Form.NFKC)
+        var damaged=false
+        // Some public representations damage only a trailing emoji sequence.
+        // Unknown letters, digits, signs and standalone replacement characters
+        // remain evidence. This projection never repairs the source record.
+        if('\ufffd' in normalized) {
+            val ranges=nonSpace.findAll(normalized).filter {token->
+                if('\ufffd' !in token.value)return@filter false
+                val points=token.value.codePoints().toArray()
+                val prefix=normalized.substring(0,token.range.first).trimEnd()
+                points.any(::decorative)&&points.all {it==0xfffd||it==0x200d||decorative(it)}&&
+                    prefix.lastOrNull() in listOf('.','!','?')&&!prefix.endsWith("...")&&!prefix.endsWith("…")&&
+                    nonSpace.findAll(normalized.substring(token.range.last+1)).all {it.value.startsWith("https://")&&it.value.toHttpUrlOrNull()?.let {url->url.username.isEmpty()&&url.password.isEmpty()}==true}
+            }.map {it.range}.toList()
+            if(ranges.isNotEmpty()) {
+                val out=StringBuilder(normalized)
+                for(range in ranges.asReversed())out.replace(range.first,range.last+1," ")
+                normalized=out.toString();damaged=true
+            }
+        }
         val out=StringBuilder()
-        val points=Normalizer.normalize(decoded,Normalizer.Form.NFKC).codePoints().toArray()
+        val points=normalized.codePoints().toArray()
         points.forEachIndexed {i,c->
             val emojiJoin=c==0x200d&&(points.getOrNull(i-1)?.let(::decorative)==true||points.getOrNull(i+1)?.let(::decorative)==true)
             if(decorative(c)||emojiJoin)out.append(' ')else out.appendCodePoint(c)
         }
-        return tags.replace(out.toString(),"")
+        return Cleaned(tags.replace(out.toString(),""),damaged)
     }
     /** Nomination admission only. Plain ASCII prose needs no decoding, URL
      * inventory, token windows or second matching bank. Its publisher's plain
      * editions are prepared later only if a decorative counterpart exists. */
     fun mayChange(post:Post):Boolean {
         if(post.preview||post.parentId!=null||post.body.length.toLong()+post.title.length>4096)return false
-        fun changed(value:String)=value.any {it=='#'||it=='&'||it.code>=0x2000}&&clean(value)!=value
+        fun changed(value:String)=value.any {it=='#'||it=='&'||it.code>=0x2000}&&clean(value).text!=value
         return changed(post.title)||changed(post.body)
     }
     private fun resource(raw:String,post:Post):String? {
@@ -51,7 +73,8 @@ internal object DecoratedPostCopies {
     fun short(post:Post):Prepared?=prepare(post,true)?.takeIf {it.tokens.size<12}
     private fun prepare(post:Post,short:Boolean):Prepared? {
         if(post.preview||post.parentId!=null||post.body.length.toLong()+post.title.length>4096)return null
-        val copy=post.copy(title=clean(post.title),body=clean(post.body))
+        val title=clean(post.title);val body=clean(post.body)
+        val copy=post.copy(title=title.text,body=body.text)
         val content=PostPresentation.content(copy)
         val raw=TextWhitespace.collapse(PostPresentation.proseWithoutLinks(content)).replace('’','\'').lowercase(Locale.ROOT).trim()
         if(short&&(raw.endsWith("…")||raw.endsWith("...")))return null
@@ -65,13 +88,17 @@ internal object DecoratedPostCopies {
         val symbols=StringBuilder().also {out->text.codePoints().forEach {c->val type=Character.getType(c);if(c in protected||type==Character.MATH_SYMBOL.toInt()||type==Character.CURRENCY_SYMBOL.toInt())out.appendCodePoint(c)}}.toString()
         return Prepared(post,text,tokens,tokens.windowed(3).map {it.joinToString("\u0001").hashCode()}.sorted().toIntArray(),resources,
             numbers.findAll(text).map {TextWhitespace.collapse(it.value).replace(" ","")}.toList()+tokens.filter {it in negatives},symbols,text.count {it=='?'},
-            copy.title!=post.title||copy.body!=post.body||raw!=text)
+            copy.title!=post.title||copy.body!=post.body||raw!=text,title.damaged||body.damaged)
     }
     fun anchors(value:Prepared)=value.chunks.distinct().sorted().take(8)
     fun compare(a:Prepared,b:Prepared):Match? {
         if(a.claims!=b.claims||a.symbols!=b.symbols||a.questions!=b.questions)return null
         if(a.resources!=b.resources)return null
         val shared=a.resources.intersect(b.resources).isNotEmpty()
+        // Readable wording and a shared article cannot explain unknown bytes.
+        // Require the existing picture/recording evidence in both detection
+        // and portable composition, including when reopening a saved copy.
+        if((a.damagedDecoration||b.damagedDecoration)&&(a.text!=b.text||!sameAttachment(a.post,b.post)))return null
         if(a.text==b.text)return Match(1.0,true,shared)
         if(minOf(a.tokens.size,b.tokens.size)<24||minOf(a.text.length,b.text.length)<160)return null
         // An inserted heading or retained addition can be composed. A word
@@ -102,7 +129,7 @@ internal object DecoratedPostCopies {
         for(i in values.indices)for(j in i+1 until values.size)if(compare(values[i],values[j])?.exact!=true)return null
         // Display one actual source edition. Cleaning is for detection; full
         // originals, including every decorative variant, remain inspectable.
-        val preferred=posts.indices.minWith(compareByDescending<Int> {PostPresentation.destinationLabels(PostPresentation.content(posts[it])).count {url->resource(url,posts[it])!=null}}
+        val preferred=posts.indices.minWith(compareBy<Int> {values[it].damagedDecoration}.thenByDescending {PostPresentation.destinationLabels(PostPresentation.content(posts[it])).count {url->resource(url,posts[it])!=null}}
             .thenBy {PostPresentation.text(posts[it]).title.isNotBlank()}.thenBy {it})
         return PostFusion(listOf(FusionSegment(PostPresentation.content(posts[preferred]),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
     }
@@ -112,7 +139,18 @@ internal object DecoratedPostCopies {
         val values=posts.map {short(it) ?: return null}
         if(values.none {it.changed})return null
         for(i in values.indices)for(j in i+1 until values.size)if(compare(values[i],values[j])?.exact!=true)return null
-        val preferred=posts.indices.minWith(compareBy<Int>{PostPresentation.text(posts[it]).title.isNotBlank()}.thenBy {CrossPosts.originalKey(posts[it])})
+        val preferred=posts.indices.minWith(compareBy<Int>{values[it].damagedDecoration}.thenBy {PostPresentation.text(posts[it]).title.isNotBlank()}.thenBy {CrossPosts.originalKey(posts[it])})
         return PostFusion(listOf(FusionSegment(PostPresentation.content(posts[preferred]),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
+    }
+    private fun sameAttachment(a:Post,b:Post):Boolean {
+        if(DeclaredVideo.same(a,b))return true
+        fun images(post:Post)=post.media.take(32).filter {it.type=="image"&&it.url!=post.avatar&&
+            it.url.toHttpUrlOrNull()?.let {url->url.isHttps&&url.username.isEmpty()&&url.password.isEmpty()}==true}
+        val second=images(b)
+        return images(a).any {first->second.any {other->when {
+                first.visualFingerprint!=null&&other.visualFingerprint!=null->VisualFrames.sameImage(first.visualFingerprint,other.visualFingerprint)
+                else->first.url==other.url||ImageAssetIdentity.same(first,other)
+            }
+        }}
     }
 }

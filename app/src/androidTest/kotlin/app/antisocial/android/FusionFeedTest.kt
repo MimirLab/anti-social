@@ -947,6 +947,32 @@ class FusionFeedTest {
         assertEquals(instagram.media,runBlocking {repo.dao.post(repo.key(instagram))}!!.let {repo.gson.fromJson(it.payload,Post::class.java)}.media)
     }
 
+    @Test fun damagedTrailingDecorationUsesAnIntactCaptionOnePictureAndSavesEveryRawEdition() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body="$shared 📈🇺���")
+        val instagram=oldInstagram.copy(body="$shared 📈🇺🇸")
+        val facebook=instagram.copy(id="98${suffix}1202",platform=Platform.FACEBOOK,
+            canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1202",media=listOf(Media("https://fusion-fb-$suffix.invalid/original.png")))
+        records+=listOf(x,instagram,facebook)
+        records.forEach {store(it,follow(it.platform));cachePicture(it,jpeg=it.platform==Platform.INSTAGRAM)}
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();row(facebook).assertDoesNotExist()
+        ui.onAllNodesWithText(instagram.body).assertCountEquals(1)
+        ui.onNodeWithText(x.body).assertDoesNotExist()
+        ui.onAllNodes(SemanticsMatcher("one reencoded photograph"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
+        val captured=records.map(repo.images.identities::captured)
+        val snapshot=contextSnapshot(repo,x,captured)
+        assertEquals(1,Regex(Regex.escape(shared)).findAll(snapshot.text).count());assertEquals(1,snapshot.media.size)
+        val label=ui.onNodeWithTag("Media sources ${x.media.single().url}").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(""){it.text}
+        assertEquals(setOf("X","Instagram","Facebook"),label.removePrefix("Image from ").split(" · ").toSet())
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        assertCapturedSources(records,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+        assertTrue(runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!.single {it.platform==Platform.X}.body.contains('\ufffd'))
+        evidence("damaged-decoration-one-intact-caption-one-picture-all-originals")
+    }
+
     @Test fun compoundHandleAndFullWorkNameUseOneCaptionOnePictureAndSaveBothOriginals() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val tail=" telescope recently recorded stars forming inside this distant cloud. This region contains bright young stars surrounded by large amounts of dust and gas. The observing team published the original picture and the instrument settings so readers can inspect the result and compare earlier observations."
