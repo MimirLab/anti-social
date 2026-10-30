@@ -53,7 +53,7 @@ class FullFeedVideoLiveTest {
         val memory=File(ui.activity.cacheDir,"full-feed-video-memory.json")
         val sampler=repo.videos.sample;val metadata=repo.videos.metadata
         val events=CopyOnWriteArrayList<Map<String,Any?>>()
-        var vm:AntiSocialViewModel?=null;var imported=false;var tracing=false
+        var vm:AntiSocialViewModel?=null;var imported=false;var tracing=false;var early:Job?=null
         val started=SystemClock.elapsedRealtime()
         fun event(vararg fields:Pair<String,Any?>) {
             synchronized(events) {
@@ -113,6 +113,24 @@ class FullFeedVideoLiveTest {
                 tracing=true;event("stage" to "profiling-enabled","intervalUs" to 5_000)
             }
             event("stage" to "open","posts" to posts.size)
+            if(args.getString("antisocialFeedExperimentEarlyVideo")=="true") {
+                // Explicit engineering prototype, not shipped scheduling.
+                // Reuse the qualified planner and actual automatic sampler;
+                // one early pair may overlap the initial local preparation.
+                early=scope.launch {
+                    val planStart=SystemClock.elapsedRealtime()
+                    val request=withContext(Dispatchers.Default) {
+                        val context=currentCoroutineContext()
+                        CrossPosts.focusedVideoFootageRequests(posts.map {PostGroup(listOf(repo.videos.captured(it)))},follows,members,setOf(repo.key(top)),
+                            sharedFootage={a,b->repo.videos.related(a,b){context.ensureActive()}},checkpoint={context.ensureActive()})
+                            .firstOrNull(repo.videos::available)
+                    }
+                    event("stage" to "early-video-plan","plannedMs" to SystemClock.elapsedRealtime()-planStart,"request" to request?.key,
+                        "bothWithinDeclaredFocus" to request?.let {repo.key(it.first)in focus&&repo.key(it.second)in focus})
+                    if(request!=null)repo.videos.enrich(request)
+                    event("stage" to "early-video-finished")
+                }
+            }
             ui.runOnUiThread {model.combined();ui.activity.setContent {AntiSocialApp(model)}}
             val rows=SemanticsMatcher("focused real feed card"){it.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Feed row ")in focus}
             fun visibleRows():List<androidx.compose.ui.semantics.SemanticsNode> {
@@ -124,7 +142,8 @@ class FullFeedVideoLiveTest {
             ui.waitUntil(60_000){visibleRows().isNotEmpty()};ui.waitForIdle()
             event("stage" to "first-visible");screenshot("first-visible.png")
             // Observe the shipping dwell, worker and catalogue. This does not
-            // invoke enrich() or insert observations from the test itself.
+            // invoke enrich() unless the explicitly labelled early prototype
+            // above was selected. Neither path inserts fabricated observations.
             ui.waitUntil(150_000){
                 val captured=posts.filter {repo.key(it)in focus}.map(repo.videos::captured)
                 captured.count {p->p.media.any {it.videoFootage?.scenes?.size?.let {n->n>=3}==true}}>=3
@@ -194,6 +213,7 @@ class FullFeedVideoLiveTest {
         }finally {
             if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.runOnIdle {vm?.viewModelScope?.cancel();ui.activity.setContent {Text("Private full-window replay complete")}}
+            runBlocking {early?.cancelAndJoin()}
             repo.videos.sample=sampler;repo.videos.metadata=metadata
             runBlocking {
                 repo.feedMemory.flush();scope.coroutineContext[Job]?.cancelAndJoin()

@@ -182,6 +182,16 @@ started recordings and candidates outside the packet's declared focus. Such a
 candidate can still reveal another useful edition: this is a timing observation,
 not permission to prune that discovery path or reduce the existing allowance.
 
+`antisocialFeedExperimentEarlyVideo=true` is an opt-in engineering experiment
+inside that disposable full-video test. It starts one existing focused pair
+during local preparation, records its focus and latency, and cancels/joins its
+job before restoring the fixture. It is not the shipped scheduling policy.
+`VideoRetryLiveTest` separately requires `antisocialVideoRetryLive=true`, the
+isolation flag, an empty disposable installation and the same private captured
+plan. It uses an explicitly supplied focused public recording, a one-byte
+foreground Gateway read and the actual isolated decoder to exercise preemption
+and validated-block reuse. No source input, observation or identity is bundled.
+
 The cached-file gallery restart uses `antisocialFullFeedGalleryCold=true` and
 private `files/full-gallery-cold-packet/input.json`; the child must already be
 present and every focused picture must have unambiguous retained bytes. It must

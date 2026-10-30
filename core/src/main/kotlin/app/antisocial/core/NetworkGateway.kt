@@ -732,12 +732,15 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
      * observation-only sampling can instead recheck its initial bytes; it must
      * not claim complete recording identity or publish an offline file.
      * Unsupported ranges never trigger a whole-file fallback. */
-    suspend fun mediaRanges(url:String,sourceUrl:String=url,observationOnly:Boolean=false):GatewayMediaRanges=withContext(Dispatchers.IO) {
-        val session=sessionFor(url)
-        val budget=TextReadBudget(java.util.concurrent.atomic.AtomicLong(4L*1024*1024),java.util.concurrent.atomic.AtomicInteger(16),kotlinx.coroutines.currentCoroutineContext()[TextReadBudget])
+    suspend fun mediaRanges(url:String,sourceUrl:String=url,observationOnly:Boolean=false,previous:GatewayMediaRanges?=null):GatewayMediaRanges=withContext(Dispatchers.IO) {
+        val route=routeFor(Request.Builder().url(url).build())
+        val session=currentSession(route)
+        val parent=kotlinx.coroutines.currentCoroutineContext()[TextReadBudget]
+        val owner=GatewayRangeScope(session,url,sourceUrl,observationOnly,parent)
+        previous?.requireOwner(owner)
+        val budget=TextReadBudget(java.util.concurrent.atomic.AtomicLong(4L*1024*1024),java.util.concurrent.atomic.AtomicInteger(16),parent)
         val block=256*1024
-        data class Identity(val final:String,val total:Long,val validator:String?)
-        var identity:Identity?=null
+        var identity:GatewayRangeRepresentation?=null
         val started=System.nanoTime()
         suspend fun fetch(offset:Long,size:Int):ByteArray=withContext(Dispatchers.IO) {
             if(System.nanoTime()-started>45_000_000_000L)throw IOException("Recording sampling window expired")
@@ -758,7 +761,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                 val validator=response.header("ETag")?.takeIf {it.length in 2..512&&it.startsWith('"')&&it.endsWith('"')}
                     ?: modified?.takeIf {oldDate}
                 if(validator==null&&!observationOnly)throw IOException("Recording has no strong range validator")
-                val observed=Identity(response.request.url.toString(),total,validator)
+                val observed=GatewayRangeRepresentation(response.request.url.toString(),total,validator)
                 if(expected!=null&&expected!=observed)throw IOException("Recording changed during sampling")
                 val count=(end-offset+1).toInt();val body=response.body ?: throw IOException("Empty recording range")
                 if(body.contentLength()>=0&&body.contentLength()!=count.toLong())throw IOException("Recording range length does not match")
@@ -773,7 +776,10 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
             }
         }
         val first=fetch(0,block)
-        GatewayMediaRanges(requireNotNull(identity).total,block,first,::fetch,requireNotNull(identity).validator==null)
+        val seed=previous?.seed(first,owner,requireNotNull(identity))
+        GatewayMediaRanges(requireNotNull(identity).total,block,first,::fetch,requireNotNull(identity).validator==null,
+            active=seed?.active ?: {currentSession(route)===session&&System.nanoTime()-started<=45_000_000_000L},
+            seed=seed?.blocks.orEmpty(),scope=owner,representation=identity)
     }
     /** A redirect-aware bounded prefix proves that a recovery URL really leads
      * to the selected recording, without downloading an entire video. */

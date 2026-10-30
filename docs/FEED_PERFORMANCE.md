@@ -1,5 +1,82 @@
 # Feed performance qualification
 
+## Post-0.38.70 investigation: keep validated blocks through foreground preemption
+
+Eventual collection is not sufficient reader behavior: separate copies remain
+visible while proof arrives. This investigation keeps first-card, complete-family
+and complete-body times separate. It does not lower the existing ownership,
+caption, scene or attachment-preservation requirements to hide that interval.
+
+The actual Gateway sampler reads four scenes through a finite descriptor and
+256 KiB range blocks. A foreground request can cancel its deferred coroutine.
+Previously, the next attempt constructed an empty range view and fetched those
+completed blocks again. The candidate retains immutable, completed blocks only
+inside that recording's existing comparison attempt. A retry first performs an
+ordinary fresh prefix request, then admits old blocks only for the same exact
+input/source, connection-session identity, parent allowance, final destination,
+length, validator and prefix bytes. Validator-free observations still repeat
+their final prefix check and remain observations, not whole-file identities.
+
+The retry retains its normal per-attempt allowance under the unchanged shared
+8 MiB/32-exchange, 45-second comparison. Copying an old view wholesale was
+rejected during design review: a failed exchange could consume its remaining
+request capacity and make a formerly possible retry fail. Validated seeding
+keeps that capacity while avoiding repeated successful blocks. Session changes,
+expiry and a different parent forbid reuse. Changed bytes or representation
+start fresh; cancellation, purge and attempt completion discard the references.
+There is no new disk cache, background scan, dependency, permission or decoder.
+
+A controlled API 35 native check uses an explicitly supplied public recording,
+the real Gateway, actual isolated decoder and a one-byte foreground media read.
+The foreground read begins at **2.362 seconds**, the sample is preempted at
+**2.370 seconds** with two blocks retained, the foreground read finishes at
+**2.664 seconds**, and the retry starts at **3.365 seconds**. It finishes at
+**7.760 seconds** with four sampled scenes and thirteen newly fetched blocks.
+The retained block count is zero after closure. The local HTTP native controls
+independently prove that a matching retry rereads its prefix but does not refetch
+the other completed block. This establishes bounded recovery, not a latency SLA.
+
+An explicitly **test-only** early-scheduling flag also overlaps one focused pair
+with initial local feed preparation. Both its old-APK and candidate successful
+replays preserve six originals, four literal caption variants once and the
+existing two-pixel body-adoption bound. The old APK first shows a card/family/body
+at **11.555/17.856/21.289 seconds** after opening; the candidate observations are
+**9.523/19.257/22.623 seconds**. Both start six sample attempts, including
+foreground-preempted attempts. Completed successful-sample byte totals are
+**14,417,920/11,272,192**; these totals exclude partial failed traffic and must
+not be reported as total transferred bytes.
+
+The later old-APK control receives an EOF during its second recording and fails
+the required-observation wait at 150 seconds. Its failed native report, events
+and screen are retained with the two successful runs. This incomplete comparison
+does **not** establish an end-to-end speedup. The candidate screen still has a
+**9.734-second first-card-to-family gap**. Earlier intent preparation, its actual
+viewport handoff and source-dependent acquisition latency remain open work.
+The experimental early flag does not change shipped scheduling.
+
+A separate candidate replay with that flag **off** also preserves the same
+complete family, body and pixel anchor. It first shows the focused card at
+**8.544 seconds**, the complete family at **27.361 seconds**, and the adopted
+body at **30.969 seconds** after opening, with four recording starts. Its first
+recording takes substantially longer than the later samples. This unpaired
+ordinary-scheduling observation has an **18.817-second visible-family gap**;
+it supplies no evidence that the general delay is repaired.
+
+The source-rendition investigation also rejects an attractive shortcut. A public
+post page supplies four declared rendition records; its smaller HEVC alternative
+is approximately 8.7 MB versus 22.2 MB for the default H.264 file. Neither size
+nor a 200 HTML page qualifies its media route: all six tested published direct
+and API alternatives fail bounded sampling through the existing Gateway, from
+missing valid range responses or EOF, while their declared expiry remains in
+the future. No unbounded download, relaxed credentials, guessed asset identity
+or new active route is introduced. Six successful existing-route samples have
+matching scene evidence across fifteen pair comparisons; this does not prove
+complete recording equality or authorize aliasing unsupported alternatives.
+
+Raw inputs, receipts, screenshots, failed controls and frozen candidate artifacts
+stay outside public source under `evidence/recording-renditions-20261029`.
+These emulator observations do not establish physical-phone latency or energy.
+
 ## Post-0.38.70 investigation: reject an unhelpful pattern cache
 
 The current released APK's cold cached-gallery trace separates local preparation

@@ -21,7 +21,9 @@ internal class GatewayVideoSampler(private val repo:Repository) {
         // equivalence of complete recordings or reusable playable bytes.
         require(VideoAssetIdentity.validSampling(media))
         val selected=VideoAssetIdentity.sampleUrl(media)
-        val ranges=repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null)
+        val attempt=currentCoroutineContext()[VideoSamplingAttempt]
+        val ranges=if(attempt==null)repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null)
+            else attempt.ranges(media,sourceUrl){previous->repo.gateway.mediaRanges(selected,sourceUrl,observationOnly=VideoAssetIdentity.key(selected)!=null,previous=previous)}
         // The range view already owns its initial block. Classifying an
         // extensionless recording adds no exchange and never hands an HTML,
         // image, unknown or adaptive response to this video worker.

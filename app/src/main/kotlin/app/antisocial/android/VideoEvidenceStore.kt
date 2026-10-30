@@ -150,16 +150,19 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             withTimeout(45_000) {repo.gateway.boundedVideoComparison {
                 for(post in listOf(request.first,request.second)) {
                     currentCoroutineContext().ensureActive()
-                    var retries=0
-                    while(true)try {
-                        while(repo.gateway.hasForegroundRequests||playing.value)delay(300)
-                        repo.gateway.deferredRead {acquire(post,epoch,request.resolveMetadata)}
-                        break
-                    }catch(e:CancellationException) {
-                        currentCoroutineContext().ensureActive()
-                        if(++retries>=3)break
-                        delay(700)
-                    }
+                    val attempt=VideoSamplingAttempt()
+                    try {withContext(attempt) {
+                        var retries=0
+                        while(true)try {
+                            while(repo.gateway.hasForegroundRequests||playing.value)delay(300)
+                            repo.gateway.deferredRead {acquire(post,epoch,request.resolveMetadata)}
+                            break
+                        }catch(e:CancellationException) {
+                            currentCoroutineContext().ensureActive()
+                            if(++retries>=3)break
+                            delay(700)
+                        }
+                    }}finally {attempt.close()}
                 }
             }}
         }}}catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive()}

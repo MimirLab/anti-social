@@ -9,6 +9,67 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.71: retain validated recording blocks through preempted retries
+
+Foreground reading still preempts deferred video comparison. Its retry now
+revalidates the prefix and can reuse completed immutable blocks for the same
+recording, source, exact connection session and original parent allowance.
+Final destination, length, validator and prefix must match. Changed content
+starts fresh; a mode round trip, different parent or expired window cannot
+reuse the view. Validator-free observations retain their final prefix check.
+Completion, cancellation and purge release the attempt's references. There is
+no persistent byte cache or new background acquisition path.
+
+Per-attempt 4 MiB/16-exchange limits, the pair's 8 MiB/32-exchange and 45-second
+bounds, three-attempt ceiling, decoder authority and foreground priority remain.
+The existing collection, literal caption, distinct recording/picture and source
+retention rules are unchanged. No dependency, permission or database migration
+is introduced. This fixes repeated completed-block downloads; it does not make
+all delayed merging invisible.
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,633 cases, 2,629 passes, four optional skips and zero failures or
+  errors**. The sixteen range methods include fresh-prefix reuse, changed
+  representation, source/mode/parent isolation, reserved final verification,
+  exhausted allowances, cancellation and cached-read session withdrawal.
+- Frozen API 35 release selection: **231 named methods, 227 passes, four opt-in
+  skips and zero failures**. Returned identities match the requested methods.
+  It includes native feed/caption/media/save/reading-state regressions, the
+  three new range-retry controls, recording-attempt cleanup, exact native mention
+  semantics and the connection/provider tests. An earlier focused native set
+  separately passes all 24 methods.
+- Minimum API 26: **six actual passes, zero skips or failures**, repeated against
+  the frozen release candidate. The native reader starts afterward without a
+  fatal startup error and its actual screen is inspected under ordinary shell
+  authority. Engineering device commands are not an app requirement.
+- Release/test assembly and lint pass with **zero errors/fatals, 182 existing
+  warnings and one hint**. Eight Python privacy controls and four retention
+  scoring controls pass. The public-source audit has no findings after verifying
+  the unchanged generated brand catalogue against its pinned upstream archive.
+
+The frozen candidate then passes **two additional actual live methods, zero
+skips or failures**: the full application replay with ordinary scheduling and
+the controlled foreground preemption. Its complete six-original family appears
+25.023 seconds after opening, 14.167 seconds after its first focused card; the
+complete body appears at 28.809 seconds. Four recordings start. All four literal
+variants appear once within the two-pixel position bound, and the actual caption
+screen is inspected. The controlled retry retains two blocks at interruption,
+revalidates its prefix, finishes with four scenes and thirteen newly fetched
+blocks, then releases every retained block. These are dated emulator observations,
+not evidence that the general visible-family delay has been solved.
+
+The [acquisition investigation](FEED_PERFORMANCE.md#post-03870-investigation-keep-validated-blocks-through-foreground-preemption)
+records actual Gateway/decoder preemption and recovery, successful full-feed
+presentation checks, a failed old-APK source control and rejected smaller-file
+routes. The test-only early-scheduling experiment preserves the family but does
+not establish an end-to-end speedup. It remains disabled in ordinary scheduling.
+An ordinary-scheduling candidate replay retains all six originals, each of four
+required literal variants once and the two-pixel body anchor, but its visible
+family still arrives 18.817 seconds after its first card. Source-dependent
+acquisition and cold preparation remain open. No phone p95 or energy figures
+are inferred from these emulator observations.
+
 ## 0.38.70: current video proposals as observations stream in
 
 The visible-card scheduler now qualifies its fast global offer against the

@@ -37,6 +37,24 @@ class VideoEvidenceStoreTest {
     })
     private fun result(media:Media)=GatewayVideoSampler.Result(frames(),1024,1,VideoAssetIdentity.sampleUrl(media))
     private fun store(clock:()->Long=System::currentTimeMillis)=VideoEvidenceStore(repo,clock,directory)
+    @Test fun preemptedRetriesShareOnlyTheirRecordingAttemptAndEveryAttemptCloses():Unit=runBlocking {
+        val bank=store();val attempts=linkedMapOf<String,MutableList<VideoSamplingAttempt>>()
+        bank.sample={m,_->
+            val attempt=requireNotNull(currentCoroutineContext()[VideoSamplingAttempt])
+            val seen=attempts.getOrPut(m.url){mutableListOf()};seen+=attempt
+            if(m.url==first.media.single().url&&seen.size==1)throw CancellationException("Foreground fixture preemption")
+            result(m)
+        }
+        assertNull(currentCoroutineContext()[VideoSamplingAttempt]);bank.enrich(request,automatic=false)
+        val a=attempts.getValue(first.media.single().url);val b=attempts.getValue(second.media.single().url)
+        assertEquals(2,a.size);assertEquals(1,b.size);assertSame(a[0],a[1]);assertNotSame(a[0],b[0])
+        for(attempt in listOf(a[0],b[0])) {
+            assertEquals(0,attempt.retainedBlocks)
+            assertThrows(IllegalStateException::class.java){runBlocking {attempt.ranges(first.media.single(),first.canonicalUrl){error("Closed attempt must not open a view")}}}
+        }
+        assertNull(currentCoroutineContext()[VideoSamplingAttempt])
+        assertNotNull(bank.captured(first).media.single().videoFootage);assertNotNull(bank.captured(second).media.single().videoFootage)
+    }
     @Test fun runningVideoComparisonOwnsTheKeyObservedByItsCard():Unit=runBlocking {
         val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val bank=store()
         bank.sample={m,_->entered.complete(Unit);finish.await();result(m)}

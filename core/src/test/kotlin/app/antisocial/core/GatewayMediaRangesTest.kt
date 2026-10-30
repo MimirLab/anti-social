@@ -2,6 +2,7 @@ package app.antisocial.core
 
 import com.google.gson.JsonParser
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import okhttp3.mockwebserver.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -77,7 +78,103 @@ class GatewayMediaRangesTest {
     @Test fun aConnectionModeRoundTripCannotReviveTheRangeView()=runBlocking {
         MockWebServer().use {s->s.start();s.enqueue(range(0,block+7));val g=NetworkGateway(cleaner,permit,true);val view=g.mediaRanges(s.url("/clip").toString())
             g.configure(NetworkPolicy(tor=true));g.configure(NetworkPolicy())
+            assertFalse(view.reusable)
+            assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking {view.read(0,1)}}
+            assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking {view.verify()}}
             assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking {view.read(block.toLong(),1)}};assertEquals(1,s.requestCount)
+        }
+    }
+    @Test fun aCompletedBlockRemainsAvailableAfterAnInterruptedReadWithoutRenewingTheParentAllowance()=runBlocking {
+        MockWebServer().use {s->s.start();s.enqueue(range(0,block+7))
+            val g=NetworkGateway(cleaner,permit,true)
+            val view=g.boundedMediaRead(maxRequests=1){g.mediaRanges(s.url("/clip").toString())}
+            kotlinx.coroutines.coroutineScope {
+                val read=launch {assertEquals(1,view.read(0,1).size);kotlinx.coroutines.awaitCancellation()}
+                kotlinx.coroutines.yield();read.cancel();read.join()
+            }
+            assertTrue(view.reusable);assertEquals(1,view.read(0,1).size)
+            assertThrows(IOException::class.java){runBlocking {view.read(block.toLong(),1)}}
+            assertEquals(1,s.requestCount);assertEquals(1,view.fetchedBlocks);assertEquals(block.toLong(),view.fetchedBytes)
+        }
+    }
+    @Test fun withdrawalBlocksCachedAndEmptyReadsAndVerificationWithoutFetching()=runBlocking {
+        var active=true;var calls=0
+        val view=GatewayMediaRanges(8,4,byteArrayOf(1,2,3,4),{_,_->calls++;byteArrayOf(5,6,7,8)},active={active})
+        assertTrue(view.reusable);assertArrayEquals(byteArrayOf(1,2),view.read(0,2))
+        active=false
+        assertFalse(view.reusable)
+        for(read in listOf<suspend ()->Unit>({view.read(0,1);Unit},{view.read(4,1);Unit},{view.read(0,0);Unit},{view.read(8,1);Unit},{view.verify()})) {
+            assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking {read()}}
+        }
+        assertEquals(0,calls)
+    }
+    @Test fun unrelatedTorReadinessDoesNotRetireAnOrdinaryDirectRangeView()=runBlocking {
+        MockWebServer().use {s->s.start();s.enqueue(range(0,10));val g=NetworkGateway(cleaner,permit,true)
+            val view=g.mediaRanges(s.url("/clip").toString());g.configureTor(NetworkPolicy(tor=true,ready=false))
+            assertTrue(view.reusable);assertEquals(1,view.read(0,1).size);view.verify();assertEquals(1,s.requestCount)
+        }
+    }
+    @Test fun retryRevalidatesThePrefixAndReusesOnlyCompletedBlocksWithinTheSameParent()=runBlocking {
+        MockWebServer().use {s->s.start();s.enqueue(range(0,3*block));s.enqueue(range(block,3*block));s.enqueue(range(0,3*block));s.enqueue(range(2*block,3*block))
+            val g=NetworkGateway(cleaner,permit,true);val url=s.url("/clip").toString()
+            g.boundedMediaRead(maxRequests=4) {
+                val budgetContext=kotlinx.coroutines.currentCoroutineContext()
+                val first=g.mediaRanges(url);first.read(block.toLong(),1)
+                val next=g.mediaRanges(url,previous=first)
+                assertNotSame(first,next);assertEquals(2,next.cachedBlocks);assertEquals(1,next.fetchedBlocks)
+                assertEquals(block.toLong(),next.fetchedBytes);next.read(block.toLong(),1)
+                assertEquals(3,s.requestCount);next.read(2L*block,1);assertEquals(4,s.requestCount)
+                assertThrows(IOException::class.java){runBlocking(budgetContext){g.mediaRanges(url,previous=next)}}
+                assertEquals(4,s.requestCount)
+            }
+        }
+    }
+    @Test fun aChangedPrefixOrRepresentationStartsFreshRatherThanBorrowingOldBlocks()=runBlocking {
+        for(change in listOf("prefix","validator","length","destination"))MockWebServer().use {s->s.start()
+            s.enqueue(range(0,3*block));s.enqueue(range(block,3*block))
+            val total=if(change=="length")4*block else 3*block
+            if(change=="destination")s.enqueue(MockResponse().setResponseCode(302).setHeader("Location",s.url("/other")))
+            s.enqueue(range(0,total,if(change=="validator")"\"two\"" else "\"one\"").apply {if(change=="prefix")setBody("y".repeat(block))})
+            val g=NetworkGateway(cleaner,permit,true);val url=s.url("/clip").toString()
+            g.boundedVideoComparison {
+                val old=g.mediaRanges(url);old.read(block.toLong(),1)
+                val fresh=g.mediaRanges(url,previous=old)
+                assertEquals(change,1,fresh.cachedBlocks);assertEquals(total.toLong(),fresh.length)
+                assertEquals(if(change=="destination")4 else 3,s.requestCount)
+            }
+        }
+    }
+    @Test fun retryCannotTransferBlocksToADifferentSourceModeUrlOrParent()=runBlocking {
+        MockWebServer().use {s->s.start();s.enqueue(range(0,3*block));val g=NetworkGateway(cleaner,permit,true);val url=s.url("/clip").toString()
+            val old=g.boundedVideoComparison {
+                val budgetContext=kotlinx.coroutines.currentCoroutineContext()
+                val view=g.mediaRanges(url)
+                for(retry in listOf<suspend ()->Unit>(
+                    {g.mediaRanges(url+"?other=1",previous=view);Unit},
+                    {g.mediaRanges(url,"https://other.fixture.invalid/",previous=view);Unit},
+                    {g.mediaRanges(url,observationOnly=true,previous=view);Unit},
+                    {g.boundedVideoComparison {g.mediaRanges(url,previous=view)};Unit})) {
+                    assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking(budgetContext){retry()}}
+                }
+                view
+            }
+            assertThrows(java.util.concurrent.CancellationException::class.java){runBlocking {g.mediaRanges(url,previous=old)}}
+            assertEquals(1,s.requestCount)
+        }
+    }
+    @Test fun validatorFreeRetryRetainsItsFinalVerificationReserveAndRejectsChangedPrefix()=runBlocking {
+        MockWebServer().use {s->s.start();repeat(15){s.enqueue(range(it*block,20*block).removeHeader("ETag"))}
+            s.enqueue(range(0,20*block).removeHeader("ETag"));s.enqueue(range(0,20*block).removeHeader("ETag").setBody("y".repeat(block)))
+            val g=NetworkGateway(cleaner,permit,true);val url=s.url("/clip").toString()
+            g.boundedVideoComparison {
+                val old=g.mediaRanges(url,observationOnly=true);repeat(15){old.read(it*block.toLong(),1)}
+                val retry=g.mediaRanges(url,observationOnly=true,previous=old)
+                assertEquals(15,retry.cachedBlocks);assertEquals(1,retry.fetchedBlocks)
+                assertThrows(IOException::class.java){runBlocking {retry.read(15L*block,1)}}
+                assertEquals(16,s.requestCount)
+                assertThrows(IOException::class.java){runBlocking {retry.verify()}}
+                assertEquals(17,s.requestCount)
+            }
         }
     }
     @Test fun observationReadsCannotSpendTheFinalPrefixVerificationAllowance()=runBlocking {
