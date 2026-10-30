@@ -1,5 +1,67 @@
 # Feed performance qualification
 
+## Post-0.38.70 investigation: reject an unhelpful pattern cache
+
+The current released APK's cold cached-gallery trace separates local preparation
+from source delivery. The first grouping consumes **3.931 seconds of thread CPU**
+and **5.475 seconds of wall time** under sampling; reading-alias preparation uses
+**996 ms of thread CPU**. Repeated Nitter mention and outward-link pattern
+compilation account for approximately **105/89 ms** of sampled CPU. These traced
+figures identify work to investigate; profiling overhead makes them unsuitable
+as ordinary first-card latency measurements.
+
+A generic mention-scanner prototype is rejected before promotion. Android ICU
+can match the literal `ss` against `ß` and `ffi` against `ﬃ`; a generic handle
+character class followed by string equality does not preserve that behavior.
+The [ICU case-insensitive matching documentation](https://unicode-org.github.io/icu/userguide/strings/regexp.html#case-insensitive-matching)
+explains the distinction. An ordinary-shell Android runtime probe demonstrates
+it, then the full-APK native regression independently rejects the prototype.
+The existing 0.38.70 literal expression passes the same strengthened check.
+
+A second prototype preserves the exact literal expressions, reusing up to 128
+patterns inside the existing operation and its shared accounting allowance.
+It also hoists three constant Nitter patterns. The complete official 0.38.70 →
+candidate → official 0.38.70 comparison produces these untraced observations:
+
+| Observation | Official before | Candidate | Official after |
+| --- | ---: | ---: | ---: |
+| Open → first complete focused card | 9.130 s | 9.448 s | 9.887 s |
+| Open → confirmed complete family | 9.463 s | 9.740 s | 10.221 s |
+| Warm reentry → complete card | 1.667 s | 1.717 s | 1.614 s |
+| Separate local grouping operation | 4.147 s | 4.151 s | 3.950 s |
+
+Every first focused card already contains its complete four-original family and
+six distinct pictures, with zero child-continuation reads. Ordered grouping
+identities and all 991 content-observation digests agree across the separate
+local-stage replays. Both new native contract methods pass on all three APKs.
+
+This experiment **does not establish a useful whole-feed speed gain**. The
+literal cache and constant-hoisting runtime edits are therefore removed too.
+The retained change is regression coverage for exact mention boundaries,
+Unicode case folding, source/destination scope, original-link identity and
+independent readers. No app version, matching rule, cache allowance, network
+behavior or release artifact changes as a result of this investigation.
+These emulator observations do not establish phone latency or energy results.
+
+The retained test-only change passes a fresh full JVM run: **2,626 cases, 2,622
+passes, four optional skips and zero failures/errors**. Both new contract methods
+also pass against the unmodified official APK on API 35 before and after the
+candidate, then on minimum API 26 in **33.457 seconds** with **two actual passes,
+zero skips and zero failures**. Returned method identities are checked separately
+from the runner footer. The native reader starts afterward without a fatal
+startup error, and its actual screen is inspected. The API 26 engineering session
+uses ordinary shell authority and stops only its own diagnostic emulator.
+
+A separate production-Gateway observation qualifies the already installed
+TikWM post route for one explicitly supplied public recording: one JSON response,
+one accepted post, **1.648 seconds** elapsed. Its declared plain/watermarked
+renditions are **22,196,836/20,530,484 bytes**. The current parser already prefers
+the latter; switching by the field name alone would choose the larger file in
+this case. These are provider-declared full-file sizes, not measured sampler
+latencies or proof that the alternate bytes belong to a retained rendition.
+Further acquisition work must qualify the recording relationship and measure
+the actual bounded sampler. This observation activates no new route or ordering.
+
 ## 0.38.70: current video offers without removing discovery paths
 
 A precomputed global video offer can become stale while new scene observations

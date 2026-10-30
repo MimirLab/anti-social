@@ -81,6 +81,13 @@ without its required isolation flag has not qualified the feature. Fresh output
 artifacts and their assertions establish the captured journey independently of
 the footer.
 
+JVM-only text equivalence does not establish Android regex equivalence. ICU's
+full case folding can match a literal against a different number of characters.
+The [post-0.38.70 pattern investigation](FEED_PERFORMANCE.md#post-03870-investigation-reject-an-unhelpful-pattern-cache)
+records a JVM-passing prototype rejected by the native control, then a faithful
+prototype rejected for lack of a useful full-feed speed gain. Retained regression
+coverage is separate from a runtime improvement or a new published APK.
+
 User phone testing and emulator instrumentation both exist. A statement such as
 “this comparison does not measure phone battery use” identifies an unmeasured
 metric; it does not mean the app has never been used on a phone. Likewise, an
