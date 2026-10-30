@@ -45,6 +45,14 @@ class FullFeedVideoLiveTest {
         val focus=raw.getAsJsonArray("focusKeys").map {it.asString}.toSet()
         val requiredBody=raw.getAsJsonArray("expectedBodyPassages")?.map {it.asString}.orEmpty()
         val minimumRecordings=raw["minimumObservedRecordings"]?.asInt ?: 3
+        val warmup=raw.getAsJsonArray("warmupPosts")?.map {repo.gson.fromJson(it,Post::class.java)}.orEmpty()
+        require(warmup.isEmpty()||warmup.size==2&&warmup.map(repo::key).distinct().size==2&&warmup.all {
+            repo.key(it)in focus&&it.media.singleOrNull {m->m.type=="video"}?.let {m->m.videoFootage==null&&m.audioUrl==null}==true
+        })
+        val refreshed=warmup.flatMap {prior->
+            val current=posts.single {repo.key(it)==repo.key(prior)}
+            current.media.filter {it.type=="video"&&it.url !in prior.media.map(Media::url)}.map {Repository.hash(it.url)}
+        }.toSet()
         require(minimumRecordings in 1..4)
         require(requiredBody.size<=8&&requiredBody.all {it.length in 1..500&&it.isNotBlank()})
         require(posts.size in 1..1000&&follows.size in 1..2000&&focus.size in 2..CrossPosts.MAX_EDITIONS)
@@ -106,6 +114,16 @@ class FullFeedVideoLiveTest {
                 (if(args.getString("antisocialFeedExperimentMetadataUnavailable")=="true")null else metadata(post))
                     .also {event("stage" to "metadata-end","key" to repo.key(post),"found" to (it!=null))}
             }
+            if(warmup.isNotEmpty()) {
+                event("stage" to "warmup-start")
+                // An explicitly requested prior read, through the actual
+                // production Gateway and isolated sampler. No fabricated
+                // frame or cache file is supplied. The fresh feed below still
+                // uses its normal preparation/dwell/matching path.
+                runBlocking {repo.videos.enrich(VideoFootageRequest(warmup[0],warmup[1],warmup.mapTo(linkedSetOf(),repo::key)),automatic=false)}
+                require(warmup.all {post->repo.videos.captured(post).media.any {it.videoFootage?.scenes?.size?.let {n->n>=3}==true&&VideoFootage.valid(it)}}) {"The prior read did not produce qualified observations"}
+                event("stage" to "warmup-complete")
+            }
             runBlocking {repo.db.withTransaction {
                 follows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
                 posts.forEach {post->
@@ -144,7 +162,7 @@ class FullFeedVideoLiveTest {
             ui.waitUntil(60_000){visibleRows().isNotEmpty()};ui.waitForIdle()
             event("stage" to "first-visible");screenshot("first-visible.png")
             // Observe the production preparation, dwell and catalogue. This
-            // tester never schedules enrich() itself or fabricates observations.
+            // tester never schedules enrich() after opening or fabricates observations.
             ui.waitUntil(150_000){
                 val captured=posts.filter {repo.key(it)in focus}.map(repo.videos::captured)
                 captured.count {p->p.media.any {it.videoFootage?.scenes?.size?.let {n->n>=3}==true}}>=minimumRecordings
@@ -207,6 +225,12 @@ class FullFeedVideoLiveTest {
             File(output,"result.json").writeText(repo.gson.toJson(mapOf("focusGroups" to family,"work" to repo.cardWork.active.value,"events" to events)))
             assertEquals("Captured counterparts must finish as one full-window family",1,family.size)
             assertTrue(family.single().posts.map(repo::key).containsAll(focus))
+            if(warmup.isNotEmpty()) {
+                val opened=events.first {it["stage"]=="open"}["atMs"] as Long
+                val repeated=events.count {it["stage"]=="sample-start"&&(it["atMs"] as Long)>=opened&&it["urlHash"]in refreshed}
+                event("stage" to "refreshed-observation-check","repeatSamples" to repeated)
+                assertEquals("A refreshed delivery URL must reuse the qualified prior observation",0,repeated)
+            }
             capturedEvidence()
         }catch(e:Throwable) {
             runCatching {capturedEvidence()}

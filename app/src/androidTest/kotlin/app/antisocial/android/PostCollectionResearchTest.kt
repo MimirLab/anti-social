@@ -22,6 +22,10 @@ class PostCollectionResearchTest {
         require(raw.getAsJsonArray("posts").size()<=64&&raw.getAsJsonArray("follows").size()<=2000)
         val posts=raw.getAsJsonArray("posts").map {gson.fromJson(it,Post::class.java)}.toMutableList()
         val follows=raw.getAsJsonArray("follows").map {gson.fromJson(it,Follow::class.java)}
+        val memberships=raw.getAsJsonObject("memberships")?.entrySet()?.associate {(key,value)->
+            require(key in posts.map {it.identityKey}&&value.isJsonArray&&value.asJsonArray.size()<=follows.size)
+            key to value.asJsonArray.map {it.asString.also {id->require(follows.any {follow->follow.id==id})}}.toSet()
+        }.orEmpty()
         val inspect=raw.getAsJsonArray("inspect").map {it.asString}.toSet();require(inspect.size<=16)
         val output=File(context.getExternalFilesDir("validation"),"post-collection-research").apply {mkdirs()}
         val records=mutableListOf<Map<String,Any?>>()
@@ -59,9 +63,9 @@ class PostCollectionResearchTest {
             }}}catch(e:CancellationException){if(e !is TimeoutCancellationException)throw e;records+=mapOf("error" to "Research deadline expired")}
             finally {
                 val captured=posts.distinctBy {it.identityKey}.map(bank::captured)
-                File(output,"captured.json").writeText(gson.toJson(mapOf("posts" to captured,"follows" to follows)))
-                val grouped=CrossPosts.group(captured,follows,sameMedia=bank::same)
-                records+=mapOf("before" to CrossPosts.group(posts,follows).map {it.posts.map(Post::canonicalUrl)},"after" to grouped.map {it.posts.map(Post::canonicalUrl)},
+                File(output,"captured.json").writeText(gson.toJson(mapOf("posts" to captured,"follows" to follows,"memberships" to memberships)))
+                val grouped=CrossPosts.group(captured,follows,memberships,sameMedia=bank::same)
+                records+=mapOf("before" to CrossPosts.group(posts,follows,memberships).map {it.posts.map(Post::canonicalUrl)},"after" to grouped.map {it.posts.map(Post::canonicalUrl)},
                     "renderedMedia" to grouped.map {collectedMedia(it.posts).map(Media::url)},"checkedRequests" to gateway.protectionStats().checked)
                 File(output,"results.json").writeText(gson.toJson(records));client.dispatcher.executorService.shutdownNow();client.connectionPool.evictAll()
             }

@@ -8,6 +8,32 @@ data class VideoAcquisitionKey(val url:String,val samplingUrl:String?,val durati
 /** Qualifies renditions of one supplied clip; never uses a caption, account,
  * thumbnail or an arbitrary query-bearing website as a video identifier. */
 object VideoAssetIdentity {
+    /** A qualified identity for derived scene observations. It grants no byte
+     * cache, signature, playback or attachment-suppression equivalence. */
+    fun observationKey(raw:String):String? {
+        if(raw.length !in 1..8192||raw.any(Char::isISOControl))return null
+        if(raw.contains("tiktokcdn",true))tiktokObservation(raw)?.let {return it}
+        return key(raw)
+    }
+    private val tiktokHost=Regex("v[0-9]{1,3}\\.tiktokcdn(?:-eu|-us)?\\.com")
+    private val tiktokObject=Regex("^/[0-9a-f]{32}/[0-9a-f]{8}(/video/tos/[a-z0-9-]{2,32}/[a-z0-9-]{2,80}/[A-Za-z0-9_-]{24,128}/)$")
+    private val deliveryToken=Regex("[A-Za-z0-9._~-]{16,256}={0,2}")
+    private val deliveryTrace=Regex("[0-9]{14}[A-Fa-f0-9]{16,64}")
+    /** Observed signed-CDN form only. Keep the authority, complete TOS object
+     * namespace and every other query field, including unknown transformations.
+     * Prefix expiry/signature and these two delivery fields do not identify a
+     * new observed object. They remain untouched in the actual request URL. */
+    private fun tiktokObservation(raw:String):String? {
+        val url=raw.toHttpUrlOrNull()?.takeIf {it.isHttps&&it.port==443&&it.username.isEmpty()&&it.password.isEmpty()&&it.fragment==null&&tiktokHost.matches(it.host)} ?: return null
+        val path=tiktokObject.matchEntire(url.encodedPath)?.groupValues?.get(1) ?: return null
+        val fields=url.encodedQuery?.split('&') ?: return null
+        for((name,pattern) in listOf("ft" to deliveryToken,"l" to deliveryTrace)) {
+            val values=url.queryParameterValues(name)
+            if(values.size!=1||values.single()?.let(pattern::matches)!=true||fields.count {it.substringBefore('=')==name}!=1)return null
+        }
+        val identity=url.newBuilder().encodedPath(path).removeAllQueryParameters("ft").removeAllQueryParameters("l").build()
+        return "tiktok-observation:$identity"
+    }
     private fun progressiveCandidate(raw:String)=VideoFormats.mime(Media(raw,"video")) in setOf(null,"video/mp4","video/webm")
     private val twitter=Regex("^/(amplify_video|ext_tw_video)/([0-9]{1,40})/(?:vid|pl)/")
     private val numericPost=Regex("post:[0-9]{1,40}")

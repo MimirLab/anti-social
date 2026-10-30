@@ -205,6 +205,29 @@ class VideoEvidenceStoreTest {
         assertNull(bank.related(a,b.copy(media=b.media.map {it.copy(videoFootage=reverse)})){})
         assertNotNull(bank.related(a,b){})
     }
+    @Test fun refreshedDeliveryUrlsReuseTheirQualifiedObjectWithoutSamplingAgainOrChangingSourceFields():Unit=runBlocking {
+        val old="https://v45.tiktokcdn-eu.com/"+"a".repeat(32)+"/6ae10001/video/tos/alisg/tos-alisg-ve-001c001-sg/oWorkshopRepairClip0123456789abcdef/?a=1233&ft=OpaqueDeliveryToken0123456789&mime_type=video_mp4&l=20270101120000ABCDEF0123456789ABCDEF"
+        val renewed=old.replace("a".repeat(32),"b".repeat(32)).replace("6ae10001","6ae10002").replace("Token0123456789","Token9876543210").replace("20270101120000","20270101120100")
+        val original=first.copy(platform=Platform.TIKTOK,canonicalUrl="https://www.tiktok.com/@publicstudio/video/710001",media=listOf(Media(old,"video",mimeType="video/mp4",durationMs=120_000)))
+        val refreshed=original.copy(media=original.media.map {it.copy(url=renewed)})
+        val calls=AtomicInteger();val bank=store();bank.sample={m,_->calls.incrementAndGet();result(m)}
+        bank.enrich(VideoFootageRequest(original,second,setOf(original.identityKey,second.identityKey)),automatic=false)
+        assertEquals(2,calls.get());assertNotNull(bank.captured(original).media.single().videoFootage)
+        val captured=bank.captured(refreshed);assertNotNull(captured.media.single().videoFootage)
+        assertEquals(refreshed,captured.copy(media=captured.media.map {it.copy(videoFootage=null)}))
+        assertTrue(VideoFootage.valid(captured.media.single()));assertNull(captured.media.single().aiMetadata)
+        val restarted=store();restarted.restore();restarted.sample={_,_->error("A qualified cache hit must not fetch")}
+        restarted.enrich(VideoFootageRequest(refreshed,second,setOf(refreshed.identityKey,second.identityKey)),automatic=false)
+        assertNotNull(restarted.captured(refreshed).media.single().videoFootage)
+        assertNull(restarted.captured(refreshed.copy(media=refreshed.media.map {it.copy(url=renewed+"&crop=top")})).media.single().videoFootage)
+        assertEquals(2,calls.get())
+    }
+    @Test fun anAliasWithAConflictingDurationMustRemainUnobserved():Unit=runBlocking {
+        val bank=store();bank.sample={m,_->result(m)};bank.enrich(request,automatic=false)
+        val alias=first.copy(media=first.media.map {it.copy(url="https://video-s.twimg.com/amplify_video/710001/vid/480x270/alias.mp4",durationMs=60_000)})
+        assertNull(bank.captured(alias).media.single().videoFootage)
+        assertTrue(bank.available(VideoFootageRequest(alias,second,request.originalKeys)))
+    }
     @Test fun playingVideoKeepsTheSamplingLaneIdleUntilPlaybackStops():Unit=runBlocking {
         val bank=store();val calls=AtomicInteger();bank.sample={m,_->calls.incrementAndGet();result(m)}
         bank.playback(true)

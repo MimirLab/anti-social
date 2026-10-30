@@ -9,6 +9,67 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.75: renewed video observations and qualified gallery replies
+
+This increment repairs two reproduced paths without adding a model, dependency,
+permission, database migration or automatic discovery request. The existing
+video observation cache can recognize a narrowly qualified renewed TikTok object
+URL; a qualified Nitter RSS reply heading is attribution rather than authored
+prose. A separate same-publisher full-caption witness can corroborate the shorter
+gallery heading while preserving its complete introduction. The
+[collection contract](ATTACHMENT_COLLECTIONS.md#reuse-renewed-video-observations-and-qualify-gallery-reply-headings-03875)
+describes the boundaries; exact-byte and attachment equality remain separate.
+
+Qualification on October 30, 2026 (UTC):
+
+- Full JVM: **2,661 cases, 2,657 passes, four optional skips, zero failures or
+  errors**. Controls cover malformed/ambiguous signed routes, namespace and
+  transformation separation, conflicting runtime hints, restored observation
+  reuse, literal reply attribution, missing/old/different-publisher witnesses,
+  changed artwork and source-preserving gallery composition.
+- Published 0.38.74 fails both new native cache controls as expected. The initial
+  focused JVM cache controls record three failures; the independent gallery
+  controls record two. Candidate controls and the full suite pass. These red
+  records remain in private evidence rather than being counted as passing tests.
+- A production-Gateway probe downloaded both actual renewed renditions in full:
+  **2,636,679 bytes each with identical SHA-256**, 26,493 ms duration and 1280×720
+  dimensions. Ordinary and isolated frame decoding both succeed. This one-pair
+  qualification supports the observed object form, not arbitrary CDN URLs or
+  transferring file/signature validation through the derived-scene key.
+- Actual warm-feed replays use a 46-post window, four focused originals and a
+  prior production-sampler read. Two baselines repeat renewed-URL sampling;
+  two candidates do not. A further replay on the final qualified application
+  passes with complete captions and no renewed-URL sampling. See
+  [timings and limits](FEED_PERFORMANCE.md#03875-renewed-delivery-urls-reuse-prior-scene-work).
+- API 35: **262 distinct named methods, 258 passes, four opt-in skips, zero
+  failures** on one frozen application/tester. The declared-recording and
+  power-saver checks run in separate processes; the remaining 260 methods pass
+  in the main selection. Android 8/API 26: **20 passes, zero skips/failures**,
+  plus actual native reader startup and screen inspection.
+- A five-original gallery with eight downloaded image inputs reproduces **two
+  cards, seven attachments and three headline occurrences** in the baseline
+  native replay. The corrected replay has **one card, five distinct pictures,
+  one headline occurrence, every captured original and a faithful protected
+  save**. Its caption/source screen is inspected. The generated reply wrapper
+  supplies account attribution, never an invented parent-post relationship.
+- Nine earlier captured-packet native replays pass: **21 families, 72 originals**,
+  expected distinct attachments, shared passages once and faithful saves. The
+  native caption/attribution screens and retained preview feed are inspected.
+- Privacy-guard controls: **eight passes**; Context retention controls: **four
+  passes**. Release lint: **zero errors, 182 warnings and one hint**. The tree
+  privacy audit has zero findings with two unchanged reviewed upstream files;
+  source-archive auditing and clean-commit artifact correspondence follow
+  [publishing](PUBLISHING.md).
+
+**Still open:** another reported family is independently reproduced with both
+pictures matching and its text composer rejecting differently written
+organization references. No name equivalence is inferred or guard weakened to
+hide that failure. Older cached gallery leaves can also lack the reply evidence
+supplied by a fresh response; this fresh-capture repair is not evidence that every
+retained variant is fixed. Other reported families and source-dependent first
+acquisition/adoption delays remain under investigation. These emulator checks do
+not establish physical-phone latency, p95 or battery behavior.
+
 ## 0.38.74: declared recordings and public download retention
 
 The reader retains an exposed public progressive download when a selected

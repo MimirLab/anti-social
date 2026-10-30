@@ -58,6 +58,16 @@ class VideoFootageTest {
         assertNull(VideoAssetIdentity.key(root.url.replace("/vid/","/unrelated/")))
         val gson=Gson();assertEquals(root,gson.fromJson(gson.toJson(root),Media::class.java))
     }
+    @Test fun anotherRenditionCannotBorrowScenesAgainstItsConflictingDeclaredDuration() {
+        val observed=evidence(source.map(::frame))
+        val alias=Media("https://video-s.twimg.com/amplify_video/710001/vid/1920x1080/other.mp4","video",durationMs=60_000,videoFootage=observed)
+        assertFalse(VideoFootage.valid(alias))
+        assertTrue(VideoFootage.valid(alias.copy(durationMs=120_000)))
+        assertTrue(VideoFootage.valid(alias.copy(durationMs=null)))
+        // A measured rendition's own decoded duration is direct evidence even
+        // when its publisher supplied an inaccurate duration hint.
+        assertTrue(VideoFootage.valid(alias.copy(url=observed.renditionUrl)))
+    }
     @Test fun advertisedSmallRenditionsCannotChangeThePlaybackOrBorrowAnotherClip() {
         val playback="https://video-s.twimg.com/amplify_video/710001/vid/1920x1080/main.mp4"
         val small="https://video.twimg.com/amplify_video/710001/vid/320x180/small.mp4"

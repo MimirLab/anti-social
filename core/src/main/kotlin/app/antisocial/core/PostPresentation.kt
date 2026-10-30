@@ -34,6 +34,7 @@ object PostPresentation {
     }
     private val repostHeading=Regex("^RT by (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val alternateRepostHeading=Regex("^RT (@[a-zA-Z0-9_]{1,15}) \\(by (@[a-zA-Z0-9_]{1,15})\\):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
+    private val replyHeading=Regex("^R to (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
     private val shortenedHostLabel=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9-]+(?:…|\\.\\.\\.)(?!\\S)")
     private val captionWords=Regex("[\\p{L}\\p{N}]+")
@@ -67,6 +68,7 @@ object PostPresentation {
     }
     private fun textUncached(post: Post): PostTextPresentation {
         val sourceBody=sourceBody(post)
+        nitterReplyTo(post)?.let {return PostTextPresentation("",sourceBody,"In reply to $it")}
         // FacebookAdapter adds this label for an attached shared story. Keep
         // the attribution outside the authored caption so an uncaptioned share
         // can collect with that story's other editions. An author's own leading
@@ -135,6 +137,28 @@ object PostPresentation {
         val redundant=headings.any(::echo)||shortenedEcho||bridgeTitleEcho
         val attribution=if(repost!=null&&repostCaption!=null&&(echo(repostCaption)||shortenedEcho))"Reposted by ${repost.groupValues[1]}"else null
         return PostTextPresentation(if(redundant)""else post.title,presentedBody,attribution)
+    }
+
+    /** Nitter's RSS renderer prefixes its generated caption with the first
+     * reply account. This proves that account attribution, never a parent post.
+     * Require the actual RSS origin, canonical author and complete body echo. */
+    internal fun nitterReplyTo(post:Post):String? {
+        if(!post.title.startsWith("R to @",ignoreCase=true))return null
+        val provenance=post.provenance ?: return null;val source=provenance.source
+        if(post.platform!=Platform.X||source.platform!=Platform.X||source.frontend!="nitter"||source.role!=SourceRole.ALTERNATE||
+            post.title.length>8192||post.body.isBlank()||post.body.length>8192||'\uffff' in post.title||'\uffff' in post.body)return null
+        val original=runCatching {URI(post.canonicalUrl)}.getOrNull() ?: return null
+        val path=Regex("^/([A-Za-z0-9_]{1,15})/status(?:es)?/[0-9]{1,40}/?$").matchEntire(original.rawPath.orEmpty()) ?: return null
+        val author=path.groupValues[1]
+        if(original.scheme!="https"||original.host !in setOf("x.com","www.x.com","twitter.com","www.twitter.com")||
+            original.rawUserInfo!=null||original.port !in setOf(-1,443)||!post.author.removePrefix("@").equals(author,true))return null
+        val root=runCatching {URI(source.root)}.getOrNull() ?: return null
+        val actual=runCatching {URI(provenance.finalUrl)}.getOrNull() ?: return null
+        val expected=root.rawPath.orEmpty().trimEnd('/')+"/$author/rss"
+        if(root.scheme!="https"||actual.scheme!="https"||root.rawUserInfo!=null||actual.rawUserInfo!=null||root.host==null||
+            root.host!=actual.host||root.port!=actual.port||!actual.rawPath.orEmpty().equals(expected,true)||actual.rawFragment!=null)return null
+        val heading=replyHeading.matchEntire(Jsoup.parseBodyFragment(post.title).text()) ?: return null
+        return heading.groupValues[1].takeIf {comparison(heading.groupValues[2])==comparison(post.body)}
     }
 
     /** Matching may normalize further, but each meaningful field participates once. */

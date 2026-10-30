@@ -47,18 +47,20 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     private fun fresh(e:VideoFootageEvidence)=clock()-e.sampledAt in 0 until 7*CachePolicy.DAY
     private fun remove(url:String) {
         entries.remove(url)
-        VideoAssetIdentity.key(url)?.let {key->aliases[key]?.let {urls->urls.remove(url);if(urls.isEmpty())aliases.remove(key)}}
+        VideoAssetIdentity.observationKey(url)?.let {key->aliases[key]?.let {urls->urls.remove(url);if(urls.isEmpty())aliases.remove(key)}}
     }
     private fun put(entry:Entry) {
         remove(entry.url);entries[entry.url]=entry
-        VideoAssetIdentity.key(entry.url)?.let {aliases.getOrPut(it){linkedSetOf()}.add(entry.url)}
+        VideoAssetIdentity.observationKey(entry.url)?.let {aliases.getOrPut(it){linkedSetOf()}.add(entry.url)}
     }
     private fun lookup(media:Media):VideoFootageEvidence? {
         if(media.type!="video")return null
-        val exact=entries[media.url]?.evidence?.takeIf(::fresh)
+        // Entries passed full scene validation during acquisition or restore.
+        fun applicable(evidence:VideoFootageEvidence)=fresh(evidence)&&VideoFootage.observationMatches(media,evidence)
+        val exact=entries[media.url]?.evidence?.takeIf(::applicable)
         if(exact!=null)return exact
-        val key=VideoAssetIdentity.key(media.url) ?: return null
-        return aliases[key].orEmpty().mapNotNull {entries[it]?.evidence?.takeIf(::fresh)}
+        val key=VideoAssetIdentity.observationKey(media.url) ?: return null
+        return aliases[key].orEmpty().mapNotNull {entries[it]?.evidence?.takeIf(::applicable)}
             .maxWithOrNull(compareBy<VideoFootageEvidence> {it.scenes.size}.thenBy {it.sampledAt})
     }
     // Observation/cooldown lookups run under lock. Ordinary sampling is allowed once

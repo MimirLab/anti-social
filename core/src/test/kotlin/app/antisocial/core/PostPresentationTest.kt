@@ -12,6 +12,20 @@ class PostPresentationTest {
     private val cleaner=UrlCleaner(asset("clean-links.json"))
     private val routes=DarwinRoutes(asset("darwin-routes.json"),cleaner)
     private val source=routes.sources.first {it.frontend=="nitter"}
+    @Test fun aQualifiedRssReplyHeadingIsAttributionRatherThanAnotherAuthoredCaption() {
+        val value=post.copy(author="@Workshop",canonicalUrl="https://x.com/Workshop/status/123",title="R to @Workshop: $caption",
+            provenance=Provenance(source,1,source.root+"/Workshop/rss"))
+        val before=Gson().toJson(value)
+        assertEquals("",PostPresentation.text(value).title)
+        assertEquals(caption,PostPresentation.content(value));assertEquals("In reply to @Workshop",PostPresentation.text(value).attribution)
+        assertEquals(before,Gson().toJson(value));assertNull(value.parentId)
+        for(other in listOf(value.copy(provenance=null),value.copy(body=caption+" A different claim."),
+            value.copy(provenance=value.provenance!!.copy(finalUrl=source.root+"/Workshop")),
+            value.copy(author="@Other"),value.copy(canonicalUrl="https://other.example/Workshop/status/123"),
+            value.copy(provenance=value.provenance!!.copy(finalUrl="https://other.example/Workshop/rss")))) {
+            assertEquals(other.title,PostPresentation.text(other).title);assertNull(PostPresentation.text(other).attribution)
+        }
+    }
     @Test fun dottedOrdinaryWordsRemainCaptionTextRatherThanAnInventedWebsite() {
         val text="BUILDING.A.BETTER.NEIGHBORHOOD."
         assertEquals(text,PostPresentation.proseWithoutLinks(text))

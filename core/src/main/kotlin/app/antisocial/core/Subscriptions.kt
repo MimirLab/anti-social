@@ -460,7 +460,7 @@ object CrossPosts {
         }.map {groups[it]}
     }
     private fun galleryMember(anchor:Post,post:Post,scope:List<Post>,sameMedia:(Post,Post)->Boolean):Boolean {
-        if(post.parentId==null)return galleryContains(anchor,post,sameMedia)
+        if(post.parentId==null)return galleryContains(anchor,post,sameMedia,scope=scope)
         // A publisher may deliver the remaining gallery pictures as a reply
         // chain. A later conversation fetch must not split that collected card.
         // The actual parent must be another proven same-account gallery
@@ -475,11 +475,11 @@ object CrossPosts {
         }
         // Every generation must fit the same frozen gallery. A path of shared
         // pictures is never permission to bridge different announcements.
-        return galleryContains(anchor,current,sameMedia)&&path.all {galleryContains(anchor,it.copy(parentId=null),sameMedia,parentQualified=true)}
+        return galleryContains(anchor,current,sameMedia,scope=scope)&&path.all {galleryContains(anchor,it.copy(parentId=null),sameMedia,parentQualified=true,scope=scope)}
     }
     private fun galleryAnchor(post: Post)=post.media.size in 2..12&&post.media.all {it.type=="image"&&it.url!=post.avatar}&&
         tokens(decoded(PostPresentation.content(post))).size>=8
-    internal fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean,parentQualified:Boolean=false): Boolean {
+    internal fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean,parentQualified:Boolean=false,scope:List<Post> = emptyList()): Boolean {
         if(anchor.preview||post.preview||anchor.parentId!=null||post.parentId!=null)return false
         val a=anchor.publishedAt?.takeIf {it>0} ?: return false;val b=post.publishedAt?.takeIf {it>0} ?: return false
         val distance=if(a>=b)a.toULong()-b.toULong()else b.toULong()-a.toULong()
@@ -495,14 +495,14 @@ object CrossPosts {
             val full=caption(anchor)
             val exact=tokens(text)==tokens(full)&&meaningfulSymbols.findAll(text).map {it.value}.toList()==meaningfulSymbols.findAll(full).map {it.value}.toList()&&
                 urlPattern.findAll(text).map {it.value}.toList()==urlPattern.findAll(full).map {it.value}.toList()
-            if(!exact&&!GalleryCaptionCopies.contains(anchor,post))return false
+            if(!exact&&!GalleryCaptionCopies.contains(anchor,post,scope))return false
         }
         // Low-information pictures cannot establish a post match by themselves.
         // A qualified caption or explicit, already-proven publisher parent can
         // corroborate detailed attachment observations. A captionless picture
         // alone and weak scene hashes never gain this permission.
         val weak=anchor.media.any {it.attachmentFingerprint!=null}||post.media.any {it.attachmentFingerprint!=null}
-        val detailQualified=weak&&(text.isNotBlank()&&GalleryCaptionCopies.contains(anchor,post)||parentQualified&&text.isBlank())
+        val detailQualified=weak&&(text.isNotBlank()&&GalleryCaptionCopies.contains(anchor,post,scope)||parentQualified&&text.isBlank())
         return post.media.all {image->anchor.media.any {other->
             // A complete gallery claims that every picture is already present.
             // Detailed observations outrank a similar template/scene or a

@@ -27,7 +27,20 @@ internal object GalleryCaptionCopies {
         if(key.length!=text.length)return null // Source character offsets must remain exact.
         return Caption(post,text,key)
     }
-    private fun range(full:Caption,part:Caption):IntRange? {
+    private fun publisherReply(full:Caption,part:Caption,scope:List<Post>):Boolean {
+        val handle=PostPresentation.nitterReplyTo(part.post) ?: return false
+        val account=CrossPosts.originalAccount(part.post) ?: return false
+        val at=part.post.publishedAt?.takeIf {it>0} ?: return false
+        if(account!="${Platform.X.id}:${handle.removePrefix("@").lowercase(Locale.ROOT)}")return false
+        // A reply-to-account label does not name a parent post. Require a
+        // separately captured full-caption edition from that same publisher;
+        // the caller must still prove every gallery picture and its time bound.
+        return scope.any {root->root!==part.post&&root.platform==Platform.X&&root.parentId==null&&!root.preview&&
+            CrossPosts.originalKey(root)!=CrossPosts.originalKey(part.post)&&CrossPosts.originalAccount(root)==account&&
+            root.publishedAt?.let {it>0&&kotlin.math.abs(it-at)<=600_000}==true&&
+            PostPresentation.nitterReplyTo(root)==null&&caption(root)?.key==full.key}
+    }
+    private fun range(full:Caption,part:Caption,scope:List<Post>):IntRange? {
         if(part.key==full.key)return 0 until full.text.length
         if(part.key.length<35||words.findAll(part.key).count()<6)return null
         val start=full.key.indexOf(part.key)
@@ -42,18 +55,19 @@ internal object GalleryCaptionCopies {
         // fuller literal introduction is retained and attributed, not removed;
         // its length alone need not defeat independently proven gallery media.
         if(extra.any {it.isDigit()||it=='?'||it=='@'}||
-            Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]").containsMatchIn(extra)||unsafe.containsMatchIn(extra))return null
+            Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]").containsMatchIn(extra)||
+            unsafe.containsMatchIn(extra)&&!(end==full.text.length&&publisherReply(full,part,scope)))return null
         return start until end
     }
-    fun contains(anchor:Post,part:Post):Boolean {
+    fun contains(anchor:Post,part:Post,scope:List<Post> = emptyList()):Boolean {
         val full=caption(anchor) ?: return false;val short=caption(part) ?: return false
-        return short.text.isNotBlank()&&range(full,short)!=null
+        return short.text.isNotBlank()&&range(full,short,scope)!=null
     }
     fun compose(posts:List<Post>):PostFusion? {
         val captions=posts.map {caption(it) ?: return null}.filter {it.text.isNotBlank()}
         if(captions.size<2||captions.map {it.key}.distinct().size<2)return null
         val full=captions.maxBy {it.text.length}
-        val ranges=captions.map {range(full,it) ?: return null}
+        val ranges=captions.map {range(full,it,posts) ?: return null}
         val boundaries=(listOf(0,full.text.length)+ranges.flatMap {listOf(it.first,it.last+1)}).distinct().sorted()
         val segments=boundaries.zipWithNext().mapNotNull {(start,end)->
             val text=full.text.substring(start,end).trim();if(text.isEmpty())return@mapNotNull null

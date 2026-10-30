@@ -46,8 +46,17 @@ object VideoFootage {
     fun valid(media:Media):Boolean {
         if(!VideoAssetIdentity.validSampling(media))return false
         val evidence=media.videoFootage ?: return true
-        if(media.type!="video"||!valid(evidence))return false
-        return media.url==evidence.renditionUrl||VideoAssetIdentity.key(media.url)?.let {it==VideoAssetIdentity.key(evidence.renditionUrl)}==true
+        return valid(evidence)&&observationMatches(media,evidence)
+    }
+    /** Association only. Cache owners validate the immutable scene data on
+     * creation/restore, then use this cheap check without reparsing four rasters
+     * while holding their lookup monitor. Untrusted records still use valid(). */
+    fun observationMatches(media:Media,evidence:VideoFootageEvidence):Boolean {
+        if(media.type!="video"||!VideoAssetIdentity.validSampling(media))return false
+        if(media.url==evidence.renditionUrl)return true
+        val declared=media.durationMs
+        if(declared!=null&&(declared !in 2_000..MAX_DURATION_MS||abs(declared-evidence.durationMs)>maxOf(750L,maxOf(declared,evidence.durationMs)/100)))return false
+        return VideoAssetIdentity.observationKey(media.url)?.let {it==VideoAssetIdentity.observationKey(evidence.renditionUrl)}==true
     }
     fun related(first:Media,second:Media,checkpoint:()->Unit={}):SharedVideoFootage? =
         if(valid(first)&&valid(second))shared(first.videoFootage,second.videoFootage,checkpoint)else null

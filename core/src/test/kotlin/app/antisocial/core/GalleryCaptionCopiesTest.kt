@@ -12,6 +12,27 @@ class GalleryCaptionCopiesTest {
         media=(1..3).map {Media("https://images.example/picture-$it.jpg")})
     private fun part()=Post("123",Platform.X,"https://x.com/workshop/status/123","Workshop",heading+" https://t.co/AbCd123",publishedAt=at+3000,
         media=listOf(gallery().media[1]))
+    @Test fun aSourceDeclaredSelfReplyUsesItsPublishersFullEditionToKeepTheGalleryIntroduction() {
+        val full=gallery().copy(body="Never forget the work still ahead. $heading:")
+        val source=Source(Platform.X,"nitter","https://reader.example.org")
+        val root=part().copy(id="101",canonicalUrl="https://x.com/workshop/status/101",body="Never forget the work still ahead. $heading ⬇️",media=listOf(full.media[0]))
+        val child=part().copy(body=heading,title="R to @workshop: $heading",provenance=Provenance(source,at,source.root+"/workshop/rss"))
+        for(input in listOf(listOf(full,root,child),listOf(child,root,full))) {
+            val group=CrossPosts.group(input,emptyList()).single()
+            assertEquals(input.toSet(),group.posts.toSet());assertTrue(CrossPosts.galleryCollection(group.posts))
+            val fusion=requireNotNull(CrossPostFusion.composeMedia(group.posts))
+            assertEquals(listOf("Never forget the work still ahead.",heading),fusion.segments.map {it.text})
+            assertEquals(setOf(full.identityKey,root.identityKey),fusion.segments.first().originalKeys)
+            assertEquals(input.map {it.identityKey}.toSet(),fusion.segments.last().originalKeys)
+        }
+        for(other in listOf(child.copy(provenance=null),child.copy(title=heading),
+            child.copy(title="R to @other: $heading"),child.copy(media=listOf(Media("https://images.example/unrelated.jpg")))))
+            assertTrue(CrossPosts.group(listOf(full,root,other),emptyList()).size>1)
+        assertEquals(2,CrossPosts.group(listOf(full,child),emptyList()).size)
+        assertTrue(CrossPosts.group(listOf(full,root.copy(body="A separate announcement."),child),emptyList()).size>1)
+        assertTrue(CrossPosts.group(listOf(full,root.copy(publishedAt=at-86_400_000),child),emptyList()).size>1)
+        assertTrue(CrossPosts.group(listOf(full,root.copy(canonicalUrl="https://x.com/other/status/101",author="Other"),child),emptyList()).size>1)
+    }
     @Test fun provenGalleryCollectsItsShorterHeadingAndAttributesTheExtraSentence() {
         val full=gallery();val short=part();val before=listOf(full,short)
         for(input in listOf(before,before.reversed())) {

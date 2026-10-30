@@ -1,5 +1,42 @@
 # Attachment collections
 
+## Reuse renewed video observations and qualify gallery reply headings (0.38.75)
+
+A refreshed signed delivery URL need not require another scene analysis. The
+video evidence cache now has a separate **observation identity** for one narrowly
+qualified TikTok CDN object form. It retains the HTTPS authority, complete object
+namespace and every query field except the qualified delivery `ft`/`l` values;
+only the recognized signature/expiry prefix is omitted from this local key.
+Unknown transformations, encoding fields, object names and authorities remain
+distinct. Malformed routes and ambiguous delivery fields do not qualify.
+
+This key reuses validated, unexpired derived scenes in the existing bounded
+cache, including after cache restoration. A conflicting declared runtime prevents
+borrowing another rendition's scenes. It does not rewrite playback URLs, identify
+exact file bytes, transfer credentials/signature results, suppress an attachment,
+select another rendition or relax Gateway range validation. Ordinary sampling,
+network budgets, privacy selection, cancellation and seven-day expiry remain.
+The cache validates scene data on acquisition/restore and checks its association
+at lookup, avoiding repeated raster validation while holding its monitor.
+
+[Nitter's RSS heading renderer](https://github.com/zedeus/nitter/blob/master/src/views/rss.nimf)
+can prefix a generated caption with a reply account. A complete body echo from
+the qualified RSS origin and canonical author now presents that prefix as
+attribution. Raw titles, bodies and relationships remain intact. An account-level
+reply declaration supplies no parent-post identity.
+
+A shorter self-reply heading can join a proven gallery even when its fuller
+introduction contains negation, provided a separate full-caption edition from
+the same X publisher exists within ten minutes. The complete introduction stays
+attributed. Every child picture must still pass the existing gallery proof,
+time bounds and unambiguous-root checks. Missing witnesses, other publishers,
+ordinary unqualified captions, changed artwork and stale full editions retain
+separate cards. Portable composition/saving uses the same captured witnesses.
+This route does not infer organization-name equivalence or merge a reused cover.
+
+See [dated qualification](RELEASE_QUALIFICATION.md#03875-renewed-video-observations-and-qualified-gallery-replies)
+for the reproduced defects, complete-source replays and remaining open families.
+
 ## Collect declared recording copies after caption families (0.38.74)
 
 A public Nitter timeline can offer a signed progressive download while its HLS

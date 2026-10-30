@@ -1,5 +1,33 @@
 # Feed performance qualification
 
+## 0.38.75: renewed delivery URLs reuse prior scene work
+
+A privately retained 46-post window with four focused editions was replayed
+through the actual native feed. Before opening, a prior read used the production
+Gateway and isolated video sampler to establish observations; no scene hashes
+were fabricated or supplied in the input. The renewed delivery URL was then
+presented through ordinary feed preparation, dwell and matching. Source lookup
+and initial acquisition of that recorded window are outside these timings.
+
+On the API 35 emulator, two 0.38.74 baseline runs attempted the renewed clip once
+and twice after opening (the second includes a retry). Two candidate runs made
+**zero** renewed-clip sampling attempts after opening. The small repeated sample
+is recorded separately from phone performance or fresh-source delivery:
+
+| Replay | First visible card | Complete family | Complete caption |
+| --- | ---: | ---: | ---: |
+| Baseline 1 | 0.78 s | 4.22 s | 5.10 s |
+| Baseline 2 | 1.04 s | 8.12 s | 9.02 s |
+| Candidate 1 | 1.54 s | 1.73 s | 2.02 s |
+| Candidate 2 | 1.13 s | 1.58 s | 1.77 s |
+
+First-card timing varied and did not improve consistently. These observations
+establish removal of redundant work in this warm-recording case; they do not
+supply a median/p95 distribution, cold-video speedup, physical-phone latency or
+battery measurement. Every source caption and playable edition remains available;
+reusing derived scenes does not equate the recording's exact bytes or authorize
+attachment removal. See the [collection boundary](ATTACHMENT_COLLECTIONS.md#reuse-renewed-video-observations-and-qualify-gallery-reply-headings-03875).
+
 ## 0.38.72 investigation: prioritize coverage and keep details adoption reliable
 
 The visible-card lane now tries its current focused planner before a fresh
