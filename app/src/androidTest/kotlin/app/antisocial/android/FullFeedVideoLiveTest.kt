@@ -170,6 +170,17 @@ class FullFeedVideoLiveTest {
                 ui.onNode(passage,useUnmergedTree=true).performScrollTo().assertIsDisplayed()
                 ui.waitForIdle();Thread.sleep(100);screenshot("adopted-captions.png")
             }
+            if(args.getString("antisocialFeedObserveSampleTail")=="true") {
+                // Leave the same real card visible long enough for a stale
+                // global offer to restart. No synthetic plan or scene is added.
+                Thread.sleep(3_000);ui.waitForIdle()
+                val allowed=posts.filter {repo.key(it)in focus}.flatMap {it.media}.filter {it.type=="video"}.mapTo(hashSetOf()){Repository.hash(it.url)}
+                val samples=events.filter {it["stage"]=="sample-start"}
+                val outside=samples.count {it["urlHash"] !in allowed}
+                // A peer outside this packet's expected family can still be a
+                // useful future edition. Record timing; do not outlaw reads.
+                event("stage" to "sample-tail-observed","samples" to samples.size,"outsideFocus" to outside)
+            }
             val observed=posts.map(repo.videos::captured)
             val groups=runBlocking {withContext(Dispatchers.Default){CrossPosts.groupWithVideoFootage(observed,follows,members,sharedFootage={a,b->repo.videos.related(a,b){}})}}
             val family=groups.filter {g->g.posts.any {repo.key(it)in focus}}

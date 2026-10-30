@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.70: current video proposals as observations stream in
+
+The visible-card scheduler now qualifies its fast global offer against the
+video-bank revision used to prepare it. If observations have advanced, it uses
+the existing focused planner over current footage. It does not wait for the
+whole feed to finish grouping. Current offers keep their direct path; an active
+pair retains its existing second-recording and cancellation behavior.
+
+Two new native controls reproduce the old selection branch starting its next
+recording from stale information. The corrected branch verifies current focused
+selection, a cheap fresh offer, idle suspension and renewed eligibility of that
+same held recording after its revision becomes current. A startup refresh can
+legitimately invalidate a fixture's stamp; the fixture now cancels and joins its
+real startup view model before mounting the synthetic catalog. The same corrected
+tester passes the candidate and still reproduces both old-branch failures.
+
+A broader platform-pruning prototype is rejected because another edition on an
+already represented platform can supply unique content. The original discovery
+paths and allowances remain available. The [read-probe investigation and native
+comparison](FEED_PERFORMANCE.md#03870-current-video-offers-without-removing-discovery-paths)
+also reject naive range coalescing and larger fixed fetch blocks. No video
+threshold, decoder authority, gateway policy, network concurrency, model,
+dependency, permission or database migration changes.
+
+The fresh full JVM run covers **2,623 cases: 2,619 passes, four optional skips and
+zero failures/errors**. The frozen shipping APK's native selection covers **221
+named checks: 218 passes, three opt-in skips and zero failures**, with returned
+method identities verified. Release/test assembly and lint pass; lint retains
+182 warnings and one hint with zero errors/fatals. Eight Python privacy controls
+and four retention-scoring controls pass. The focused native set separately
+passes all **27** methods after removal of the rejected pruning prototype.
+
+The two new scheduling methods also pass on the minimum API 26 emulator:
+**two actual passes, zero skips and zero failures** in **7.104 seconds**. The
+native reader then starts without a fatal startup error under ordinary shell
+authority. An initial wrapper incorrectly accepted an `OK (2 tests)` footer
+containing two assumption skips because it omitted the isolation flag. That
+attempt is retained as invalid qualification; the corrected run supplies the
+flag and requires the exact method-status counts before accepting its result.
+
+Ten captured native presentation/save replays cover **22 family cases and 73
+original editions**, retaining one card, one checked common passage, expected
+distinct media and every saved source original. The actual source-bound preview
+preservation check passes too. All 22 native card/caption cases and the actual
+full-feed adopted body are inspected directly; private captures stay outside the
+public source.
+
+The official 0.38.69 → candidate → official 0.38.69 comparison preserves its
+six-original family, four literal body variants, pixel anchor and four started
+recordings in all three runs. It **does not establish an overall speedup**:
+the later control is about as fast as the candidate, while the earlier control
+spends much longer acquiring its first recording. It is evidence of preserved
+behavior and the named scheduling correction, not a repaired acquisition delay.
+
+The final shipping replay opens at **706 ms**, first shows its focused card at
+**8,744 ms**, observes the three required recordings at **20,323 ms**, shows the
+six-original family at **21,478 ms**, and adopts its complete body at **24,928 ms**.
+All four required literal variants appear once within the existing two-pixel
+position bound. These timestamps share the replay's starting clock. The remaining
+**12.734-second first-card-to-family gap** remains a user-visible problem.
+
+The final cold-gallery replay first observes its already complete four-original
+family **9.298 seconds after opening**, confirms it at **9.632 seconds**, and
+observes the complete card on warm reentry in **1.553 seconds**. All six pictures
+remain distinct and the test performs zero child-continuation reads. These
+unpaired emulator smoke observations do not establish phone p95, energy use or
+sustained scrolling performance. Cold preparation and source-dependent proof
+acquisition remain open work.
+
 ## 0.38.69: reduce literal-matching allocation
 
 Caption matching, fusion word preparation and decorative-copy preparation now

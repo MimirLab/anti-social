@@ -668,6 +668,7 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
     val retries by repo.videos.retries.collectAsStateWithLifecycle()
     val playing by repo.videos.playbackActive.collectAsStateWithLifecycle()
     val latestRequest by rememberUpdatedState(request)
+    val latestOfferRevision by rememberUpdatedState(LocalVideoOfferRevision.current)
     val latestLookup by rememberUpdatedState(LocalVideoRequestLookup.current)
     val latestCounterparts by rememberUpdatedState(LocalPostCounterparts.current)
     val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
@@ -687,10 +688,15 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
         // through its second recording. Nothing polls while the catalog is idle.
         while(attempted.size<12) {
             if(!repo.videos.automaticAllowed())return@LaunchedEffect
-            val lookup=latestLookup;val offered=latestRequest
+            val lookup=latestLookup;val rawOffer=latestRequest;val offerRevision=latestOfferRevision
+            // A precomputed offer can outlive the scene evidence which made
+            // it useful. The focused planner already joins current footage;
+            // use that path without waiting for the whole feed to regroup.
+            val offered=rawOffer.takeIf {offerRevision?.let {it==repo.videos.revision.value}!=false}
             val next=offered?.takeIf {it.acquisitionKey !in attempted&&repo.videos.available(it)} ?: lookup(key,attempted)
             if(next==null) {
-                snapshotFlow {latestLookup to latestRequest}.first {it.first!==lookup||it.second!=offered}
+                snapshotFlow {Triple(latestLookup,latestRequest,latestOfferRevision)}
+                    .first {it.first!==lookup||it.second!=rawOffer||it.third!=offerRevision}
                 continue
             }
             attempted+=next.acquisitionKey

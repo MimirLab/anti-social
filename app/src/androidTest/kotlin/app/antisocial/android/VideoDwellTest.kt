@@ -14,8 +14,11 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import app.antisocial.core.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 import org.junit.*
 import org.junit.Assert.*
@@ -35,6 +38,12 @@ class VideoDwellTest {
     @Before fun isolate()=runBlocking {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         repo.awaitReady();require(repo.dao.allFollows().isEmpty()&&repo.dao.allBookmarks().isEmpty())
+        // Retire the activity's real startup refresh before mounting this
+        // synthetic catalog. Its completion legitimately changes the video
+        // revision; it must not race a fixture's deliberately frozen stamp.
+        val startup=ui.runOnIdle {requireNotNull(ViewModelProvider(ui.activity,AntiSocialViewModel.Factory(repo))[AntiSocialViewModel::class.java].viewModelScope.coroutineContext[Job])}
+        withTimeout(20_000){startup.cancelAndJoin();repo.feedRefresh.first {!it.running}}
+        ui.runOnIdle {ui.activity.setContent {Text("Preparing video scheduling fixture")}}
         prefs=repo.prefs.export().toString();originalSampler=repo.videos.sample
         repo.prefs.videoDownloadWifiOnly=false;repo.videos.playback(false);repo.videos.cleanup(true)
     }
@@ -52,14 +61,14 @@ class VideoDwellTest {
         }
         return GatewayVideoSampler.Result(SampledVideoFrames(120_000,scenes),1024,1,media.url)
     }
-    private fun show(catalog:State<Int>,offered:State<VideoFootageRequest?>,paused:State<Boolean>,lookup:VideoRequestLookup,counterparts:State<Map<String,List<Post>>> =mutableStateOf(emptyMap())) {
+    private fun show(catalog:State<Int>,offered:State<VideoFootageRequest?>,paused:State<Boolean>,lookup:VideoRequestLookup,counterparts:State<Map<String,List<Post>>> =mutableStateOf(emptyMap()),videoRevision:State<Long?> =mutableStateOf(null)) {
         ui.runOnUiThread {ui.activity.setContent {
             val resolver=remember(catalog.value) {
                 val revision=catalog.value
                 val current:VideoRequestLookup={key,excluded->check(revision>=0);lookup(key,excluded)}
                 current
             }
-            MaterialTheme {CompositionLocalProvider(LocalVideoRequestLookup provides resolver,LocalArchiveChecksPaused provides paused.value,LocalPostCounterparts provides counterparts.value) {
+            MaterialTheme {CompositionLocalProvider(LocalVideoRequestLookup provides resolver,LocalVideoOfferRevision provides videoRevision.value,LocalArchiveChecksPaused provides paused.value,LocalPostCounterparts provides counterparts.value) {
                 val list=rememberLazyListState()
                 LazyColumn(Modifier.fillMaxSize(),state=list) {
                     item(key=CrossPosts.originalKey(first)) {Column(Modifier.fillMaxWidth().height(320.dp)) {
@@ -69,6 +78,61 @@ class VideoDwellTest {
                 }
             }}
         }}
+    }
+    @Test fun freshGlobalOffersStayCheapWhileStaleSuccessorsWaitForCurrentEvidence():Unit=runBlocking {
+        val catalog=mutableStateOf(0);val offered=mutableStateOf<VideoFootageRequest?>(request);val paused=mutableStateOf(false)
+        val revision=mutableStateOf<Long?>(repo.videos.revision.value)
+        val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val staleEntered=CompletableDeferred<Unit>()
+        val calls=AtomicInteger();val lookups=AtomicInteger()
+        val unrelated=second.copy(id="710003",canonicalUrl="https://x.com/publicstudio/status/710003",media=second.media.map {it.copy(url="https://media.fixture.invalid/unrelated.mp4")})
+        repo.videos.sample={m,_->
+            calls.incrementAndGet()
+            if(m.url==first.media.single().url){entered.complete(Unit);finish.await()}
+            if(m.url==unrelated.media.single().url){staleEntered.complete(Unit);awaitCancellation()}
+            sampled(m)
+        }
+        val lookup:VideoRequestLookup={_,_->lookups.incrementAndGet();null}
+        show(catalog,offered,paused,lookup,videoRevision=revision)
+        try {
+            ui.waitUntil(15_000){entered.isCompleted}
+            assertEquals("A current global offer avoids an initial focused graph pass",0,lookups.get())
+            ui.runOnIdle {catalog.value++;offered.value=VideoFootageRequest(first,unrelated,setOf(first.identityKey,unrelated.identityKey))}
+            finish.complete(Unit)
+            ui.waitUntil(10_000){staleEntered.isCompleted||lookups.get()>0}
+            assertFalse("New scene evidence requires a current focused plan before another recording",staleEntered.isCompleted)
+            assertEquals(2,calls.get());assertTrue(listOf(first,second).all {repo.videos.captured(it).media.single().videoFootage!=null})
+            ui.waitForIdle();val idleLookups=lookups.get();delay(150)
+            assertEquals("A rejected stale offer must suspend rather than poll the focused planner",idleLookups,lookups.get())
+            // A later projection can still nominate this exact recording.
+            // Freshness changes priority; it must not remove source coverage.
+            ui.runOnIdle {revision.value=repo.videos.revision.value}
+            ui.waitUntil(10_000){staleEntered.isCompleted}
+            assertEquals(3,calls.get())
+        }finally {finish.complete(Unit);ui.runOnIdle {paused.value=true}}
+    }
+    @Test fun aStaleGlobalOfferStillAllowsTheCurrentFocusedPlanToAcquireAMissingPeer():Unit=runBlocking {
+        val catalog=mutableStateOf(0);val offered=mutableStateOf<VideoFootageRequest?>(request);val paused=mutableStateOf(false)
+        val revision=mutableStateOf<Long?>(repo.videos.revision.value)
+        val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val staleEntered=CompletableDeferred<Unit>();val calls=AtomicInteger()
+        val stale=second.copy(id="710003",canonicalUrl="https://x.com/publicstudio/status/710003",media=second.media.map {it.copy(url="https://media.fixture.invalid/stale.mp4")})
+        val needed=second.copy(id="710004",canonicalUrl="https://x.com/publicstudio/status/710004",media=second.media.map {it.copy(url="https://media.fixture.invalid/needed.mp4")})
+        val current=VideoFootageRequest(first,needed,setOf(first.identityKey,needed.identityKey))
+        repo.videos.sample={m,_->
+            calls.incrementAndGet()
+            if(m.url==first.media.single().url){entered.complete(Unit);finish.await()}
+            if(m.url==stale.media.single().url){staleEntered.complete(Unit);awaitCancellation()}
+            sampled(m)
+        }
+        val lookup:VideoRequestLookup={_,excluded->current.takeIf {it.acquisitionKey !in excluded&&repo.videos.available(it)}}
+        show(catalog,offered,paused,lookup,videoRevision=revision)
+        try {
+            ui.waitUntil(15_000){entered.isCompleted}
+            ui.runOnIdle {catalog.value++;offered.value=VideoFootageRequest(first,stale,setOf(first.identityKey,stale.identityKey))}
+            finish.complete(Unit)
+            ui.waitUntil(10_000){staleEntered.isCompleted||repo.videos.captured(needed).media.single().videoFootage!=null}
+            assertFalse("A stale offer must not beat a useful current peer",staleEntered.isCompleted)
+            assertEquals(3,calls.get());assertNull(repo.videos.captured(stale).media.single().videoFootage)
+        }finally {finish.complete(Unit);ui.runOnIdle {paused.value=true}}
     }
     @Test fun aFocusedLookupWorksWithoutAGlobalOfferAndCatalogChangesCannotCancelItsSecondClip():Unit=runBlocking {
         val catalog=mutableStateOf(0);val offered=mutableStateOf<VideoFootageRequest?>(null);val paused=mutableStateOf(false)

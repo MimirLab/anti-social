@@ -1,5 +1,62 @@
 # Feed performance qualification
 
+## 0.38.70: current video offers without removing discovery paths
+
+A precomputed global video offer can become stale while new scene observations
+arrive and the feed's grouping worker is still finishing. The reader previously
+consumed that offer before consulting its existing focused planner. Native
+negative controls reproduce the resulting premature next-recording read.
+
+The global offer now carries the minimum video-bank revision observed before its
+projection starts. A current offer retains its cheap direct path; a stale offer
+uses the existing focused planner over current observations. It does not wait
+for the whole feed to finish grouping. Catalog evidence alone does not cancel
+an active pair's second recording. Existing input/viewport/privacy cancellation,
+foreground/playback preemption and resource-admission checks remain in place.
+
+When no current request is available, the coroutine suspends on the actual raw
+offer, resolver and revision. Filtering out a stale offer must not make a nonnull
+raw offer look like a perpetual update. A revision-only acknowledgement can wake
+the reader and nominate that same recording again. The controls check both idle
+lookup stability and this retained acquisition capacity.
+
+The investigation rejects a broader platform-subset pruning prototype. Another
+edition on a platform already represented in a family can still supply unique
+content. Existing global nominations, original keys, comparison allowances and
+all source paths therefore remain intact. No sampling threshold, range protocol,
+decoder authority, network concurrency or byte budget changes.
+
+An untraced official 0.38.69 → candidate → official 0.38.69 native comparison uses
+the same 991-post captured followed window. All three runs verify the complete
+six-original family, all four required literal caption variants once, and the
+existing two-pixel body-adoption bound. Each continues observing the same card
+for three seconds after adopting its body.
+
+| Native observation | 0.38.69 before | Candidate | 0.38.69 after |
+| --- | ---: | ---: | ---: |
+| Open → first focused card | 8.949 s | 8.644 s | 8.310 s |
+| Open → complete focused family | 30.163 s | 22.194 s | 21.918 s |
+| First card → complete family | 21.214 s | 13.550 s | 13.608 s |
+| Open → complete adopted body | 33.548 s | 25.503 s | 24.566 s |
+| Recordings started | 4 | 4 | 4 |
+
+This comparison does **not establish an overall speedup**. The later control is
+about as fast as the candidate; the earlier control spends substantially longer
+acquiring its first recording. All four recording candidates remain available.
+Source delivery and the approximately thirteen-second late-family gap remain
+open work. These three emulator observations are not phone p95 or energy results.
+
+A temporary native read probe records 20/31/31/45 decoder callbacks for the four
+recordings. Three have no callback containing multiple missing cache blocks;
+the fourth has only one. Blind coalescing therefore offers little in this case.
+The measured 128 KiB maximum agrees with Android 15's
+[FUSE callback buffer](https://android.googlesource.com/platform/frameworks/base/+/android-15.0.0_r36/core/java/com/android/internal/os/FuseAppLoop.java#146).
+A simple offline replay of larger 512 KiB cache blocks also flags additional
+failed reads under the existing 4 MiB allowance. Neither protocol experiment is
+implemented. The temporary probe is removed from production source; its APK,
+raw callbacks, source and rejected prototypes remain external under
+`evidence/video-proof-latency-20261029`.
+
 ## 0.38.69: less allocation during literal matching
 
 Native sampling of the 0.38.68 cold cached-file feed identifies caption

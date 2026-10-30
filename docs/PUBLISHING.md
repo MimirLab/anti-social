@@ -176,6 +176,12 @@ variant exactly once while retaining the card's pixel position. Source-count
 adoption alone does not pass this stronger check. A caption screenshot is retained
 separately from the top of the card.
 
+The optional `antisocialFeedObserveSampleTail=true` flag keeps the same card
+under observation for three seconds after body adoption. Its final event records
+started recordings and candidates outside the packet's declared focus. Such a
+candidate can still reveal another useful edition: this is a timing observation,
+not permission to prune that discovery path or reduce the existing allowance.
+
 The cached-file gallery restart uses `antisocialFullFeedGalleryCold=true` and
 private `files/full-gallery-cold-packet/input.json`; the child must already be
 present and every focused picture must have unambiguous retained bytes. It must

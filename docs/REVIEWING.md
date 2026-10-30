@@ -74,6 +74,13 @@ preview-state checks are recorded separately from test runs. See
 [publishing](PUBLISHING.md) for source, signer, fixed-name download and promotion
 checks required for each release.
 
+Native qualification must inspect returned method identities and status counts.
+An `OK (N tests)` footer can include assumption-skipped methods. Count actual
+passes (`0`), skips (`-3`/`-4`) and failures (`-1`/`-2`) separately; an opt-in check
+without its required isolation flag has not qualified the feature. Fresh output
+artifacts and their assertions establish the captured journey independently of
+the footer.
+
 User phone testing and emulator instrumentation both exist. A statement such as
 “this comparison does not measure phone battery use” identifies an unmeasured
 metric; it does not mean the app has never been used on a phone. Likewise, an
