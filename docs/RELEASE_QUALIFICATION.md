@@ -9,6 +9,65 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.72: coverage priority, captured details and reader-attention cancellation
+
+The settled-card video scheduler tries current missing-platform coverage before
+another fresh offer on platforms already represented by that card. The latter
+remains a fallback, preserving distinct editions and the existing comparison
+allowance. A current offer introducing a platform retains its cheap direct path.
+
+An explicit captured-details tap now admits against that card's relevant source
+and group snapshot instead of rejecting unrelated feed changes. Relevant churn
+gets a fresh draft within four attempts, then an explicit message if necessary.
+The established card key, chronological order, originals and pixel anchor remain.
+Video/gallery dwell also cancels its own coroutine directly on Activity stop or
+lost window focus; a resume revision restarts eligible work even when Android
+paused recomposition between those events. Explicit refresh/download policy,
+Gateway/Tor enforcement, source ownership and decoder/acquisition bounds remain.
+
+Qualification on October 30, 2026 (UTC):
+
+- Exact published 0.38.71 negative controls: **zero passes, three expected
+  failures and zero skips**. The native Activity-stop video and gallery checks
+  each time out waiting for cancellation; the coverage-priority assertion fails.
+  The lean candidate passes all **twelve focused checks**, including resume,
+  retained same-platform fallback and card-scoped details admission.
+- Fresh full JVM: **2,633 cases, 2,629 passes, four optional skips and zero
+  failures/errors**. Frozen API 35 release selection: **236 named methods,
+  232 passes, four opt-in skips and zero failures**. Returned method identities
+  exactly match the requested set, including feed, media, captions, saves,
+  reading state, source/provider and privacy regressions.
+- Two additional actual live methods: **two passes, zero skips/failures**.
+  The full application with ordinary scheduling retains six originals, each of
+  four literal variants once, and the two-pixel body-adoption bound. The actual
+  video and attributed-caption screens are inspected. The real Gateway/isolated
+  decoder foreground-preemption check retains two blocks, revalidates and
+  completes four scenes, then releases all retained blocks.
+- Minimum API 26: **five actual passes, zero skips/failures**, covering the new
+  cancellation/resume, coverage/fallback and details-admission checks. The native
+  reader starts afterward without a fatal startup error; its screen is inspected
+  under ordinary shell authority. Engineering emulator commands add no user
+  installation or privilege requirement.
+- Release/test assembly and lint pass: **zero errors/fatals, 182 existing
+  warnings and one hint**. Eight Python privacy controls and four retention
+  scoring controls pass. No dependency, permission or database migration is added.
+
+These are correctness and scheduling repairs, **not a claim that delayed merging
+is solved**. The frozen candidate's first-card/complete-family/adopted-body times
+are **7.609/25.426/28.946 seconds** after opening, with four recording starts:
+the family still follows its first card by **17.817 seconds**. An earlier lean
+replay has a 14.273-second gap. Source-dependent cold acquisition and general
+latency remain open; no phone p95 or energy figures are inferred.
+
+The [native investigation](FEED_PERFORMANCE.md#03872-investigation-prioritize-coverage-and-keep-details-adoption-reliable)
+also retains an intermittent old-APK body-adoption failure and a rejected heavy
+startup-sampling prototype. Its earlier sample start did not yield a useful
+consistent whole-feed gain, so that component was removed before qualification.
+Failed observations and prototype source/APKs remain private external evidence.
+Promotion requires clean source-stamp, all-member frozen-artifact, signing,
+corresponding-source and protected-preview-state verification; publication uses
+the fixed-name APK and anonymous full-download check.
+
 ## 0.38.71: retain validated recording blocks through preempted retries
 
 Foreground reading still preempts deferred video comparison. Its retry now

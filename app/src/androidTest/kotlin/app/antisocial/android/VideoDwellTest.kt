@@ -15,6 +15,7 @@ import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewModelScope
 import app.antisocial.core.*
 import kotlinx.coroutines.*
@@ -134,6 +135,32 @@ class VideoDwellTest {
             assertEquals(3,calls.get());assertNull(repo.videos.captured(stale).media.single().videoFootage)
         }finally {finish.complete(Unit);ui.runOnIdle {paused.value=true}}
     }
+    @Test fun missingPlatformCoveragePrecedesACurrentSamePlatformOfferWithoutRemovingThatOffer():Unit=runBlocking {
+        repo.videos.sample={m,_->sampled(m)};repo.videos.enrich(request,automatic=false)
+        val unrelated=second.copy(id="710003",canonicalUrl="https://x.com/publicstudio/status/710003",media=second.media.map {it.copy(url="https://media.fixture.invalid/other-film.mp4")})
+        val needed=second.copy(id="710004",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/publicstudio/posts/710004",media=second.media.map {it.copy(url="https://media.fixture.invalid/needed-film.mp4")})
+        val offer=VideoFootageRequest(first,unrelated,setOf(first.identityKey,unrelated.identityKey))
+        val focused=VideoFootageRequest(first,needed,setOf(first.identityKey,needed.identityKey))
+        val revision=mutableStateOf<Long?>(repo.videos.revision.value)
+        val known=mutableStateOf(mapOf(first.identityKey to listOf(first,second)))
+        val paused=mutableStateOf(false);val neededEntered=CompletableDeferred<Unit>();val unrelatedEntered=CompletableDeferred<Unit>()
+        val lookups=AtomicInteger()
+        repo.videos.sample={m,_->
+            if(m.url==needed.media.single().url)neededEntered.complete(Unit)
+            if(m.url==unrelated.media.single().url){unrelatedEntered.complete(Unit);awaitCancellation()}
+            sampled(m)
+        }
+        val lookup:VideoRequestLookup={_,excluded->lookups.incrementAndGet();focused.takeIf {it.acquisitionKey !in excluded&&repo.videos.available(it)}}
+        show(mutableStateOf(0),mutableStateOf(offer),paused,lookup,known,revision)
+        try {
+            ui.waitUntil(15_000){neededEntered.isCompleted||unrelatedEntered.isCompleted}
+            assertFalse("A current offer must not put represented-platform work ahead of missing coverage",unrelatedEntered.isCompleted)
+            assertTrue(neededEntered.isCompleted);assertTrue(lookups.get()>0)
+            ui.waitUntil(5_000){repo.videos.captured(needed).media.single().videoFootage!=null}
+            ui.runOnIdle {revision.value=repo.videos.revision.value}
+            ui.waitUntil(10_000){unrelatedEntered.isCompleted}
+        }finally {ui.runOnIdle {paused.value=true}}
+    }
     @Test fun aFocusedLookupWorksWithoutAGlobalOfferAndCatalogChangesCannotCancelItsSecondClip():Unit=runBlocking {
         val catalog=mutableStateOf(0);val offered=mutableStateOf<VideoFootageRequest?>(null);val paused=mutableStateOf(false)
         val calls=AtomicInteger();val lookups=AtomicInteger();val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val cancelled=CompletableDeferred<Unit>()
@@ -210,6 +237,42 @@ class VideoDwellTest {
         repo.videos.retryFailures()
         ui.waitUntil(15_000){listOf(first,second).all {repo.videos.captured(it).media.single().videoFootage!=null}}
         assertEquals(3,calls.get())
+    }
+
+    @Test fun stoppingTheActivityCancelsTheVisibleVideoWithoutARecomposition():Unit=runBlocking {
+        val entered=CompletableDeferred<Unit>();val cancelled=CompletableDeferred<Unit>();val calls=AtomicInteger()
+        repo.videos.sample={m,_->if(calls.incrementAndGet()==1)try {entered.complete(Unit);awaitCancellation()}finally {cancelled.complete(Unit)};sampled(m)}
+        show(mutableStateOf(0),mutableStateOf(request),mutableStateOf(false),{_,_->null})
+        ui.waitUntil(15_000){entered.isCompleted}
+        try {ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED);withTimeout(5_000){cancelled.await()}}
+        finally {ui.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)}
+        ui.waitUntil(15_000){listOf(first,second).all {repo.videos.captured(it).media.single().videoFootage!=null}}
+        assertEquals(3,calls.get())
+    }
+
+    @Test fun stoppingTheActivityCancelsTheVisibleGalleryWithoutARecomposition():Unit=runBlocking {
+        val oldRead=repo.galleries.read;val entered=CompletableDeferred<Unit>();val cancelled=CompletableDeferred<Unit>();val reads=AtomicInteger()
+        val root=first.copy(platform=Platform.X,canonicalUrl="https://x.com/publicstudio/status/710001",media=(0..3).map {Media("https://pbs.twimg.com/media/fixture$it.jpg")})
+        val peer=second.copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/publicstudio/posts/710002",media=(0..5).map {Media("https://media.fixture.invalid/gallery$it.jpg")})
+        val gallery=GalleryContinuationRequest(root,peer,listOf(root,peer),setOf("studio"))
+        repo.prefs.wifiOnly=false;repo.galleries.clear()
+        repo.galleries.read={if(reads.incrementAndGet()==1)try {entered.complete(Unit);awaitCancellation()}finally {cancelled.complete(Unit)};Page(listOf(root))}
+        try {
+            ui.runOnUiThread {ui.activity.setContent {MaterialTheme {
+                val list=rememberLazyListState()
+                LazyColumn(Modifier.fillMaxSize(),state=list) {item(key=root.identityKey){Column(Modifier.fillMaxWidth().height(320.dp)) {
+                    FeedGalleryDwell(list,root.identityKey,gallery,repo);Text("Public workshop gallery")
+                }}}
+            }}}
+            ui.waitUntil(15_000){entered.isCompleted}
+            try {ui.activityRule.scenario.moveToState(Lifecycle.State.CREATED);withTimeout(5_000){cancelled.await()}}
+            finally {ui.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)}
+            ui.waitUntil(15_000){reads.get()==2&&!repo.galleries.available(gallery)}
+            assertEquals(2,reads.get())
+        }finally {
+            ui.runOnIdle {ui.activity.setContent {Text("Visible gallery stop complete")}}
+            repo.galleries.clear();repo.galleries.read=oldRead
+        }
     }
 
     private fun shell(command:String)=InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use {

@@ -1,5 +1,70 @@
 # Feed performance qualification
 
+## 0.38.72 investigation: prioritize coverage and keep details adoption reliable
+
+The visible-card lane now tries its current focused planner before a fresh
+global offer when both offer platforms are already represented on that card.
+An offer introducing a platform keeps its cheap direct path. The other edition
+remains a fallback and can still reveal distinct content; neither its discovery
+path nor the existing comparison allowance is removed.
+
+Native replay also exposed an independent presentation failure. An explicit
+captured-details action prepared one card off-thread, then rejected its result
+if any unrelated source/window mapping changed. The reader's tap could therefore
+do nothing while valid new details remained pending. Admission now compares the
+target row, its relevant originals and group mappings. A relevant update selects
+a fresh draft on the next frame, within four attempts; continuing churn produces
+an explicit message. The commit uses current rows and retains the established
+key, order and pixel anchor. It makes no source request.
+
+Two real Activity-stop controls demonstrate another existing boundary problem:
+changing Compose state does not guarantee that a paused recomposer immediately
+cancels its effect. Video and gallery dwell now cancel their own job directly
+from lifecycle/focus callbacks. A resume revision preserves a leave/return that
+occurred between frames and restarts eligible work. Explicit refreshes, downloads,
+the sampler's acquisition limits and foreground priority retain their policies.
+The three new controls fail against the exact published 0.38.71 APK: two missing
+cancellations and one coverage-priority assertion. All twelve focused checks pass
+against the lean candidate, including resume, retained fallback and card-scoped
+details admission.
+
+An earlier production-shaped startup-sampling prototype was **rejected and
+removed**, rather than promoted on an attractive sample-start time. It overlapped
+one bounded, owned video pair with initial local feed preparation and preserved
+viewport, filter, transport and lifecycle guards. In the final native comparison,
+the old/candidate/old complete-family times were **21.953/21.899/21.396 seconds**
+after opening; the first-card-to-family gaps were **13.102/13.047/13.257 seconds**.
+All three preserved six originals, each of four required literal variants once
+and the two-pixel body anchor. Starting around one second instead of nine did
+not establish useful whole-feed acceleration: foreground loading interrupted
+the speculative pair twice, giving six sample attempts instead of four. No
+startup sampling component or extra network path ships in this increment.
+
+The lean candidate's separate ordinary-scheduling replay passes the full native
+body check at **8.291/22.564/26.320 seconds** for first card, complete family and
+adopted body, with four recordings started. The missing-platform recording now
+precedes the extra represented-platform recording. Its **14.273-second** visible
+family gap still supplies no evidence of a general latency repair. One exact
+old-APK control again finds the family but fails body adoption; the other passes.
+Both controls remain part of the record rather than being dropped from a speed
+comparison. The lean candidate's actual video and attributed-caption screens
+are inspected separately.
+
+The frozen 0.38.72 release candidate's own live replay also passes complete body,
+original retention and the pixel-anchor check: **7.609/25.426/28.946 seconds** for
+the same three stages, with four recording starts. Its **17.817-second** family
+gap reinforces that source-dependent latency remains open. The separate real
+foreground-preemption check passes too, retaining two completed blocks and
+finishing its retry with four scenes before releasing all retained blocks.
+
+The initial prototype comparison's candidate also failed body adoption despite
+finding the complete family. Its retained native screen and failed assertion
+prompted the details-admission repair above; its earlier family time is not a
+successful complete-reading benchmark. Failed controls and rejected prototype
+source/APKs remain in the private external build evidence. General first-card
+and complete-family latency remain open; these are API 35 emulator observations,
+not physical-phone p95 or energy measurements.
+
 ## Post-0.38.70 investigation: keep validated blocks through foreground preemption
 
 Eventual collection is not sufficient reader behavior: separate copies remain

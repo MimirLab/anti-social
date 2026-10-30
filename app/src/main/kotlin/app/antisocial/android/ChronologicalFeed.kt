@@ -74,6 +74,13 @@ private data class FeedContent(val aliases: Set<String>,val text: List<String>,v
 private data class ManualFeedRefresh(val generation: Long,val before: List<FeedContent>)
 private data class FeedBodyChanges(val rows:List<FrozenFeedRow>,val available:Map<String,Post>,val counterparts:Map<String,List<Post>>,
     val sources:Set<String>,val captions:Set<String>,val details:Set<String>,val regroup:Boolean)
+internal data class FeedDetailsDraft(val row:FrozenFeedRow,val window:List<Post>,val groups:Map<String,List<Post>>,val replacement:FrozenFeedRow) {
+    fun current(rows:List<FrozenFeedRow>?,window:List<Post>,groups:Map<String,List<Post>>,ready:Boolean):Boolean {
+        val keys=replacement.aliases.toSet()
+        return ready&&rows?.firstOrNull {it.key==row.key}==row&&window.filter {it.identityKey in keys}==this.window&&
+            this.groups.all {(key,posts)->groups[key].orEmpty()==posts}
+    }
+}
 
 /** LazyColumn can retain a preceding item while only its trailing spacing
  * overlaps the viewport. Anchor to actual card content, keeping partly visible
@@ -394,29 +401,41 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             checkpoint(next);store.flush()
         }finally {navigating=false;preparing=false}
     }}
+    val latestDetailsDraft by rememberUpdatedState<(String)->FeedDetailsDraft?>({key->
+        val current=frozen.firstOrNull {it.key==key}
+        if(current==null||!counterpartsReady)null else {
+            val groups=current.aliases.associateWith {counterparts[it].orEmpty()}
+            val sources=latestEditions(current.posts,groups.values.flatten())
+            val primary=sources.firstOrNull {repo.key(it)==repo.key(current.primary)}
+            val editions=primary?.let {listOf(it)+sources.filter {post->repo.key(post)!=repo.key(it)}} ?: sources
+            val replacement=current.copy(aliases=editions.map(repo::key),posts=editions,bodyPosts=editions)
+            val keys=replacement.aliases.toSet()
+            FeedDetailsDraft(current,ordered.filter {it.identityKey in keys},groups,replacement)
+        }
+    })
     fun showCapturedDetails(key:String) {
         if(!restored||navigating||preparing||!counterpartsReady||changes?.details?.contains(key)!=true)return
-        val sourceRows=rows ?: return
-        val current=sourceRows.firstOrNull {it.key==key} ?: return
-        val sources=latestEditions(current.posts,current.aliases.flatMap {counterparts[it].orEmpty()})
-        val primary=sources.firstOrNull {repo.key(it)==repo.key(current.primary)}
-        val editions=primary?.let {listOf(it)+sources.filter {post->repo.key(post)!=repo.key(it)}} ?: sources
-        val replacement=current.copy(aliases=editions.map(repo::key),posts=editions,bodyPosts=editions)
+        val first=latestDetailsDraft(key) ?: return
         preparing=true
         scope.launch {
-            try {repo.cardWork.track(editions.map(::postWorkKey),"Showing captured details") {
-                // Reuse the existing read/revision projection for this card.
-                // No source request, whole-window freeze or new batch is needed.
-                val commitRead=prepareReadAliases(listOf(replacement),observe=true)
-                snapshotFlow {list.isScrollInProgress}.first {!it}
-                if(rows!=sourceRows||latestWindow!=ordered||latestGroups!=counterparts||!latestGroupsReady)return@track
-                checkpoint(sourceRows)
-                navigating=true
-                val next=sourceRows.map {if(it.key==key)replacement else it}
-                commitRead();rows=next
-                // Preserve the established key, order and native pixel anchor.
-                // Reading dwell resumes against the newly displayed editions.
-                withFrameNanos {};checkpoint(next);store.flush()
+            try {repo.cardWork.track(first.replacement.posts.map(::postWorkKey),"Showing captured details") {
+                repeat(4) {
+                    val draft=latestDetailsDraft(key)
+                    if(draft==null){withFrameNanos {};return@repeat}
+                    val commitRead=prepareReadAliases(listOf(draft.replacement),observe=true)
+                    snapshotFlow {list.isScrollInProgress}.first {!it}
+                    // An unrelated card's source update cannot invalidate this
+                    // action. A relevant update gets a fresh draft next frame,
+                    // rather than silently discarding the reader's request.
+                    if(!draft.current(rows,latestWindow,latestGroups,latestGroupsReady)){withFrameNanos {};return@repeat}
+                    val sourceRows=rows ?: return@track
+                    checkpoint(sourceRows);navigating=true
+                    val next=sourceRows.map {if(it.key==key)draft.replacement else it}
+                    commitRead();rows=next
+                    withFrameNanos {};checkpoint(next);store.flush()
+                    return@track
+                }
+                scope.launch {snackbar.showSnackbar("New details are still settling. Try again shortly.")}
             }}finally {navigating=false;preparing=false}
         }
     }
@@ -661,9 +680,8 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
 /** Visible, settled cards only. Scrolling, overlays, lost focus and backgrounding
  * cancel the coroutine and its Gateway reads rather than queuing a global scan. */
 @Composable internal fun FeedVideoDwell(list:LazyListState,key:String,post:Post,hasVideo:Boolean,request:VideoFootageRequest?,repo:Repository) {
-    val view=LocalView.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
-    var resumed by remember(lifecycle){mutableStateOf(lifecycle.currentState==Lifecycle.State.RESUMED)}
-    var focused by remember(view){mutableStateOf(view.hasWindowFocus())}
+    val running=remember {java.util.concurrent.atomic.AtomicReference<Job?>()}
+    val attention=rememberReaderWorkAttention {running.get()?.cancel(CancellationException("Reader attention ended"))}
     val paused=LocalArchiveChecksPaused.current
     val retries by repo.videos.retries.collectAsStateWithLifecycle()
     val playing by repo.videos.playbackActive.collectAsStateWithLifecycle()
@@ -674,12 +692,12 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
     val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
         info.visibleItemsInfo.firstOrNull {it.key.toString()==key}?.let {FeedDwellGeometry(it.offset,it.size,info.viewportStartOffset,info.viewportEndOffset,list.isScrollInProgress).readable}==true
     }}}
-    DisposableEffect(lifecycle){val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
-    DisposableEffect(view){val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
     val acquisition=remember(post){post.media.filter {it.type=="video"}.map(VideoAssetIdentity::acquisitionKey)}
     val potential=hasVideo||request!=null
-    LaunchedEffect(potential,acquisition,settled,resumed,focused,paused,playing,retries) {
-        if(!potential||!settled||!resumed||!focused||paused||playing)return@LaunchedEffect
+    LaunchedEffect(potential,acquisition,settled,attention,paused,playing,retries) {
+        if(!potential||!settled||!attention.active||paused||playing)return@LaunchedEffect
+        val job=currentCoroutineContext()[Job]!!;running.set(job)
+        try {
         delay(1200)
         val attempted=linkedSetOf<VideoComparisonInput>()
         // Keep the same finite comparison allowance, but spend it on the
@@ -693,7 +711,13 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
             // it useful. The focused planner already joins current footage;
             // use that path without waiting for the whole feed to regroup.
             val offered=rawOffer.takeIf {offerRevision?.let {it==repo.videos.revision.value}!=false}
-            val next=offered?.takeIf {it.acquisitionKey !in attempted&&repo.videos.available(it)} ?: lookup(key,attempted)
+            val availableOffer=offered?.takeIf {it.acquisitionKey !in attempted&&repo.videos.available(it)}
+            val covered=latestCounterparts[key].orEmpty().mapTo(mutableSetOf(post.platform)){it.platform}
+            // Prefer missing-platform coverage before another edition on a
+            // represented platform. Keep that edition as the fallback: it can
+            // still supply distinct content and must never be pruned.
+            val focusFirst=availableOffer?.let {it.first.platform in covered&&it.second.platform in covered}==true
+            val next=if(focusFirst)lookup(key,attempted) ?: availableOffer else availableOffer ?: lookup(key,attempted)
             if(next==null) {
                 snapshotFlow {Triple(latestLookup,latestRequest,latestOfferRevision)}
                     .first {it.first!==lookup||it.second!=rawOffer||it.third!=offerRevision}
@@ -720,25 +744,24 @@ private data class FeedDwellGeometry(val offset: Int,val size: Int,val start: In
                 finally {monitor.cancel()}
             }
         }
+        }finally {running.compareAndSet(job,null)}
     }
 }
 
 /** One proven gallery's continuation, only while its card is settled. */
 @Composable internal fun FeedGalleryDwell(list:LazyListState,key:String,request:GalleryContinuationRequest?,repo:Repository) {
     if(request==null)return
-    val view=LocalView.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
-    var resumed by remember(lifecycle){mutableStateOf(lifecycle.currentState==Lifecycle.State.RESUMED)}
-    var focused by remember(view){mutableStateOf(view.hasWindowFocus())}
+    val running=remember {java.util.concurrent.atomic.AtomicReference<Job?>()}
+    val attention=rememberReaderWorkAttention {running.get()?.cancel(CancellationException("Reader attention ended"))}
     val paused=LocalArchiveChecksPaused.current
     val settled by remember(list,key){derivedStateOf {list.layoutInfo.let {info->
         info.visibleItemsInfo.firstOrNull {it.key.toString()==key}?.let {FeedDwellGeometry(it.offset,it.size,info.viewportStartOffset,info.viewportEndOffset,list.isScrollInProgress).readable}==true
     }}}
-    DisposableEffect(lifecycle){val observer=LifecycleEventObserver {_,_->resumed=lifecycle.currentState==Lifecycle.State.RESUMED};lifecycle.addObserver(observer);onDispose {lifecycle.removeObserver(observer)}}
-    DisposableEffect(view){val observer=android.view.ViewTreeObserver.OnWindowFocusChangeListener {focused=it};view.viewTreeObserver.addOnWindowFocusChangeListener(observer);onDispose {if(view.viewTreeObserver.isAlive)view.viewTreeObserver.removeOnWindowFocusChangeListener(observer)}}
-    LaunchedEffect(request,settled,resumed,focused,paused) {
-        if(!settled||!resumed||!focused||paused)return@LaunchedEffect
-        delay(1200)
-        if(repo.galleries.allowed())repo.galleries.enrich(request)
+    LaunchedEffect(request,settled,attention,paused) {
+        if(!settled||!attention.active||paused)return@LaunchedEffect
+        val job=currentCoroutineContext()[Job]!!;running.set(job)
+        try {delay(1200);if(repo.galleries.allowed())repo.galleries.enrich(request)}
+        finally {running.compareAndSet(job,null)}
     }
 }
 

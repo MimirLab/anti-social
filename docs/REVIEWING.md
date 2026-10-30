@@ -88,6 +88,13 @@ records a JVM-passing prototype rejected by the native control, then a faithful
 prototype rejected for lack of a useful full-feed speed gain. Retained regression
 coverage is separate from a runtime improvement or a new published APK.
 
+The [0.38.72 feed investigation](FEED_PERFORMANCE.md#03872-investigation-prioritize-coverage-and-keep-details-adoption-reliable)
+similarly distinguishes an earlier sample start from a useful complete card.
+Heavy startup sampling was removed after the native comparison showed no useful
+consistent gain. The retained coverage-priority, details-admission and direct
+lifecycle-cancellation fixes have their own controls; they do not establish that
+the remaining visible-family delay has disappeared.
+
 User phone testing and emulator instrumentation both exist. A statement such as
 “this comparison does not measure phone battery use” identifies an unmeasured
 metric; it does not mean the app has never been used on a phone. Likewise, an
