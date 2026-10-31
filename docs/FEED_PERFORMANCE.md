@@ -1,5 +1,58 @@
 # Feed performance qualification
 
+## 0.38.90: stop obsolete reading preparation between originals
+
+The published reader already prevents a canceled background preparation from
+committing obsolete reading facts when it returns to the main thread. That
+return check does not stop non-suspending projection and signature work while
+it is running. The pinned coroutine
+[cancellation contract](https://github.com/Kotlin/kotlinx.coroutines/blob/1.10.2/docs/topics/cancellation-and-timeouts.md)
+requires cooperative checks inside such computation.
+
+Two cross-version native probes use the actual app helpers with the shipping
+Main → Default boundary. Canceling at the first projection still processes all
+64 originals on the exact published 0.38.89 APK. Canceling during the first
+signature still visits all 64 signature sources. Neither obsolete commit runs;
+this is a wasted-work defect, not a reproduced read-state corruption. The same
+test APK passes the other three baseline controls: complete facts with distinct
+frozen/revised captions, an independent reader, and a fresh pass after failure.
+
+The correction checks cancellation around each source projection and between
+observation operations. It retains the complete projection and observation
+phases, then the existing atomic main-thread commit. Eligibility, first-original
+ordering, literal signatures, revision dates and source payloads retain their
+previous values. The one-argument observation API remains compatible. A single
+synchronous callback can finish before the next check; this is not preemption
+of arbitrary native work. No job, network request, model, shared cache, permission,
+dependency or database migration is added.
+
+The identical cross-version tester passes all five native checks on the
+prototype. Each interrupted phase stops after **one source instead of 64**, with
+no obsolete commit, no partial facts and no changed input. Four additional core
+cases check eligibility/order/signature equivalence, cancellation, all-ineligible
+inputs and stopping between signatures.
+
+An untraced API 35 ABBA uses two emulator cores, 2,048 MiB RAM, 896 retained
+originals and the same hash-restored 53.5 MB app-state snapshot per run. The
+prototype differs from the final candidate only in version metadata; final
+frozen-artifact qualification is recorded separately.
+
+| Checkpoint | Published 0.38.89 | Cancellation prototype |
+| --- | ---: | ---: |
+| First visible card, individual runs | 8,802 / 9,211 ms | 9,379 / 8,930 ms |
+| Late-source credit, individual runs | 4,527 / 4,526 ms | 4,744 / 4,224 ms |
+| First-card median | 9,006.5 ms | 9,154.5 ms |
+| Late-source median | 4,526.5 ms | 4,484 ms |
+
+All four native journeys retain three distinct pictures, every original, source
+credit, read marks and the pixel anchor, with zero continuation reads. Actual
+native card and gallery frames are inspected. These small overlapping
+observations establish **no general speedup**; the first-card median is 148 ms
+higher and the late-source median 42.5 ms lower. The supported benefit is stopping
+remaining computation after cancellation. OS/ART state and host scheduling are
+not reset. Physical-phone latency distributions, energy, thermal behavior and
+live-source acquisition remain separate, unmeasured outcomes of this change.
+
 ## Post-0.38.89: profile current preparation before retaining a shortcut
 
 Three observations use the exact published 0.38.89 APK, the same hash-restored

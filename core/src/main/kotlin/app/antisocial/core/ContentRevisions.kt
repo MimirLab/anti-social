@@ -16,8 +16,15 @@ data class ExtractionCoverage(val text: ExtractionStatus=ExtractionStatus.UNKNOW
 data class ContentObservation(val key: String,val signature: String,val fetchedAt: Long)
 
 object ContentRevisions {
-    fun observations(posts: List<Post>): List<ContentObservation> = posts.filter { !it.preview&&(it.body.isNotBlank()||it.title.isNotBlank()||it.media.isNotEmpty()) }.distinctBy(CrossPosts::originalKey)
-        .map {ContentObservation(CrossPosts.originalKey(it),signature(it),it.provenance?.fetchedAt ?: 0)}
+    fun observations(posts: List<Post>): List<ContentObservation> = observations(posts){}
+    /** Keep the same eligibility, first-original ordering and literal signatures.
+     * Callers preparing an obsolete batch can stop between CPU operations; no
+     * partial list or read-state mutation is published by this pure function. */
+    fun observations(posts: List<Post>,checkpoint:()->Unit): List<ContentObservation> = posts.filter {
+        checkpoint();!it.preview&&(it.body.isNotBlank()||it.title.isNotBlank()||it.media.isNotEmpty())
+    }.distinctBy {checkpoint();CrossPosts.originalKey(it)}.map {
+        checkpoint();ContentObservation(CrossPosts.originalKey(it),signature(it),it.provenance?.fetchedAt ?: 0)
+    }.also {checkpoint()}
     private val url=Regex("https?://[^\\s<>]+")
     private fun reference(raw: String): String? = runCatching {
         val clean=raw.trimEnd('.',',',';',')',']','"')

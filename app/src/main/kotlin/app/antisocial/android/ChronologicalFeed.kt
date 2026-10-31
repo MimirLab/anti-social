@@ -49,6 +49,18 @@ internal fun projectFeedReadingRows(rows:List<FrozenFeedRow>,project:(Post)->Pos
     val body=row.bodyPosts.map(project)
     Triple(row,body,if(row.bodyPosts==row.posts)body else row.posts.map(project))
 }
+internal data class PreparedFeedReadingRows(val rows:List<Triple<FrozenFeedRow,List<Post>,List<Post>>>,val observations:List<ContentObservation>)
+/** Complete source facts before admission, but stop obsolete CPU work between
+ * originals. Nothing here observes or marks a source read; the existing atomic
+ * main-thread commit still owns those mutations after this worker returns. */
+internal suspend fun prepareFeedReadingRows(rows:List<FrozenFeedRow>,observe:Boolean,project:(Post)->Post):PreparedFeedReadingRows = withContext(Dispatchers.Default) {
+    val context=currentCoroutineContext()
+    val checkpoint={context.ensureActive()}
+    val projected=projectFeedReadingRows(rows) {post->checkpoint();project(post).also {checkpoint()}}
+    val observations=if(observe)ContentRevisions.observations(projected.flatMap {it.second},checkpoint)else emptyList()
+    checkpoint()
+    PreparedFeedReadingRows(projected,observations)
+}
 /** A late, fully qualified component owns one reading card. Preserve the visible
  * card's body/key, or the first established position when it is off screen.
  * Partial overlaps never bridge two previously admitted announcements. */
@@ -279,9 +291,8 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             .map {extend(it,adopting=true).let {row->row.copy(bodyPosts=row.posts)}}
             .sortedWith(compareByDescending<FrozenFeedRow> {it.orderAt ?: Long.MIN_VALUE}.thenBy {it.key})
     }
-    suspend fun prepareReadAliases(values: List<FrozenFeedRow>,observe: Boolean=false): ()->Unit = withContext(Dispatchers.Default) {
-        val projected=projectFeedReadingRows(values){filterProjection(repo,it)}
-        val observations=if(observe)ContentRevisions.observations(projected.flatMap {it.second})else emptyList()
+    suspend fun prepareReadAliases(values: List<FrozenFeedRow>,observe: Boolean=false): ()->Unit {
+        val (projected,observations)=prepareFeedReadingRows(values,observe){filterProjection(repo,it)}
         val commit: ()->Unit = {
             if(observe)store.observePrepared(observations)
             val read=store.get(feedId).readKeys
@@ -293,7 +304,7 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
             store.mergeAliases(feedId,groups.filter {it.first.key in inheritable}.map {it.first.aliases})
             store.mergeAliases(feedId,groups.filter {it.first.key !in inheritable}.map {it.first.aliases},inheritRead=false)
         }
-        commit
+        return commit
     }
     fun checkpoint(currentRows: List<FrozenFeedRow> = frozen) {
         val currentAliases=currentRows.flatMap {it.aliases}.toSet()

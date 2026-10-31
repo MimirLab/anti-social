@@ -9,6 +9,62 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.90: cancel superseded reading preparation between originals
+
+Reading-state preparation now checks cancellation around each source projection
+and between content-observation operations. Finished batches retain the complete
+facts and the existing atomic main-thread commit. Eligibility, source order,
+revision signatures, frozen captions and source payloads remain unchanged. There
+is no new request, shared cache, job, model, dependency, permission or migration.
+Application ID and signing identity remain compatible; version code is 199.
+
+Qualification on October 31, 2026 (UTC):
+
+- Fresh full JVM run: **2,775 cases, 2,771 passes, four optional skips, zero
+  failures/errors**. Four new methods cover the previous observation contract,
+  interrupted and ineligible batches, and stopping between signatures.
+- Frozen API 35 selection: **318 named checks, 309 passes, nine explicit skips,
+  zero failures**. The same cross-version tester reproduces two stop-work
+  failures and three passing controls on published 0.38.89. On the final
+  candidate all five pass: each canceled phase touches **one source instead of
+  64**, no obsolete commit runs, and independent/replacement preparation works.
+  The published build already rejects obsolete commits; no baseline read-state
+  corruption is claimed. A synchronous callback can finish before its next check.
+- Minimum API 26: **85 named checks, 84 passes, one live opt-in skip, zero
+  failures**. Its actual cancellation counters are also one source in each phase,
+  with no obsolete commit. Both API levels retain distinct frozen/revised rows
+  and complete observations on normal completion.
+- Twelve retained private packets pass **24 family replays / 81 source-edition
+  instances** with one card, required common passages once, distinct attachments
+  and faithful saved originals. The separately captured three-source caption
+  and two-source reference case pass on both API levels, with the common wording
+  once and each original/variant preserved. The reference case decodes four
+  distinct cached pictures; the text-only caption case qualifies no new video
+  or picture equivalence. Actual native caption/gallery frames are inspected.
+- The separate **896-original** late-source journey passes on both API levels:
+  one final card, three originals and three distinct pictures, existing source
+  credits, read marks and pixel anchor retained, and zero continuation reads.
+  These are staged-source emulator observations, not live publisher acquisition.
+- Untraced prototype ABBA first-card medians are **9,006.5 / 9,154.5 ms** for
+  published/candidate behavior; late-source medians are **4,526.5 / 4,484 ms**.
+  All four preservation checks pass. The small overlapping runs establish no
+  general speedup. The supported gain is avoiding remaining work after
+  cancellation. [The performance record](FEED_PERFORMANCE.md#03890-stop-obsolete-reading-preparation-between-originals)
+  supplies individual values, source state and measurement limits. Physical-phone
+  p95, energy, thermal behavior and live-acquisition distributions remain open.
+- Release assembly, Android-test assembly and lint pass, with **zero lint errors
+  and 182 warnings**. Privacy-audit controls pass eight methods; retention controls
+  pass four. Frozen-member, source-stamp, signer, upstream-source, preview-state
+  and anonymous whole-download checks remain publication gates.
+
+One initial build client terminates with status 143; its daemon records a canceled
+connection and its incomplete JVM output is not accepted. The cause is not
+established. Assembly/lint then pass sequentially, and a fresh full unit run
+produces the accepted XML receipts before freezing. A premature native driver
+refuses the missing freeze manifest before installation; it runs no tests and is
+not counted as qualification. Those failed setup receipts remain private beside
+the successful runs. No such artifact reaches the personal preview or release.
+
 ## 0.38.89: share short prose between literal account references
 
 A retained collection already displayed one card and preserved its originals,

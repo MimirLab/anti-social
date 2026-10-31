@@ -269,6 +269,15 @@ input. Footage and gallery revisions remain separate triggers. The linked collec
 [performance qualification](FEED_PERFORMANCE.md) describe its cancellation,
 comparison-cache bounds and measured scope.
 
+Reading-state preparation has its own cancellation boundary. It projects complete
+source rows and computes their complete content observations on the worker,
+checking cancellation between originals. Only a finished batch reaches the
+existing atomic main-thread commit; frozen captions and newer editions retain
+their separate roles. This stops superseded computation without changing which
+facts mark a source read. The
+[reading-preparation checks](FEED_PERFORMANCE.md#03890-stop-obsolete-reading-preparation-between-originals)
+distinguish that resource benefit from cold-feed or physical-phone speed claims.
+
 [Cached account discovery](CACHED_ACCOUNT_DISCOVERY.md) connects exact enabled
 subscription memberships and retained public relationships to the initial
 discovery deck. Linked-account observations stream afterward within a shared
