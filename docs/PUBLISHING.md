@@ -105,6 +105,16 @@ Those counts are not measured heap use, and sequential local-stage times are
 not foreground-card or physical-phone measurements. Keep inputs and output
 reports in the private external build area. Ordinary runs skip this method.
 
+`SourceHandoffResearchTest` uses the same bounded private input with
+`antisocialIsolatedFixtureDevice=true` and `antisocialSourceHandoffResearch=true`.
+It runs the actual `FeedAnalysisResources` chooser through a cold window, a
+repeat pass, one withheld input edition's arrival and stop/release. Its separate
+report records offered facts, actual allowances, retained entries and hit/miss
+counts, while comparing each window with a fresh source-only projection. No
+image proof is injected, URL fetched or Room record written. Sequential local
+timings are not painted-card, phone, p95 or energy measurements. Normal runs skip
+the method; preserve private inputs and reports outside the public checkout.
+
 Opt-in `ReaderRoutingLiveTest` and `ReaderSearchLiveNativeTest` likewise require an
 explicit private `files/reader-routing-live.json` on an isolated test device, plus
 their named live/isolation flags. They record dated production-route and actual

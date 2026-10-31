@@ -4,6 +4,80 @@
 process launch, application initialization and the first cached reading card.
 Its test-only sampler does not change the released reader's manifest or runtime.
 
+## 0.38.93: retain completed warm analysis within current capacity
+
+The observations below apply to the frozen prototype. The final 0.38.93 artifact
+is qualified separately in the [release record](RELEASE_QUALIFICATION.md#03893-retain-prepared-facts-across-warm-source-windows).
+
+The new opt-in handoff probe runs the actual Android-backed memory chooser over
+895 captured originals, a repeat pass and the remaining edition's arrival.
+Published 0.38.92 receives a 16 MiB allowance at every visible stage. Its donor
+retains all 895 prepared entries at 14,202,222 charged bytes, but offers only 569
+entries under the old 8 MiB handoff limit. The new window consequently rebuilds
+327 entries on each of its first two passes. This establishes redundant work in
+the measured warm case, not a failure of cold or low-memory admission.
+
+The candidate carries up to the existing 16 MiB of completed immutable facts.
+The snapshot records their conservative charge. A receiver can retain a larger
+offer only after its own current resource check permits that capacity. A cold
+reader or an offer no larger than 8 MiB keeps the prior first-pass cap. Pressure,
+stop, cancellation, exact publisher/membership context and current-source equality
+remain authoritative. Nomination, current pixels, footage, ambiguity and all
+admission guards still run; no accepted pair or collection is transferred. No
+new request, persistent cache, permission, dependency or migration is introduced.
+
+With the same tester and actual 16 MiB allowance, the candidate offers all 895
+prepared entries, rebuilds **one** new entry on receiving the 896-original window,
+then rebuilds **zero** on its repeat. Each window matches its fresh source-only
+projection and keeps immutable source values. Stop/release retains zero entries
+on both runtimes. These two diagnostic invocations each pass. The source-only
+grouping parity and sequential local times do not measure reading-card latency;
+charged bytes do not measure actual heap size.
+
+The prototype passes **2,788 JVM cases: 2,784 passes, four optional skips, zero
+failures/errors**, and **50 focused native API 35 methods: 50 passes, zero skips
+or failures**. A new expanded-offer control uses a synthetic large prepared set
+to verify 0/8/16 MiB receiver limits and release while a resource query waits.
+The existing small-offer first-pass expectation remains unchanged. Other controls
+cover changed sources and ownership, media withdrawal, cancellation, inline
+caption differences, preserved source paths and protected saves. Both native
+testers have zero project-class definition overlap with the runtime.
+
+Eight untraced complete-feed observations use two emulator cores, 2,048 MiB and
+the same pinned tester. Before every run, the same 53.5 MB source/cache state,
+Unix ownership and SELinux categories are restored and verified. No build runs
+during the comparisons. Each journey publishes an initial two-source card, then
+receives the third source through Room. All eight retain one final card, all
+three originals, three distinct pictures, existing source credit, read marks and
+the two-pixel anchor bound, with zero continuation reads. Actual native frames,
+including all distinct pictures, are inspected.
+
+| Order/run | Runtime | First card | Late-source credit |
+| --- | --- | ---: | ---: |
+| ABBA 1 | Published 0.38.92 | 7,768 ms | 3,993 ms |
+| ABBA 2 | Warm handoff | 8,408 ms | 3,260 ms |
+| ABBA 3 | Warm handoff | 8,104 ms | 3,409 ms |
+| ABBA 4 | Published 0.38.92 | 8,049 ms | 3,959 ms |
+| BAAB 1 | Warm handoff | 7,647 ms | 3,435 ms |
+| BAAB 2 | Published 0.38.92 | 8,494 ms | 3,958 ms |
+| BAAB 3 | Published 0.38.92 | 7,904 ms | 4,350 ms |
+| BAAB 4 | Warm handoff | 8,506 ms | 3,296 ms |
+
+Combined published/candidate late-credit medians are **3,976 / 3,352.5 ms**;
+both orders favor the candidate. First-card medians are **7,976.5 / 8,256 ms**,
+with opposite directions across the two orders. This increment targets late
+edition updates; it does **not** establish a cold-start improvement. These small
+staged emulator observations do not establish physical-phone p95, battery,
+thermal or live publisher-acquisition figures.
+
+The final version-code-202 artifact passes the full 326-method API 35 selection
+(314 passes, twelve explicit skips) and 93-method API 26 selection (89 passes,
+four explicit skips), both with zero failures. The positive resource probe,
+retained family packets, late-source joins, cancellation and literal caption
+captures pass independently. Source byte identity and saved-original checks
+remain in force. Publication uses the clean-source stamp and frozen-member
+comparison; private inputs and native frames stay outside corresponding source.
+
 ## Post-0.38.92 investigation: reject a token shortcut and measure retained facts
 
 Fresh observations use the exact published 0.38.92 APK and its pinned tester on

@@ -141,7 +141,7 @@ object CrossPosts {
         fun snapshotSourceAnalysis(maxBytes:Long=SourcePreparationBudget.BASIC):SourceAnalysisSnapshot? {
             require(maxBytes in 0..SourcePreparationBudget.EXPANDED)
             val entries=preparation.snapshot(maxBytes)
-            return entries.takeIf {it.isNotEmpty()}?.let {SourceAnalysisSnapshot(SourceAnalysis(follows,memberships,it))}
+            return entries.takeIf {it.isNotEmpty()}?.let {SourceAnalysisSnapshot(SourceAnalysis(follows,memberships,it),it.values.sumOf {entry->entry.bytes})}
         }
         suspend fun restoreSourceAnalysis(snapshot:SourceAnalysisSnapshot,posts:List<Post>) {
             val context=currentCoroutineContext();context.ensureActive()
@@ -158,7 +158,11 @@ object CrossPosts {
         fun setPreparationBudget(bytes:Long)=preparation.setBudget(bytes)
     }
     /** Opaque, caller-owned ephemeral facts. No admission or network authority. */
-    class SourceAnalysisSnapshot internal constructor(internal val value:Any)
+    class SourceAnalysisSnapshot internal constructor(internal val value:Any,
+        /** Conservative charge of the offered immutable facts, not live heap use. */
+        val chargedBytes:Long) {
+        init {require(chargedBytes in 1..SourcePreparationBudget.EXPANDED)}
+    }
     private data class SourceAnalysis(val follows:List<Follow>,val memberships:Map<String,Set<String>>,val entries:Map<String,SourceFeatures>)
     fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap())=SourceProjection(follows,memberships)
     fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>>,maxBytes:Long):SourceProjection {

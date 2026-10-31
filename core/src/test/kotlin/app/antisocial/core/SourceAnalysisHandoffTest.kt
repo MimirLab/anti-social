@@ -24,6 +24,21 @@ class SourceAnalysisHandoffTest {
         assertEquals(CrossPosts.groupCancellable(values,accounts,bindings){_,_->same},actual)
         assertEquals(values.map {it.identityKey}.toSet(),actual.flatMap {it.posts}.map {it.identityKey}.toSet())
     }
+    @Test fun anOfferedChargeCoversOnlyItsBoundedImmutableEntries():Unit=runBlocking {
+        val donor=CrossPosts.sourceProjection(follows,members);donor.group(posts)
+        val all=requireNotNull(donor.snapshotSourceAnalysis())
+        assertEquals(donor.stats().bytes,all.chargedBytes)
+        val limited=requireNotNull(donor.snapshotSourceAnalysis(all.chargedBytes-1))
+        assertTrue(limited.chargedBytes in 1 until all.chargedBytes)
+        donor.setPreparationBudget(0)
+        assertEquals(0L,donor.stats().bytes)
+        assertTrue(all.chargedBytes>limited.chargedBytes)
+        val receiver=CrossPosts.sourceProjection(follows,members)
+        receiver.restoreSourceAnalysis(limited,posts)
+        assertEquals(limited.chargedBytes,receiver.stats().bytes)
+        parity(receiver,posts,same=false)
+        assertEquals(1,receiver.stats().hits);assertEquals(1,receiver.stats().misses)
+    }
     @Test fun oneNewSourceReusesOnlyUnchangedAnalysisAndRunsFreshPixelAdmission():Unit=runBlocking {
         val snapshot=snapshot()
         val added=posts.first().copy(id="81000002",canonicalUrl="https://x.com/workshop/status/81000002",body="A separate volunteer workshop opens this afternoon.",publishedAt=at+4000)

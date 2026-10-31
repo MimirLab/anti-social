@@ -9,6 +9,63 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.93: retain prepared facts across warm source windows
+
+When a later platform edition changes a source window, the previous matcher can
+already have more than 8 MiB of completed source preparation. The old handoff
+discarded that additional work even when the current Android memory chooser
+continued to permit 16 MiB. The receiver then repeated work on unchanged sources.
+
+This release preserves the larger completed offer within the receiver's freshly
+checked allowance. Cold readers and small offers retain the existing first-pass
+cap. The 0/8/16 MiB policy, 2,048-entry bound, exact source/subscription/membership
+checks, lifecycle release and cancellation remain authoritative. Snapshots carry
+immutable source facts and their accounting charge; nomination, pixels, footage
+and every admission guard run again. No network request, persistent cache,
+permission, dependency or migration is added. Version code is 202; application
+ID and signing identity remain compatible.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM suite: **2,788 cases, 2,784 passes, four optional skips, zero failures
+  or errors**. The new snapshot-charge check verifies bounded offers and release.
+- Frozen API 35 selection: **326 named checks, 314 passes, twelve explicit skips,
+  zero failures**. The expanded-offer control covers current 0/8/16 MiB capacity
+  and release while its resource query waits. Existing small-offer, source-edit,
+  ownership, pixel-withdrawal, cancellation, caption and protected-save controls
+  pass. Both engineering-only source probes skip without their opt-in flags.
+- Minimum API 26 selection: **93 named checks, 89 passes, four explicit skips,
+  zero failures**, including the expanded-offer and existing handoff controls.
+- A separate final-artifact resource probe passes with the real Android-backed
+  chooser. In its measured warm case, all 895 prepared originals cross to the
+  896-original window; only the new original requires preparation. A repeat has
+  zero misses. Fresh source-only group identities and source immutability agree
+  throughout; stop releases all retained entries. These are local diagnostic
+  observations, not painted-card or physical-phone measurements.
+- Twelve retained private packets pass **24 announcement-family replays / 81
+  source-edition instances**, preserving one card, common passages once, distinct
+  attachments and saved originals. Captured literal-reference and caption cases
+  pass on both APIs. The three-source greeting remains one readable and saved
+  card with both captured recordings retained. Actual native frames are inspected.
+- The **896-original** late-source journey passes on both APIs: one final card,
+  three originals and three distinct pictures, earlier source credit, read marks
+  and the two-pixel anchor bound, with zero continuation reads. Each API also
+  passes the two cancellation phases: only one of 64 originals is touched in
+  each stopped phase, with no obsolete commit.
+- Eight restored-state prototype observations use the same tester, two emulator
+  cores and 2,048 MiB RAM, with no tracing or overlapping build. Combined
+  published/candidate late-credit medians are **3,976 / 3,352.5 ms**, favoring the
+  candidate in both orders. First-card medians are **7,976.5 / 8,256 ms**, with
+  opposite directions across orders. This release targets warm edition updates;
+  **no cold-start improvement is claimed**. These samples establish no physical
+  phone p95, battery, thermal or live-acquisition figures. See the
+  [individual observations](FEED_PERFORMANCE.md#03893-retain-completed-warm-analysis-within-current-capacity).
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Runtime/tester DEX inspection finds zero project-class definition overlap.
+  The 33 native libraries remain unchanged. Privacy-audit controls, final source
+  review, clean-source stamping, frozen-member identity, protected preview-state
+  backup and anonymous permanent-download verification remain publication gates.
+
 ## 0.38.92: compact caption differences and complete media-free editions
 
 URL-bearing caption weaves now use the ordinary inline platform marks instead

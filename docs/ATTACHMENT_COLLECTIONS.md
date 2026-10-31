@@ -394,11 +394,16 @@ post, nominates candidates and applies all existing pair, ambiguity, gallery,
 destination and current-media guards. It never retains an accepted pair or group.
 
 This memory belongs to one immutable subscription/membership context, with at
-most 2,048 entries and an eight-MiB estimated analysis allowance. Revisions replace
-old entries; absent originals are removed. Oversized sources and overflow use
-ordinary fresh computation. The allowance estimates retained analysis, rather
-than promising an exact managed-heap limit. Leaving that source context releases
-the owner. There is no new database or hidden account service.
+most 2,048 entries. Cold preparation starts with an eight-MiB estimated allowance;
+later preparation may retain sixteen MiB under the reader's memory admission.
+A larger completed offer can cross to the next source window only within its
+freshly checked capacity. A small offer does not promote that first pass.
+Revisions replace old entries; absent originals are removed. Oversized sources
+and overflow use ordinary fresh computation. The allowance estimates retained
+analysis, rather than promising an exact managed-heap limit. Lifecycle release
+and cancellation remain authoritative. There is no new database or hidden account
+service. The [warm-handoff qualification](FEED_PERFORMANCE.md#03893-retain-completed-warm-analysis-within-current-capacity)
+separates this reuse from a cold-start speed claim.
 
 Returning to the same retained feed can reuse its completed base comparison only
 when both the complete source posts and the bank's immutable effective image

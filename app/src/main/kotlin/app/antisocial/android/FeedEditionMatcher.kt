@@ -62,7 +62,7 @@ internal class FeedEditionMatcher(
     }
     internal fun snapshotSourceAnalysis(accounts:List<Follow>):CrossPosts.SourceAnalysisSnapshot? {
         if(accounts!=follows)return null
-        return (if(sourcePreparation.isInitialized())sourcePreparation.value.snapshotSourceAnalysis()else null) ?: pendingAnalysis.get()
+        return (if(sourcePreparation.isInitialized())sourcePreparation.value.snapshotSourceAnalysis(SourcePreparationBudget.EXPANDED)else null) ?: pendingAnalysis.get()
     }
     suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?)=
         projectWithImages(evidence,captured,related,null)
@@ -76,7 +76,11 @@ internal class FeedEditionMatcher(
             if(group==null&&preparationBudget!=null) {
                 val epoch=released.get()
                 val allowed=preparationBudget()
-                source.setPreparationBudget(if(preparedSourcePass)allowed else minOf(allowed,SourcePreparationBudget.BASIC))
+                // A genuinely cold pass starts small. A larger immutable offer
+                // already came from an expanded donor; keep it only when this
+                // receiving reader's current memory check still permits it.
+                val expandedOffer=(pendingAnalysis.get()?.chargedBytes ?: 0)>SourcePreparationBudget.BASIC
+                source.setPreparationBudget(if(preparedSourcePass||expandedOffer)allowed else minOf(allowed,SourcePreparationBudget.BASIC))
                 // A stopped/disposed reader can release memory while the
                 // resource query waits. Its old answer must not refill it.
                 if(epoch!=released.get())source.setPreparationBudget(0)

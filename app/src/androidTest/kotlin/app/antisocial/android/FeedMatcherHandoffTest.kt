@@ -75,6 +75,40 @@ class FeedMatcherHandoffTest {
         val next=requireNotNull(handoff.create(follows,members,budget));project(next,posts,1)
         assertEquals(0 to 2,counts(next))
     }
+    @Test fun anExpandedOfferRechecksCurrentCapacityAndCannotRegrowAfterRelease():Unit=runBlocking {
+        val prose="The volunteer crew repairs workshop equipment and explains the replacement parts to visitors. Everyone can inspect the tools and discuss practical maintenance with the experienced team. "
+        val values=List(256){i->posts.first().copy(id="8200${i+10000}",canonicalUrl="https://x.com/workshop/status/8200${i+10000}",
+            body=prose.repeat(15)+"Session ${i+1}.",media=emptyList(),publishedAt=at+i*1000L)}
+        val bindings=values.associate {it.identityKey to setOf("x")}
+        val donor=FeedEditionMatcher(follows,bindings,preparationBudget=budget)
+        val expected=donor.project(MediaIdentitySnapshot(values){_,_->false},{it},{_,_->null})
+        assertEquals(expected,donor.project(MediaIdentitySnapshot(values){_,_->false},{it},{_,_->null}))
+        val offered=requireNotNull(donor.snapshotSourceAnalysis(follows))
+        val prepared=sourceAnalysisAllocation(donor).second
+        assertTrue("Exercise a genuinely larger prepared offer",offered.chargedBytes>SourcePreparationBudget.BASIC)
+        assertTrue(offered.chargedBytes<=SourcePreparationBudget.EXPANDED)
+        donor.releaseSourceAnalysis()
+        for(allowed in listOf(0L,SourcePreparationBudget.BASIC,SourcePreparationBudget.EXPANDED)) {
+            val next=FeedEditionMatcher(follows,bindings,preparationBudget={allowed},analysis=offered)
+            try {
+                assertEquals(expected,next.project(MediaIdentitySnapshot(values){_,_->false},{it},{_,_->null}))
+                assertEquals(allowed,sourceAnalysisAllocation(next).first)
+                if(allowed==SourcePreparationBudget.EXPANDED)assertEquals(prepared to values.size-prepared,counts(next))
+                else assertTrue("Pressure must reduce retained reuse",counts(next).first<prepared)
+            }finally {next.releaseSourceAnalysis()}
+            assertEquals(0L to 0,sourceAnalysisAllocation(next))
+        }
+        val entered=CountDownLatch(1);val release=CountDownLatch(1)
+        val stopped=FeedEditionMatcher(follows,bindings,preparationBudget={
+            entered.countDown();check(release.await(5,TimeUnit.SECONDS));SourcePreparationBudget.EXPANDED
+        },analysis=offered)
+        val work=async(Dispatchers.Default){stopped.project(MediaIdentitySnapshot(values){_,_->false},{it},{_,_->null})}
+        try {
+            assertTrue(entered.await(5,TimeUnit.SECONDS));stopped.releaseSourceAnalysis();release.countDown()
+            assertEquals(expected,withTimeout(30_000){work.await()})
+            assertEquals(0L to 0,sourceAnalysisAllocation(stopped));assertEquals(0 to values.size,counts(stopped))
+        }finally {release.countDown();work.cancelAndJoin();stopped.releaseSourceAnalysis()}
+    }
     private fun counts(matcher:FeedEditionMatcher):Pair<Int,Int> {
         val prepared=FeedEditionMatcher::class.java.getDeclaredField("sourcePreparation").apply {isAccessible=true}.get(matcher)as Lazy<*>
         val source=requireNotNull(prepared.value)
