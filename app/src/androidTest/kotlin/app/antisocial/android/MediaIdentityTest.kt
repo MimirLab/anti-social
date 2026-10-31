@@ -47,9 +47,11 @@ class MediaIdentityTest {
             val first=matcher.projectCurrent(initial,{it},{_,_->null},::current)
             assertEquals(1,first.size);assertEquals(2,captures)
             assertTrue(first.single().posts.all {it.media.single().visualFingerprint!=null})
+            assertTrue(matcher.usingImages(bank.matchingSnapshot(originals)))
             assertEquals(first,matcher.projectCurrent(initial,{it},{_,_->null},::current))
             assertEquals("The queued old input must reuse the newer completed bank",3,captures)
             bank.clear()
+            assertFalse(matcher.usingImages(bank.matchingSnapshot(originals)))
             assertEquals(2,matcher.projectCurrent(initial,{it},{_,_->null},::current).size)
             assertEquals(5,captures)
             originals.forEach {bank.observe(it.media.single().url,picture)}
@@ -112,7 +114,8 @@ class MediaIdentityTest {
         val alias="https://scontent-b.cdninstagram.com$path?oh=second"
         val conflicting="https://scontent-c.xx.fbcdn.net$path?oh=third"
         val bank=MediaIdentityStore(maxEntries=2);val picture=landscape();val changes=Channel<Unit>(Channel.UNLIMITED)
-        val reader=launch {bank.matchingSnapshots(listOf(post(alias))).collect {changes.send(Unit)}}
+        val reader=launch {feedMatchingInputs(bank.revision,kotlinx.coroutines.flow.flowOf(0L),kotlinx.coroutines.flow.flowOf(0L),
+            capture={bank.matchingSnapshot(listOf(post(alias)))}).collect {changes.send(Unit)}}
         suspend fun next() {withTimeout(5_000){changes.receive()}}
         try {
             next();bank.observe(first,picture);next()

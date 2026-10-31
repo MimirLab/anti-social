@@ -1,5 +1,78 @@
 # Feed performance qualification
 
+## 0.38.88: coalesce image notifications before preparing another bank
+
+The image stream prepared whole-window snapshots upstream of the feed's existing
+conflation point. While one coherent matching pass was busy, many snapshots were
+prepared even though only the newest waiting input could be consumed. A fresh
+trace of published 0.38.87 exposed this repeated work before the first card.
+
+The feed now combines cheap image, footage and gallery revisions first. Only
+when its consumer is ready does it capture current image evidence on the worker.
+This uses the sequential/downstream behavior of the existing
+[pinned coroutine operators](https://github.com/Kotlin/kotlinx.coroutines/blob/1.10.2/kotlinx-coroutines-core/common/src/flow/operators/Context.kt).
+Source preparation's later current-bank check remains intact. Unrelated image
+updates stay quiet only when the matcher confirms that its completed base uses
+that bank. Footage and gallery changes still flow with identical image evidence.
+There is no new cache, model, network request, permission or database migration.
+
+Comparing only with the earlier queued image is unsafe: source preparation can
+use a newer bank, followed by withdrawal back to that queued state. The first
+unshipped prototype loses that withdrawal and fails the native regression. The
+corrected check reads the matcher's actual completed snapshot under its existing
+mutex. Cancellation and independent-reader boundaries remain in force. A native
+probe against the exact published APK separately reproduces four preparations
+while its consumer is blocked; the corrected path prepares only the initial bank
+and newest pending bank, two in total. These are real app helpers, selected by
+own-application reflection for cross-version testing, not a JVM transcription.
+
+An untraced API 35 ABBA comparison uses the exact published 0.38.87 and final
+frozen 0.38.88 candidate, two emulator cores, 2,048 MiB RAM, 896 source originals
+and the same hash-restored 53.5 MB app-state snapshot before every run. It uses
+real cached picture files and stages a third album original after the first
+card is visible. OS/ART state and host load are not reset by that app-state copy.
+
+| Checkpoint | Published 0.38.87 | Final candidate 0.38.88 |
+| --- | ---: | ---: |
+| Open → first visible card, individual runs | 9,773 / 9,392 ms | 8,918 / 8,696 ms |
+| Late source commit → current picture credit | 4,281 / 4,309 ms | 4,348 / 4,310 ms |
+| First-card median | 9,582.5 ms | 8,807 ms |
+| Late-source median | 4,295 ms | 4,329 ms |
+
+The first-card median improves by **775.5 ms (8.1%)** in this small comparison.
+Late-source adoption is approximately unchanged, with a 34 ms higher median;
+several-second joins remain open. All four journeys conserve originals, three
+distinct pictures, read marks, source credit and the pixel anchor, with zero
+continuation reads. Each picture is scrolled into view and its actual frame is
+inspected. A preceding prototype ABBA also improves first-card timing, but its
+numbers are kept separate from this final-artifact comparison.
+
+The separate 2 ms sampled diagnostic attributes 761 ms to image-bank preparation
+before the baseline first card and 94 ms before the prototype first card, with
+43 versus five observed bank segments. Segments are not exact invocation counts,
+inclusive attribution is not additive, and these are not untraced timings or
+whole-app CPU/energy measurements. The prototype and final candidate differ in
+version metadata and comments; the final candidate has its own comparison above.
+
+Qualification includes 2,761 JVM passes and four optional skips; all 312 selected
+API 35 identities complete with 303 passes and nine explicit skips. An initial
+large batch loses its emulator process alongside graphics diagnostics, without
+an app assertion failure before disconnection. That incomplete batch is retained
+and not counted as successful. The interrupted gallery case passes on a fresh
+owned emulator, then the complete selection passes in bounded app-process batches.
+This does not qualify an uninterrupted long-lived host-GPU session.
+
+Minimum API 26 has 78 passes and one opt-in skip across 79 named checks, including
+the new scheduling cases and current/withdrawn/conflicting image-bank controls.
+Its separate 896-original album replay retains one card, three pictures, source
+credit, read marks and the anchor; late adoption is 8,539 ms in this single
+compatibility observation. It is not a paired speed claim. Both API levels keep
+the captured reference-difference caption once and preserve every saved original.
+Twelve retained packets also pass 24 announcement-family replays containing 81
+source-edition instances. Actual native caption and gallery frames are reviewed.
+These are emulator/cached-source qualifications, not physical-phone p95, live
+publisher acquisition, battery or sustained thermal measurements.
+
 ## Post-0.38.87 investigation: reject repeated-link answer caching
 
 A fresh API 35 trace of the exact published 0.38.87 APK confirms remaining

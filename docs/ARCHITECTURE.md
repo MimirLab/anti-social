@@ -255,7 +255,10 @@ frozen collection anchors and literal source paths cooperate. Text compression
 does not decide media equality; source-labelled originals and every distinct
 recording remain available to the reader and protected saves.
 Whole-feed matching also freezes its local image evidence for each pass and
-ignores unrelated image-bank updates. The linked collection contract and
+ignores unrelated image-bank updates. Cheap revision notifications coalesce before
+another whole-window capture. Relevance checks use the bank the matcher actually
+completed with, so a later withdrawal cannot disappear behind an older queued
+input. Footage and gallery revisions remain separate triggers. The linked collection contract and
 [performance qualification](FEED_PERFORMANCE.md) describe its cancellation,
 comparison-cache bounds and measured scope.
 

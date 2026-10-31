@@ -204,9 +204,10 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         launch {delay(300);repo.images.restoreCachedIdentities(candidates)}
         // A cached-picture scan can publish a revision every few milliseconds.
         // Finish the current coherent grouping rather than repeatedly cancelling
-        // the first readable deck. The combined output retains only the latest
-        // pending revision; source/membership changes cancel this projection.
-        feedMatchingInputs(repo.images.identities.matchingSnapshots(candidates),repo.videos.revision,repo.galleries.revision).collect {evidence->
+        // the first readable deck. Coalesce cheap revisions before preparing
+        // another bank; source/membership changes cancel this projection.
+        feedMatchingInputs(repo.images.identities.revision,repo.videos.revision,repo.galleries.revision,
+            capture={repo.images.identities.matchingSnapshot(candidates)},current=matcher::usingImages).collect {evidence->
             // Every later capture sees at least this bank state. A newer
             // observation can make a precomputed global offer obsolete while
             // this projection is still running; the focused lookup stays live.

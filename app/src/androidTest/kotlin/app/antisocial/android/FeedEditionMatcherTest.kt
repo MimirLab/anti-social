@@ -143,25 +143,28 @@ class FeedEditionMatcherTest {
     @Test fun aBusyProjectionFinishesItsCoherentPassThenUsesOnlyTheNewestPendingSnapshot():Unit=runBlocking {
         val first=MediaIdentitySnapshot(posts){_,_->false}
         val updates=(1..3).map {i->MediaIdentitySnapshot(posts.map {it.copy(body=it.body+" Evidence $i.")}){_,_->false}}
-        val commands=Channel<MediaIdentitySnapshot>();val emitted=Channel<Unit>(Channel.UNLIMITED)
-        val images=flow {emit(first);for(next in commands){emit(next);emitted.send(Unit)}}
+        val commands=Channel<Int>();val emitted=Channel<Unit>(Channel.UNLIMITED)
+        val current=java.util.concurrent.atomic.AtomicReference(first);val captures=AtomicInteger()
+        val images=flow {emit(0L);for(next in commands){current.set(updates[next-1]);emit(next.toLong());emitted.send(Unit)}}
         val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>();val received=mutableListOf<MediaIdentitySnapshot>()
-        val task=launch {feedMatchingInputs(images,MutableStateFlow(0L),MutableStateFlow(0L)).take(2).collect {image->
+        val task=launch {compatibleMatchingInputs(images,MutableStateFlow(0L),MutableStateFlow(0L),capture={captures.incrementAndGet();current.get()}).take(2).collect {image->
             if(received.isEmpty()){entered.complete(Unit);finish.await()}
             received+=image
         }}
         try {
             withTimeout(5_000){entered.await()}
-            for(next in updates){commands.send(next);withTimeout(5_000){emitted.receive()};repeat(4){yield()}}
+            for(next in 1..updates.size){commands.send(next);withTimeout(5_000){emitted.receive()};repeat(4){yield()}}
             assertTrue("Current coherent work must remain active",task.isActive);assertTrue(received.isEmpty())
+            assertEquals("Pending revisions must not prepare snapshots behind a busy projection",1,captures.get())
             finish.complete(Unit);withTimeout(5_000){task.join()}
             assertEquals(2,received.size);assertSame(first,received[0]);assertSame("Intermediate evidence must not queue whole-window passes",updates.last(),received[1])
+            assertEquals(2,captures.get())
         }finally {finish.complete(Unit);commands.close();task.cancelAndJoin()}
     }
     @Test fun unchangedImagesStillDeliverNewFootageAndGalleryActivity():Unit=runBlocking {
         val image=MediaIdentitySnapshot(posts){_,_->false};val videos=MutableStateFlow(0L);val galleries=MutableStateFlow(0L)
         val received=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED)
-        val task=launch {feedMatchingInputs(flowOf(image),videos,galleries).collect {received.send(it)}}
+        val task=launch {feedMatchingInputs(flowOf(0L),videos,galleries,capture={image}).collect {received.send(it)}}
         try {
             assertSame(image,withTimeout(5_000){received.receive()})
             videos.value=1;assertSame(image,withTimeout(5_000){received.receive()})
@@ -171,16 +174,99 @@ class FeedEditionMatcherTest {
     @Test fun retiringASourceEpochCancelsItsRunningAndBufferedInputs():Unit=runBlocking {
         val image=MediaIdentitySnapshot(posts){_,_->false};val newest=MediaIdentitySnapshot(posts.reversed()){_,_->false}
         val entered=CompletableDeferred<Unit>();val stopped=CompletableDeferred<Unit>();val gate=CompletableDeferred<Unit>()
-        val commands=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED);val received=mutableListOf<MediaIdentitySnapshot>()
-        val images=flow {try {emit(image);for(next in commands)emit(next)}finally {stopped.complete(Unit)}}
-        val task=launch {feedMatchingInputs(images,MutableStateFlow(0L),MutableStateFlow(0L)).collect {next->
+        val commands=Channel<Long>(Channel.UNLIMITED);val received=mutableListOf<MediaIdentitySnapshot>();val captures=AtomicInteger()
+        val images=flow {try {emit(0L);for(next in commands)emit(next)}finally {stopped.complete(Unit)}}
+        val task=launch {feedMatchingInputs(images,MutableStateFlow(0L),MutableStateFlow(0L),capture={captures.incrementAndGet();image}).collect {next->
             entered.complete(Unit);gate.await();received+=next
         }}
         try {
-            withTimeout(5_000){entered.await()};commands.send(newest);repeat(4){yield()}
+            withTimeout(5_000){entered.await()};commands.send(1L);repeat(4){yield()}
             task.cancelAndJoin();withTimeout(5_000){stopped.await()};assertTrue(received.isEmpty())
-            assertSame(newest,feedMatchingInputs(flowOf(newest),MutableStateFlow(0L),MutableStateFlow(0L)).first())
+            assertEquals(1,captures.get())
+            assertSame(newest,feedMatchingInputs(flowOf(1L),MutableStateFlow(0L),MutableStateFlow(0L),capture={newest}).first())
         }finally {task.cancelAndJoin();commands.close();gate.complete(Unit)}
+    }
+    @Test fun unrelatedImageRevisionsStayQuietButCurrentEvidenceAndOtherMediaStillArrive():Unit=runBlocking {
+        val revisions=MutableStateFlow(0L);val videos=MutableStateFlow(0L);val galleries=MutableStateFlow(0L)
+        val captured=Channel<Unit>(Channel.UNLIMITED);val received=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED)
+        val bank=AtomicInteger();val used=java.util.concurrent.atomic.AtomicReference<MediaIdentitySnapshot?>()
+        val task=launch {feedMatchingInputs(revisions,videos,galleries,capture={
+            MediaIdentitySnapshot.observed(posts,bank.get()){_,_->false}.also {captured.send(Unit)}
+        },current={image->used.get()?.let(image::sameInput)==true}).collect {used.set(it);received.send(it)}}
+        suspend fun next()=withTimeout(5_000){received.receive()}
+        suspend fun quiet() {assertNull(withTimeoutOrNull(150){received.receive()})}
+        try {
+            val first=next();withTimeout(5_000){captured.receive()}
+            revisions.value=1;withTimeout(5_000){captured.receive()};quiet()
+            bank.incrementAndGet();revisions.value=2;val changed=next();assertFalse(first.sameInput(changed))
+            videos.value=1;assertTrue(changed.sameInput(next()))
+            galleries.value=1;assertTrue(changed.sameInput(next()))
+        }finally {task.cancelAndJoin();captured.close();received.close()}
+    }
+    @Test fun retiringDuringImagePreparationCancelsTheCaptureAndItsPendingRevision():Unit=runBlocking {
+        val revisions=MutableStateFlow(0L);val entered=CompletableDeferred<Unit>();val stopped=CompletableDeferred<Unit>()
+        val finish=CompletableDeferred<Unit>();val captures=AtomicInteger();var published=false
+        val task=launch {feedMatchingInputs(revisions,MutableStateFlow(0L),MutableStateFlow(0L),capture={
+            captures.incrementAndGet();entered.complete(Unit)
+            try {finish.await();MediaIdentitySnapshot(posts){_,_->false}}finally {stopped.complete(Unit)}
+        }).collect {published=true}}
+        try {
+            withTimeout(5_000){entered.await()};revisions.value=1
+            task.cancelAndJoin();withTimeout(5_000){stopped.await()}
+            assertFalse(published);assertEquals(1,captures.get())
+        }finally {finish.complete(Unit);task.cancelAndJoin()}
+    }
+    @Test fun independentCollectorsEachReceiveCurrentEvidenceAndMediaChanges():Unit=runBlocking {
+        val revisions=MutableStateFlow(0L);val bank=AtomicInteger()
+        val flow=feedMatchingInputs(revisions,MutableStateFlow(0L),MutableStateFlow(0L),capture={
+            MediaIdentitySnapshot.observed(posts,bank.get()){_,_->false}
+        })
+        val first=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED);val second=Channel<MediaIdentitySnapshot>(Channel.UNLIMITED)
+        val a=launch {flow.collect {first.send(it)}};val b=launch {flow.collect {second.send(it)}}
+        suspend fun next(channel:Channel<MediaIdentitySnapshot>)=withTimeout(5_000){channel.receive()}
+        try {
+            val before=next(first);assertTrue(before.sameInput(next(second)))
+            bank.incrementAndGet();revisions.value=1
+            val after=next(first);assertFalse(before.sameInput(after));assertTrue(after.sameInput(next(second)))
+        }finally {a.cancelAndJoin();b.cancelAndJoin();first.close();second.close()}
+    }
+    @Test fun aNewerBankUsedByTheProjectionCannotHideItsLaterWithdrawal():Unit=runBlocking {
+        val initial=MediaIdentitySnapshot.observed(posts,"initial"){_,_->false}
+        val newer=MediaIdentitySnapshot.observed(posts,"newer"){_,_->true}
+        val bank=java.util.concurrent.atomic.AtomicReference(initial)
+        val used=java.util.concurrent.atomic.AtomicReference<MediaIdentitySnapshot?>()
+        val revisions=MutableStateFlow(0L);val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>()
+        val admitted=mutableListOf<MediaIdentitySnapshot>()
+        val matcher=FeedEditionMatcher(follows,emptyMap()){image->
+            if(image===newer){entered.complete(Unit);finish.await()}
+            admitted+=image;image.posts.map {PostGroup(listOf(it))}
+        }
+        var delivered=0
+        val task=launch {compatibleMatchingInputs(revisions,MutableStateFlow(0L),MutableStateFlow(0L),
+            capture={bank.get()},current={image->used.get()?.let(image::sameInput)==true}).take(2).collect {image->
+            if(delivered++==0)bank.set(newer)
+            matcher.projectCurrent(image,{it},{_,_->null},currentImages={bank.get()})
+            used.set(admitted.last())
+        }}
+        try {
+            withTimeout(5_000){entered.await()};revisions.value=1;repeat(4){yield()}
+            bank.set(initial);revisions.value=2;repeat(4){yield()};finish.complete(Unit)
+            withTimeout(5_000){task.join()}
+            assertEquals(listOf(newer,initial),admitted)
+        }finally {finish.complete(Unit);task.cancelAndJoin()}
+    }
+    /** Same native probe can exercise the published eager path and candidates.
+     * Reflection is limited to our own static helper, never an Android API. */
+    @Suppress("UNCHECKED_CAST")
+    private fun compatibleMatchingInputs(images:Flow<Long>,videos:Flow<Long>,galleries:Flow<Long>,
+        capture:suspend ()->MediaIdentitySnapshot,current:suspend (MediaIdentitySnapshot)->Boolean={false}):Flow<MediaIdentitySnapshot> {
+        val method=Class.forName("app.antisocial.android.FeedEditionMatcherKt").declaredMethods.single {it.name=="feedMatchingInputs"}
+        return when(method.parameterCount) {
+            3->method.invoke(null,images.map {capture()},videos,galleries)
+            4->method.invoke(null,images,videos,galleries,capture)
+            5->method.invoke(null,images,videos,galleries,capture,current)
+            else->error("Unsupported own-app matching helper")
+        }as Flow<MediaIdentitySnapshot>
     }
 }
 

@@ -9,6 +9,55 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.88: prepare the next image bank when the feed can consume it
+
+Image, footage and gallery notifications are coalesced before whole-window image
+preparation. A coherent pass still reads current evidence before matching; a
+later update is quiet only when the completed matcher uses that bank. The check
+uses the existing matcher mutex and preserves withdrawals after a pass acquired
+newer evidence. No cache, network request, permission, model or migration is added.
+Application ID and signing identity remain compatible; version code is 197.
+
+Qualification on October 31, 2026 (UTC):
+
+- Fresh full JVM run: **2,765 cases, 2,761 passes, four optional skips, zero
+  failures/errors**. Release assembly and lint pass, with zero lint errors,
+  182 existing warnings and one hint.
+- API 35: **312 named checks, 303 passes, nine explicit skips, zero failures**.
+  Four new cases cover unrelated changes, cancellation during capture,
+  independent collectors and withdrawal after newer evidence was used. Existing
+  busy-projection, footage/gallery and bank controls are strengthened. A separate
+  51-method focus batch passes; it overlaps this full selection.
+- API 26: **79 named checks, 78 passes, one live opt-in skip, zero failures**.
+  This includes the new scheduling cases and four additional native bank controls.
+  The separate large late-source album and captured-caption replays pass too.
+- Twelve retained private packets pass **24 family replays / 81 source-edition
+  instances** with one card, required common passages once, distinct attachments
+  and faithful saved originals. The additional three-source reference caption
+  passes on both API levels. Actual native caption/gallery frames are inspected.
+- Final frozen APK ABBA: first-card median **9,582.5 → 8,807 ms (8.1% better)**;
+  late-source median **4,295 → 4,329 ms**, approximately unchanged. All four runs
+  keep originals, three pictures, read state, source credit and the pixel anchor.
+  The [performance record](FEED_PERFORMANCE.md#03888-coalesce-image-notifications-before-preparing-another-bank)
+  separates sampling, preliminary measurements, final-artifact observations and
+  their cached-source emulator scope.
+
+Failures are retained separately. The exact published 0.38.87 fails the new
+blocked-consumer preparation assertion (four versus one); the first unshipped
+candidate fails the withdrawal case. The corrected path passes both. A subsequent
+large native batch is interrupted by the emulator process exiting amid graphics
+errors, without an app assertion before disconnection. It is not counted as a
+pass. The interrupted case passes on a fresh emulator, followed by the complete
+312 identities in bounded app-process batches. The cause of that emulator exit
+and uninterrupted host-GPU longevity are not established by those reruns.
+
+API 26's unpaired late-source observation is 8,539 ms, not a speed comparison.
+Physical-phone latency distributions, live acquisition and sustained energy or
+thermal behavior are not newly qualified. Several-second source joins and more
+difficult caption composition remain open. Private inputs and diagnostic helper
+receipts remain outside public source. Frozen-artifact, corresponding-source,
+signer, preview-state and publication verification are recorded separately.
+
 ## 0.38.87: read compatible captions once around reference differences
 
 An independently reproduced collection already grouped three source editions,

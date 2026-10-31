@@ -3,18 +3,33 @@ package app.antisocial.android
 
 import app.antisocial.core.*
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** Finish one coherent projection; retain only the newest waiting state.
- * combine's own input buffer otherwise queues old snapshots behind CPU work.
- * Identical image objects must still flow when footage or gallery state changes. */
-internal fun feedMatchingInputs(images:Flow<MediaIdentitySnapshot>,videos:Flow<Long>,galleries:Flow<Long>):Flow<MediaIdentitySnapshot> =
-    combine(images,videos,galleries){image,_,_->image}.conflate()
+/** Coalesce cheap revision signals before preparing a whole-window image bank.
+ * A busy coherent projection must not keep preparing snapshots it cannot use.
+ * Capture still reads current pixels/expiry; unrelated image changes stay quiet,
+ * while footage and gallery changes must pass even with the same image bank.
+ * Without a caller's completed-bank check, conservatively deliver the capture. */
+internal fun feedMatchingInputs(images:Flow<Long>,videos:Flow<Long>,galleries:Flow<Long>,
+    capture:suspend ()->MediaIdentitySnapshot,current:suspend (MediaIdentitySnapshot)->Boolean={false}):Flow<MediaIdentitySnapshot> = flow {
+    var completedMedia:Pair<Long,Long>?=null
+    combine(images,videos,galleries){_,video,gallery->video to gallery}.conflate().collect {revision->
+        val next=withContext(Dispatchers.Default) {
+            val image=capture()
+            image.takeUnless {completedMedia==revision&&current(it)}
+        }
+        if(next!=null) {emit(next);completedMedia=revision}
+    }
+}
 
 /** Owned by one source/membership projection, on its grouping worker only.
  * Video observations do not invalidate already completed caption/image work.
@@ -36,6 +51,10 @@ internal class FeedEditionMatcher(
     private val gate=Mutex()
     private var snapshot:MediaIdentitySnapshot?=null
     private var base=emptyList<PostGroup>()
+    /** A pass may acquire a newer bank during source preparation. Compare with
+     * what that completed pass actually used, not its earlier queued input:
+     * otherwise a later withdrawal back to that input could disappear. */
+    internal suspend fun usingImages(image:MediaIdentitySnapshot)=gate.withLock {snapshot?.sameInput(image)==true}
     internal fun releaseSourceAnalysis() {
         released.incrementAndGet()
         pendingAnalysis.set(null)
