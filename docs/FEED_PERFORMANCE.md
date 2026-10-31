@@ -1,5 +1,95 @@
 # Feed performance qualification
 
+## 0.38.85: late media credit preserves the reading selection
+
+The delayed-source native control now starts with two captured editions visible,
+then commits their third platform edition. On published 0.38.84 the collection
+header updates, but the existing picture label still lacks the new source after
+a 60-second wait: its credit is incorrectly tied to the frozen caption body.
+The correction updates proven copy attribution separately from media selection
+and caption adoption. It adds no requests or decodes; unchanged-source cards
+reuse their existing attachment list.
+
+An initial candidate inserted new credit rows and failed the older-counterpart
+pixel-anchor check. A published-control/candidate countercheck reproduces that
+regression. The corrected version retains existing label visibility and one-line
+height; it passes both the focused anchor check and the full native batch. Picture
+and player layout continue to use the frozen selection, not the expanded credits.
+
+The corrected API 35 and 26 private journeys preserve original payloads, prior
+read marks, one card, three pictures and the pixel anchor, then scroll through
+all three native pictures. Their source-commit-to-visible-credit checkpoints are
+5,694 and 8,886 ms. These measure staged publication of already captured source
+records and actual cached bytes. They are not initial-card, live-fetch, physical-
+phone percentile or energy measurements, and do not establish that delayed joins
+have disappeared. [Release qualification](RELEASE_QUALIFICATION.md#03885-credit-late-picture-copies-without-moving-the-reading-card)
+records exact method totals, the prior failed candidate and the retained older-
+Android video-test timeout.
+
+## Post-0.38.84 investigation: reject a weak URL-prefilter gain
+
+A bounded immutable multi-literal automaton was prototyped to nominate the
+shared URL cleaner’s providers in one ASCII scan. It used only mandatory literals
+already extracted by `UrlPattern`; original regexes, exceptions, signatures,
+rewrites and provider order still decided every transformation. Unknown literals
+remained eligible, non-ASCII/control inputs retained the existing path, and every
+rewrite refreshed nomination. The actual 206-provider plan used 368,644 bytes
+of primitive arrays; this was not a total-heap measurement.
+
+The mechanism followed the conservative prefilter contract described in
+[regex-automata’s documentation](https://docs.rs/regex-automata/latest/regex_automata/util/prefilter/struct.Prefilter.html)
+and the multi-literal design discussed in
+[Aho–Corasick’s implementation notes](https://github.com/BurntSushi/aho-corasick/blob/master/DESIGN.md).
+It was implemented independently, without adding a dependency or network request.
+The prototype and its research evidence remain in the private external build
+area. **The runtime change was rejected and is not part of the released app.**
+
+Two untraced API 35 ABBA comparisons restored and hash-verified the same 53.5 MB
+app-state snapshot before every run. Each native feed had 907 retained originals,
+25 subscription bindings and actual cached picture bytes, with no injected
+fingerprints or publisher-continuation requests. The checks required a focused
+reader, preserved originals, the common heading once and three distinct pictures.
+First/warm screenshots were also inspected. The existing 100 ms compositor
+allowance applied; these small emulator samples do not establish phone p95,
+battery use or operating-system cache invariance.
+
+| Observation, medians | Initial published control | Initial prototype | Final published control | Final prototype |
+| --- | ---: | ---: | ---: | ---: |
+| Open → first complete card | 8,123.5 ms | 7,652 ms | 8,088.5 ms | 7,924.5 ms |
+| Open → complete-family checkpoint | 8,421.5 ms | 7,952 ms | 8,411 ms | 8,248.5 ms |
+| Warm reentry → complete card | 1,342.5 ms | 1,201.5 ms | 1,301 ms | 1,436 ms |
+
+The initially promising 0.47-second first-card difference shrank to 0.16 seconds
+(2.0%) on the final repeat; warm reentry became 0.14 seconds (10.4%) slower.
+Functional parity did not establish a sufficiently consistent user-visible gain
+to justify this additional runtime machinery. Version 0.38.84’s qualified source
+reuse and lifecycle limits remain in place; no new APK was published for this
+experiment.
+
+The final prototype passed 2,762 JVM cases: 2,758 passes, four optional skips and
+zero failures/errors. Its frozen API 35 batch had 297 named methods: 289 passes,
+eight opt-in skips and zero failures. API 26 had 61 named methods: 60 passes,
+one opt-in skip and zero failures, plus a full-window journey with two actual
+late-decoded pictures, preserved read marks, originals and pixel anchor. Twelve
+retained packets covered 24 announcement-family replays and 81 source-edition
+instances, with complete media and faithful saves. A separate JVM diagnostic
+preserved cleaning output for 2,616 distinct retained URLs. These are prototype
+qualification results, not new-release claims.
+
+An earlier comparison completed its native test but lost the owned diagnostic
+emulator before required artifacts were copied. Its runner failure and recovered
+files are retained privately; that incomplete run is excluded from both tables.
+The laptop reader was restarted independently of diagnostic cleanup.
+
+The retained `UrlCleanerUnicodeNativeTest` instead qualifies the existing
+cleaner’s ordered redirects, signed queries and real Android ICU folding against
+its legacy path. It adds no runtime change. A separate harmless native probe
+confirmed the character-budget gap described in
+[hardening](HARDENING.md#cleaning-without-a-slow-reader); the rejected prefilter
+did not repair that gap. Late live acquisition/adoption can still delay a join
+even when its captured announcement merges correctly; that remains an open
+user-visible investigation.
+
 ## 0.38.84: reuse later source analysis within the reader’s memory allowance
 
 Late picture observations still require fresh matching against source text,

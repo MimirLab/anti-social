@@ -9,6 +9,70 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.85: credit late picture copies without moving the reading card
+
+A delayed edition could already join a collection while its picture credit stayed
+behind the frozen body’s details action. Existing media-credit rows now update
+from proven copies among admitted originals. The selected pictures, recording
+choices and caption stay separate from those credits. Preview credit remains
+separate from supplying a playable video. Original-source controls retain the
+complete source list; one-line labels keep the established card height.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM suite: **2,753 cases, 2,749 passes, four optional skips, zero failures
+  or errors**. The qualified ASCII cleaner and all existing source/grouping rules
+  remain in place.
+- Frozen API 35 batch: **302 named methods, 293 passes, nine opt-in skips, zero
+  failures**. Four additional targeted controls cover late credit, distinct media,
+  still previews and contrary pixels. Two native cleaner checks compare the
+  current path with Android’s real ICU behavior, including full Unicode folding.
+- Minimum API 26 batch: **65 named methods, 64 passes, one live opt-in skip, zero
+  failures**. The exact returned method identities are checked on both APIs.
+- Separate private delayed-source journeys pass on **API 35 and API 26**. They
+  withhold one actual captured edition until its counterparts are visible in an
+  **896-original** retained window. Each finishes with one three-source card,
+  three unique native pictures, current media credit, unchanged prior source
+  payloads, prior read marks and the pixel anchor. Every unique picture is scrolled
+  into view and its native frame inspected. No fingerprint is injected, and
+  publisher-continuation reads remain zero.
+- The delayed-source checkpoints take **5,694 ms on API 35 and 8,886 ms on API 26**
+  from the staged local source commit to the combined card with its picture credit.
+  They include matching and native UI observation, not live source acquisition.
+  They do not establish phone p95, energy use, an initial-delivery speedup or the
+  end of all user-visible join delays.
+- Twelve retained packets pass **24 announcement-family replays and 81 source-
+  edition instances**, including every distinct attachment and faithful saved
+  originals.
+- Release assembly and lint pass with **zero errors, 182 warnings and one hint**.
+  Privacy-audit controls pass **eight** checks and retention controls pass **four**.
+  Source/stamp, frozen-artifact, signing, packaging and preview-state checks follow
+  the established release procedure before publication.
+
+The first candidate failed the existing pixel-anchor regression after it inserted
+a credit row into a formerly single-platform card. The same tester passed on
+published 0.38.84 and failed on that candidate. Its artifacts and all 302 outcomes
+are retained. The corrected candidate preserves the original label visibility,
+bounds labels to one line, passes the focused anchor control and passes the full
+API 35 repeat. The failed candidate never replaced the reader preview.
+
+The initial API 26 batch had **63 passes, one skip and one failure**: an existing
+video-preparation check timed out waiting for its positive sampling control. This
+standalone composable does not invoke the changed card/collection-plan path.
+The runner placed its wake/dismiss preparation after the batch; the corrected
+runner prepares the foreground before testing. The new capture showed the device
+already awake before that preparation, so wake state is **not a proven cause**.
+The same method then passed independently on published 0.38.84 and this candidate;
+the complete 65-method repeat and delayed-source journey also passed. The original
+timeout and logs are retained, without declaring an unproven production fix.
+
+The [feed investigation](FEED_PERFORMANCE.md#post-03884-investigation-reject-a-weak-url-prefilter-gain)
+separately records the rejected URL-prefilter experiment. It is not in this APK.
+[Hardening](HARDENING.md#cleaning-without-a-slow-reader) also corrects the Android
+native-regex character-budget scope; this media-credit change does not repair
+that independently confirmed qualification gap. Live acquisition/adoption timing
+and physical-phone performance distributions remain separate open work.
+
 ## 0.38.84: memory-aware reuse for later picture comparisons
 
 The initial source pass retains the existing 8 MiB analysis allowance. Later

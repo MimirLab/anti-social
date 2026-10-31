@@ -105,9 +105,22 @@ This recognizes known action shapes, not every possible side effect on the web.
 RE2/J is used for the qualified ASCII subset of the Darwin ClearURLs rules.
 Compilation alone does not establish equivalence: Java's Unicode case folding
 and end-of-line behavior differ. Unicode/control-containing inputs and unsupported
-expressions retain Java matching with bounded input and character-access work.
-Network cleaning fails closed on a work-limit failure instead of silently skipping
-protection. URLs exceeding 64 KiB are outside the cleaning allowance.
+expressions retain Java matching with bounded input. A character-access budget
+limits the desktop JVM fallback, but it does not establish a native Android work
+deadline. URLs exceeding 64 KiB are outside the cleaning allowance. A reported
+work-limit failure makes network cleaning fail closed instead of silently skipping
+protection.
+
+The October 31 Android 26 and 35 qualifications identified that distinction on the exact
+published 0.38.84 APK. A harmless four-character `a+` match leaves the wrapper's
+100,512-character budget unchanged; an explicit character read then decrements it
+by one. Android's matcher materializes `CharSequence.toString()` before passing
+the input to native ICU, so that wrapper cannot count the native engine's reads.
+This is a native budget-qualification gap, not a demonstrated expensive-input
+attack. The existing RE2 ASCII path and total URL-length bound remain separate
+controls. Native fallback work containment requires further implementation and
+qualification; the desktop test alone must not be cited as proof of it. See the
+[Android 35 matcher implementation](https://android.googlesource.com/platform/prebuilts/fullsdk/sources/+/refs/heads/androidx-constraintlayout-release/android-35/java/util/regex/Matcher.java).
 
 A necessary-literal precheck avoids regex work on impossible rules. It derives a
 required substring from supported expression syntax, ignores groups/classes,

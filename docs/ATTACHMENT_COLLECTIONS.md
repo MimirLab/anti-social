@@ -1,5 +1,36 @@
 # Attachment collections
 
+## Late source credit without changing the reading selection (0.38.85)
+
+An admitted edition can join the card’s source controls while the visible body
+keeps its established captions and attachments. Previously its picture credit
+also stayed frozen: a delayed source could appear in the header but remain absent
+from an already displayed picture’s source label until details were adopted.
+
+The collection plan now keeps media selection and attribution separate. It
+compares the frozen media with additional admitted originals using one immutable
+local image-observation snapshot. Only an unambiguous existing attachment can
+gain source credit. Its selected media descriptor, position and recording stay
+unchanged. Unknown or conflicting copies contribute no credit. A matching still
+preview remains preview credit and never becomes a claim that the source supplied
+the playable recording.
+
+Existing credit rows keep their established visibility and use one line with
+ellipsis; adding a source cannot insert or wrap a row above the reading point.
+The original-source dialog retains the complete list. Attribution is display
+information: it does not feed the rules which place multiple recordings in one player. New captions and distinct pictures or videos
+keep the existing details/adoption behavior. Archived presentation also keeps its
+own source scope. The ordinary path with no additional originals reuses its
+existing attachments; there is no new acquisition, decoder, model, persistent
+state, permission or source-matching threshold.
+
+The private opt-in late-edition journey in `FullFeedGalleryLiveTest` now withholds
+one captured source until its counterparts are visible. It checks the combined
+card, updated picture credit, prior read marks, original payloads and pixel
+anchor, then scrolls through the unique native pictures for inspection. It uses
+actual cached bytes, not injected fingerprints. This tests publication/adoption;
+it does not stand in for a live publisher-fetching or physical-phone benchmark.
+
 ## Complete albums with short headings (0.38.81)
 
 Two editions can publish the same complete album while one adds a short opening

@@ -46,12 +46,13 @@ private fun sourceCaptionBlocks(posts:List<Post>):PostFusion? {
 /** Read-only presentation of already admitted originals. This never establishes
  * a match or author identity. Feed, Context and the saved reader share it; the
  * Library's existing source/manifest admission remains a separate boundary. */
-internal data class CollectionPlan(val originals:List<Post>,val fusion:PostFusion?,val attachments:List<CollectedAttachment>)
+internal data class CollectionPlan(val originals:List<Post>,val fusion:PostFusion?,val attachments:List<CollectedAttachment>,
+    val attributions:List<CollectedAttachment> = attachments)
 internal fun collectionPlan(posts:List<Post>,identities:MediaIdentityStore?=null):CollectionPlan {
     val observed=if(identities==null)posts else posts.map(identities::captured)
     return CollectionPlan(observed,collectedPostFusion(observed),collectedAttachments(observed))
 }
-@Composable internal fun rememberCollectionPlan(repo:Repository,posts:List<Post>):CollectionPlan {
+@Composable internal fun rememberCollectionPlan(repo:Repository,posts:List<Post>,attributionPosts:List<Post> = posts):CollectionPlan {
     // New decoder evidence may collapse existing pictures. It must not trigger
     // expensive text alignment or rewrite the frozen caption on every revision.
     // Admission may already have used cached pixel evidence which isn't in the
@@ -60,8 +61,14 @@ internal fun collectionPlan(posts:List<Post>,identities:MediaIdentityStore?=null
     // revisions still cannot rewrite text beneath an active reader.
     val prepared=remember(posts){posts.map(repo.images.identities::captured)}
     val fusion=remember(prepared){collectedPostFusion(prepared)}
-    val attachments=rememberCollectedAttachments(repo,posts)
-    return remember(prepared,fusion,attachments){CollectionPlan(prepared,fusion,attachments)}
+    val revision by repo.images.identities.revision.collectAsStateWithLifecycle()
+    val attachments=remember(posts,revision){collectedAttachments(posts,repo.images.identities)}
+    // Attribution does not participate in the frozen media selection or the
+    // rules which place different source recordings into a shared player.
+    val attributions=remember(posts,attributionPosts,attachments,revision){
+        if(posts==attributionPosts)attachments else collectedAttachmentAttributions(posts,attributionPosts,repo.images.identities)
+    }
+    return remember(prepared,fusion,attachments,attributions){CollectionPlan(prepared,fusion,attachments,attributions)}
 }
 
 /** Compare the union so a replacement image cannot hide behind an unchanged
@@ -85,6 +92,25 @@ internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedP
 internal data class CollectedAttachment(val media: Media,val platforms: Set<Platform>,val originalKeys: Set<String>,val previewPlatforms:Set<Platform> = emptySet(),val videoPreview:Boolean=false) {
     val sourceLabel get()=(if(videoPreview)"Video preview"else when(media.type){"image"->"Image";"video"->"Video";"audio"->"Audio";else->"Attachment"})+" from "+PlatformOrder.sort(platforms).joinToString(" · "){it.label}+
         (previewPlatforms-platforms).takeIf {it.isNotEmpty()}?.let {" · preview from "+PlatformOrder.sort(it).joinToString(" · "){p->p.label}}.orEmpty()
+}
+
+/** A frozen caption/media selection may acquire another admitted source. Credit
+ * only proven copies of its already displayed attachments; do not display new
+ * media, replace a recording, or adopt that source's unseen caption here. */
+internal fun collectedAttachmentAttributions(posts:List<Post>,sources:List<Post>,identities:MediaIdentityStore?=null):List<CollectedAttachment> {
+    if(posts==sources)return collectedAttachments(posts,identities)
+    val keys=posts.mapTo(hashSetOf(),CrossPosts::originalKey)
+    val extra=sources.filter {CrossPosts.originalKey(it) !in keys}
+    if(extra.isEmpty())return collectedAttachments(posts,identities)
+    val input=posts+extra
+    val observed=identities?.matchingSnapshot(input)?.posts ?: input
+    val shown=collectedAttachments(observed.take(posts.size))
+    val credited=collectedAttachments(observed)
+    return shown.map {attachment->
+        val proof=credited.singleOrNull {it.media.type==attachment.media.type&&it.media.url==attachment.media.url} ?: return@map attachment
+        attachment.copy(platforms=attachment.platforms+proof.platforms,originalKeys=attachment.originalKeys+proof.originalKeys,
+            previewPlatforms=attachment.previewPlatforms+proof.previewPlatforms)
+    }
 }
 
 @Composable internal fun rememberCollectedAttachments(repo: Repository,posts: List<Post>): List<CollectedAttachment> {

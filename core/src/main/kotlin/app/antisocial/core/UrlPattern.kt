@@ -2,8 +2,9 @@
 package app.antisocial.core
 
 /** Preserve Java's Unicode case folding and unsupported constructs. Only the
- * qualified ASCII subset takes the linear path. The fallback has a work bound,
- * including subsequences, rather than a timeout on an uninterruptible thread. */
+ * qualified ASCII subset takes the linear path. The fallback's character-read
+ * budget applies on the desktop JVM. Android materializes the CharSequence for
+ * native ICU; that wrapper alone does not establish a native work deadline. */
 internal class UrlPattern(value:String,ignoreCase:Boolean,linear:Boolean) {
     class WorkLimit:IllegalArgumentException("URL cleaning exceeded its work allowance")
     private class Budget(var left:Long)

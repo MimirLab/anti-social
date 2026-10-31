@@ -36,12 +36,14 @@ class FullFeedGalleryLiveTest {
     @Test fun capturedCompleteAlbumsRebuildTheirEvidenceFromRetainedBytesWithoutRefetching()=replay(true,completeAlbums=true)
     @Test fun capturedCompleteAlbumsKeepTheirProjectionWhileDisplayNamesChange()=replay(true,completeAlbums=true,verifyRename=true)
     @Test fun capturedCompleteAlbumsKeepTheirReadCardWhileALateImageTriggersFreshComparison()=replay(true,completeAlbums=true,verifyLateImage=true)
-    private fun replay(cold:Boolean,completeAlbums:Boolean=false,verifyRename:Boolean=false,verifyLateImage:Boolean=false) {
+    @Test fun capturedCompleteAlbumsAdoptALatePlatformWithoutRepeatingTheirMedia()=replay(true,completeAlbums=true,verifyLateOriginal=true)
+    private fun replay(cold:Boolean,completeAlbums:Boolean=false,verifyRename:Boolean=false,verifyLateImage:Boolean=false,verifyLateOriginal:Boolean=false) {
         val args=InstrumentationRegistry.getArguments()
         val option=if(completeAlbums)"antisocialFullFeedCompleteAlbums"else if(cold)"antisocialFullFeedGalleryCold"else "antisocialFullFeedGalleryLive"
         Assume.assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString(option)=="true")
         if(verifyRename)Assume.assumeTrue(args.getString("antisocialFeedVerifyDisplayRename")=="true")
         if(verifyLateImage)Assume.assumeTrue(args.getString("antisocialFeedVerifyLateImage")=="true")
+        if(verifyLateOriginal)Assume.assumeTrue(args.getString("antisocialFeedVerifyLateOriginal")=="true")
         val repo=(ui.activity.application as AntiSocialApplication).repo
         runBlocking {repo.awaitReady()}
         val directory=File(ui.activity.filesDir,if(completeAlbums)"full-album-cold-packet"else if(cold)"full-gallery-cold-packet"else "full-gallery-private-packet")
@@ -62,6 +64,10 @@ class FullFeedGalleryLiveTest {
         require(posts.size in 1..1000&&follows.size in 1..2000&&focus.size in 2..CrossPosts.MAX_EDITIONS)
         require(posts.map(repo::key).distinct().size==posts.size&&posts.map(repo::key).containsAll(focus))
         if(completeAlbums)require(focus.size==expectedOriginals&&posts.filter {repo.key(it)in focus}.all {it.parentId==null})
+        val lateOriginal=if(verifyLateOriginal)posts.single {repo.key(it)==raw["lateOriginalKey"].asString}.also {
+            require(cold&&completeAlbums&&repo.key(it)in focus&&repo.key(it)!=repo.key(root))
+        }else null
+        val initialPosts=posts.filter {it!=lateOriginal}
         require(posts.any {it.canonicalUrl==childUrl}==cold)
         val files=raw.getAsJsonObject("files").entrySet().associate {(url,v)->
             url to File(directory,v.asString).also {require(it.canonicalFile.parentFile==directory.canonicalFile&&it.isFile)}
@@ -121,6 +127,8 @@ class FullFeedGalleryLiveTest {
                         repo.dao.removeMedia(listOf(key))
                     }
                 }
+                // Retain real bytes without pre-decoding them. The late-source
+                // control changes publication timing, not network availability.
                 val staging=if(cold&&raw["stageAllCachedPictures"]?.asBoolean==true)posts else posts.filter {repo.key(it)in focus}
                 for(post in staging)for(media in post.media) {
                     if(ImageAssetIdentity.key(media.url) in lateAssets)continue
@@ -141,7 +149,7 @@ class FullFeedGalleryLiveTest {
                 }
                 repo.db.withTransaction {
                     follows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
-                    posts.forEach {post->
+                    initialPosts.forEach {post->
                         val ids=members[repo.key(post)].orEmpty();require(ids.isNotEmpty()&&ids.all {id->follows.any {it.id==id}})
                         val json=repo.gson.toJson(post)
                         repo.dao.putPost(PostRow(repo.key(post),post.platform.id,json,post.publishedAt,System.currentTimeMillis(),null,json.toByteArray().size.toLong(),ids.first()))
@@ -192,6 +200,32 @@ class FullFeedGalleryLiveTest {
             val first=visibleRows().map {words(it)}
             requireNativeFeedVisible(ui.activity)
             event("stage" to "first-visible","familyRows" to first.size,"completeFamily" to first.any {list->list.any {it.startsWith(familyLabel)}});screenshot("first-visible.png")
+            if(lateOriginal!=null) {
+                assertFalse("The withheld edition must not be present in the initial card",first.any {text->text.any {it.startsWith(familyLabel)}})
+                val sourceBefore=runBlocking {repo.dao.allPosts().associate {it.key to it.payload}}
+                assertFalse(sourceBefore.containsKey(repo.key(lateOriginal)))
+                val initialFocus=focus-repo.key(lateOriginal)
+                repo.feedMemory.markRead("all",initialFocus)
+                ui.waitForIdle()
+                val topBefore=visibleRows().single().boundsInRoot.top
+                event("stage" to "late-original-start")
+                runBlocking {
+                    repo.db.withTransaction {
+                        val ids=members.getValue(repo.key(lateOriginal));require(ids.isNotEmpty())
+                        val json=repo.gson.toJson(lateOriginal)
+                        repo.dao.putPost(PostRow(repo.key(lateOriginal),lateOriginal.platform.id,json,lateOriginal.publishedAt,System.currentTimeMillis(),null,json.toByteArray().size.toLong(),ids.first()))
+                        ids.forEach {repo.dao.putPostFollow(PostFollowRow(repo.key(lateOriginal),it))}
+                    }
+                }
+                ui.waitUntil(60_000){val visible=visibleRows();visible.size==1&&visible.any {node->words(node).any {it.startsWith(familyLabel)}}}
+                ui.waitUntil(60_000){visibleRows().any {node->words(node).any {it.startsWith("Image from ")&&lateOriginal.platform.label in it}}}
+                ui.waitForIdle();Thread.sleep(100);requireNativeFeedVisible(ui.activity)
+                assertTrue("Late source admission preserves the visible card's pixel anchor",kotlin.math.abs(visibleRows().single().boundsInRoot.top-topBefore)<=2f)
+                assertTrue("Late source admission preserves previously read originals",repo.feedMemory.get("all").readKeys.containsAll(initialFocus))
+                assertEquals("A new edition never rewrites the existing originals",sourceBefore,runBlocking {repo.dao.allPosts().filter {it.key!=repo.key(lateOriginal)}.associate {it.key to it.payload}})
+                event("stage" to "late-original-visible","readOriginalsPreserved" to true,"existingSourcesPreserved" to true)
+                screenshot("late-original-visible.png")
+            }
             // Do not invoke enrich(): the shipping card dwell owns acquisition.
             ui.waitUntil(90_000){runBlocking {repo.dao.allPosts().any {repo.gson.fromJson(it.payload,Post::class.java).canonicalUrl==childUrl}}}
             event("stage" to if(cold)"retained-child-present"else "child-committed")
@@ -227,6 +261,18 @@ class FullFeedGalleryLiveTest {
                 }
                 val text=literal(visibleRows().single()).joinToString("\n")
                 assertEquals("The complete visible card shares its heading once",1,Regex(Regex.escape(sharedCaption)).findAll(text).count())
+            }
+            if(verifyLateOriginal) {
+                fun pictures(node:androidx.compose.ui.semantics.SemanticsNode):List<String> =
+                    listOfNotNull(node.config.getOrNull(SemanticsProperties.TestTag)?.takeIf {it.startsWith("Post image ")})+node.children.flatMap(::pictures)
+                val tags=pictures(visibleRows().single())
+                assertEquals("The native card contains every unique picture once",expectedPictures,tags.size)
+                assertEquals(tags.size,tags.distinct().size)
+                tags.forEachIndexed {index,tag->
+                    ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag(tag))
+                    ui.waitForIdle();Thread.sleep(100);requireNativeFeedVisible(ui.activity)
+                    screenshot("late-original-picture-$index.png")
+                }
             }
             for((step,lateUrl)in lateUrls.withIndex()) {
                 val latePost=latePosts.getValue(lateUrl)

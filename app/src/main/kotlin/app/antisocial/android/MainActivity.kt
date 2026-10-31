@@ -470,7 +470,8 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     val attributedAccounts=remember(authorSources){authorSources.distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}}
     val authorLabels=remember(authorSources){SourceAuthorLabels.collect(authorSources)}
     val presentationRoots=if(!archive.showingArchive&&displayed.recoveredArchive==null)contentRoots else listOf(displayed)
-    val plan=rememberCollectionPlan(repo,presentationRoots)
+    val mediaAttributionRoots=if(archive.showingArchive||displayed.recoveredArchive!=null)presentationRoots else threads
+    val plan=rememberCollectionPlan(repo,presentationRoots,mediaAttributionRoots)
     val fusion=plan.fusion
     val caption=remember(contentRoots,displayed,fusion,archive.showingArchive){if(fusion==null&&!archive.showingArchive&&displayed.recoveredArchive==null)collectedCaptionPost(contentRoots) ?: displayed else displayed}
     val postLinks=remember(displayed,caption,contentRoots,repo){(listOf(displayed,caption)+contentRoots).flatMap(PostLinks::urls).map {repo.publicUrl(it,displayed.platform)}.distinct().take(PostLinks.MAX_LINKS)}
@@ -488,6 +489,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
         extended.ifEmpty {body}
     }}
     val attachments=plan.attachments
+    val mediaAttributions=remember(plan.attributions){plan.attributions.associate {it.media to it.sourceLabel}}
     val mediaGroups=remember(attachments,plan.originals){collectedMediaGroups(attachments,CrossPosts.relatedVisualUpdates(plan.originals))}
     val shownMedia=remember(attachments){attachments.map {it.media}}
     val mediaSources=remember(plan.originals){plan.originals.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
@@ -538,7 +540,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false,onOriginals={showOriginals=true})else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
             mediaGroups.forEach {group->val attachment=CollectedMediaChoice(group);val m=attachment.media
                 val owner=if(fusion==null)displayed else contentRoots.firstOrNull {root->root.media.any {it.url==m.url}} ?: displayed
-                if(contentRoots.map {it.platform}.distinct().size>1)Text(attachment.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,
+                if(contentRoots.map {it.platform}.distinct().size>1)Text(mediaAttributions[attachment.media] ?: attachment.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,
                     modifier=Modifier.padding(start=16.dp,end=16.dp,top=8.dp).testTag("Media sources ${m.url}").clickable {showOriginals=true})
                 if(m.type=="image")RemoteImage(m.url,owner.contentSourceUrl,repo,Modifier.fillMaxWidth().testTag("Post image ${repo.key(post)} ${m.url}").aspectRatio(when(post.platform){Platform.TIKTOK,Platform.SNAPCHAT->.75f;Platform.INSTAGRAM,Platform.PIXELFED->1f;Platform.PINTEREST->.8f;else->1.25f}).padding(top=12.dp).clickable {fullImage=images.toList() to images.indexOf(m)},m.description) else VideoCard(m,owner,repo)
             }
