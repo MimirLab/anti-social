@@ -136,10 +136,30 @@ object CrossPosts {
             return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,{_,_->false},preparation=preparation,refreshMedia=capture){context.ensureActive()}}
         }
         internal fun stats()=preparation.stats()
+        /** A bounded handoff of immutable source facts, never pairs or pixels.
+         * The receiving projection owns its new context and rechecks each post. */
+        fun snapshotSourceAnalysis(maxBytes:Long=SourcePreparationBudget.BASIC):SourceAnalysisSnapshot? {
+            require(maxBytes in 0..SourcePreparationBudget.EXPANDED)
+            val entries=preparation.snapshot(maxBytes)
+            return entries.takeIf {it.isNotEmpty()}?.let {SourceAnalysisSnapshot(SourceAnalysis(follows,memberships,it))}
+        }
+        suspend fun restoreSourceAnalysis(snapshot:SourceAnalysisSnapshot,posts:List<Post>) {
+            val context=currentCoroutineContext();context.ensureActive()
+            val old=snapshot.value as? SourceAnalysis ?: return
+            if(old.follows!=follows)return
+            val keys=posts.mapTo(hashSetOf(),::originalKey)
+            for((key,entry)in old.entries) {
+                context.ensureActive()
+                if(key in keys&&old.memberships[key].orEmpty()==memberships[key].orEmpty())preparation.seed(key,entry)
+            }
+        }
         /** Discardable source analysis only. Every admission still runs with
          * current observations; changing this limit never changes source data. */
         fun setPreparationBudget(bytes:Long)=preparation.setBudget(bytes)
     }
+    /** Opaque, caller-owned ephemeral facts. No admission or network authority. */
+    class SourceAnalysisSnapshot internal constructor(internal val value:Any)
+    private data class SourceAnalysis(val follows:List<Follow>,val memberships:Map<String,Set<String>>,val entries:Map<String,SourceFeatures>)
     fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap())=SourceProjection(follows,memberships)
     fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>>,maxBytes:Long):SourceProjection {
         require(maxBytes in 1..SourcePreparationBudget.EXPANDED)
@@ -194,6 +214,17 @@ object CrossPosts {
             budget=value
         }
         fun stats()=synchronized(gate){SourcePreparationStats(hits,misses,entries.size,bytes)}
+        fun snapshot(limit:Long):Map<String,SourceFeatures> = synchronized(gate) {
+            var remaining=minOf(limit,budget)
+            buildMap {for((key,entry)in this@FeaturePreparation.entries)if(entry.bytes<=remaining){put(key,entry);remaining-=entry.bytes}}
+        }
+        fun seed(key:String,entry:SourceFeatures):Unit=synchronized(gate) {
+            // A concurrent release/pressure decision stays authoritative. Do
+            // not replace facts already prepared in this receiving projection.
+            if(budget>0&&key !in entries&&entries.size<maxEntries&&entry.bytes<=budget-bytes) {
+                entries[key]=entry;bytes+=entry.bytes
+            }
+        }
         fun restrictTo(keys:Set<String>)=synchronized(gate) {
             val iterator=entries.iterator()
             while(iterator.hasNext())iterator.next().takeIf {it.key !in keys}?.let {bytes-=it.value.bytes;iterator.remove()}

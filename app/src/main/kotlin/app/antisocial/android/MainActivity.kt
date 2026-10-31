@@ -186,8 +186,9 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     // the actual source window. Keep that window's completed analysis, while
     // the matcher serializes cancelled/replacement observation collectors.
     val analysisResources=rememberFeedAnalysisResources(repo.context)
+    val matcherHandoff=remember(repo,analysisResources){FeedMatcherHandoff()}
     val editionMatcher=remember(repo,matchingCandidates,matchingFollows,matchingMemberships,analysisResources) {
-        if(matchingCandidates==null||matchingFollows==null)null else FeedEditionMatcher(matchingFollows,matchingMemberships,preparationBudget=analysisResources::allowance)
+        matcherHandoff.create(matchingFollows.takeIf {matchingCandidates!=null},matchingMemberships,analysisResources::allowance)
     }
     FeedAnalysisLifetime(analysisResources,editionMatcher)
     val knownGroups by produceState<KnownPostGroups?>(null,editionMatcher,preparationFeed) {

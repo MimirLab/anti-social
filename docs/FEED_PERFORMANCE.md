@@ -1,5 +1,58 @@
 # Feed performance qualification
 
+## 0.38.86: reuse unchanged source analysis when an edition arrives
+
+A private API 35 sampling trace of published 0.38.85 showed repeated caption
+features, decorative-text preparation and candidate-key construction during a
+late source join. The immutable-window matcher discarded this pure analysis
+whenever its source list changed, even when almost every original was unchanged.
+The trace identified work to investigate; its sampled timings are not used as
+untraced latency measurements.
+
+Adjacent matchers can now hand over at most 8 MiB of completed source analysis.
+The full publisher/subscription context must match, each original's membership
+must match, and its current source fields are checked before reuse. Changed text,
+links, provenance, dates, identities and media shape require fresh analysis.
+Pixels, admitted pairs, collections and earlier grouping decisions are never
+transferred. Nomination and admission still run against the current window and
+current image observations. This applies the dependency-aware reuse principle
+described in the [Rust compiler's incremental-query design](https://rustc-dev-guide.rust-lang.org/queries/incremental-compilation-in-detail.html),
+without incorporating compiler code or adding a dependency.
+
+The handoff copies bounded references to immutable facts rather than picture
+bytes or strings. Its charged-entry bound is not a whole-heap measurement.
+Receiving entry/byte limits, memory pressure, cancellation, missing source scope
+and the direct activity-stop release remain authoritative. No network requests,
+persistent database, saved-record changes or new permissions are involved.
+
+An untraced API 35 ABBA comparison restored and hash-verified the same 53.5 MB
+app-state snapshot before every run. It used two emulator cores, 2,048 MiB RAM,
+896 captured originals and actual cached picture files. A third edition was
+committed only after the two-source card was visible. All four native journeys
+kept one card, three distinct pictures, the common caption once, all originals,
+prior read marks and the pixel anchor. Every picture was scrolled into view and
+its actual frame inspected. No fingerprint was injected and continuation reads
+remained zero.
+
+| Checkpoint | Published 0.38.85 | Candidate 0.38.86 |
+| --- | ---: | ---: |
+| Open → first visible card, individual runs | 11,210 / 10,112 ms | 9,779 / 9,286 ms |
+| Late source commit → combined card/current picture credit | 5,142 / 5,913 ms | 4,394 / 4,610 ms |
+| Late-source median | 5,527.5 ms | 4,502 ms |
+
+The late-source median improves by 1,025.5 ms (18.6%) in this small comparison.
+Cold-card observations are reported separately; they do not establish a general
+initial-delivery gain. The existing 100 ms compositor allowance applies. These
+are staged local-source joins, not live acquisition, physical-phone p95, energy
+or operating-system-cache measurements. Several seconds still remain before the
+late edition becomes visible; acquisition and later presentation work remain open.
+
+The first prototype's six new JVM controls failed because an empty map builder
+shadowed the donor cache's entries. That prototype could not transfer analysis;
+it was corrected before native comparison or preview promotion. The failure and
+artifacts are retained privately. [Release qualification](RELEASE_QUALIFICATION.md)
+records the final regression and publication checks.
+
 ## 0.38.85: late media credit preserves the reading selection
 
 The delayed-source native control now starts with two captured editions visible,

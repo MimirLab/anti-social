@@ -24,8 +24,10 @@ internal class FeedEditionMatcher(
     private val follows:List<Follow>,
     private val memberships:Map<String,Set<String>>,
     private val preparationBudget:(()->Long)?=null,
+    analysis:CrossPosts.SourceAnalysisSnapshot?=null,
     private val group:(suspend (MediaIdentitySnapshot)->List<PostGroup>)? = null
 ) {
+    private val pendingAnalysis=java.util.concurrent.atomic.AtomicReference(analysis.takeIf {group==null})
     private val sourcePreparation=lazy {if(preparationBudget==null)CrossPosts.sourceProjection(follows,memberships)
         else CrossPosts.sourceProjection(follows,memberships,SourcePreparationBudget.EXPANDED)}
     private val source get()=sourcePreparation.value
@@ -36,7 +38,12 @@ internal class FeedEditionMatcher(
     private var base=emptyList<PostGroup>()
     internal fun releaseSourceAnalysis() {
         released.incrementAndGet()
+        pendingAnalysis.set(null)
         if(sourcePreparation.isInitialized())sourcePreparation.value.setPreparationBudget(0)
+    }
+    internal fun snapshotSourceAnalysis(accounts:List<Follow>):CrossPosts.SourceAnalysisSnapshot? {
+        if(accounts!=follows)return null
+        return (if(sourcePreparation.isInitialized())sourcePreparation.value.snapshotSourceAnalysis()else null) ?: pendingAnalysis.get()
     }
     suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?)=
         projectWithImages(evidence,captured,related,null)
@@ -55,6 +62,7 @@ internal class FeedEditionMatcher(
                 // resource query waits. Its old answer must not refill it.
                 if(epoch!=released.get())source.setPreparationBudget(0)
             }
+            if(group==null)pendingAnalysis.getAndSet(null)?.let {source.restoreSourceAnalysis(it,used.posts)}
             val next=if(group!=null)group.invoke(used)else if(currentImages==null)source.group(used.posts,used::same)
             else source.groupWithCurrentMedia(used.posts) {
                 context.ensureActive();val latest=currentImages();used=latest
@@ -65,5 +73,16 @@ internal class FeedEditionMatcher(
         }
         val observed=base.map {g->context.ensureActive();g.copy(posts=g.posts.map(captured))}
         CrossPosts.withVideoFootage(observed,follows,memberships,related){context.ensureActive()}
+    }
+}
+
+/** UI-owned continuity across immutable source windows. Only completed source
+ * facts cross the boundary; each matcher keeps independent admission and base. */
+internal class FeedMatcherHandoff {
+    private var previous:FeedEditionMatcher?=null
+    fun create(follows:List<Follow>?,memberships:Map<String,Set<String>>,budget:()->Long):FeedEditionMatcher? {
+        val next=follows?.let {FeedEditionMatcher(it,memberships,preparationBudget=budget,analysis=previous?.snapshotSourceAnalysis(it))}
+        previous=next
+        return next
     }
 }

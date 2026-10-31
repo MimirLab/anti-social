@@ -9,6 +9,55 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.86: keep qualified source analysis across a late edition
+
+The feed now transfers bounded, completed per-original analysis between adjacent
+source windows. Publisher context, per-original memberships and current source
+fields must still agree. Every nomination, image comparison and grouping decision
+runs against current evidence. The first receiving pass retains the existing
+8 MiB allowance; lifecycle stop, pressure, cancellation and missing scope continue
+to release or prevent reuse. No database, permission, dependency or request is added.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM suite: **2,759 cases, 2,755 passes, four optional skips, zero failures
+  or errors**. Six new methods cover source revisions, context/membership changes,
+  receiving limits, cancellation and a restore blocked behind the actual cache
+  monitor while its allowance is released.
+- Frozen API 35 batch: **307 named methods, 298 passes, nine opt-in skips, zero
+  failures**. Five new handoff methods also run in the preceding **16-pass**
+  matcher/lifecycle focus check; those are overlapping coverage, not 16 additional
+  distinct methods in the full batch.
+- Minimum API 26 batch: **70 named methods, 69 passes, one live opt-in skip, zero
+  failures**. Both API batches verify exact returned method identities.
+- Four untraced API 35 full-feed journeys alternate exact published 0.38.85 and
+  the frozen candidate, restoring and hash-checking the same app state each time.
+  All pass one card, three unique pictures, a shared caption once, unchanged prior
+  payloads, prior read marks and the pixel anchor in an **896-original** window.
+  The late-source median falls from **5,527.5 to 4,502 ms** in this small sample.
+  Individual values, separate first-card checkpoints and scope limits are in
+  [feed performance](FEED_PERFORMANCE.md#03886-reuse-unchanged-source-analysis-when-an-edition-arrives).
+- The separate API 26 late-source journey also passes those preservation and
+  native-picture checks, with **7,958 ms** from staged source commit to current
+  card/credit. This is a compatibility checkpoint, not a controlled older-Android
+  speed comparison. Actual native frames on both APIs are inspected; fingerprints
+  are not injected and continuation reads remain zero.
+- Twelve retained packets pass **24 announcement-family replays and 81 source-
+  edition instances**, preserving distinct attachments and faithful saved originals.
+- Release assembly and lint pass with **zero errors, 182 warnings and one hint**.
+  Privacy-audit controls pass **eight** checks; retention controls pass **four**.
+  Source/stamp, frozen-member, signer, corresponding-source and backed-up preview
+  state checks follow the established procedure before publication.
+
+The first prototype's six new unit methods failed because a map-builder receiver
+shadowed the cache being copied. The empty handoff was corrected before the native
+comparison; its failed run is retained. The qualified implementation does not
+claim that initial delivery, live acquisition or every later join is now quick.
+Phone percentile/energy measurements and the separately documented Android
+legacy-regex budget gap remain open. Caption composition can still reach faithful
+whole-source blocks when a compact aligner declines the literal editions; this
+source-analysis increment does not change that presentation boundary.
+
 ## 0.38.85: credit late picture copies without moving the reading card
 
 A delayed edition could already join a collection while its picture credit stayed
