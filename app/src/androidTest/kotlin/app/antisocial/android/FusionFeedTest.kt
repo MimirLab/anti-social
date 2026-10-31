@@ -1172,6 +1172,40 @@ class FusionFeedTest {
         assertCapturedSources(listOf(x,fb,instagram),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
     }
 
+    @Test fun inlineReferenceAlternativesShareTheCaptionPictureAndEverySavedSource() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val intro="One month ago, the repair team launched"
+        val middle="It puts visitors first. Respects their time. And actually helps everyone."
+        val end="See the original workshop launch yourself in Hello, Neighbors. 🛠"
+        fun caption(reference:String)="$intro $reference, a directory built around you.\n\n$middle\n\n$end"
+        val x=oldX.copy(title="",body=caption("https://t.co/Fixture91")+" https://t.co/More72")
+        val instagram=oldInstagram.copy(title="",body=caption("Example.org").replace("\n\n"," "))
+        val fb=instagram.copy(platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",body=caption("Example.org"),media=listOf(Media("https://fusion-fb-$suffix.invalid/original.png")))
+        val originals=listOf(x,fb,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform));cachePicture(it,jpeg=it.platform==Platform.INSTAGRAM)}
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x)
+        row(fb).assertDoesNotExist();row(instagram).assertDoesNotExist()
+        fun assertCaption() {
+            val text=ui.onNodeWithTag("Fusion woven text").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+            for(shared in listOf(intro,middle,end))assertEquals("Shared prose is read once",1,Regex(Regex.escape(shared)).findAll(text).count())
+            assertTrue(text.contains("Example.org"));assertTrue(text.contains("https://t.co/Fixture91"))
+            assertTrue(text.contains("Facebook"));assertTrue(text.contains("Instagram"));assertTrue(text.contains("X"))
+        }
+        assertCaption();evidence("literal-reference-alternatives-dark")
+        ui.runOnIdle {repo.prefs.theme="light";ui.activity.setContent {AntiSocialApp(vm)}}
+        waitRow(x);assertCaption();evidence("literal-reference-alternatives-light")
+        val captured=originals.map(repo.images.identities::captured)
+        assertEquals(1,collectedAttachments(captured).size)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertCapturedSources(originals,saved)
+        val savedCaption=requireNotNull(collectionPlan(saved).fusion).segments.single().text
+        assertEquals(1,Regex(Regex.escape(middle)).findAll(savedCaption).count())
+        assertTrue(savedCaption.contains("https://t.co/More72"))
+    }
+
     @Test fun settingsCachePurgeRefillsTheNativeFeedAndRetainsConfigurationAndSavedText() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))

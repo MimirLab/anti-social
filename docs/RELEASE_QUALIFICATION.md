@@ -9,6 +9,68 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.87: read compatible captions once around reference differences
+
+An independently reproduced collection already grouped three source editions,
+but its native card repeated their common paragraph three times. The captions
+used a readable domain versus an inline shortened URL, a trailing reference and
+different paragraph spacing. Existing compact composers declined; original and
+saved-source preservation already succeeded. A final, presentation-only route
+now shares compatible prose while keeping literal reference alternatives and
+their platform/original attribution. It does not expand URLs, change collection
+admission or widen saved-manifest validation.
+
+Qualification on October 31, 2026 (UTC):
+
+- Final full JVM suite: **2,765 cases, 2,761 passes, four optional skips, zero
+  failures or errors**. Six new methods cover literal reference substitution,
+  source reconstruction, URL path/query case and Unicode spelling, numeric and
+  negation protection, named subjects, bounds and irrelevant link inventories.
+- Frozen API 35 batch: **308 named methods, 299 passes, nine opt-in skips, zero
+  failures**. The separate seven-pass focus batch overlaps this coverage and checks
+  the new reference UI, the existing ordinary inline UI and source-cache handoff.
+- Minimum API 26 batch: **71 named methods, 70 passes, one live opt-in skip, zero
+  failures**. Both API batches check exact returned method identities.
+- The captured three-source caption passes separately on **API 35 and 26**:
+  one reading card, **one occurrence** of every required common passage, all
+  originals and faithful saved sources. Actual native captions are inspected.
+  This replay uses literal source records without cached media or injected pixel
+  proof; it does not qualify a new video-equivalence rule.
+- The synthetic native control uses actual cached PNG/JPEG decoding. Both themes
+  show the common prose once, attributed literal references and one picture;
+  all three original captions/media survive saving and saved-plan presentation.
+- Twelve existing retained packets pass **24 announcement-family replays and
+  81 source-edition instances**, preserving distinct attachments and faithful
+  saved originals. The new captured caption is an additional three-source case.
+- Four untraced API 35 restored-state comparisons all retain the three-picture
+  album, all originals, current source credit, read marks and the pixel anchor in
+  an **896-original** window, with no continuation reads. The separate API 26
+  album journey also passes and takes **8,744 ms** from staged source commit to
+  combined card/credit. Every unique picture is scrolled into view and inspected.
+  The [performance record](FEED_PERFORMANCE.md#03887-share-compatible-prose-around-literal-reference-differences)
+  reports the actual slightly higher comparison medians; this release claims
+  a text-correctness improvement, not a general latency gain or phone benchmark.
+- Release assembly and lint pass with **zero errors, 182 warnings and one hint**.
+  Privacy-audit controls pass **eight** methods; retention controls pass **four**.
+  Clean source/stamp, frozen-member equality, compatible signer, corresponding
+  source and backed-up preview-state checks follow before publication.
+
+The first prototype had ten focused passes and one failure: an inserted reference
+borrowed a shared capitalized word, which the guard incorrectly treated as a name
+change. Its retained failure led to a reference-mode correction that preserves
+the complete source paths and leaves the original detector unchanged. Eleven
+focused methods then passed. The final source-length/visible-reference gate was
+followed by a fresh full JVM/build/lint run, frozen APK and repeated native checks.
+
+The original private replay independently reported three repeated paragraphs, then
+failed while locating a unique caption node for its screenshot. An outer runner
+had additionally expected two copies rather than the observed three; both failures
+are retained. The source report, top/scroll frames and original/save checks remain
+the baseline evidence. The final native replay and unique-caption screenshots pass
+on both Android versions. More difficult captions can still use faithful source
+blocks. Live acquisition, initial-delivery work, physical-phone distributions and
+the separately recorded Android legacy-regex budget gap remain open.
+
 ## 0.38.86: keep qualified source analysis across a late edition
 
 The feed now transfers bounded, completed per-original analysis between adjacent

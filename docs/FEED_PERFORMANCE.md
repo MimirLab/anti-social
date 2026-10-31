@@ -1,5 +1,66 @@
 # Feed performance qualification
 
+## 0.38.87: share compatible prose around literal reference differences
+
+A captured three-source collection was correctly grouped, but every compact
+composer declined its captions. A readable domain in two editions became an
+opaque inline URL in the third, alongside another trailing URL and paragraph
+differences. The native fallback repeated the common paragraph **three times in
+one card**. Original and saved-source preservation already passed.
+
+A final presentation route now aligns those literal editions before the faithful
+whole-source fallback. Common prose is read once; differing references retain
+their platform and original identities. It preserves the shortened URLs rather
+than guessing their destinations. URL path/query case and Unicode spelling remain
+literal, while ordinary prose keeps its existing normalization. Every original's
+ordered normalized caption path must reconstruct, including its references. The ordinary
+detector and saved-manifest admission do not use this new presentation route.
+
+The route checks source length, preview and parent bounds before its visible-
+reference gate. An unrelated declared-link inventory cannot activate it. It
+retains the existing 24–256-word, eight-version, ordered-overlap and edit-run
+limits. Changed numeric claims, negation and unqualified named subjects retain
+the faithful fallback. A readable shared word borrowed by an insertion is not
+mistaken for a changed name. No URL expansion, acquisition request, dependency,
+permission, database migration or new persistent cache is added.
+
+The final captured API 35 replay shows one card and **one** occurrence of each
+required common passage, with all three originals and their faithful saved copy.
+Its actual native caption is inspected. This text replay has no cached media
+bytes or injected pixel observations; it is not a new video-equivalence result.
+The synthetic native control separately decodes real fixture pictures, checks
+one picture and attributed reference alternatives in both themes, and saves every
+original. The older non-reference inline composer and cache-handoff controls pass
+in the same seven-method focus batch.
+
+A separate untraced API 35 ABBA guard compares the exact published 0.38.86 and
+the final frozen candidate on the same hash-restored 53.5 MB app state, with two
+cores, 2,048 MiB RAM and 896 originals. It stages a third album edition after its
+counterparts are visible. All four runs preserve one card, three unique pictures,
+source payloads, read marks, source credit and the pixel anchor; continuation
+reads stay zero. Each picture is scrolled into view. The existing compositor
+allowance remains in the checkpoints.
+
+| Checkpoint | Published 0.38.86 | Candidate 0.38.87 |
+| --- | ---: | ---: |
+| Open → first visible card, individual runs | 10,000 / 10,143 ms | 9,755 / 11,011 ms |
+| Late source commit → combined card/current picture credit | 4,643 / 4,711 ms | 4,743 / 4,772 ms |
+| First-card median | 10,071.5 ms | 10,383 ms |
+| Late-source median | 4,677 ms | 4,757.5 ms |
+
+This small guard records a 311.5 ms (3.1%) higher first-card median and an 80.5 ms
+(1.7%) higher late-source median. It does not establish their cause or a general
+latency distribution. **No speed improvement is claimed for this text fix.**
+These are cached-source emulator journeys, not phone p95, live acquisition or
+energy measurements; several-second joins and initial-delivery work remain open.
+
+The first prototype passed ten focused methods and failed one: a reference
+inserted before an unchanged capitalized sentence triggered the borrowed-word
+guard. Its failure is retained. The corrected focused suite passes all eleven
+methods. The final bounded version passes all 2,765 JVM cases with 2,761 passes,
+four optional skips and zero failures/errors. [Release qualification](RELEASE_QUALIFICATION.md)
+records broader native, retained-source and release checks separately.
+
 ## 0.38.86: reuse unchanged source analysis when an edition arrives
 
 A private API 35 sampling trace of published 0.38.85 showed repeated caption

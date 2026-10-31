@@ -583,6 +583,10 @@ object CrossPostFusion {
      * field and quotation composers. Never used for collection admission. */
     fun composeCollectedPrefixes(posts:List<Post>):PostFusion?=AnnouncementEditions.composePrefixes(posts)
 
+    /** Last, literal reference-aware compression for already admitted source
+     * editions. This is presentation, never collection or ownership evidence. */
+    fun composeCollectedReferences(posts:List<Post>):PostFusion?=CaptionWeave.composeReferences(posts)
+
     fun compose(posts: List<Post>): PostFusion? {
         composeOrdinary(posts)?.let {return it}
         if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)?.let {return it}

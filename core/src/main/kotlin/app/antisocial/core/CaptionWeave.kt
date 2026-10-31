@@ -14,18 +14,32 @@ internal object CaptionWeave {
     private val substantive=setOf("approved","rejected","denied","closed","cancelled","canceled","postponed","rescheduled","suspended",
         "false","fake","untrue","counterfeit","different","replacement","former","new","old","increased","decreased","rose","fell",
         "one","two","three","four","five","six","seven","eight","nine","ten")
-    private data class Word(val raw:String,val key:String)
+    private data class Word(val raw:String,val key:String,val reference:Boolean=false)
     private data class Document(val post:Post,val words:List<Word>)
     private fun key(raw:String)=Normalizer.normalize(raw,Normalizer.Form.NFC).lowercase(Locale.ROOT)
-    private fun document(post:Post):Document? {
+    private fun words(text:String,references:Boolean=false):List<Word> {
+        val ranges=if(references)PostPresentation.urlMatches(text).map {it.range}.toList()else emptyList()
+        return tokens.findAll(text).take(257).map {word->
+            val reference=ranges.singleOrNull {it.first>=word.range.first&&it.last<=word.range.last}?.let {range->
+                // A domain in "not:example.org" cannot hide the prose around
+                // it. Only punctuation may surround a reference-only token.
+                val outside=text.substring(word.range.first,range.first)+text.substring(range.last+1,word.range.last+1)
+                outside.none {it.isLetterOrDigit()||it in "@#"}
+            }==true
+            // URL paths, query values and even their Unicode spelling can be
+            // case/byte sensitive. Never share them through prose folding.
+            Word(word.value,if(reference)word.value else key(word.value),reference)
+        }.toList()
+    }
+    private fun document(post:Post,references:Boolean=false):Document? {
         if(post.body.length.toLong()+post.title.length>4096||post.preview||post.parentId!=null)return null
         var text=PostPresentation.content(post);repeat(2){text=Parser.unescapeEntities(text,false)}
         // The original link inventory retains opaque campaign links. They are
         // not sentence differences; meaningful destinations are checked by the
         // caller and retained here, including their case-sensitive components.
-        text=urls.replace(text){if(CrossPosts.opaqueLink(it.value))""else it.value}
+        if(!references)text=urls.replace(text){if(CrossPosts.opaqueLink(it.value))""else it.value}
         if(text.any {it in '\u202a'..'\u202e'||it in '\u2066'..'\u2069'})return null
-        val words=tokens.findAll(text.replace('\u00a0',' ')).take(257).map {Word(it.value,key(it.value))}.toList()
+        val words=words(text.replace('\u00a0',' '),references)
         if(words.size !in 24..256||words.map {it.key}.distinct().size<12)return null
         return Document(post,words)
     }
@@ -50,15 +64,24 @@ internal object CaptionWeave {
             !insertion&&values.any {Regex("[\\p{L}\\p{N}']+").findAll(it.text).any {word->word.value.firstOrNull()?.isUpperCase()==true}}
         }
     }
+    private fun changedReferenceProse(run:FusionRun):List<String> {
+        val parts=run.variants.map {words(it.text,true).filterNot {word->word.reference}}
+        val shortest=parts.minOf {it.size};var first=0;var last=0
+        while(first<shortest&&parts.map {it[first].key}.distinct().size==1)first++
+        while(last<shortest-first&&parts.map {it[it.size-last-1].key}.distinct().size==1)last++
+        // An insertion borrows a shared word for readability. That word is
+        // still common prose, not a changed name, claim or sentence opening.
+        return parts.map {it.subList(first,it.size-last).joinToString(" "){word->word.raw}}
+    }
     /** Bounded candidate confirmation; caller supplies actual media and timing proof. */
     fun matches(a:Post,b:Post)=plan(listOf(a,b))!=null
-    internal fun plan(posts:List<Post>,qualified:Boolean=false,sourceMentions:Boolean=false):List<FusionRun>? {
+    internal fun plan(posts:List<Post>,qualified:Boolean=false,sourceMentions:Boolean=false,sourceReferences:Boolean=false):List<FusionRun>? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS)return null
-        val docs=posts.sortedBy(CrossPosts::originalKey).map {document(it) ?: return null}
+        val docs=posts.sortedBy(CrossPosts::originalKey).map {document(it,sourceReferences) ?: return null}
         val coverage=if(qualified).65 else .88
-        if(qualified) {
+        if(qualified||sourceReferences) {
             val claims=Regex("\\p{N}+(?:[.,]\\p{N}+)*|\\b(?:no|not|never|without|cannot|can't|don't|doesn't|didn't|won't)\\b",RegexOption.IGNORE_CASE)
-            if(docs.map {claims.findAll(it.words.joinToString(" "){w->w.key}).map {m->m.value}.toList()}.distinct().size!=1)return null
+            if(docs.map {doc->claims.findAll(doc.words.filterNot {sourceReferences&&it.reference}.joinToString(" "){it.key}).map {m->m.value}.toList()}.distinct().size!=1)return null
         }
         if(posts.map {PostPresentation.proseWithoutLinks(PostPresentation.content(it)).count {c->c=='?'}}.distinct().size>1)return null
         val versions=docs.groupBy {it.words.map {w->w.key}}
@@ -112,8 +135,11 @@ internal object CaptionWeave {
         if(runs.filterNot {it.shared}.any {run->run.variants.any {'@' in it.text}&&
                 (!sourceMentions||run.variants.size!=2||!CaptionAliases.correspondingNames(run.variants[0].text,run.variants[1].text))})return null
         if(sourceMentions&&namedReplacements(runs))return null
-        if(runs.filterNot {it.shared}.any {run->run.variants.any {variant->
-            val words=Regex("[\\p{L}\\p{N}']+").findAll(variant.text).map {it.value}.toList()
+        if(runs.filterNot {it.shared}.any {run->
+            val changed=if(sourceReferences)changedReferenceProse(run)else null
+            run.variants.withIndex().any {(index,variant)->
+            val prose=changed?.get(index) ?: variant.text
+            val words=Regex("[\\p{L}\\p{N}']+").findAll(prose).map {it.value}.toList()
             val sentence=variant.text.firstOrNull()?.isUpperCase()==true&&variant.text.lastOrNull() in listOf('.','!','?')
             words.any {key(it) in substantive}||!qualified&&!sentence&&words.any {it.firstOrNull()?.isUpperCase()==true}
         }})return null
@@ -123,7 +149,7 @@ internal object CaptionWeave {
             val original=CrossPosts.originalKey(doc.post)
             val projected=runs.flatMap {run->
                 val variant=run.variants.singleOrNull {original in it.originalKeys} ?: return null
-                tokens.findAll(variant.text).map {key(it.value)}.toList()
+                words(variant.text,sourceReferences).map {it.key}
             }
             if(projected!=doc.words.map {it.key})return null
         }
@@ -132,6 +158,17 @@ internal object CaptionWeave {
     fun compose(posts:List<Post>):PostFusion? {
         val runs=plan(posts) ?: return null
         return render(posts,runs)
+    }
+    /** Presentation of an already admitted collection. Preserve opaque inline
+     * and trailing references literally; never infer their expanded destination
+     * or use URL identifier digits as prose claims. Detector callers stay on
+     * the original path and its unchanged overlap/identity requirements. */
+    fun composeReferences(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.any {it.body.length.toLong()+it.title.length>4096||it.preview||it.parentId!=null})return null
+        // This route handles visible literal references, not an unrelated or
+        // oversized link inventory attached to a short source caption.
+        if(posts.none {post->PostLinks.urls(post.copy(links=null)).any(CrossPosts::opaqueLink)})return null
+        return plan(posts,sourceReferences=true)?.let {render(posts,it)}
     }
     /** Presentation only after an independently admitted, source-qualified
      * announcement. Never used as a lower-threshold copy detector. */
