@@ -9,6 +9,71 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.81: complete albums with short headings
+
+A current three-platform capture reproduces two reading cards, six displayed
+pictures and two copies of the common heading on the published 0.38.80 APK.
+Both editions carry the same three-picture album, but one has only a two-word
+heading while the others prepend a separate question. Those captions fall below
+the existing gallery-excerpt limits. The new
+[complete-album route](ATTACHMENT_COLLECTIONS.md#complete-albums-with-short-headings-03881)
+requires an unambiguous match for every distinct picture before aligning the
+short literal captions. The question keeps its actual source attribution.
+
+Feed admission, caption composition and portable saved-copy validation share
+that proof. Partial albums, contrary detailed observations, repeated ambiguous
+slots, incompatible introductions and changed shared questions remain separate.
+An early candidate also intercepted an existing long-gallery ambiguity; the
+complete-album path is now restricted to collections with a genuinely short
+caption, and the older assertion remains unchanged. No network request, decoder,
+model, library, permission, database migration or persistent index is added.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM: **2,740 cases, 2,736 passes, four optional skips, zero failures or
+  errors**. Sixteen additional methods cover complete and partial sets, source
+  order, short literal alignment, attributed questions, contrary/ambiguous pixel
+  evidence, independent save proof, competing roots, six-hour limits and crowded
+  historical/relevant windows.
+- API 35 frozen-release instrumentation: **282 named methods, 277 passes,
+  five opt-in skips, zero failures**. API 26: **41 cases, 40 passes, one live
+  opt-in skip, zero failures**, plus ordinary native startup. The owned older-API
+  diagnostic is stopped afterwards. These are emulator checks.
+- Nine actual image responses were obtained and decoded through the existing
+  Android Gateway/decoder path without failures. The same real three-platform
+  packet that fails on 0.38.80 now displays **one card, three pictures, one shared
+  heading and one attributed question**, preserving all three original sources
+  in its protected save. Its actual native caption and scrolling evidence were
+  inspected. Captured source records, images and screenshots stay private.
+- A separate synthetic native journey uses nine independently decoded copies of
+  three pictures at different delivery URLs, including reversed source order.
+  It checks the visible compact caption, three pictures, Context and the actual
+  Save action. All three raw originals and nine source enclosures survive.
+  Assertions accept the existing compact literal weave as well as paragraph
+  presentation; a paragraph-only test tag is not evidence of missing text.
+- Twelve retained-source packet runs cover **24 announcement-family replays
+  and 81 source-edition instances**. Each expected family keeps one card, one
+  common passage, its expected distinct media and all originals in the save.
+  The separate **959-original** corpus retains exactly the same 767-row partition
+  as published 0.38.80, with no missing/repeated original or split older family.
+- An idle desktop-JVM ABBA comparison uses two fresh processes per runtime,
+  five passes each. Pooled last-three warm medians are **1,144 ms for 0.38.80
+  and 1,205 ms for 0.38.81** on that corpus. This is a small additional local
+  grouping cost, not zero-cost matching or a phone/first-card latency benchmark.
+  Raw runs overlap. No new web or media read is introduced by the collector.
+- Release lint: **zero errors, 182 warnings and one hint**. Privacy-audit controls:
+  **eight passes**; Context-retention scoring: **four passes**. The private-denylist
+  source audit reports zero findings and two reviewed unchanged upstream files.
+  Frozen APK-member correspondence, matching source/signer, unchanged native
+  libraries and backed-up compatible preview promotion are verified before release.
+
+**Remaining work:** this route uses already acquired picture evidence; editions
+can remain separate until the ordinary reader observes their pictures. It does
+not establish immediate cold-feed merging or physical-phone latency/energy.
+Overfull relevant gallery windows remain explicitly unexamined, and a complete
+live feed is not qualified as duplicate-free. Broader cold-feed latency and
+unresolved announcement leaves remain active work.
+
 ## 0.38.80: recover a failed retained recording before comparing its current edition
 
 A retained TikTok delivery returned HTTP 403 while the same original remained

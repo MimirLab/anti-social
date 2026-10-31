@@ -1,5 +1,38 @@
 # Attachment collections
 
+## Complete albums with short headings (0.38.81)
+
+Two editions can publish the same complete album while one adds a short opening
+sentence or framing question. The older excerpt rule requires a longer shared
+heading, so even three matching pictures can leave a two-word heading on a
+separate card. The additional route proves the whole album before aligning those
+short literal captions. It does not relax the ordinary excerpt matcher.
+
+Each root original must carry two to twelve non-avatar HTTPS images, a bounded
+caption and a positive publication time within six hours of its peers. Every
+album must have the same number of distinct slots and one unambiguous one-to-one
+match for the entire set, irrespective of source picture order. Detailed captured
+image observations take precedence over delivery addresses; contrary observations
+defeat an equal URL. A whole-post similarity callback cannot supply slot proof.
+Partial overlaps, repeated indistinguishable slots and unrelated stock-picture
+chains cannot establish this relationship.
+
+At least one caption must fall below the existing long-excerpt threshold. Literal
+alignment requires at least two distinct words and twelve characters, preserves
+the shared heading and attributes the additional complete sentence, paragraph or
+framing question to its actual originals. Changed shared questions, negation,
+amounts and destinations retain their guards. Competing incompatible introductions
+leave the shorter edition ambiguous. The common heading reads once; every source
+edition and all source enclosures remain available and saveable.
+
+The collector uses the existing six-hour, 128-candidate window limit, with
+cancellation checkpoints and a final whole-cohort proof. Unrelated older history
+cannot disable the current window. An overfull relevant window remains unexamined;
+it is not truncated into a false unique match. The same portable proof supports
+composition and protected saves without another subscription or website lookup.
+It adds no acquisition, decoding, persistent index, schema, model or dependency.
+Existing cached source analysis supplies the cheap admission hint.
+
 ## Time-scoped gallery and picture-reshare admission (0.38.79)
 
 The gallery and picture-only reshare passes previously stopped when their

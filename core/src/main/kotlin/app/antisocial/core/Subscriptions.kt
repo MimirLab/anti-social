@@ -373,6 +373,7 @@ object CrossPosts {
      * discussion remains distinct; the UI must retain each publisher attribution. */
     fun sameContentCopies(posts: List<Post>,sameMedia: (Post,Post)->Boolean={_,_->false}): Boolean {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
+        if(completeGalleryCollection(posts))return true
         if(RedditSupplements.collection(posts)||galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->copyMatch(prepared[i],prepared[j],sameMedia)}}
@@ -572,6 +573,64 @@ object CrossPosts {
     }
     private fun galleryAnchor(post: Post)=post.media.size in 2..12&&post.media.all {it.type=="image"&&it.url!=post.avatar}&&
         tokens(decoded(PostPresentation.content(post))).size>=8
+    private fun completeGalleryOriginal(post:Post)=!post.preview&&post.parentId==null&&post.recoveredArchive==null&&
+        post.publishedAt?.let {it>0}==true&&post.body.length.toLong()+post.title.length<=4096&&post.media.size in 2..12&&post.media.all {
+            it.type=="image"&&it.url!=post.avatar&&it.url.length<=8192
+        }&&realOriginal(post)&&post.media.all {uri(it.url)!=null}
+    /** All slots, not one shared picture: this portable content proof permits
+     * short literal headings without broadening ordinary caption matching. */
+    internal fun completeGalleryCollection(posts:List<Post>,checkpoint:()->Unit={}):Boolean {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size||posts.any {!completeGalleryOriginal(it)})return false
+        val times=posts.map {requireNotNull(it.publishedAt)}
+        if(times.max()-times.min()>UNLINKED_WINDOW||GalleryCaptionCopies.composeComplete(posts)==null)return false
+        fun same(a:Media,b:Media):Boolean {
+            val left=a.attachmentFingerprint ?: a.visualFingerprint;val right=b.attachmentFingerprint ?: b.visualFingerprint
+            if(left!=null&&right!=null)return VisualFrames.sameImage(left,right)
+            return a.url==b.url||ImageAssetIdentity.same(a,b)
+        }
+        val first=posts.first().media
+        for(post in posts) {
+            checkpoint();val images=post.media
+            if(images.size!=first.size)return false
+            // Repeated/indistinguishable slots are not independent evidence.
+            for(i in images.indices)for(j in i+1 until images.size){checkpoint();if(same(images[i],images[j]))return false}
+            val slots=first.map {a->checkpoint();images.indices.filter {j->same(a,images[j])}.singleOrNull() ?: return false}
+            if(slots.toSet().size!=first.size)return false
+        }
+        return true
+    }
+    private fun collectCompleteGalleries(groups:List<PostGroup>,shortCaptions:Set<String>,checkpoint:()->Unit):List<PostGroup> {
+        if(shortCaptions.isEmpty())return groups
+        val candidates=groups.indices.filter {i->checkpoint();groups[i].posts.all(::completeGalleryOriginal)}
+        if(candidates.size<2||candidates.none {i->groups[i].posts.any {originalKey(it) in shortCaptions}})return groups
+        fun time(i:Int)=groups[i].posts.minOf {requireNotNull(it.publishedAt)}
+        val windows=TimeCandidates(candidates){time(it)}
+        val comparisons=HashMap<Pair<Int,Int>,Boolean>()
+        fun compatible(a:Int,b:Int):Boolean {
+            checkpoint();val key=minOf(a,b) to maxOf(a,b)
+            return comparisons.getOrPut(key){completeGalleryCollection(groups[a].posts+groups[b].posts,checkpoint)}
+        }
+        data class Root(val group:Int,val complete:Boolean)
+        val roots=mutableListOf<Root>();val rootOf=IntArray(groups.size){-1}
+        for(i in candidates.sortedWith(compareByDescending<Int> {groups[it].posts.maxOf {p->PostPresentation.content(p).length}}.thenBy {originalKey(groups[it].primary)})) {
+            checkpoint();val nearby=windows.around(time(i))
+            if(nearby?.any {j->rootOf[j]>=0&&compatible(j,i)}==true)continue
+            rootOf[i]=roots.size;roots+=Root(i,nearby!=null)
+        }
+        val assignments=candidates.associateWith {i->
+            checkpoint()
+            rootOf[i].takeIf {it>=0} ?: windows.around(time(i))?.mapNotNull {j->
+                rootOf[j].takeIf {it>=0&&compatible(j,i)}
+            }?.distinct()?.singleOrNull()?.takeIf {roots[it].complete}
+        }
+        val joined=linkedMapOf<Int,MutableList<Int>>();val unchanged=mutableListOf<PostGroup>()
+        groups.forEachIndexed {i,group->val root=assignments[i];if(root==null)unchanged+=group else joined.getOrPut(root){mutableListOf()}.add(i)}
+        val order=compareBy<Post>{it.publishedAt ?: Long.MAX_VALUE}.thenBy(::originalKey)
+        return unchanged+joined.values.flatMap {indices->
+            checkpoint();val posts=indices.flatMap {groups[it].posts}
+            if(indices.size>1&&completeGalleryCollection(posts,checkpoint))listOf(PostGroup(posts.sortedWith(order)))else indices.map {groups[it]}
+        }
+    }
     internal fun galleryContains(anchor: Post,post: Post,sameMedia: (Post,Post)->Boolean,parentQualified:Boolean=false,scope:List<Post> = emptyList()): Boolean {
         if(anchor.preview||post.preview||anchor.parentId!=null||post.parentId!=null)return false
         val a=anchor.publishedAt?.takeIf {it>0} ?: return false;val b=post.publishedAt?.takeIf {it>0} ?: return false
@@ -1386,7 +1445,12 @@ object CrossPosts {
             PostGroup(originals.sortedWith(compareBy<Post> {it.publishedAt?.takeIf {time->time>0} ?: Long.MAX_VALUE}.thenBy(::originalKey)))
         }
         checkpoint()
-        val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia,checkpoint),sameMedia,checkpoint))
+        // Reuse the existing source analysis for this broad admission hint.
+        // Complete-gallery proof still parses its bounded literal captions;
+        // ordinary long-caption windows do not prepare another caption bank.
+        val shortGalleries=ordered.asSequence().filter {it.post.media.size in 2..12&&it.post.media.all {m->m.type=="image"}&&
+            (it.tokens.size in 2..5||it.tokens.size>=2&&it.text.length<40)}.map {originalKey(it.post)}.toSet()
+        val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(collectCompleteGalleries(grouped,shortGalleries,checkpoint),sameMedia,checkpoint),sameMedia,checkpoint))
         val owners=ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}}
         val announcements=AnnouncementCollections.collect(established,owners,{a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
         val declared=DeclaredVideo.collect(announcements,::declaredRecordingCollection,checkpoint)

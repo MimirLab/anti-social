@@ -448,6 +448,58 @@ class FusionFeedTest {
         }finally {repo.lease(key,false)}
     }
 
+    @Test fun aCompleteAlbumSharesItsTwoWordHeadingThreePicturesAndEverySavedOriginal() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val heading="Gallery highlights. 🎃";val intro="Community workshop?"
+        fun images(lane:String)=(1..3).map {i->Media("https://short-gallery-$lane-$suffix.invalid/picture-$i.png",description="Workshop picture $i")}
+        val x=oldX.copy(body="$intro $heading",media=images("x"))
+        val instagram=oldInstagram.copy(body=heading,media=images("ig").reversed())
+        val id="96${suffix}1002"
+        val facebook=x.copy(id=id,platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/$id",publishedAt=now-58_000,media=images("fb"))
+        records+=listOf(x,instagram,facebook)
+        records.forEach {post->store(post,follow(post.platform));post.media.forEach {cacheGalleryPicture(it.url,it.description.last().digitToInt())}}
+        runBlocking {records.forEach {post->post.media.forEach {repo.images.load(it.url,post.canonicalUrl,1600)}}}
+        val captured=records.map(repo.images.identities::captured)
+        val memberships=records.associate {repo.key(it) to setOf(accounts.single {a->a.target.platform==it.platform}.id)}
+        val groups=CrossPosts.group(captured,accounts,memberships,repo.images.identities::same)
+        val first=groups.first().primary
+        seed("all",listOf(first)+records.filter {repo.key(it)!=repo.key(first)})
+        val vm=model();show(vm,all=true);waitRow(first)
+        evidence("short-complete-gallery-before-assertion")
+        assertEquals("The actual three-platform album must occupy one reading row",1,groups.size)
+        assertEquals(records.map(repo::key).toSet(),groups.single().posts.map(repo::key).toSet())
+        assertTrue("Saving cannot depend on a transient subscription lookup",CrossPosts.sameContentCopies(captured))
+        assertEquals(3,collectedAttachments(captured).size)
+        // Cached bytes are observed before this screen opens, but the feed
+        // model still publishes its collected body asynchronously. Adopt that
+        // body through the same explicit control as the cold-gallery checks;
+        // seeing the first row alone does not establish body readiness.
+        ui.onNodeWithTag("Jump to newest").performClick()
+        // The compact literal weave is also a valid presentation. Its common
+        // passage and attributed prefix occupy one native text node rather
+        // than the paragraph composer's separate implementation tags.
+        val caption=hasText(heading,substring=true) and hasAnyAncestor(hasTestTag("Fused post text"))
+        ui.waitUntil(10_000){ui.onAllNodes(caption).fetchSemanticsNodes().size==1}
+        val displayed=ui.onNode(caption).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("\n"){it.text}
+        assertEquals(1,Regex(Regex.escape(heading)).findAll(displayed).count())
+        assertEquals(1,Regex(Regex.escape(intro)).findAll(displayed).count())
+        ui.onAllNodesWithText(heading,substring=true).assertCountEquals(1)
+        ui.onAllNodes(SemanticsMatcher("three distinct full-gallery photographs"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(first)} ")==true}).assertCountEquals(3)
+        val snapshot=contextSnapshot(repo,x,captured)
+        assertEquals(1,Regex(Regex.escape(heading)).findAll(snapshot.text).count());assertEquals(1,Regex(Regex.escape(intro)).findAll(snapshot.text).count());assertEquals(3,snapshot.media.size)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(first)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(first))}?.fusionRoots?.size==3}
+        val saved=runBlocking {repo.library.details(repo.key(first))}!!.fusionRoots!!
+        assertCapturedSources(records,saved)
+        assertEquals(9,saved.sumOf {it.media.size})
+        val savedText=collectedPostFusion(saved)!!.segments.joinToString("\n"){it.text}
+        assertEquals(1,Regex(Regex.escape(heading)).findAll(savedText).count())
+        assertEquals(1,Regex(Regex.escape(intro)).findAll(savedText).count())
+        assertEquals(listOf(intro,heading),CrossPostFusion.composeMedia(saved)!!.segments.map {it.text})
+        evidence("short-complete-gallery-one-heading-three-pictures-all-originals-saved")
+    }
+
     @Test fun aColdGalleryScanCollectsItsShorterHeadingWithoutDiscardingUniquePicturesOrContext() {
         verifyColdGallery("Work will continue.","cold-gallery-short-heading-and-source-context")
     }

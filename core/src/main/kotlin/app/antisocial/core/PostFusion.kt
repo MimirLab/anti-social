@@ -466,6 +466,7 @@ object CrossPostFusion {
     }
 
     fun composeMedia(posts: List<Post>): PostFusion? {
+        if(CrossPosts.completeGalleryCollection(posts))return GalleryCaptionCopies.composeComplete(posts)
         if(CrossPosts.imageEchoCollection(posts)) {
             val sources=posts.filter {PostPresentation.content(it).any(Char::isLetterOrDigit)}
             return PostFusion(listOf(FusionSegment(PostPresentation.content(sources.first()),sources.mapTo(linkedSetOf()){it.platform},false,sources.mapTo(linkedSetOf(),CrossPosts::originalKey))))

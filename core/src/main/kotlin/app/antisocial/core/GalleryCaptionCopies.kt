@@ -8,9 +8,10 @@ import java.util.Locale
  * This only describes captions; CrossPosts separately proves every picture,
  * the time window, original identity and unambiguous gallery membership. */
 internal object GalleryCaptionCopies {
-    private data class Caption(val post:Post,val text:String,val key:String)
+    private data class Caption(val post:Post,val text:String,val key:String,val paragraphs:Set<Int>)
     private val urls=Regex("https://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
     private val words=Regex("[\\p{L}\\p{N}]+(?:['’][\\p{L}\\p{N}]+)*")
+    private val paragraphBreaks=Regex("(?:\\r?\\n[\\t \\p{Zs}]*){2,}|\\u2029")
     private val unsafe=Regex("\\b(?:no|not|never|without|false|fake|untrue|misleading|debunked|disputed|rejected|cancelled|canceled|correction|fact.check)\\b",RegexOption.IGNORE_CASE)
     private val reminder=Regex("^(?:never|do not) forget\\s+",RegexOption.IGNORE_CASE)
     private val reminderNegation=Regex("\\b(?:cannot|\\p{L}+n['’]t)\\b",RegexOption.IGNORE_CASE)
@@ -30,11 +31,15 @@ internal object GalleryCaptionCopies {
                 !CrossPosts.opaqueLink(url)&&!CrossPosts.originalLink(url,post)})return null
         var text=PostPresentation.content(post);repeat(2){text=Parser.unescapeEntities(text,false)}
         text=urls.replace(text){match->if(CrossPosts.opaqueLink(match.value)||CrossPosts.originalLink(match.value,post))""else match.value}
+        text=text.trim()
+        val paragraphs=paragraphBreaks.findAll(text).map {
+            TextWhitespace.collapse(text.take(it.range.last+1)).trimEnd().length+1
+        }.toSet()
         text=TextWhitespace.collapse(text).trim().replace(Regex("(?:[⬇↓↘👇][\\uFE0E\\uFE0F]?){1,4}$"),"").trimEnd().removeSuffix(":").trimEnd()
         if(text.length>4096||words.findAll(text).take(257).count()>256||text.any {it in '\u202a'..'\u202e'||it in '\u2066'..'\u2069'})return null
         val key=text.lowercase(Locale.ROOT)
         if(key.length!=text.length)return null // Source character offsets must remain exact.
-        return Caption(post,text,key)
+        return Caption(post,text,key,paragraphs)
     }
     private fun publisherReply(full:Caption,part:Caption,scope:List<Post>):Boolean {
         val handle=PostPresentation.nitterReplyTo(part.post) ?: return false
@@ -49,21 +54,24 @@ internal object GalleryCaptionCopies {
             root.publishedAt?.let {it>0&&kotlin.math.abs(it-at)<=600_000}==true&&
             PostPresentation.nitterReplyTo(root)==null&&caption(root)?.key==full.key}
     }
-    private fun range(full:Caption,part:Caption,scope:List<Post>):IntRange? {
+    private fun range(full:Caption,part:Caption,scope:List<Post>,complete:Boolean=false):IntRange? {
         if(part.key==full.key)return 0 until full.text.length
-        if(part.key.length<35||words.findAll(part.key).count()<6)return null
+        if(part.key.length<(if(complete)12 else 35)||words.findAll(part.key).count()<(if(complete)2 else 6))return null
         val start=full.key.indexOf(part.key)
         if(start<0||full.key.indexOf(part.key,start+1)>=0)return null
         val end=start+part.key.length
         // The omitted material must be outside a complete heading/sentence,
         // never a removed word or clause inside the same sentence.
-        if(start>0&&(!full.text[start-1].isWhitespace()||full.text.take(start).trimEnd().lastOrNull() !in listOf('.','!')))return null
-        if(end<full.text.length&&(full.text[end]!=' '||part.text.lastOrNull() !in listOf('.','!')))return null
+        if(start>0&&(!full.text[start-1].isWhitespace()||full.text.take(start).trimEnd().lastOrNull() !in (if(complete)listOf('.','!','?')else listOf('.','!'))&&!(complete&&start in full.paragraphs)))return null
+        if(end<full.text.length&&(full.text[end]!=' '||part.text.lastOrNull() !in listOf('.','!')&&!(complete&&end+1 in full.paragraphs)))return null
         val extra=full.text.take(start)+" "+full.text.drop(end)
         // Every complete caption is bounded to 4096 characters/256 words. A
         // fuller literal introduction is retained and attributed, not removed;
         // its length alone need not defeat independently proven gallery media.
-        if(extra.any {it.isDigit()||it=='?'||it=='@'}||
+        // The independent full-album proof may retain a separate framing
+        // question as its attributed segment. It never turns the shared
+        // heading into a question or removes an edition's qualification.
+        if(extra.any {it.isDigit()||it=='?'&&!complete||it=='@'}||
             Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]").containsMatchIn(extra)||
             unsafe.containsMatchIn(extra)&&!(end==full.text.length&&
                 (publisherReply(full,part,scope)||start>0&&reminderIntroduction(extra))))return null
@@ -73,11 +81,22 @@ internal object GalleryCaptionCopies {
         val full=caption(anchor) ?: return false;val short=caption(part) ?: return false
         return short.text.isNotBlank()&&range(full,short,scope)!=null
     }
-    fun compose(posts:List<Post>):PostFusion? {
+    /** Only the separate complete, distinct image-set proof can request this
+     * shorter literal alignment. Ordinary gallery excerpts keep their limits. */
+    fun composeComplete(posts:List<Post>):PostFusion?=compose(posts,true)
+    fun compose(posts:List<Post>):PostFusion?=compose(posts,false)
+    private fun compose(posts:List<Post>,complete:Boolean):PostFusion? {
         val captions=posts.map {caption(it) ?: return null}.filter {it.text.isNotBlank()}
-        if(captions.size<2||captions.map {it.key}.distinct().size<2)return null
+        if(captions.size<2)return null
+        if(complete) {
+            val terms=captions.map {words.findAll(it.key).map {m->m.value}.toList()}
+            if(captions.size!=posts.size||captions.indices.any {captions[it].key.length<12||terms[it].toSet().size<2}||
+                captions.indices.none {captions[it].key.length<35||terms[it].size<6})return null
+        }
+        if(captions.map {it.key}.distinct().size<2)return if(complete)PostFusion(listOf(FusionSegment(captions.first().text,
+            captions.mapTo(linkedSetOf()){it.post.platform},true,captions.mapTo(linkedSetOf()){CrossPosts.originalKey(it.post)})))else null
         val full=captions.maxBy {it.text.length}
-        val ranges=captions.map {range(full,it,posts) ?: return null}
+        val ranges=captions.map {range(full,it,posts,complete) ?: return null}
         val boundaries=(listOf(0,full.text.length)+ranges.flatMap {listOf(it.first,it.last+1)}).distinct().sorted()
         val segments=boundaries.zipWithNext().mapNotNull {(start,end)->
             val text=full.text.substring(start,end).trim();if(text.isEmpty())return@mapNotNull null
