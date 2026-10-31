@@ -1,5 +1,69 @@
 # Feed performance qualification
 
+## Post-0.38.89: profile current preparation before retaining a shortcut
+
+Three observations use the exact published 0.38.89 APK, the same hash-restored
+53.5 MB app state and 896 captured originals on an owned API 35 emulator with
+two cores and 2,048 MiB RAM. A 2 ms method-sampling diagnostic sits between two
+ordinary runs. All three preserve the late three-source album, its three distinct
+pictures, read marks, source credit and pixel anchor, with no continuation read.
+
+| Checkpoint | Ordinary before | Sampled diagnostic | Ordinary after |
+| --- | ---: | ---: | ---: |
+| Open → first visible card | 9,414 ms | 9,023 ms | 8,769 ms |
+| Late source commit → current picture credit | 4,275 ms | 4,192 ms | 4,093 ms |
+
+These are separate observations, not an estimate of sampling overhead or a phone
+latency distribution. OS/ART state and host load are not reset. Android's
+[tracing guidance](https://developer.android.com/studio/profile/generate-trace-logs)
+warns that profiling changes execution; sampled method attribution is not an
+ordinary response-time measurement. The trace has 116,246 records, no overflow
+and no reconstruction anomalies. Its conservative first-card window excludes
+100 ms at both ends; alignment with the UI milestone remains approximate.
+
+The diagnostic attributes about 4,889 ms inclusively to grouping and 947 ms to
+reading-state preparation, including about 570 ms in display projection and
+377 ms in content observations. These nested figures must not be added as a
+whole-app CPU total. Observed native compilation attributed to constant account
+validators and the question predicate motivates a small experiment; it does not
+establish that removing those calls will advance the visible card.
+
+The unshipped prototype reuses three immutable validation expressions without
+changing their patterns or flags, and compares literal prose question-mark
+counts instead of constructing regex results and strings. It retains the same
+URL exclusion and all source, media and identity gates. The
+[pinned Kotlin implementation](https://raw.githubusercontent.com/JetBrains/kotlin/v2.2.21/libraries/stdlib/jvm/src/kotlin/text/regex/Regex.kt)
+creates a fresh matcher for each match operation. No answer cache or new dependency
+is introduced. Native Unicode mention matching remains unchanged; the earlier
+rejected generic scanner is not reintroduced. ICU's
+[literal and set-matching distinction](https://unicode-org.github.io/icu/userguide/strings/regexp.html#case-insensitive-matching)
+remains a constraint on any future shortcut.
+
+The full prototype JVM suite has **2,767 passes, four optional skips and zero
+failures/errors** across 2,771 cases. All **25 named native focus checks** pass,
+with zero skips/failures. An independent, untraced, restored-state ABBA uses the
+same published tester for both runtimes:
+
+| Checkpoint | Published 0.38.89 | Literal-validation prototype |
+| --- | ---: | ---: |
+| First visible card, individual runs | 8,862 / 9,038 ms | 9,183 / 9,071 ms |
+| Late-source credit, individual runs | 4,741 / 4,427 ms | 5,050 / 4,826 ms |
+| First-card median | 8,950 ms | 9,127 ms |
+| Late-source median | 4,584 ms | 4,938 ms |
+
+All four native journeys pass the original-conservation, three-picture,
+read-state and anchor checks. Actual first-card and late-credit frames are
+inspected. This small comparison establishes **no useful end-to-end gain**;
+it does not establish a general regression rate or its cause. The runtime patch
+is removed and its exact source, frozen artifacts and receipts retained privately.
+The restored APK and tester are byte-identical to the published 0.38.89 runtime
+and qualified tester. No new release or laptop preview replacement results from this pass.
+One restoration packaging attempt failed with a generic incremental-splitter
+error. A stacktrace-enabled retry completes and reproduces both whole files;
+the first failure's cause remains unestablished and its receipt is retained.
+The larger preparation paths remain open, as do physical-phone p95, energy and
+live acquisition; narrower method attribution does not qualify those outcomes.
+
 ## 0.38.88: coalesce image notifications before preparing another bank
 
 The image stream prepared whole-window snapshots upstream of the feed's existing
