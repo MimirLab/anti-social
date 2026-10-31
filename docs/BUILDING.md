@@ -93,6 +93,16 @@ Select release-compatible cases when invoking the runner (for example
 The descriptor PROBE/STALL cases intentionally require the debug build; their
 operations are disabled in the shipping app.
 
+Private full-feed timing also requires the reader to be in the foreground.
+`NativeFeedVisibilityTest#aNotificationShadeCannotQualifyAsAVisibleNativeCard`,
+with `antisocialIsolatedFixtureDevice=true`, checks acceptance, deliberately opens
+the owned test device's notification shade, checks rejection, then checks recovery.
+The gallery/video benchmark milestones independently check display, keyguard and
+window focus. Wake and unlock the disposable emulator and collapse System UI
+before the run; inspect the resulting screenshots too. Existing Compose nodes
+behind another window cannot establish visible delivery. See the
+[dated foreground-qualification investigation](FEED_PERFORMANCE.md#post-03883-investigation-verify-foreground-delivery-and-reject-an-ineffective-shortcut).
+
 For the laptop preview, run `python3 scripts/bootstrap.py` without `--no-emulator`,
 then `python3 scripts/preview.py`. KVM acceleration is recommended. Read the
 preview script's `--help` and `--doctor` output before changing its hardware profile.

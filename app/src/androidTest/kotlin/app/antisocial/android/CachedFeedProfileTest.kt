@@ -34,7 +34,7 @@ class CachedFeedProfileTest {
         // A bounded opt-in experiment can compare retention allowances without
         // adding a public app setting or changing production's default. This
         // reflects our own class only, never an Android hidden/system API.
-        val allowance=args.getString("antisocialSourceProjectionBytes")?.toLong()?.also {require(it in 262_144..8L*1024*1024)}
+        val allowance=args.getString("antisocialSourceProjectionBytes")?.toLong()?.also {require(it in 262_144..16L*1024*1024)}
         var projection:CrossPosts.SourceProjection?=if(allowance==null)CrossPosts.sourceProjection(follows,members)else
             CrossPosts.SourceProjection::class.java.getDeclaredConstructor(List::class.java,Map::class.java,Int::class.javaPrimitiveType,Long::class.javaPrimitiveType)
                 .newInstance(follows,members,2048,allowance)

@@ -168,6 +168,7 @@ class FullFeedGalleryLiveTest {
             // the restored viewport. Give two real display frames time to paint.
             Thread.sleep(100);ui.waitForIdle()
             val first=visibleRows().map {words(it)}
+            requireNativeFeedVisible(ui.activity)
             event("stage" to "first-visible","familyRows" to first.size,"completeFamily" to first.any {list->list.any {it.startsWith(familyLabel)}});screenshot("first-visible.png")
             // Do not invoke enrich(): the shipping card dwell owns acquisition.
             ui.waitUntil(90_000){runBlocking {repo.dao.allPosts().any {repo.gson.fromJson(it.payload,Post::class.java).canonicalUrl==childUrl}}}
@@ -184,6 +185,7 @@ class FullFeedGalleryLiveTest {
             }else assertTrue("Complete albums are captured root originals, never invented replies",posts.filter {repo.key(it)in focus}.all {it.parentId==null})
             ui.waitUntil(60_000){val visible=visibleRows();(!completeAlbums||visible.size==1)&&visible.any {node->words(node).any {it.startsWith(familyLabel)}}}
             if(requiredCaption!=null)ui.waitUntil(60_000){visibleRows().any {node->words(node).any {requiredCaption in it}}}
+            requireNativeFeedVisible(ui.activity)
             event("stage" to "full-family-visible");ui.waitForIdle();screenshot("settled.png")
             if(tracing){Debug.stopMethodTracing();tracing=false}
             File(output,"semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
@@ -266,6 +268,7 @@ class FullFeedGalleryLiveTest {
                     ui.onNodeWithTag("Primary destination feed").performClick()
                     ui.waitUntil(30_000){visibleRows().any {node->val text=words(node);text.any {it.startsWith(familyLabel)}&&(requiredCaption==null||text.any {requiredCaption in it})}}
                     ui.waitForIdle();Thread.sleep(100)
+                    requireNativeFeedVisible(ui.activity)
                     event("stage" to "warm-first-complete");screenshot("warm-reentry.png")
                     assertTrue("Returning to Following retains All",model.screen.value.combined)
                     awaitQuiet();event("stage" to "warm-reentry-quiet")

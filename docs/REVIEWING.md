@@ -81,6 +81,14 @@ without its required isolation flag has not qualified the feature. Fresh output
 artifacts and their assertions establish the captured journey independently of
 the footer.
 
+Visible-delivery qualification also needs the foreground reader. The
+[post-0.38.83 investigation](FEED_PERFORMANCE.md#post-03883-investigation-verify-foreground-delivery-and-reject-an-ineffective-shortcut)
+retains a concrete semantic-only false positive behind the notification shade,
+the corrected native comparison and a System UI rejection/recovery control on
+API 35 and 26. Gallery/video milestones now check interactive display, keyguard
+and native window focus. Inspect screenshots as well; those guards do not prove
+every pixel or exclude every possible overlay.
+
 JVM-only text equivalence does not establish Android regex equivalence. ICU's
 full case folding can match a literal against a different number of characters.
 The [post-0.38.70 pattern investigation](FEED_PERFORMANCE.md#post-03870-investigation-reject-an-unhelpful-pattern-cache)

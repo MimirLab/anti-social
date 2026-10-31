@@ -171,6 +171,7 @@ class FullFeedVideoLiveTest {
                 }
             }
             ui.waitUntil(60_000){visibleRows().isNotEmpty()};ui.waitForIdle()
+            requireNativeFeedVisible(ui.activity)
             event("stage" to "first-visible");screenshot("first-visible.png")
             // Observe the production preparation, dwell and catalogue. This
             // tester never schedules enrich() after opening or fabricates observations.
@@ -184,6 +185,7 @@ class FullFeedVideoLiveTest {
             ui.waitUntil(60_000){visibleRows().any {node->
                 words(node).any {it.startsWith("${focus.size} originals ·")||it.startsWith("${focus.size} platforms ·")}
             }}
+            requireNativeFeedVisible(ui.activity)
             event("stage" to "full-family-visible")
             if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.waitForIdle()
@@ -212,6 +214,7 @@ class FullFeedVideoLiveTest {
                     ui.waitUntil(30_000){complete()};ui.waitForIdle()
                     assertTrue("Captured details must preserve the established row's pixel anchor",kotlin.math.abs(requireNotNull(contents()).boundsInRoot.top-before)<=2f)
                 }
+                requireNativeFeedVisible(ui.activity)
                 event("stage" to "complete-body-visible")
                 File(output,"adopted-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString());screenshot("adopted.png")
                 val rowTag=requireNotNull(requireNotNull(contents()).config.getOrNull(SemanticsProperties.TestTag))

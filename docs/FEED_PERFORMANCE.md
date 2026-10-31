@@ -1,5 +1,92 @@
 # Feed performance qualification
 
+## Post-0.38.83 investigation: verify foreground delivery and reject an ineffective shortcut
+
+An experimental ASCII-only shortcut avoids entity/Unicode preparation when its
+output is provably unchanged. The exact released core and candidate agree on
+**20,074 cleanup inputs**, including all ASCII pairs, controls, entities,
+malformed UTF-16 and captured source fields. A separate comparison preserves
+all 959 originals, their 767 groups and content signatures, and 1,100 URL cases.
+The candidate's fresh JVM run covers **2,745 cases: 2,741 passes, four optional
+skips and zero failures/errors**.
+
+Four untraced native local-stage runs retain identical ordered group and
+observation digests. Their grouping medians are **3,589 ms for the release and
+3,548 ms for the candidate**, a small operation difference. It does not establish
+useful delivery improvement.
+
+### A semantic card behind System UI is not visible delivery
+
+Inspection rejects the first cold-feed comparison: an engineering wake command
+opened the notification shade. The Compose nodes existed behind it, so the old
+semantic assertions passed while the screenshots showed System UI or a covered
+screen. Those four cold/warm measurements are retained privately as invalid
+delivery evidence. Their timings support no performance claim.
+
+The private gallery and video testers now require an interactive display, an
+unlocked keyguard and the reader's shown, focused window before recording
+visible-card milestones. A separate native control opens the actual notification
+shade, requires rejection, closes it, and requires acceptance again. That control
+passes on **API 35 and minimum API 26: one actual pass each, zero skips and zero
+failures**. Assertions execute on the instrumentation thread so a rejected
+measurement reports an assertion without crashing the app's main thread.
+These checks belong to the test APK. Screenshots still require inspection;
+window focus alone does not prove that every intended pixel has painted.
+
+The corrected full-feed ABBA comparison uses the same 907-original captured
+window. Before every run, the owned emulator restores and hash-verifies its
+53.5 MB app-state snapshot. Actual retained picture files supply observations,
+and publisher-continuation reads remain zero. The display is awakened and System
+UI collapsed before launch; the new assertions also guard each measured milestone.
+
+| Observation | Release control 1 | ASCII candidate 1 | ASCII candidate 2 | Release control 2 |
+| --- | ---: | ---: | ---: | ---: |
+| Open → first inspected complete card | 7,959 ms | 7,858 ms | 8,180 ms | 7,879 ms |
+| Open → complete-family checkpoint | 8,242 ms | 8,176 ms | 8,480 ms | 8,179 ms |
+| Warm reentry → complete card | 1,269 ms | 1,253 ms | 1,285 ms | 1,321 ms |
+
+All four corrected native invocations pass with no skips or failures. The first
+target card contains every expected original, three distinct pictures and its
+shared heading once. All eight first/warm screenshots are inspected. First-card
+medians are **7,919 and 8,019 ms**; observations overlap, and the shortcut is
+removed. These observations include the existing 100 ms compositor allowance.
+They describe this two-core API 35 emulator, without a phone p95, energy or
+general latency claim. They must not be combined with earlier comparisons to
+infer a release regression or gain across different host sessions.
+
+### Measure the existing source-analysis allowance before adding storage
+
+The existing opt-in source-projection diagnostic compares six fresh/retained
+grouping passes over 959 originals, 25 source bindings and 767 groups. Each pass
+receives newly copied post/media objects; current admission still runs. A first
+default-allowance replay passes, followed by two controlled allowance experiments:
+
+| Local diagnostic | 8 MiB allowance | 16 MiB diagnostic allowance |
+| --- | ---: | ---: |
+| Retained source entries | 561 / 959 | 959 / 959 |
+| Accounted retained bytes | 8,387,078 | 16,084,586 |
+| Repeated retained grouping, two samples | 2,523 / 2,361 ms | 1,404 / 1,338 ms |
+| Interleaved fresh grouping, two samples | 2,714 / 2,721 ms | 2,708 / 2,749 ms |
+| Approximate managed heap released after owner collection | 3.40 MiB | 6.51 MiB |
+
+All three diagnostic invocations pass, with zero skips/failures and identical
+ordered grouping digests across every stage. Both explicit heap experiments
+confirm collection of the projection owner. Their before/after managed-heap
+differences are approximate measurements, separate from the accounting allowance,
+native memory, peak PSS or phone memory pressure.
+
+The repeated-grouping medians are **2,442 and 1,371 ms**, about 1.07 seconds apart.
+This establishes a useful capacity lead for later comparisons of an active
+window. It does not establish faster cold startup or painted-card delivery.
+The diagnostic accepts an explicit allowance from 256 KiB to 16 MiB; production
+keeps its existing **8 MiB** source-analysis limit. Persistent analysis storage,
+an increased runtime limit and a new app release remain unimplemented here.
+Further work needs an actual subsequent-image/video-evidence journey, memory
+admission and recovery checks before changing the reader.
+
+The retained changes are qualification guards, the bounded diagnostic override
+and this evidence record. Runtime behavior remains the published 0.38.83.
+
 ## 0.38.83: reuse an unchanged source's presentation during matching
 
 The source matcher and decorative-copy parser previously created temporary post
