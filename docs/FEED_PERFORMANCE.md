@@ -4,6 +4,106 @@
 process launch, application initialization and the first cached reading card.
 Its test-only sampler does not change the released reader's manifest or runtime.
 
+## Post-0.38.92 investigation: reject a token shortcut and measure retained facts
+
+Fresh observations use the exact published 0.38.92 APK and its pinned tester on
+two emulator cores with 2,048 MiB RAM. Every run restores and verifies the same
+53.5 MB app state, Unix ownership and app-data SELinux categories. The untraced
+before/after observations deliver the first card at **11,420 / 8,950 ms**, with
+late-source credit at **4,010 / 4,177 ms**. OS/ART and host state are not reset;
+these observations alone do not establish a stable latency distribution.
+
+The separate 2 ms diagnostic has 101,051 records, dual clocks, no overflow and
+no reconstruction anomalies. Its approximate first-card window excludes 100 ms
+at each boundary. It attributes about **4,296 ms** inclusively to grouping and
+**275 ms** to native input setup under the literal tokenizer. Heading nomination
+accounts for about **83 ms**; splitting its preparation is deferred in favor of
+the larger measured lead. Nested timings are not additive or predicted savings.
+Android's [optimization guidance](https://developer.android.com/topic/performance/appstartup/analysis-optimization)
+supports profiling critical work and remeasuring the complete journey; background
+work can still contend with delivery.
+
+A one-file prototype captures the existing word alternative in the unchanged
+numeric-first token language. Ordinary Unicode words bypass whitespace/minus
+cleanup that this alternative cannot need; numeric matches keep the original
+cleanup and create its call-local matcher on first use. The
+[indexed-group contract](https://developer.android.com/reference/java/util/regex/Matcher#group(int))
+distinguishes the selected branch without an ASCII-only lexer or case-folding
+rewrite. No cache, request, dependency, permission or matching threshold changes.
+
+The prototype passes **2,787 JVM cases: 2,783 passes, four optional skips, zero
+failures/errors**, and **30 focused native methods: 30 passes, zero skips or
+failures**. Existing frozen oracles cover every Unicode code point, numeric-first
+priority, currency/signs, contractions, malformed text and independent readers.
+The focus also retains the latest hybrid-caption and media-free-edition cases.
+DEX inspection finds zero project-definition overlap between runtime and tester.
+
+Eight untraced observations use the same tester and hash-verified state. The
+owned compiler daemon is stopped before these comparisons; no build overlaps
+them. The third source is staged after the first card, and every run retains one
+final card, all three originals, three distinct pictures, earlier source credit,
+read marks and the two-pixel anchor bound, with zero publisher-continuation reads.
+Actual prototype caption, credit and distinct-picture frames are inspected.
+
+| Order/run | Runtime | First card | Late-source credit |
+| --- | --- | ---: | ---: |
+| ABBA 1 | Published 0.38.92 | 7,957 ms | 4,228 ms |
+| ABBA 2 | Prototype | 8,599 ms | 4,342 ms |
+| ABBA 3 | Prototype | 8,425 ms | 4,075 ms |
+| ABBA 4 | Published 0.38.92 | 8,136 ms | 4,160 ms |
+| BAAB 1 | Prototype | 8,193 ms | 3,918 ms |
+| BAAB 2 | Published 0.38.92 | 8,015 ms | 3,761 ms |
+| BAAB 3 | Published 0.38.92 | 8,950 ms | 4,509 ms |
+| BAAB 4 | Prototype | 7,996 ms | 4,011 ms |
+
+Combined first-card medians are **8,075.5 / 8,309 ms** for published/prototype;
+late-source medians are **4,194 / 4,043 ms**. The two orders disagree about the
+first-card direction. A subsequent diagnostic attributes **451 / 87 ms** to the
+tokenizer, but whole grouping remains about **4,296 / 4,331 ms** in the respective
+first-card windows. These inclusive windows are not per-call benchmarks and do
+not override the ordinary delivery observations. **The standalone runtime
+change is rejected and removed.** Its source, patch, artifacts, timings and
+diagnostics remain in the private external evidence area. These samples do not
+establish a phone, p95, energy or live-acquisition improvement or regression rate.
+
+The retained engineering addition is an opt-in source-preparation probe. It runs
+against the exact published APK, reads a bounded private packet and creates its
+own local projection. It removes supplied picture/footage observations, uses no
+media callback, makes no requests and writes no records to Room. It explicitly
+selects the existing allowances for diagnosis, without changing the reader's
+memory admission policy. Grouping identities and source immutability are asserted
+throughout, including after complete cache release.
+
+The final probe observes 896 originals and the same 711 ordered group identities
+in all five phases. This is source-only projection parity, not a ground-truth
+evaluation of those groups or a full reading-card benchmark.
+
+| Probe phase | Allowance | Retained entries | Hits this pass | Misses this pass | Charged bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| First basic | 8 MiB | 569 | 0 | 896 | 8,388,582 |
+| Repeat basic | 8 MiB | 569 | 569 | 327 | 8,388,582 |
+| Grow expanded | 16 MiB | 896 | 569 | 327 | 14,220,534 |
+| Repeat expanded | 16 MiB | 896 | 896 | 0 | 14,220,534 |
+| Released | 0 | 0 | 0 | 896 | 0 |
+
+Charged bytes are the existing conservative accounting estimate, **not measured
+heap allocation**. These sequential passes do not reset ART or allocator state;
+their local timings cannot establish a causal budget speedup or first-card gain.
+The complete retained set contains 23,222 candidate-key strings with 1,395,081
+UTF-16 code units. Fixed namespace totals identify representation costs without
+exporting any source-derived key. A more compact representation within the
+existing allowance is a research lead, not an implemented change or permission
+to increase the budget.
+
+The initial probe and its namespace-counter refinement each pass their native
+opt-in invocation. A separate invocation without the required flags skips its
+only method and leaves the completed report unchanged. The restored runtime also
+passes the fresh 2,787-case JVM suite; release/test assembly and lint pass. Every
+production APK member matches published 0.38.92 apart from signatures/container
+metadata; the final probe build also has an identical source stamp. No new APK
+is released, and the laptop preview retains the published runtime and reader
+state. Private packets and screenshots remain external.
+
 ## 0.38.92: reuse matchers for bounded literal caption words
 
 Fresh observations use the exact published 0.38.91 APK, two owned emulator cores,

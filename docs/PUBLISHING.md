@@ -91,6 +91,20 @@ The optional JVM `CrossPostPacketTest` accepts a captured input through
 `expectedGroups`, optionally `selectedOriginals` and `oncePassages`. It can replay
 a selected case within a larger captured corpus and check that shared passages
 are rendered once. The packet remains outside the checkout; normal runs skip it.
+
+`SourcePreparationResearchTest` is an engineering-only, source-only diagnostic.
+It requires both `antisocialIsolatedFixtureDevice=true` and
+`antisocialSourcePreparationResearch=true`, plus a private
+`source-preparation-research.json` in the test app's external `validation`
+directory. The bounded object supplies `posts`, `follows` and `memberships` in the
+existing model format. No supplied URL is fetched and no record enters Room.
+The probe removes image/footage observations, measures the existing 8/16 MiB
+fact allowances and complete release, checks identical grouping and immutable
+source values, and reports accounting estimates and fixed namespace counts.
+Those counts are not measured heap use, and sequential local-stage times are
+not foreground-card or physical-phone measurements. Keep inputs and output
+reports in the private external build area. Ordinary runs skip this method.
+
 Opt-in `ReaderRoutingLiveTest` and `ReaderSearchLiveNativeTest` likewise require an
 explicit private `files/reader-routing-live.json` on an isolated test device, plus
 their named live/isolation flags. They record dated production-route and actual
