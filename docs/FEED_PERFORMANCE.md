@@ -104,6 +104,67 @@ metadata; the final probe build also has an identical source stamp. No new APK
 is released, and the laptop preview retains the published runtime and reader
 state. Private packets and screenshots remain external.
 
+### Fragment-key experiment: less repeated text, no consistent delivery gain
+
+A separate prototype stores the fixed nomination namespace, publisher scope and
+literal value as immutable fragments. It avoids copying an anchor and publisher
+into several complete strings. Hashing, equality and ordering retain the former
+complete [String contract](https://developer.android.com/reference/java/lang/String),
+including delimiter-boundary aliases and complete comparison after hash
+collisions. Nomination budgets, matching guards, source invalidation and the
+8/16 MiB resource policy remain unchanged. No pair-admission result is cached.
+
+The prototype passes **2,792 JVM cases: 2,788 passes, four optional skips, zero
+failures/errors**, and **46 focused API 35 methods: 46 passes, zero skips or
+failures**. The additions compare every UTF-16 code unit and mixed composite
+boundaries against ordinary String keys. Native controls also cover cancellation,
+evidence withdrawal, source-context reuse, compact captions and faithful saves.
+Both the new tester and the pinned comparison tester have zero project-class
+definition overlap with the runtime.
+
+The same private 896-original source-only probe passes on both published and
+prototype runtimes with the same updated tester. All five phases preserve the
+same ordered group digest and source values. Within 8 MiB, retention grows from
+**569 to 605 entries**; a repeat pass consequently has **327 versus 291 misses**.
+With all 896 entries retained under 16 MiB, charged bytes fall from **14,220,534
+to 13,034,490**. Within-entry unique key-fragment characters total **548,831**,
+versus **1,395,081** characters in complete key strings. These are reference and
+accounting observations, **not measured heap sizes**. Materializing logical keys
+for the probe's counters occurs outside its grouping interval. Source-only group
+parity does not establish ground-truth grouping or reading-card speed.
+
+Eight complete native observations again use hash/ownership/category-restored
+state, two cores, 2,048 MiB and the unchanged pinned tester. No build overlaps the
+untraced runs. Each retains one final card, all three originals, three distinct
+pictures, earlier source credit, read marks and the two-pixel anchor bound, with
+zero continuation reads. Actual caption, late-credit and all three picture frames
+are inspected.
+
+| Order/run | Runtime | First card | Late-source credit |
+| --- | --- | ---: | ---: |
+| ABBA 1 | Published 0.38.92 | 8,077 ms | 3,993 ms |
+| ABBA 2 | Fragments | 7,526 ms | 3,963 ms |
+| ABBA 3 | Fragments | 8,148 ms | 3,951 ms |
+| ABBA 4 | Published 0.38.92 | 8,764 ms | 4,329 ms |
+| BAAB 1 | Fragments | 8,327 ms | 3,991 ms |
+| BAAB 2 | Published 0.38.92 | 7,958 ms | 3,839 ms |
+| BAAB 3 | Published 0.38.92 | 8,362 ms | 4,025 ms |
+| BAAB 4 | Fragments | 8,929 ms | 4,482 ms |
+
+Combined published/prototype medians are **8,219.5 / 8,237.5 ms** to the first
+card and **4,009 / 3,977 ms** to late-source credit. The two orders disagree.
+**The runtime change is rejected and removed.** The prototype, its tests,
+artifacts, counters and individual observations remain in the private external
+evidence area. There is no new release or physical-phone, minimum-API, p95,
+energy or live-acquisition performance claim from this experiment. Reduced
+accounting alone does not establish a useful visible-delivery improvement.
+
+The initial build command selects the wrong test-variant property and stops
+during task selection, before tests execute. The corrected frozen build supplies
+the results above. After removing the prototype, the fresh 2,787-case JVM suite,
+release/test assembly and lint pass; production APK members match the published
+runtime apart from the source stamp. The laptop preview remains on 0.38.92.
+
 ## 0.38.92: reuse matchers for bounded literal caption words
 
 Fresh observations use the exact published 0.38.91 APK, two owned emulator cores,
