@@ -61,6 +61,31 @@ object CrossPosts {
     private const val UNLINKED_WINDOW=6L*60*60*1000
     private const val MAX_TEXT=16_384
     private const val MAX_CANDIDATES=128
+    /** One invocation's immutable time index. Overflow is unexamined, never a
+     * truncated list that could manufacture a unique matching destination. */
+    private class TimeCandidates<T>(values:List<T>,time:(T)->Long?) {
+        private val rows=values.mapNotNull {value->time(value)?.takeIf {it>0}?.let {it to value}}.sortedBy {it.first}
+        private fun boundary(at:Long,after:Boolean):Int {
+            var low=0;var high=rows.size
+            while(low<high) {
+                val middle=(low+high) ushr 1;val time=rows[middle].first
+                if(time<at||after&&time==at)low=middle+1 else high=middle
+            }
+            return low
+        }
+        fun between(first:Long,last:Long):List<T>? {
+            if(first>last)return emptyList()
+            val start=boundary(first,false);val end=boundary(last,true)
+            if(start==end)return emptyList()
+            return if(end-start>MAX_CANDIDATES)null else rows.subList(start,end).map {it.second}
+        }
+        fun around(at:Long?):List<T>? {
+            if(at==null||at<=0)return emptyList()
+            return between(timeLower(at),timeUpper(at))
+        }
+    }
+    private fun timeLower(at:Long)=maxOf(1L,at-UNLINKED_WINDOW)
+    private fun timeUpper(at:Long)=if(at>Long.MAX_VALUE-UNLINKED_WINDOW)Long.MAX_VALUE else at+UNLINKED_WINDOW
     private val meaningfulSymbols=Regex("[\\p{So}\\p{Sm}\\p{Sc}\\p{Sk}]")
     private val urlPattern=Regex("https://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
     private val invisible=Regex("[\u00ad\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]")
@@ -419,6 +444,27 @@ object CrossPosts {
             if(images.size>48)continue
             if(peers.any {edition->val proof=edition.copy(media=images);posts.all {galleryMember(proof,it,posts,sameMedia)}})return true
         }
+        // Complementary editions can be linked by one captured post carrying
+        // their distinguishing pictures together. Keep that direct observation
+        // portable; separate stock-photo paths cannot stand in for it.
+        if(posts.size<3||anchors.size<2)return false
+        val examined=hashSetOf<Set<String>>()
+        for(anchor in anchors) {
+            val peers=anchors.filter {GalleryCaptionCopies.contains(anchor,it)&&GalleryCaptionCopies.contains(it,anchor)}
+            if(peers.size<2||!examined.add(peers.mapTo(hashSetOf(),::originalKey)))continue
+            val images=peers.flatMap {it.media}.distinctBy {it.url}
+            if(images.size>48)continue
+            val gaps=peers.indices.flatMap {i->(i+1 until peers.size).filter {j->!overlap(peers[i],peers[j])}.map {i to it}}
+            if(gaps.isEmpty())continue
+            val witnessed=posts.any {bridge->
+                if(bridge.media.size !in 2..12||bridge.media.any {it.type!="image"})return@any false
+                val slots=peers.map {full->bridge.media.map {image->galleryContains(full,bridge.copy(media=listOf(image)),sameMedia,scope=posts)}}
+                gaps.all {(a,b)->
+                    slots[a].indices.any {slots[a][it]&&!slots[b][it]}&&slots[b].indices.any {slots[b][it]&&!slots[a][it]}
+                }
+            }
+            if(witnessed&&peers.any {edition->val proof=edition.copy(media=images);posts.all {galleryMember(proof,it,posts,sameMedia)}})return true
+        }
         return false
     }
     private fun imageEcho(post:Post):Boolean {
@@ -445,19 +491,66 @@ object CrossPosts {
             compatible&&sameImages(echo,original,sameMedia)
         }}
     }
-    private fun collectImageEchoes(groups:List<PostGroup>,sameMedia:(Post,Post)->Boolean):List<PostGroup> {
+    private fun collectImageEchoes(groups:List<PostGroup>,sameMedia:(Post,Post)->Boolean,checkpoint:()->Unit):List<PostGroup> {
         val echoes=groups.indices.filter {groups[it].posts.all(::imageEcho)}
-        if(echoes.size>MAX_CANDIDATES)return groups
-        val targets=groups.indices.filter {it !in echoes}
-        val assignments=echoes.mapNotNull {echo->targets.filter {target->imageEchoCollection(groups[target].posts+groups[echo].posts,sameMedia)}.singleOrNull()?.let {echo to it}}.toMap()
+        if(echoes.isEmpty())return groups
+        val echoSet=echoes.toHashSet()
+        val spans=groups.indices.mapNotNull {index->
+            checkpoint()
+            val posts=groups[index].posts
+            if(posts.isEmpty()||posts.size>=MAX_EDITIONS||posts.any {it.body.length.toLong()+it.title.length>MAX_TEXT||it.preview||it.parentId!=null||it.media.size!=1||
+                    it.media.single().type!="image"||it.media.single().url==it.avatar||it.publishedAt?.let {at->at>0}!=true||!realOriginal(it)})null
+            else {
+                val first=posts.minOf {it.publishedAt!!};val last=posts.maxOf {it.publishedAt!!}
+                (first..last).takeIf {last-first<=UNLINKED_WINDOW}?.let {index to it}
+            }
+        }.toMap()
+        val windows=TimeCandidates(echoes.filter {it in spans}){spans.getValue(it).first}
+        val choices=IntArray(groups.size){-1};val ambiguous=BooleanArray(groups.size)
+        val deferred=mutableListOf<LongRange>()
+        for(target in groups.indices) {
+            checkpoint()
+            if(target in echoSet)continue
+            val span=spans[target] ?: continue
+            val first=timeLower(span.last);val last=timeUpper(span.first)
+            val nearby=windows.between(first,last)
+            if(nearby==null) {
+                // Every echo in this interval has an unexamined possible
+                // destination. A different, smaller window cannot claim it
+                // was uniquely matched just because this target was deferred.
+                deferred+=first..last;continue
+            }
+            for(echo in nearby) {
+                checkpoint()
+                if(!ambiguous[echo]&&imageEchoCollection(groups[target].posts+groups[echo].posts,sameMedia)) {
+                    if(choices[echo]<0)choices[echo]=target else if(choices[echo]!=target)ambiguous[echo]=true
+                }
+            }
+        }
+        val blocked=mutableListOf<LongRange>()
+        for(range in deferred.sortedBy {it.first}) {
+            val previous=blocked.lastOrNull()
+            if(previous!=null&&range.first<=previous.last)blocked[blocked.lastIndex]=previous.first..maxOf(previous.last,range.last)
+            else blocked+=range
+        }
+        fun unexamined(at:Long):Boolean {
+            var low=0;var high=blocked.size
+            while(low<high) {val middle=(low+high) ushr 1;if(blocked[middle].first<=at)low=middle+1 else high=middle}
+            return low>0&&at<=blocked[low-1].last
+        }
+        val assignments=echoes.mapNotNull {echo->choices[echo].takeIf {it>=0&&!ambiguous[echo]&&!unexamined(spans.getValue(echo).first)}?.let {echo to it}}.toMap()
+        val byTarget=assignments.keys.groupBy {assignments.getValue(it)}
+        val rejected=hashSetOf<Int>()
         val order=compareBy<Post> {it.publishedAt ?: Long.MAX_VALUE}.thenBy(::originalKey)
-        return groups.indices.filter {it !in assignments}.map {index->
-            val additions=assignments.filterValues {it==index}.keys.flatMap {groups[it].posts}
+        val retained=groups.indices.filter {it !in assignments}.map {index->
+            checkpoint()
+            val additions=byTarget[index].orEmpty().flatMap {groups[it].posts}
             val all=groups[index].posts+additions
-            if(additions.isNotEmpty()&&imageEchoCollection(all,sameMedia))PostGroup(all.sortedWith(order))else groups[index]
-        }+assignments.keys.filter {echo->
-            val target=assignments.getValue(echo);!imageEchoCollection(groups[target].posts+assignments.filterValues {it==target}.keys.flatMap {groups[it].posts},sameMedia)
-        }.map {groups[it]}
+            if(additions.isEmpty())groups[index]
+            else if(imageEchoCollection(all,sameMedia))PostGroup(all.sortedWith(order))
+            else {rejected+=index;groups[index]}
+        }
+        return retained+assignments.keys.filter {assignments.getValue(it) in rejected}.map {groups[it]}
     }
     private fun galleryMember(anchor:Post,post:Post,scope:List<Post>,sameMedia:(Post,Post)->Boolean):Boolean {
         if(post.parentId==null)return galleryContains(anchor,post,sameMedia,scope=scope)
@@ -515,31 +608,60 @@ object CrossPosts {
             else sameImages(anchor.copy(media=listOf(other)),post.copy(media=listOf(image)),sameMedia)
         }}
     }
-    private fun collectGalleries(groups:List<PostGroup>,sameMedia:(Post,Post)->Boolean):List<PostGroup> {
+    private fun collectGalleries(groups:List<PostGroup>,sameMedia:(Post,Post)->Boolean,checkpoint:()->Unit):List<PostGroup> {
         val scope=groups.flatMap {it.posts}
         val anchors=scope.filter(::galleryAnchor).sortedWith(compareByDescending<Post> {it.media.size}.thenBy(::originalKey))
-        if(anchors.size>MAX_CANDIDATES)return groups
+        if(anchors.isEmpty())return groups
+        val windows=TimeCandidates(anchors.indices.toList()){anchors[it].publishedAt}
         // Already admitted editions belong to one announcement even when each
         // supplies a different gallery or one rendition has not decoded yet.
         // They must not become competing roots for their own proven children.
         val owners=groups.flatMapIndexed {index,group->group.posts.map {originalKey(it) to index}}.toMap()
-        data class Root(val owner:Int,val proofs:List<Post>)
+        val anchorOwners=anchors.map {owners.getValue(originalKey(it))}
+        val editions=anchors.indices.groupBy {anchorOwners[it]}
+        data class Root(val owner:Int,val proofs:Map<Int,Post>,val complete:Boolean)
         val roots=mutableListOf<Root>()
-        for(anchor in anchors) {
-            val owner=owners.getValue(originalKey(anchor))
-            if(roots.any {it.owner==owner||it.proofs.any {proof->galleryContains(proof,anchor,sameMedia)}})continue
-            val editions=anchors.filter {owners[originalKey(it)]==owner}
-            val observed=editions.flatMap {it.media}.distinctBy {it.url}
+        val ownerRoots=IntArray(groups.size){-1}
+        for(index in anchors.indices) {
+            checkpoint()
+            val anchor=anchors[index];val owner=anchorOwners[index]
+            if(ownerRoots[owner]>=0)continue
+            val nearby=windows.around(anchor.publishedAt)
+            if(nearby?.any {other->
+                checkpoint()
+                val root=ownerRoots[anchorOwners[other]]
+                root>=0&&galleryContains(roots[root].proofs.getValue(other),anchor,sameMedia)
+            }==true)continue
+            val cohort=editions.getValue(owner)
+            val observed=cohort.flatMap {anchors[it].media}.distinctBy {it.url}
             // A bounded, private proof projection only. Source records and the
             // presentation inventory retain every original attachment/URL.
-            val proofs=if(observed.size<=48)editions.map {it.copy(media=observed)}else editions
-            roots+=Root(owner,proofs)
+            val proofs=cohort.associateWith {if(observed.size<=48)anchors[it].copy(media=observed)else anchors[it]}
+            ownerRoots[owner]=roots.size
+            // Keep an overfull root visible to ambiguity checks at the edge of
+            // its window. Dropping it could falsely make another root unique.
+            roots+=Root(owner,proofs,nearby!=null)
         }
         if(roots.isEmpty())return groups
         val assignments=groups.mapIndexed {owner,group->
-            roots.indices.firstOrNull {roots[it].owner==owner} ?: roots.indices.filter {index->
-                group.posts.all {post->roots[index].proofs.any {galleryMember(it,post,scope,sameMedia)}}
-            }.singleOrNull()
+            checkpoint()
+            ownerRoots[owner].takeIf {it>=0} ?: run {
+                var options:Set<Int>?=null
+                for(post in group.posts) {
+                    checkpoint()
+                    val nearby=windows.around(post.publishedAt) ?: return@mapIndexed null
+                    val matches=linkedSetOf<Int>()
+                    for(other in nearby) {
+                        checkpoint()
+                        val root=ownerRoots[anchorOwners[other]]
+                        if(root>=0&&root !in matches&&(options==null||root in options)&&
+                            galleryMember(roots[root].proofs.getValue(other),post,scope,sameMedia))matches+=root
+                    }
+                    options=options?.intersect(matches) ?: matches
+                    if(options.isEmpty())return@mapIndexed null
+                }
+                options?.singleOrNull()?.takeIf {roots[it].complete}
+            }
         }
         val joined=linkedMapOf<Int,MutableList<Post>>()
         val unchanged=mutableListOf<PostGroup>()
@@ -1264,7 +1386,7 @@ object CrossPosts {
             PostGroup(originals.sortedWith(compareBy<Post> {it.publishedAt?.takeIf {time->time>0} ?: Long.MAX_VALUE}.thenBy(::originalKey)))
         }
         checkpoint()
-        val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia),sameMedia))
+        val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(grouped,sameMedia,checkpoint),sameMedia,checkpoint))
         val owners=ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}}
         val announcements=AnnouncementCollections.collect(established,owners,{a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
         val declared=DeclaredVideo.collect(announcements,::declaredRecordingCollection,checkpoint)

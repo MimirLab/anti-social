@@ -1,5 +1,60 @@
 # Attachment collections
 
+## Time-scoped gallery and picture-reshare admission (0.38.79)
+
+The gallery and picture-only reshare passes previously stopped when their
+entire input contained more than 128 gallery editions or reshares. Unrelated
+historical posts could therefore disable a proven current match. A retained
+three-source gallery reproduces the cutoff both on the JVM and in the native
+reader when surrounded by unrelated historical galleries.
+
+Both passes now use a temporary, immutable time index for the same six-hour
+eligibility bound. Inclusive binary-search ranges avoid hard clock buckets and
+handle the date limits without overflow. At most 128 relevant proof candidates
+are admitted per window; an overfull window stays unexamined instead of returning
+a truncated candidate list. Other windows continue to receive comparisons.
+
+Gallery roots keep their existing picture-count priority, same-cohort picture
+union, complete caption and parent-chain checks, identity requirements and
+detailed picture proof. A root whose window was not fully examined remains
+visible to adjacent-window ambiguity checks and cannot receive children as a
+fully qualified root. Each proposed member needs one consistent complete root.
+Already collected editions remain one cohort rather than competing destinations.
+
+Picture-only reshares are examined against temporally compatible complete
+captions. Deferred target intervals are retained, so ignoring an overfull target
+cannot make another target look uniquely correct. Existing symbol, caption,
+picture, original-identity and whole-collection checks still decide admission.
+The reverse assignment is grouped once; if the complete proposed union fails,
+every child returns to its original card. Local cancellation checkpoints stop
+obsolete collection work without publishing a partially checked result.
+
+The operation adds no acquisition, model, dependency, permission, persistent
+index or database migration. Source text, dates, media and provenance are never
+rewritten. Same-source, individual image and recording-equivalence validators
+retain their existing rules. See the
+[dated qualification](RELEASE_QUALIFICATION.md#03879-unrelated-history-cannot-disable-local-picture-collection)
+for the captured failure, native inspection, remaining local overflow and
+performance scope.
+
+### Portable proof for complementary galleries
+
+Already linked editions can supply complementary picture sets. A feed collection
+could previously succeed while its independent composition/save validator failed,
+repeating the common heading or rejecting the save. The validator now recognizes
+one captured edition that directly carries the distinguishing pictures from each
+otherwise disjoint pair of complete-caption galleries. A full-caption edition
+can itself supply that observation. Separate paths through shared stock pictures
+cannot substitute for one observed co-occurrence.
+
+The existing whole-caption agreement, six-hour bound, original identity,
+destination/claim checks and detailed picture-inclusion rules still apply to
+every member. The proof union is capped at 48 image URLs; the observed bridge has
+two to twelve pictures. Unknown pictures, incompatible captions and ambiguous
+parents remain separate. Composition and protected saves replay the captured
+evidence without a subscription database or network lookup. They retain all raw
+editions and attribute each picture only to sources actually supplying it.
+
 ## Damaged trailing decorations (0.38.78)
 
 A public representation can contain a replacement character inside a trailing

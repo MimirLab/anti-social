@@ -236,6 +236,14 @@ class FusionFeedTest {
         val memberships=packet.getAsJsonObject("memberships").entrySet().associate {(key,value)->key to value.asJsonArray.map {it.asString}.toSet()}
         cases.forEach {value->val posts=value.asJsonObject.getAsJsonArray("posts");require(posts.size() in 1..12);records+=posts.map {repo.gson.fromJson(it,Post::class.java)}}
         require(records.size<=64&&records.map(repo::key).distinct().size==records.size)
+        val focusedKeys=records.mapTo(hashSetOf(),repo::key)
+        packet.getAsJsonArray("backgroundPosts")?.let {background->
+            require(background.size()<=512)
+            val context=background.map {repo.gson.fromJson(it,Post::class.java)}
+            require(context.all {it.media.size in 1..12&&it.media.all {media->media.type=="image"}&&it.publishedAt?.let {at->at>0}==true})
+            records+=context
+            require(records.map(repo::key).distinct().size==records.size)
+        }
         val output=File(ui.activity.getExternalFilesDir("validation"),"collected-feed-packet").apply {mkdirs()}
         if(automatic) {
             val sample=repo.videos.sample;originalVideoSampler=sample
@@ -277,7 +285,7 @@ class FusionFeedTest {
             val nested=node.children.flatMap(::words)
             return nested.ifEmpty {node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}}
         }
-        val originalKeys=records.mapTo(hashSetOf(),repo::key)
+        val originalKeys=focusedKeys
         val rows=SemanticsMatcher("Collected feed rows"){
             it.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Feed row ") in originalKeys
         }
@@ -330,6 +338,8 @@ class FusionFeedTest {
         val spaces=Regex("[\\s\\p{Z}]+")
         fun compact(value:String)=value.replace(spaces," ").trim().lowercase()
         val groups=runBlocking(Dispatchers.Default){CrossPosts.groupWithVideoFootage(records.map(repo.videos::captured).map(repo.images.identities::captured),accounts,memberships,repo.images.identities::same) {a,b->VideoFootage.related(a,b)}}
+        assertEquals("The complete context must retain every original",records.map(repo::key).toSet(),groups.flatMap {it.posts}.map(repo::key).toSet())
+        assertEquals("The complete context must not repeat originals",records.size,groups.sumOf {it.posts.size})
         val reports=cases.mapIndexed {index,value->
             val spec=value.asJsonObject;val keys=spec.getAsJsonArray("posts").map {repo.key(repo.gson.fromJson(it,Post::class.java))}.toSet()
             val shown=seen.filterKeys {it in keys};val passage=compact(spec["once"].asString)
@@ -363,7 +373,7 @@ class FusionFeedTest {
         // Capture each current card's beginning explicitly as well as the
         // continuous scroll. A fling can move past a short caption between two
         // full-screen media renditions even though semantics retain its text.
-        groups.forEachIndexed {index,group->
+        groups.filter {group->group.posts.any {repo.key(it) in focusedKeys}}.forEachIndexed {index,group->
             // Streaming preserves the visible row's existing anchor even when
             // a newly collected original has an earlier canonical primary.
             val aliases=group.posts.mapTo(hashSetOf(),repo::key)
@@ -423,18 +433,26 @@ class FusionFeedTest {
         ui.onNode(matcher).assertIsDisplayed()
     }
 
-    private fun cacheGalleryPicture(url:String,index:Int) {
+    private fun cacheGalleryPicture(url:String,index:Int,distinctFourth:Boolean=false) {
         val bitmap=picture();val canvas=Canvas(bitmap)
-        val paint=Paint().apply {color=when(index){1->Color.RED;2->Color.GREEN;else->Color.BLUE}}
+        val paint=Paint().apply {color=when(index){1->Color.RED;2->Color.GREEN;4->if(distinctFourth)Color.MAGENTA else Color.BLUE;else->Color.BLUE}}
         canvas.drawRect(30f,20f,280f,150f,paint)
         val key=Repository.hash(url);mediaKeys+=key
         val file=File(repo.context.cacheDir,"content/$key").apply {parentFile?.mkdirs()}
-        try {file.outputStream().use {assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}}finally {bitmap.recycle()}
-        runBlocking {repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))}
+        // Publish direct fixture bytes under the same lease as cachePicture;
+        // startup orphan maintenance must not race the file/row pair.
+        repo.lease(key,true)
+        try {
+            try {file.outputStream().use {assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,it))}}finally {bitmap.recycle()}
+            runBlocking {repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))}
+        }finally {repo.lease(key,false)}
     }
 
     @Test fun aColdGalleryScanCollectsItsShorterHeadingWithoutDiscardingUniquePicturesOrContext() {
         verifyColdGallery("Work will continue.","cold-gallery-short-heading-and-source-context")
+    }
+    @Test fun aLargeSurroundingHistoryCannotDisableTheCurrentColdGalleryAndItsProtectedSave() {
+        verifyColdGallery("Never forget the volunteers who restored this equipment.","crowded-history-cold-gallery-one-card",crowded=true)
     }
     @Test fun aColdGalleryReminderRetainsItsIntroductionWithoutRequiringReplyMetadata() {
         verifyColdGallery("Never forget the volunteers who restored this equipment.","cold-gallery-reminder-without-invented-reply")
@@ -445,15 +463,29 @@ class FusionFeedTest {
             assertEquals(introduction,2,CrossPosts.group(listOf(changed,short),accounts).size)
         }
     }
-    private fun verifyColdGallery(intro:String,evidenceName:String) {
+    private fun unrelatedPictureHistory(galleries:Boolean) {
+        val account=follow(Platform.FACEBOOK)
+        val posts=List(128){i->
+            val id="96${suffix}8"+i.toString().padStart(3,'0')
+            Post(id,Platform.FACEBOOK,"https://www.facebook.com/$handle/posts/$id",handle,
+                if(galleries)"Materials inventory record $i documents the separate training session and its replacement equipment."else "",
+                publishedAt=now-2*86_400_000L+i,media=(1..if(galleries)2 else 1).map {Media("https://history-$suffix.invalid/$i-$it.jpg")})
+        }
+        records+=posts
+        runBlocking {repo.dao.putFollow(FollowRow(account.id,account.target.platform.id,repo.gson.toJson(account)));repo.store(Page(posts),account.id,true)}
+    }
+    private fun verifyColdGallery(intro:String,evidenceName:String,crowded:Boolean=false) {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val heading="REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT"
         val x=oldX.copy(body=heading+" https://t.co/AbCd123",media=listOf(Media("https://fusion-x-$suffix.invalid/gallery-one.png",description="Cold gallery single picture")))
         val gallery=oldInstagram.copy(body="$intro $heading:",media=(1..3).map {Media("https://fusion-instagram-$suffix.invalid/gallery-$it.png",description="Cold gallery picture $it")})
-        records+=listOf(x,gallery);store(x,follow(Platform.X));store(gallery,follow(Platform.INSTAGRAM))
+        val originals=listOf(x,gallery)
+        records+=originals;store(x,follow(Platform.X));store(gallery,follow(Platform.INSTAGRAM))
+        if(crowded)unrelatedPictureHistory(galleries=true)
         cacheGalleryPicture(x.media.single().url,1);gallery.media.forEachIndexed {i,m->cacheGalleryPicture(m.url,i+1)}
         repo.images.identities.clear()
-        assertEquals("Without decoded evidence, distinct CDN addresses cannot prove inclusion",2,CrossPosts.group(records,accounts).size)
+        assertEquals("Without decoded evidence, distinct CDN addresses cannot prove inclusion",2,
+            CrossPosts.group(records,accounts).count {g->g.posts.any {p->originals.any {repo.key(it)==repo.key(p)}}})
         seed("all",records);val vm=model();show(vm,all=true)
         try {
             ui.waitUntil(15_000){ui.onAllNodesWithTag("Feed row ${repo.key(x)}").fetchSemanticsNodes().isNotEmpty()&&
@@ -476,8 +508,11 @@ class FusionFeedTest {
         ui.onNodeWithTag("Fusion shared text").assertTextEquals(heading)
         ui.onNodeWithTag("Fusion context 0").assertTextEquals(intro)
         ui.onAllNodes(SemanticsMatcher("all distinct gallery pictures"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(3)
-        val captured=records.map(repo.images.identities::captured)
-        assertEquals(records.map(repo::key).toSet(),repo.library.normalizedFusionRoots(captured.first(),captured).map(repo::key).toSet())
+        val full=CrossPosts.group(records.map(repo.images.identities::captured),accounts, sameMedia=repo.images.identities::same)
+        assertEquals(originals.map(repo::key).toSet(),full.single {g->g.posts.any {repo.key(it)==repo.key(x)}}.posts.map(repo::key).toSet())
+        assertEquals(records.map(repo::key).toSet(),full.flatMap {it.posts}.map(repo::key).toSet())
+        val captured=originals.map(repo.images.identities::captured)
+        assertEquals(originals.map(repo::key).toSet(),repo.library.normalizedFusionRoots(captured.first(),captured).map(repo::key).toSet())
         assertEquals(3,collectedAttachments(captured).size)
         assertEquals(listOf(intro,heading),collectedPostFusion(captured)!!.segments.map {it.text})
         val snapshot=contextSnapshot(repo,x,captured)
@@ -485,10 +520,32 @@ class FusionFeedTest {
         assertEquals(1,Regex(Regex.escape(intro)).findAll(snapshot.text).count());assertEquals(3,snapshot.media.size)
         val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
         revealCombinedControl(save);ui.onNode(save).performClick()
-        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==records.size}
-        assertCapturedSources(records,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==originals.size}
+        assertCapturedSources(originals,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
         ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Cold gallery single picture").fetchSemanticsNodes().isNotEmpty()}
         evidence(evidenceName)
+    }
+
+    @Test fun aLargePictureOnlyHistoryCannotDisableACurrentReshareOrItsOriginals() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body="");val instagram=oldInstagram.copy(body="Workshop repairs start this Saturday at the public community centre.")
+        val originals=listOf(x,instagram)
+        records+=originals;store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        unrelatedPictureHistory(galleries=false);cachePicture(x);cachePicture(instagram,jpeg=true)
+        val captured=records.map(repo.images.identities::captured)
+        val groups=CrossPosts.group(captured,accounts,sameMedia=repo.images.identities::same)
+        assertEquals(originals.map(repo::key).toSet(),groups.single {g->g.posts.any {repo.key(it)==repo.key(x)}}.posts.map(repo::key).toSet())
+        assertEquals(records.map(repo::key).toSet(),groups.flatMap {it.posts}.map(repo::key).toSet())
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();ui.onAllNodesWithText(instagram.body).assertCountEquals(1)
+        ui.onAllNodes(SemanticsMatcher("one reshare picture"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(1)
+        val selected=originals.map(repo.images.identities::captured);val snapshot=contextSnapshot(repo,x,selected)
+        assertEquals(1,Regex(Regex.escape(instagram.body)).findAll(snapshot.text).count());assertEquals(1,snapshot.media.size)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==2}
+        assertCapturedSources(originals,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+        evidence("crowded-history-picture-reshare-one-card-all-originals")
     }
 
     @Test fun complementaryGalleryEditionsCollectTheirChildrenAndSaveEverySource() {
@@ -522,6 +579,40 @@ class FusionFeedTest {
         assertEquals(records.flatMap {it.media}.map {it.url}.toSet(),saved.flatMap {it.media}.map {it.url}.toSet())
         assertEquals(listOf(intro,heading),collectedPostFusion(saved)!!.segments.map {it.text})
         evidence("complementary-gallery-children-saved-with-all-originals")
+    }
+
+    @Test fun oneCapturedCooccurrenceKeepsDisjointGalleryCaptionsPicturesAndSavesPortable() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val heading="REPAIRS FROM THE COMMUNITY WORKSHOP IN WESTPORT";val intro="Work will continue."
+        fun photo(lane:String,index:Int)=Media("https://portable-$lane-$suffix.invalid/picture-$index.png",description="Portable picture $index")
+        val instagram=oldInstagram.copy(body="$intro $heading:",media=listOf(photo("ig",1),photo("ig",2)))
+        val id="95${suffix}1002"
+        val facebook=instagram.copy(id=id,platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/$id",publishedAt=now-58_000,
+            media=listOf(photo("fb",3),photo("fb",4)))
+        val x=oldX.copy(body=heading,media=listOf(photo("x",2),photo("x",3)))
+        records+=listOf(x,instagram,facebook)
+        records.forEach {post->store(post,follow(post.platform));post.media.forEach {cacheGalleryPicture(it.url,it.description.last().digitToInt(),distinctFourth=true)}}
+        runBlocking {records.forEach {post->post.media.forEach {repo.images.load(it.url,post.canonicalUrl,1600)}}}
+        val captured=records.map(repo.images.identities::captured)
+        assertTrue("The save must validate the captured pictures without a local identity lookup",CrossPosts.galleryCollection(captured))
+        val memberships=records.associate {repo.key(it) to setOf(accounts.single {account->account.target.platform==it.platform}.id)}
+        assertEquals(records.map(repo::key).toSet(),CrossPosts.group(captured,accounts,memberships,repo.images.identities::same).single().posts.map(repo::key).toSet())
+        assertEquals(listOf(intro,heading),collectedPostFusion(captured)!!.segments.map {it.text})
+        val attachments=collectedAttachments(captured);assertEquals(4,attachments.size)
+        assertEquals(setOf(setOf(repo.key(instagram)),setOf(repo.key(instagram),repo.key(x)),setOf(repo.key(facebook),repo.key(x)),setOf(repo.key(facebook))),
+            attachments.map {it.originalKeys}.toSet())
+        val snapshot=contextSnapshot(repo,x,captured)
+        assertEquals(1,Regex(Regex.escape(heading)).findAll(snapshot.text).count());assertEquals(1,Regex(Regex.escape(intro)).findAll(snapshot.text).count())
+        assertEquals(4,snapshot.media.size)
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();row(facebook).assertDoesNotExist()
+        ui.onNodeWithTag("Fusion shared text").assertTextEquals(heading);ui.onNodeWithTag("Fusion context 0").assertTextEquals(intro)
+        ui.onAllNodes(SemanticsMatcher("all four portable pictures"){it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("Post image ${repo.key(x)} ")==true}).assertCountEquals(4)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        assertCapturedSources(records,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+        evidence("portable-disjoint-gallery-one-heading-four-pictures-all-originals")
     }
 
     @Test fun aShortCaptionWithAnOpaqueLinkKeepsEveryDistinctAttachmentInTheNativeCard() {

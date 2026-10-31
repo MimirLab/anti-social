@@ -9,6 +9,89 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.79: unrelated history cannot disable local picture collection
+
+A retained three-source gallery reproduced one card in isolation but two cards
+and six displayed pictures when surrounded by 128 unrelated historical galleries.
+The gallery and picture-only reshare passes stopped entirely when their global
+candidate count exceeded 128. Both now use the existing six-hour eligibility
+window to bound comparisons. Overfull local windows remain unexamined; their
+potential competing roots/destinations cannot silently disappear from ambiguity
+checks. No acquisition, model, dependency, permission or schema is added. See
+[attachment collections](ATTACHMENT_COLLECTIONS.md#time-scoped-gallery-and-picture-reshare-admission-03879).
+
+A separate synthetic gallery control reproduced successful feed grouping but failed
+portable composition/save validation. One edition directly carrying pictures
+from otherwise disjoint, complete-caption galleries now supplies a bounded
+co-occurrence proof. Separate stock-picture chains do not. The same final
+caption, timing, parent, destination and detailed image guards still apply to
+every original. Common text reads once, distinct pictures remain attributed,
+and protected saves replay that proof without a local subscription lookup.
+
+Qualification on October 30–31, 2026 (UTC):
+
+- Full JVM: **2,701 cases, 2,697 passes, four optional skips, zero failures or
+  errors**. Twenty-one new methods cover time boundaries, overflow, ambiguous
+  roots/targets, conservation, direct co-occurrence and rejected chains, changed
+  claims, missing pictures, parent/date/destination constraints and contrary
+  detailed pixels. Earlier source-baseline selections reproduce the global-bank
+  failures and the portable composition gap before correction.
+- API 35 frozen release instrumentation: **269 named methods, 265 passes,
+  four opt-in skips, zero failures**. API 26: **28 passes,
+  zero skips or failures**, plus normal native startup. Screens are inspected;
+  the owned older-API diagnostic is stopped afterwards.
+- Three focused native controls pass. The pre-portable candidate fails its
+  independent proof assertion; the corrected candidate displays four actual
+  decoded pictures and one heading, verifies per-image source attribution,
+  Context and an actual Save-button action retaining all three raw originals.
+  The captured three-source gallery with 128 unrelated historical editions
+  changes from **two cards/six pictures to one card/five distinct pictures**.
+  All 131 originals remain represented; the target save preserves its three
+  source editions. A separate picture-only reshare control exercises a large
+  surrounding history and protected save.
+- A direct-group assertion in the first new native fixture omitted the exact
+  membership needed for an opaque Instagram original. It was corrected to use
+  the same explicit membership as fixture storage and the real feed. Portable
+  save validation remains independent of that database. The shared direct
+  picture-fixture writer also uses the existing lease while publishing its
+  file/row pair, preventing startup orphan maintenance from racing test setup.
+  Neither correction changes shipping network or cache semantics.
+- Twelve retained-source packet runs cover **24 announcement-family replays
+  and 81 source-edition instances**. Every expected family has one row, its
+  expected attachments, one common passage and all original sources saved. The
+  separate six-platform recording check initially fails because its frozen
+  TikTok URL does not supply
+  bounded ranges. Reacquiring the same original through the existing public
+  router takes 1,338 ms; the raw returned post identifier is checked. A separate
+  replay uses the entire freshly acquired edition and the unchanged other five
+  originals. Existing bounded samplers obtain TikTok/X/Facebook scenes and the
+  six-source family has one row, one shared passage, its differing title and all
+  four supplied playable variants, with a faithful save. The old frozen-URL
+  failure is retained. This does not implement automatic renewal of a stored
+  TikTok URL or establish that every older recording will remain retrievable.
+- The same **959 originals** have 767 rows on both 0.38.78 and this candidate:
+  all originals survive, no previously collected family splits and no additional
+  family combines. This retained corpus does not contain the newly constructed
+  131-original crowded-gallery counterexample.
+- A settled desktop ABBA comparison uses the same 959 originals, four fresh
+  processes and five passes per process. Pooled last-three-pass medians are
+  **1,169.5 ms on 0.38.78 and 1,174.5 ms on this candidate**, with overlapping
+  runs and identical partitions. This establishes no useful speed gain. These
+  are JVM observations, not physical-phone latency, p95, energy or
+  sustained-browsing qualification.
+- Release lint: **zero errors, 182 warnings and one hint**. Privacy-guard
+  controls: **eight passes**. Context-retention scoring: **four passes**.
+  Private-denylist source audit has zero findings and two reviewed unchanged
+  upstream files. Final frozen-member correspondence, source/signer integrity,
+  preview backup and compatible promotion are checked separately before release.
+
+**Remaining work:** the 128-candidate limit still applies to an overfull relevant
+window. The change prevents unrelated history from disabling other windows; it
+does not claim all ambiguous dense windows are fully traversed. Cold feed and
+recording-merge delays, stale recording URL renewal and specific unlocated
+picture-only leaves remain under investigation. These checks do not establish
+that every duplicate in a current complete feed has disappeared.
+
 ## 0.38.78: damaged decorations do not repeat a proven announcement
 
 A captured three-platform announcement reproduced two reading cards, two copies

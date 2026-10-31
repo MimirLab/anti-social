@@ -127,6 +127,14 @@ individual card screenshots and Library saves. Reports check one reading row,
 one shared passage, original retention and saved-root retention. Temporary cache
 rows and fixture records are restored or removed after the check. Captured reader
 inputs, images and reports stay in the private external evidence area.
+Optional `backgroundPosts` supplies up to 512 additional image-only, dated posts
+with their explicit memberships. The focused cases retain their 64-original
+total allowance. Background posts participate in the actual full feed and its
+grouping but do not become extra screenshot targets or saved case originals.
+The check additionally requires the complete context to conserve every original
+exactly once. This supports crowded-feed counterexamples without altering the
+captured target's text, pictures or ownership bindings. It remains an opt-in
+engineering input on a separate fixture device, not a shipped reader dataset.
 
 Business arguments contain the initial name, address, locality, optional point,
 websites, socials, phones and source IDs needed by that check. Missing required
