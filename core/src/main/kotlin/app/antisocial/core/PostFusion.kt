@@ -149,6 +149,7 @@ object CrossPostFusion {
     private const val SHINGLE=8
     private const val MIN_WORDS=20
     private const val MIN_CHARS=120
+    private val referenceWords=Regex("\\S+")
     private val word=Regex("[\\p{L}\\p{N}]+(?:['’][\\p{L}\\p{N}]+)*")
     private val numericClaim=Regex("(?:[<>!]=?|[≤≥≠≈=])?\\s*(?:[+\\-−\\p{Sc}]\\s*){0,3}\\p{N}+(?:[.,]\\p{N}+)*(?:\\s*[%‰\\p{Sc}])?")
     private val numericWhitespace=Regex("[\\p{Z}\\s]+")
@@ -465,6 +466,76 @@ object CrossPostFusion {
         return a.first==b.first&&a.second.size==b.second.size&&a.second.zip(b.second).count {it.first!=it.second} in 1..4
     }
 
+    /** Literal reference alternatives after independent collection/media proof.
+     * Equal prose is shared, not the identities behind differing handles. Keep
+     * whole whitespace tokens so punctuation never separates from its mention;
+     * every source retains its own ordered, attributed path through the result. */
+    internal fun composeMentionReferences(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.any {it.preview||it.parentId!=null||it.body.length.toLong()+it.title.length>4096}||
+            posts.none {'@' in it.body||'@' in it.title}||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        val sources=posts.sortedBy(CrossPosts::originalKey)
+        fun key(raw:String)=Normalizer.normalize(raw,Normalizer.Form.NFC).lowercase(Locale.ROOT)
+        data class Edition(val post:Post,val text:String,val words:List<String>,val keys:List<String>,val slots:Set<Int>)
+        val docs=sources.map {post->
+            var text=PostPresentation.content(post);repeat(2){text=org.jsoup.parser.Parser.unescapeEntities(text,false)}
+            text=TextWhitespace.collapse(text)
+            if('`' in text||"~~~" in text||text.any {it in '\u202a'..'\u202e'||it in '\u2066'..'\u2069'})return null
+            val words=referenceWords.findAll(text).take(257).toList()
+            if(words.size !in 24..256)return null
+            val urls=PostPresentation.urlMatches(text).map {it.range}.toList()
+            val names=mention.findAll(text).filter {match->
+                (match.range.first==0||text[match.range.first-1].let {!it.isLetterOrDigit()&&it !in "_./:@"})&&urls.none {match.range.first in it}
+            }.take(9).toList()
+            if(names.size !in 1..8)return null
+            val slots=linkedSetOf<Int>()
+            for(name in names) {
+                val index=words.indexOfFirst {name.range.first>=it.range.first&&name.range.last<=it.range.last}
+                if(index<0||index in slots)return null
+                val word=words[index]
+                val outside=text.substring(word.range.first,name.range.first)+text.substring(name.range.last+1,word.range.last+1)
+                if(outside.any {it.isLetterOrDigit()||it in "@#"})return null
+                slots+=index
+            }
+            Edition(post,text,words.map {it.value},words.map {key(it.value)},slots)
+        }
+        val first=docs.first()
+        if(docs.any {it.words.size!=first.words.size||it.slots!=first.slots})return null
+        if(docs.any {doc->doc.keys.indices.any {it !in first.slots&&doc.keys[it]!=first.keys[it]}})return null
+        val versions=docs.distinctBy {it.keys}
+        if(versions.size !in 2..8)return null
+        if(docs.groupBy {it.post.platform}.values.any {rows->rows.map {it.keys}.distinct().size>1})return null
+        // Retain the existing literal mention-only contract. This is not a new
+        // detector or a more permissive treatment of names, claims or URLs.
+        for(i in versions.indices)for(j in i+1 until versions.size)
+            if(!mentionOnlyVariant(versions[i].text,versions[j].text))return null
+        val allKeys=sources.mapTo(linkedSetOf(),CrossPosts::originalKey)
+        val allPlatforms=sources.mapTo(linkedSetOf()){it.platform}
+        val runs=mutableListOf<FusionRun>();val shared=mutableListOf<String>()
+        fun flush() {if(shared.isNotEmpty()){runs+=FusionRun(true,listOf(FusionVariant(shared.joinToString(" "),allPlatforms,allKeys)));shared.clear()}}
+        for(index in first.words.indices) {
+            if(index !in first.slots||docs.all {it.keys[index]==first.keys[index]}) {
+                shared+=first.words[index];continue
+            }
+            val groups=docs.indices.groupBy {docs[it].keys[index]}
+            flush()
+            runs+=FusionRun(false,groups.values.map {rows->FusionVariant(docs[rows.first()].words[index],
+                rows.mapTo(linkedSetOf()){docs[it].post.platform},rows.mapTo(linkedSetOf()){CrossPosts.originalKey(docs[it].post)})})
+        }
+        flush()
+        for(doc in docs) {
+            val original=CrossPosts.originalKey(doc.post)
+            val path=runs.flatMap {run->
+                val text=run.variants.singleOrNull {original in it.originalKeys}?.text ?: return null
+                referenceWords.findAll(text).map {key(it.value)}.toList()
+            }
+            if(path!=doc.keys)return null
+        }
+        val text=runs.joinToString(" "){run->if(run.shared)run.variants.single().text else run.variants.joinToString(" / ","[","]") {
+            it.text+" — "+PlatformOrder.sort(it.platforms).joinToString(" · "){platform->platform.label}
+        }}
+        return PostFusion(listOf(FusionSegment(text,allPlatforms,false,allKeys)),runs)
+    }
+
     fun composeMedia(posts: List<Post>): PostFusion? {
         if(CrossPosts.completeGalleryCollection(posts))return GalleryCaptionCopies.composeComplete(posts)
         if(CrossPosts.imageEchoCollection(posts)) {
@@ -480,6 +551,7 @@ object CrossPostFusion {
         }
         if(!CrossPosts.sameContentCopies(posts))return null
         CaptionAliases.compose(posts,mediaConfirmed=true)?.let {return it}
+        composeMentionReferences(posts)?.let {return it}
         CaptionWeave.compose(posts)?.let {return it}
         val prepared=refineSharedPhrases(posts.map {prepare(it) ?: return null})
         for(i in prepared.indices)for(j in i+1 until prepared.size)if(alignment(prepared[i],prepared[j],mediaConfirmed=true)==null)return null

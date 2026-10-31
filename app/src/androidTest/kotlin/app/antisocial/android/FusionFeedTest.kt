@@ -1206,6 +1206,40 @@ class FusionFeedTest {
         assertTrue(savedCaption.contains("https://t.co/More72"))
     }
 
+    @Test fun differingAccountReferencesShareTheirConnectiveTextAndKeepEverySavedSource() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val connective="and meeting with students at"
+        val start="A full day of repairs at the community workshop with @CrewLead, from planning a new project between @RepairGuild and"
+        val end="to sharing the completed tools with our neighbors. The same care that guides each repair will help the next group learn practical skills and build something useful together."
+        val x=oldX.copy(title="",body="$start @ToolPartners $connective @WorkshopSchool $end")
+        val instagram=oldInstagram.copy(title="",body="$start @toolpartnershq $connective @schoolworkshop $end")
+        val originals=listOf(x,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform));cachePicture(it,jpeg=it.platform==Platform.INSTAGRAM)}
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x);row(instagram).assertDoesNotExist()
+        fun assertCaption() {
+            val text=ui.onNodeWithTag("Fusion woven text").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+            assertEquals(1,Regex(Regex.escape(connective)).findAll(text).count())
+            // Mention-bearing weaves deliberately retain scoped PostBodyText
+            // and explicit source names rather than the plain-text icon path.
+            for((reference,platform) in listOf("@ToolPartners" to "X","@WorkshopSchool" to "X",
+                "@toolpartnershq" to "Instagram","@schoolworkshop" to "Instagram"))
+                assertTrue("Every differing reference retains its literal source",text.contains("$reference — $platform"))
+        }
+        assertCaption();evidence("mention-references-one-connective-dark")
+        ui.runOnIdle {repo.prefs.theme="light";ui.activity.setContent {AntiSocialApp(vm)}}
+        waitRow(x);assertCaption();evidence("mention-references-one-connective-light")
+        val captured=originals.map(repo.images.identities::captured)
+        assertEquals(1,collectedAttachments(captured).size)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==2}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertCapturedSources(originals,saved)
+        val caption=requireNotNull(collectionPlan(saved).fusion).segments.single().text
+        assertEquals(1,Regex(Regex.escape(connective)).findAll(caption).count())
+        for(reference in listOf("@ToolPartners","@toolpartnershq","@WorkshopSchool","@schoolworkshop"))assertTrue(caption.contains(reference))
+    }
+
     @Test fun settingsCachePurgeRefillsTheNativeFeedAndRetainsConfigurationAndSavedText() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))

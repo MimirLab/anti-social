@@ -9,6 +9,58 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.89: share short prose between literal account references
+
+A retained collection already displayed one card and preserved its originals,
+but repeated a short connective phrase inside two source-specific text blocks.
+The new caption route shares otherwise identical prose around literal account
+references, after the existing same-content proof. Every original's normalized
+ordered path must reconstruct. Account identities, nomination, picture/video
+matching, claims and the independent attachment plan retain their existing rules.
+No request, cache, model, permission, dependency or database migration is added.
+Application ID and signing identity remain compatible; version code is 198.
+
+Qualification on October 31, 2026 (UTC):
+
+- Final full JVM run: **2,771 cases, 2,767 passes, four optional skips, zero
+  failures/errors**. Six new methods cover literal paths, two/three platforms,
+  repeated original editions, punctuation, exact URLs, claims, unsupported forms
+  and bounds. Three-platform alternatives retain each original's attribution.
+- Frozen API 35 run: **313 named checks, 304 passes, nine explicit skips, zero
+  failures**. The new native case checks both themes, every differing reference's
+  source, one common phrase, actual cached PNG/JPEG identity and faithful saving.
+- Minimum API 26 run: **80 named checks, 79 passes, one live opt-in skip, zero
+  failures**. The separately captured two-source reference case passes on both
+  API levels: **two occurrences become one**, with all originals, four distinct
+  pictures and faithful saved sources retained. It decodes real cached bytes
+  without injected picture fingerprints. Actual native frames are inspected.
+- Twelve existing private packets pass **24 family replays / 81 source-edition
+  instances**: one card, required shared passages once, distinct attachments and
+  faithful saved originals. The additional captured three-source caption passes
+  on both API levels, with its common prose once and all source variants intact.
+  That text-only case has no cached media bytes and qualifies no new recording
+  equivalence. Its actual attributed caption is inspected.
+- The separate **896-original** late-source journey passes on API 35 and 26:
+  one final card, three originals, three distinct pictures, existing read marks,
+  source credit and the pixel anchor retained; no continuation reads. These are
+  staged cached-source emulator checks, not live acquisition or phone latency
+  distributions. This increment claims a text-correctness improvement, not a
+  general speed increase or newly qualified physical-phone battery behavior.
+- Release assembly/lint pass: **zero errors, 182 warnings, one hint**. Privacy
+  audit controls pass eight methods; retention controls pass four. Private inputs
+  and diagnostic receipts stay outside public source. Frozen-member, clean source
+  stamp, signer, corresponding-source, preview-state and whole-download receipts
+  are checked separately for publication.
+
+The earlier runtime's actual native screen and report retain the repetition
+counterexample; originals, media and saving already passed there. A first new
+native assertion incorrectly expected icon source marks, whereas mention-bearing
+weaves deliberately keep the scoped reader and explicit platform names. That
+assertion is corrected and its failure retained separately. Only the tester
+changed: the runtime APK is byte-identical before and after that correction.
+The existing renderer is preserved. The ordinary aligner's general anchor
+threshold and all prior fallback routes remain unchanged.
+
 ## 0.38.88: prepare the next image bank when the feed can consume it
 
 Image, footage and gallery notifications are coalesced before whole-window image

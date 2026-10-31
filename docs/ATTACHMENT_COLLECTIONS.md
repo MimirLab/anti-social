@@ -1,5 +1,33 @@
 # Attachment collections
 
+## Literal account-reference alternatives (0.38.89)
+
+An already combined card could repeat a short connecting phrase between two
+different account references. Its long surrounding passages were shared, but
+the ordinary passage aligner kept the short phrase inside each attributed source
+block. Lowering that aligner's general anchor threshold would affect unrelated
+claims. The additional presentation route instead requires otherwise identical
+prose and the existing portable same-content proof before sharing these words.
+
+It accepts bounded complete captions with isolated mention tokens, preserves
+their punctuation, and applies the existing literal mention-only contract to
+every distinct version. Non-reference prose must agree after conservative case,
+Unicode and whitespace normalization; visible URL spellings must agree exactly.
+Differing references remain source-labelled alternatives, with the original-post
+identity on every fragment. Every original's complete normalized token path must
+reconstruct before the result is used. This neither equates the accounts behind
+the handles nor rewrites their saved original captions.
+
+Code contexts, directional overrides, unsupported mention forms, changed claims,
+ambiguous platform-version labels and oversized inputs retain the existing
+composers and faithful source-block fallback. Mention-bearing text keeps the
+existing scoped reader with explicit platform names. No candidate nomination,
+account ownership rule, media-equality rule, network request, persistent state,
+model or dependency is added. Pictures and recordings remain governed by the
+independent attachment plan. The
+[release qualification](RELEASE_QUALIFICATION.md#03889-share-short-prose-between-literal-account-references)
+records the actual native repetition, reconstructed source paths and save checks.
+
 ## Late source credit without changing the reading selection (0.38.85)
 
 An admitted edition can join the card’s source controls while the visible body

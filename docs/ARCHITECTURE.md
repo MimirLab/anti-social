@@ -254,6 +254,13 @@ Its announcement-edition routes also explain how cached publisher bindings,
 frozen collection anchors and literal source paths cooperate. Text compression
 does not decide media equality; source-labelled originals and every distinct
 recording remain available to the reader and protected saves.
+For already corroborated copies whose prose differs only in account references,
+the caption composer can share even a short connecting phrase between those
+references. Each literal alternative retains its platform and original-post
+path; differing handles are not declared to be the same account. Complete source
+reconstruction precedes compact presentation. The
+[reference-collation contract](ATTACHMENT_COLLECTIONS.md#literal-account-reference-alternatives-03889)
+describes its bounds and faithful fallback.
 Whole-feed matching also freezes its local image evidence for each pass and
 ignores unrelated image-bank updates. Cheap revision notifications coalesce before
 another whole-window capture. Relevance checks use the bank the matcher actually
