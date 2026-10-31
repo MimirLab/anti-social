@@ -1,5 +1,9 @@
 # Feed performance qualification
 
+[Whole-process startup qualification](STARTUP_QUALIFICATION.md) separately checks
+process launch, application initialization and the first cached reading card.
+Its test-only sampler does not change the released reader's manifest or runtime.
+
 ## 0.38.90: stop obsolete reading preparation between originals
 
 The published reader already prevents a canceled background preparation from

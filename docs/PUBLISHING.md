@@ -1,5 +1,8 @@
 # Publishing anti social
 
+[Startup qualification](STARTUP_QUALIFICATION.md) describes the explicit test-only
+application sampler and distinguishes its captures from ordinary launch timings.
+
 The permanent Android download is:
 
 https://github.com/MimirLab/anti-social/releases/latest/download/anti-social.apk

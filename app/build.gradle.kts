@@ -97,7 +97,13 @@ android {
     namespace = "app.antisocial.android"
     compileSdk = 37
     buildToolsVersion = "36.0.0"
-    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 199; versionName = "0.38.90"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 199; versionName = "0.38.90"
+        // Explicit engineering sampler; the ordinary tester and shipping
+        // application's manifest/authority retain their normal configuration.
+        testInstrumentationRunner=providers.gradleProperty("antisocialStartupTraceRunner").map {value->
+            when(value){"true"->"app.antisocial.android.StartupTraceRunner";"false"->"androidx.test.runner.AndroidJUnitRunner";else->error("Set antisocialStartupTraceRunner to true or false")}
+        }.orElse("androidx.test.runner.AndroidJUnitRunner").get()
+    }
     defaultConfig { if(targetAbi!=null)ndk {abiFilters+=targetAbi} }
     defaultConfig {buildConfigField("boolean","EXPERIMENTAL_PUBLIC_READ",publicReadCandidate.toString())}
     if(publicReadCandidate) {
