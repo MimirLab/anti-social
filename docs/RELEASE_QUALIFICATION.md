@@ -9,6 +9,72 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.91: avoid HTML trees for qualified plain-caption comparison
+
+Caption comparison now uses the existing parser's public text-node normalization
+when markup, entity references and NUL are absent, keeping ASCII trim and the
+literal U+FFFF return. Other fragments retain the existing DOM path. Matching,
+source scope, URL identity, media evidence and saved payloads keep their prior
+rules. No request, cache, model, dependency, permission or migration is added.
+Application ID and signing identity remain compatible; version code is 200.
+
+Qualification on October 31, 2026 (UTC):
+
+- Fresh full JVM run: **2,781 cases, 2,777 passes, four optional skips, zero
+  failures/errors**. Six new methods compare against the real previous parser,
+  including every BMP unit in two contexts, fixed supplementary sequences,
+  whitespace, markup/entities/NUL, literal tails, claims and destination case.
+- Frozen API 35 selection: **321 named checks, 311 passes, ten explicit skips,
+  zero failures**. Two new native methods use the actual application helper and
+  platform parser. The separate 27-pass prototype focus overlaps this selection.
+  The test-only whole-process diagnostic remains explicitly opt-in and is skipped
+  under the ordinary runner; its earlier diagnostic is not a new runtime trace.
+- Minimum API 26 selection: **88 named checks, 86 passes, two opt-in skips,
+  zero failures**. It includes native parser equivalence and the existing caption,
+  source, saved-copy and cancellation controls.
+- Twelve retained private packets pass **24 family replays / 81 source-edition
+  instances**, preserving one card, required common passages once, distinct
+  attachments and saved originals. Separate captured three-source caption and
+  two-source reference replays pass on both API levels. Common prose appears
+  once, literal alternatives remain attributed, and every saved source survives.
+  The former has no cached media and establishes no new pixel/video equivalence;
+  the latter decodes four real distinct cached pictures. Actual native frames
+  are inspected.
+- The **896-original** late-source journey passes on both APIs: one final card,
+  three originals and three distinct pictures; existing source credit, read marks
+  and pixel anchor survive, with zero continuation reads. These are staged
+  cached-source journeys, not live publisher-acquisition measurements.
+- The untraced, hash-restored prototype ABBA has first-card medians of
+  **9,006 / 8,760.5 ms**, and late-source medians of **4,418.5 / 4,307 ms** for
+  published/candidate behavior. All four conservation checks pass. The ranges
+  overlap and do not establish a general speedup. The
+  [performance record](FEED_PERFORMANCE.md#03891-normalize-plain-captions-without-building-an-html-tree)
+  gives each observation and its scope. Physical-phone p95, energy, thermal and
+  live-acquisition distributions remain separate, unmeasured outcomes.
+- Release assembly, Android-test assembly and lint pass: **zero lint errors,
+  182 warnings**. Privacy-audit controls pass eight methods and retention controls
+  pass four. Private input and diagnostic receipts remain outside public source.
+  Clean source stamp, frozen-member identity, signer, corresponding source,
+  backed-up preview state and whole anonymous download remain publication gates.
+
+A first additional reference replay stops at input staging because its external
+driver points to an absent private packet under the new evidence directory.
+No instrumentation runs in that failed setup. The driver is corrected to the
+retained original input and the remaining checks resume; already completed
+native selections and captured-packet receipts are not replaced. The failed
+setup is retained privately. No application change results from that correction.
+
+The first minimum-API selection reports **45 passes, one skip and 42 failures**
+across 88 named methods. Inspection finds the owned fixture's restored `files`
+directory has lost its per-app SELinux categories; its Unix owner is correct.
+App snapshot writes fail with permission denied. The fixture is backed up and
+relabeled with the installed tool's explicit app-data option. All 122 retained
+file hashes remain identical. The unchanged frozen APK then runs the complete
+88-method selection and captured journeys again. The failed selection remains
+in the private record; it is not counted as a successful compatibility run.
+[Startup qualification](STARTUP_QUALIFICATION.md#subsequent-api-26-fixture-metadata-correction)
+corrects the earlier restoration claim and records the engineering distinction.
+
 ## 0.38.90: cancel superseded reading preparation between originals
 
 Reading-state preparation now checks cancellation around each source projection

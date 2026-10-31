@@ -103,6 +103,23 @@ stops at log-buffer clearing before invoking instrumentation. None is counted
 as a successful trace or Android test. The explicit test-runner configuration
 produces the accepted captures. Temporary cloned state, diagnostic outputs and
 egress rules are removed from the test devices. API 35 returns to its hash-checked
-empty baseline; API 26 returns to its exact pre-probe state. Detailed inputs,
+empty baseline; API 26 returns to its hash-matching pre-probe file contents. Detailed inputs,
 screenshots, traces and receipts remain in the
 private external build area.
+
+### Subsequent API 26 fixture-metadata correction
+
+The 0.38.91 qualification found that the restored API 26 `files` directory
+had lost its per-app SELinux categories. Its owner and file hashes matched, but
+the app could not write its health snapshot. The earlier restoration receipt
+therefore establishes file contents, not complete Android filesystem metadata.
+The recorded startup traces and observed cards remain their stated observations;
+that receipt does not qualify subsequent writes.
+
+The disposable fixture is backed up, relabeled using the installed tool's
+explicit app-data option (`restorecon -DFR`), and checked for its expected owner
+and categories. All 122 retained file hashes remain identical. Staging of later
+private packets uses that option too. The unchanged frozen APK is then qualified
+again; [the release record](RELEASE_QUALIFICATION.md) retains both the failed and
+corrected selections. These are engineering operations on an owned emulator,
+separate from the stock Android reader's features.

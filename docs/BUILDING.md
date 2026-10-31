@@ -71,6 +71,11 @@ serialized. Fixture tests that clear graph/cache state require the explicit
 against a personal reader installation. Live-source and model-download tests have
 separate opt-ins; ordinary unit tests do not establish provider availability.
 
+For engineering restores on owned Android 8 fixtures, verify app-data ownership
+and SELinux categories as well as file hashes. The installed `restorecon` tool
+requires its `-D` option to apply app-data labeling; staging uses `-DFR` before
+returning to ordinary shell. See the [fixture-metadata correction](STARTUP_QUALIFICATION.md#subsequent-api-26-fixture-metadata-correction).
+
 `AntiSocialTest#bundledTorConnectsAndUsesTorExit` additionally requires
 `-e antisocialLiveTor true`. It starts two real Tor processes and queries the
 public Tor Project checker. A checker TLS refusal is a dated external result,

@@ -4,6 +4,57 @@
 process launch, application initialization and the first cached reading card.
 Its test-only sampler does not change the released reader's manifest or runtime.
 
+## 0.38.91: normalize plain captions without building an HTML tree
+
+The [whole-process diagnostic](STARTUP_QUALIFICATION.md) found repeated HTML
+parsing under caption comparison. A restricted plain fragment contains only one
+text node. Comparison now uses Jsoup's public `TextNode.text()` for inputs without
+markup openers, entity openers or NUL, followed by the same ASCII trim. Other
+inputs retain the previous fragment parser and script/style/noscript removal.
+The existing literal U+FFFF return remains before comparison rewriting. Text,
+URLs, matching thresholds, media evidence, source scope and saved payloads keep
+their previous rules. No shared cache, dependency or request is introduced.
+The pinned [Jsoup Element implementation](https://raw.githubusercontent.com/jhy/jsoup/jsoup-1.21.2/src/main/java/org/jsoup/nodes/Element.java)
+and public text-node normalization supply the reference, rather than a new
+whitespace or HTML normalizer.
+
+An external preflight compared 138,009 inputs against the actual parser, including
+every BMP code unit in two contexts, fixed supplementary sequences and retained
+source fields. Of these, 137,937 satisfied the restricted path; none differed.
+The six committed core methods independently cover those Unicode and whitespace
+boundaries, markup/entities/NUL, literal parser-end tails, destination case,
+claims and long-input tails. Two native methods compare the app helper against
+the actual platform parser. The prototype passes all 27 selected Android checks;
+these overlap the final release selection rather than adding distinct coverage.
+
+An untraced API 35 ABBA compares the exact published 0.38.90 runtime with the
+prototype on two emulator cores and 2,048 MiB RAM. Every run hash-restores the
+same 53.5 MB app state and stages the same late source in an 896-original window.
+Both runtimes use the same pinned tester. DEX class-definition inspection finds
+no production-class overlap between app and tester, so the tester cannot provide
+the candidate's helper to the baseline app. No build runs during this comparison.
+
+| Checkpoint | Published 0.38.90 | Plain-text prototype |
+| --- | ---: | ---: |
+| First visible card, individual runs | 9,277 / 8,735 ms | 8,978 / 8,543 ms |
+| Late-source credit, individual runs | 4,459 / 4,378 ms | 4,262 / 4,352 ms |
+| First-card median | 9,006 ms | 8,760.5 ms |
+| Late-source median | 4,418.5 ms | 4,307 ms |
+
+All four native runs preserve three distinct pictures, all originals, existing
+source credit, read marks and the pixel anchor, with zero continuation reads.
+Actual native frames are inspected. The medians are slightly lower, but the small
+ranges overlap; these observations do not establish a general speedup. OS/ART
+state and host scheduling are not reset. The supported local change is avoiding
+tree construction for qualified plain captions. Physical-phone p95, energy,
+thermal behavior and live acquisition remain separate qualifications.
+
+A replay of the separately captured three-source caption also keeps its common
+prose once, the literal domain/shortened-link alternatives attributed, and every
+original in the saved copy. This retains the earlier compact-caption correction;
+it is not a new URL-equivalence or post-admission rule. Final frozen-artifact
+counts and compatibility gates are in [release qualification](RELEASE_QUALIFICATION.md).
+
 ## 0.38.90: stop obsolete reading preparation between originals
 
 The published reader already prevents a canceled background preparation from

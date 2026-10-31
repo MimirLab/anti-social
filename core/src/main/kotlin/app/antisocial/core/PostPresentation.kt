@@ -2,6 +2,7 @@
 package app.antisocial.core
 
 import org.jsoup.Jsoup
+import org.jsoup.nodes.TextNode
 import org.jsoup.parser.Parser
 import java.net.URI
 import java.text.Normalizer
@@ -222,11 +223,21 @@ object PostPresentation {
     internal fun comparableContent(post: Post): String=CrossPostFusion.comparison(post) ?: comparison(content(post)).also {CrossPostFusion.rememberComparison(post,it)}
 
     private fun comparison(value:String)=CrossPostFusion.comparisonText(value){comparisonUncached(value)}
+    /** Without markup, entity references or NUL, the fragment is one text node.
+     * Use the parser's public text-node normalization and Java's ASCII trim,
+     * retaining the DOM path for inputs that require tokenization. The caller
+     * keeps its separate literal EOF return before any comparison rewriting. */
+    internal fun comparisonPlainText(value:String):String {
+        if('\uffff' in value)return value
+        return if('<' !in value&&'&' !in value&&'\u0000' !in value)
+            TextNode(value).text().trim {it<=' '}
+        else Jsoup.parseBodyFragment(value).apply {select("script,style,noscript").remove()}.text()
+    }
     private fun comparisonUncached(value: String): String {
         // Unsupported parser end markers must never hide a changed trailing
         // clause. Literal equality remains safe; no HTML equivalence is claimed.
         if('\uffff' in value)return value
-        val plain=Jsoup.parseBodyFragment(value).apply {select("script,style,noscript").remove()}.text()
+        val plain=comparisonPlainText(value)
         val normalized=TextWhitespace.collapse(Normalizer.normalize(plain,Normalizer.Form.NFC).replace("\u200b","").replace("\ufeff","")).trim()
         // RSS headings may spell out a link whose body shows its scheme-less
         // label. Retain the destination, including case-sensitive path/query;
