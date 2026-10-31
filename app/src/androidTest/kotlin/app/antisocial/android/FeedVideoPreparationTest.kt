@@ -77,6 +77,7 @@ class FeedVideoPreparationTest {
     private val active=mutableStateOf<Set<String>>(emptySet())
     private val filter=ReaderFilterSession(ContentFilterContext(FilterSurface.FEED),emptyList())
     private val calls=AtomicInteger();private val entered=CompletableDeferred<Unit>();private val finish=CompletableDeferred<Unit>();private val cancelled=CompletableDeferred<Unit>()
+    private val recordings=java.util.concurrent.CopyOnWriteArrayList<String>()
     private val prefixes=AtomicInteger()
     private lateinit var prefs:String
     private lateinit var sampler:suspend (Media,String)->GatewayVideoSampler.Result
@@ -91,6 +92,7 @@ class FeedVideoPreparationTest {
         repo.prefs.videoDownloadWifiOnly=false;repo.videos.cleanup(true);repo.videos.playback(false)
         repo.videos.preparePrefix={_,_->prefixes.incrementAndGet();Unit}
         repo.videos.sample={media,_->
+            recordings+=media.url
             calls.incrementAndGet()
             if(media.url==first.media.single().url)try {entered.complete(Unit);finish.await()}catch(e:CancellationException){cancelled.complete(Unit);throw e}
             val scenes=(0..3).map {p->val pixels=ByteArray(4096){i->var n=(p+1)*7919+(i%64/4)*31+(i/64/4)*1009;n=(n xor(n ushr 13))*1274126177;((n ushr 16 and 191)+32).toByte()}
@@ -166,7 +168,11 @@ class FeedVideoPreparationTest {
         // Prove this same neighborhood actually has useful eligible work;
         // otherwise a negative-only assertion can pass without running a plan.
         ui.runOnIdle {ui.activity.setContent {Text("Resetting filter control")};filter.apply(emptyList());finish.complete(Unit)}
-        ui.waitForIdle();show();waitForPreparation();revealRows();ui.waitUntil(15_000){calls.get()>=2};assertEquals(2,calls.get());assertEquals(1,prefixes.get())
+        ui.waitForIdle();show();waitForPreparation();revealRows();ui.waitUntil(15_000){calls.get()>=2&&active.value.isEmpty()}
+        assertEquals("Prepare the actual visible recording and its peer",setOf(first.media.single().url,second.media.single().url),recordings.toSet())
+        assertEquals(2,calls.get());assertEquals(1,prefixes.get())
+        assertNotNull(repo.videos.captured(first).media.single().videoFootage)
+        assertNotNull(repo.videos.captured(second).media.single().videoFootage)
     }
     @Test fun stoppingTheActivityCancelsWithoutWaitingForRecomposition():Unit=runBlocking {
         show();waitForPreparation()

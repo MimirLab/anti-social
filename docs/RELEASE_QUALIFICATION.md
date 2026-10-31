@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.83: prepare the focused recording and reuse unchanged presentations
+
+The first candidate's full native run finds a preparation handoff defect: after
+a repeat filter is cleared, the head-start planner can sample a different
+recording from the visible card's already-collected caption group. Ordinary
+visible-card work then samples its own recording too. A new deterministic
+regression fails on the retained official 0.38.82 core, and a stronger native
+control independently reproduces the wrong pair on the exact published APK.
+
+Focus membership now breaks equal-quality selection ties after existing
+measured-evidence, sampling-rendition and metadata preferences. Empty-focus global
+planning retains its previous ordering. Every original and alternate recording
+stays available; this schedules acquisition without claiming recording equality.
+The native control now checks actual sampled URLs, completed preparation and
+both expected footage observations, while the repeat-filter negative control
+still requires zero speculative reads. Its former count-only positive assertion
+could pass before an additional sample began.
+
+Two normalization call sites also retain their supplied post object when the
+projected title and body are unchanged. This permits reuse in the existing bounded
+operation-local presentation workspace. Changed fields retain the original copy
+path. No cache, dependency, permission, migration, matching threshold, network
+path or request allowance is added.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM: **2,745 cases, 2,741 passes, four optional skips, zero failures or
+  errors**. Two new planner methods cover focus preference, input ordering,
+  original-key preservation, unchanged global selection, measured alternatives
+  and unusable focused recordings. The retained 959-original corpus keeps the
+  same 767 groups, all content-observation signatures and 1,100 checked URL results.
+- API 35 frozen-release instrumentation: **289 named methods, 282 passes,
+  seven opt-in skips, zero failures**. The strengthened handoff check passes both
+  alone and in the full run. The first failed candidate run is retained separately:
+  **281 passes, one failure and seven skips**. It was neither promoted nor published.
+- API 26: **47 named methods, 46 passes, one live opt-in skip, zero failures**,
+  plus ordinary native startup. Returned names are checked against the preceding
+  46-method set plus the strengthened control. Before the compatible upgrade,
+  the same assertion reproduces the defect on a hash-verified official 0.38.82
+  installation. An initial APK-identity guard stops because the diagnostic still
+  has a different 0.38.82 build; explicitly staging the published asset resolves
+  that setup mismatch without weakening the guard.
+- The additional minimum-API 907-original private replay rebuilds image evidence
+  from retained files. Display-label edits start **zero** matching jobs; a real
+  account-group change starts **one**, with unchanged picture evidence. Native
+  labels and the complete album remain correct through navigation back to All.
+  Source records, actual picture files and inspected screenshots stay private.
+- Twelve retained-source packet runs cover **24 announcement-family replays and
+  81 source-edition instances**. Expected unique media and every original survive
+  in their saved copies. The current three-platform album's separate saved-copy
+  replay also keeps one card, three pictures, one common heading and its attributed
+  extra wording. Actual native cards and minimum-API screens were inspected.
+- The final-code local-stage comparison records grouping at **3,736, 3,531 and
+  3,661 ms** for control → candidate → control, with identical results. A separate
+  four-run, hash-restored-state native comparison has first-complete-card medians
+  of **5,852.5 ms for 0.38.82 and 5,839 ms for the final candidate**. Observations
+  overlap: **no useful full-feed speed gain is claimed**. The earlier 0.58-second
+  candidate difference does not persist. See [the full measurements](FEED_PERFORMANCE.md#03883-reuse-an-unchanged-sources-presentation-during-matching).
+- Release lint: **zero errors, 182 warnings and one hint**. Privacy-audit controls:
+  **eight passes**; retention-scoring controls: **four passes**. Frozen-member,
+  corresponding-source, compatible-signer and unchanged-native-library checks,
+  private-fixture audits and backed-up state-preserving preview promotion are
+  verified before publication.
+
+These are scoped emulator and deterministic checks, not physical-phone p95 or
+battery measurements. Initial large-window delivery still takes several seconds;
+live-source delay and unresolved announcement leaves remain active work. This
+increment does not establish that a complete live feed is duplicate-free.
+
 ## 0.38.82: preserve completed matching during display-name enrichment
 
 The published 0.38.81 APK already combines the current three-platform album on

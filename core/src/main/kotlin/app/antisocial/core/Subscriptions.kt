@@ -853,7 +853,7 @@ object CrossPosts {
             // Decode cached source escapes before presentation, while preserving
             // distinct URL path/query case, signs and symbols. Token equality
             // alone cannot prove that a headline is an echo of its body.
-            decoded(PostPresentation.content(post.copy(title=title,body=body)))
+            decoded(PostPresentation.content(if(title==post.title&&body==post.body)post else post.copy(title=title,body=body)))
         }else ""
         val plain=PostPresentation.proseWithoutLinks(content).trim()
         val wordTokens=tokens(plain)

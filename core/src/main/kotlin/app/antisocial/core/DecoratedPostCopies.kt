@@ -74,7 +74,7 @@ internal object DecoratedPostCopies {
     private fun prepare(post:Post,short:Boolean):Prepared? {
         if(post.preview||post.parentId!=null||post.body.length.toLong()+post.title.length>4096)return null
         val title=clean(post.title);val body=clean(post.body)
-        val copy=post.copy(title=title.text,body=body.text)
+        val copy=if(title.text==post.title&&body.text==post.body)post else post.copy(title=title.text,body=body.text)
         val content=PostPresentation.content(copy)
         val raw=TextWhitespace.collapse(PostPresentation.proseWithoutLinks(content)).replace('’','\'').lowercase(Locale.ROOT).trim()
         if(short&&(raw.endsWith("…")||raw.endsWith("...")))return null

@@ -230,6 +230,31 @@ class SharedVideoCollectionsTest {
         assertEquals(12,bounded.size);assertTrue(bounded.all {key in it.originalKeys})
         assertTrue(CrossPosts.focusedVideoFootageRequests(many,accounts,emptyMap(),setOf("missing")).isEmpty())
     }
+    @Test fun equallyUsableCaptionEditionsPrepareTheVisibleRecordingWithoutDroppingItsAlternatives() {
+        val visible=post(Platform.TIKTOK,"First workshop film.")
+        val alternate=post(Platform.FACEBOOK,visible.body,id="73000001")
+        val peer=post(Platform.X,"Different workshop film.",minute=1)
+        val groups=listOf(PostGroup(listOf(alternate,visible)),PostGroup(listOf(peer)))
+        val owner=owners(groups)
+        assertEquals(setOf(alternate,peer),SharedVideoCollections.requests(groups,owner).single().let {setOf(it.first,it.second)})
+        for(input in listOf(groups,groups.reversed().map {it.copy(posts=it.posts.reversed())})) {
+            val focused=SharedVideoCollections.requests(input,owner,focus=setOf(visible.identityKey)).single()
+            assertEquals(setOf(visible,peer),setOf(focused.first,focused.second))
+            assertEquals(setOf(visible,alternate,peer).mapTo(linkedSetOf()){it.identityKey},focused.originalKeys)
+        }
+    }
+    @Test fun visiblePreferenceKeepsMeasuredAndEligibleAlternativesAheadOfUnusableFocus() {
+        val visible=post(Platform.TIKTOK,"First workshop film.")
+        val alternate=measured(post(Platform.FACEBOOK,visible.body,id="73000001"))
+        val peer=post(Platform.X,"Different workshop film.",minute=1)
+        fun request(focus:Post,other:Post)=listOf(PostGroup(listOf(focus,other)),PostGroup(listOf(peer))).let {groups->
+            SharedVideoCollections.requests(groups,owners(groups),focus=setOf(focus.identityKey)).single()
+        }
+        assertEquals(setOf(alternate,peer),request(visible,alternate).let {setOf(it.first,it.second)})
+        val unusable=visible.copy(media=visible.media.map {it.copy(audioUrl="https://media.example.org/separate.m4a")})
+        val unmeasured=post(Platform.FACEBOOK,visible.body,id="73000001")
+        assertEquals(setOf(unmeasured,peer),request(unusable,unmeasured).let {setOf(it.first,it.second)})
+    }
     @Test fun currentProofsCloseThePlatformGapWithoutScanningMoreOfTheSamePlatforms() {
         val a=measured(post(Platform.TIKTOK,"First film."))
         val b=measured(post(Platform.X,"Another caption.",minute=1))

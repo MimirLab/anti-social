@@ -1,5 +1,99 @@
 # Feed performance qualification
 
+## 0.38.83: reuse an unchanged source's presentation during matching
+
+The source matcher and decorative-copy parser previously created temporary post
+objects even when decoding or cleaning left both title and body unchanged.
+The existing operation-local presentation cache keys its entries by the exact
+post object. Those equal copies therefore repeated presentation work that the
+same operation had already completed for the original record.
+
+Both call sites now keep the supplied post when those two projected fields are
+unchanged. A changed title or body still receives its own projected copy. Every
+other source field stays intact. The existing synchronous workspace retains its
+8 MiB accounting allowance and is discarded on return, failure or cancellation.
+No cache, persistent state, model, request, matching threshold or permission is
+added. Identical words on different originals do not share an object identity.
+
+A separate native local-stage comparison uses 959 retained source originals.
+Grouping takes **3,694 ms on the published 0.38.82 control, 3,558 ms on the
+candidate and 3,699 ms on the final control**. All three produce the same ordered
+grouping and content-observation digests, video/gallery request counts and
+captured-read inheritance count. This diagnostic initializes its read set empty and
+also evaluates all-read and unread controls; it does not infer owner read marks.
+The isolated grouping improvement is about 3.7%; that operation alone does not
+establish faster card delivery.
+
+Before the additional scheduling repair below, an untraced API 35 ABBA
+comparison separately opens the actual native feed in
+four fresh processes. Before every run, it restores and hash-verifies the same
+53.5 MB disposable app-state snapshot. The window contains 907 originals with
+their captured subscription bindings. Actual retained picture files supply the
+image observations; no fingerprints are injected and network fallback is blocked.
+
+| Observation | 0.38.82 control 1 | Candidate 1 | Candidate 2 | 0.38.82 control 2 |
+| --- | ---: | ---: | ---: | ---: |
+| Open → first inspected complete card | 6,518 ms | 5,598 ms | 5,718 ms | 5,957 ms |
+| Open → complete-family checkpoint | 6,885 ms | 5,847 ms | 5,984 ms | 6,208 ms |
+| Warm reentry → complete card | 917 ms | 849 ms | 949 ms | 900 ms |
+
+In that initial experiment, both candidate cold observations precede both
+controls. The first-complete-card
+median falls from **6,237.5 to 5,658 ms**, about **0.58 seconds or 9.3%**. Warm
+observations overlap and do not establish a useful warm-speed gain. Every first
+inspected target card already contains all three originals, its common heading
+once and three distinct pictures; publisher-continuation reads stay at zero.
+The actual painted candidate cards were inspected. Frame observation includes
+the existing 100 ms compositor allowance after semantic readiness.
+
+These small emulator comparisons do not establish phone p95, energy use or a
+general latency distribution. The isolated source-stage and full-feed figures
+measure different paths; their differences must not be added together. Initial
+large-window preparation still takes several seconds, and live acquisition and
+late counterpart delivery remain active work. See
+[release qualification](RELEASE_QUALIFICATION.md) for the exact release checks.
+
+The final-code repeat uses the same restored app-state snapshot and actual
+picture files, with both qualified fixes present:
+
+| Observation | 0.38.82 control 1 | Final 0.38.83 candidate 1 | Final candidate 2 | 0.38.82 control 2 |
+| --- | ---: | ---: | ---: | ---: |
+| Open → first inspected complete card | 5,820 ms | 5,911 ms | 5,767 ms | 5,885 ms |
+| Open → complete-family checkpoint | 6,070 ms | 6,161 ms | 6,034 ms | 6,135 ms |
+| Warm reentry → complete card | 901 ms | 900 ms | 917 ms | 884 ms |
+
+First-card medians are **5,852.5 and 5,839 ms**. The overlapping observations
+**do not establish a useful full-feed delivery gain**; the initial 0.58-second
+difference is not a release speed claim. All first target cards remain complete.
+A separate final-code local-stage control → candidate → control comparison
+records grouping at **3,736, 3,531 and 3,661 ms**, with identical group, revision,
+request-planning and initialized-unread inheritance results. The small source-object reuse is
+retained for this measured reduction in local preparation, with no added cache
+or component. That operation improvement does not resolve the first-card wait.
+
+### Prefer the visible recording when equivalent preparation choices tie
+
+The first candidate's native release run exposes a separate preparation issue:
+after a repeat filter is cleared, the prepared pair can use another recording
+from the visible card's caption group. The visible-card lane subsequently needs
+its own recording too. The old positive control sometimes observes three sampler
+calls instead of two; its count-only assertion can also pass before the extra
+work begins.
+
+A new deterministic planner regression reproduces the wrong representative on
+the retained official 0.38.82 core as well. Focus membership now breaks ties
+after the existing measured-evidence, sampling-rendition and metadata preferences.
+An already measured alternative or an unusable focused recording keeps its
+previous priority. Empty-focus global planning retains its original ordering;
+every original key and alternate recording remains available. This changes
+scheduling, not recording equality or collection admission.
+
+The strengthened native control checks the exact sampled URLs, completion of the
+prepared lane and footage observations for the actual visible recording and its
+peer. Its negative repeat-filter check still requires zero speculative reads.
+The initial failed qualification remains in the external evidence record and is
+not treated as a successful release pass.
+
 ## 0.38.82: keep display enrichment out of source-analysis invalidation
 
 A cache-only restart of a current three-platform album shows that the released

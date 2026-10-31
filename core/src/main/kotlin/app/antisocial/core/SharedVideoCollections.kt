@@ -70,7 +70,10 @@ internal object SharedVideoCollections {
             post.media.any {it.type=="video"&&it.audioUrl==null&&(it.durationMs==null||it.durationMs in 2_000..VideoFootage.MAX_DURATION_MS)&&VideoFormats.mime(it) in setOf(null,"video/mp4","video/webm")&&VideoAssetIdentity.validSampling(it)}
         }.minWithOrNull(compareBy<Post> {post->post.media.none {observed[it]!=null}}
             .thenBy {post->post.media.none {it.type=="video"&&it.samplingUrl!=null}}
-            .thenBy {resolvable[it]!=true}.thenBy(CrossPosts::originalKey))
+            .thenBy {resolvable[it]!=true}
+            // Keep usable measured/rendition preferences, then prepare the
+            // actual focused recording before an equally usable caption peer.
+            .thenBy {CrossPosts.originalKey(it) !in focus}.thenBy(CrossPosts::originalKey))
         val selected=candidates.associate {it.index to selected(it.group)}
         val metadata=candidates.associate {it.index to (resolvable[selected[it.index]]==true)}
         val hints=selected.mapValues {(_,post)->post?.let(::captionHint)}
