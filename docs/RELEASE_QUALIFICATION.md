@@ -9,6 +9,64 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.82: preserve completed matching during display-name enrichment
+
+The published 0.38.81 APK already combines the current three-platform album on
+its first inspected card. A larger cache-only replay instead exposes several
+seconds of initial local analysis. Profiling also identifies a separate repeat:
+changing only subscription display labels retires the completed edition matcher,
+although its source identities, memberships and pictures have not changed.
+The published control performs one unnecessary matching job lasting 2,997 ms.
+
+The matcher, video-preparation source and readiness comparison now use the
+existing display-normalized subscription projection. Raw labels still update
+the interface. Null initialization and actual account, target, enabled-state and
+group-binding changes remain distinct. The shared social-host classifier also
+compiles its fixed declarations into an exact index and ordered wildcard list,
+preserving the previous first-match semantics and URL admission rules.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM: **2,743 cases, 2,739 passes, four optional skips, zero failures or
+  errors**. The retained 959-original corpus has the same 767 ordered groups and
+  content-observation signatures as 0.38.81. All 1,100 measured URL classification,
+  canonicalization and expansion results are identical.
+- API 35 frozen-release instrumentation: **289 named methods, 282 passes,
+  seven opt-in skips, zero failures**. API 26: **46 cases, 45 passes, one live
+  opt-in skip, zero failures**, plus ordinary native startup. These are emulator
+  checks; returned method identities and pass/skip statuses are checked separately.
+- Additional private native controls on both APIs rebuild picture evidence from
+  retained files, with no injected fingerprints and no network fallback. The
+  window contains **907 originals with captured subscription bindings**. Display
+  edits start **zero matching jobs**; a subsequent real account-group change
+  starts **one job**. Picture evidence stays unchanged, Subscriptions shows the
+  new labels, and returning to Following retains All and the complete album.
+  Actual painted cards and subscription screens were inspected. An initial API
+  26 diagnostic could not read its staged input directory; restoring that owned
+  test directory's SELinux labels resolves it while enforcement remains enabled.
+- Twelve retained-source packet runs cover **24 announcement-family replays
+  and 81 source-edition instances**. Every expected family keeps one card, one
+  common passage, its expected distinct media and all originals in its save.
+- A four-run API 35 ABBA comparison restores and hash-verifies the same 53.5 MB
+  disposable-device state before each fresh process. First inspected complete-card
+  medians are **6,461 ms on 0.38.81 and 6,138.5 ms with the fixed-host index**.
+  Both candidate observations beat both controls, with all target originals,
+  three distinct pictures and the common heading once. This is a modest emulator
+  gain, not phone p95 or battery evidence. A further parsed-URI prototype lacks
+  a useful additional gain and is removed. See [the measured scope and controls](FEED_PERFORMANCE.md#03882-keep-display-enrichment-out-of-source-analysis-invalidation).
+- Release lint: **zero errors, 182 warnings and one hint**. Privacy-audit controls:
+  **eight passes**; Context-retention scoring: **four passes**. The private-denylist
+  tree audit reports zero findings and two reviewed unchanged upstream files.
+  Frozen APK correspondence, matching source/signer, unchanged native libraries
+  and backed-up compatible preview promotion are verified before release.
+
+No matching threshold, request budget, permission, dependency, database migration
+or persistent index is added. Initial analysis of the large cold window still
+takes several seconds. This increment prevents a redundant repeat and trims host
+dispatch; it does not qualify every live feed as duplicate-free or resolve all
+cold acquisition delays. The broader performance and deduplication work remains
+active.
+
 ## 0.38.81: complete albums with short headings
 
 A current three-platform capture reproduces two reading cards, six displayed

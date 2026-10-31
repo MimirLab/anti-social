@@ -1,5 +1,85 @@
 # Feed performance qualification
 
+## 0.38.82: keep display enrichment out of source-analysis invalidation
+
+A cache-only restart of a current three-platform album shows that the released
+0.38.81 already combines it on its first inspected card. The small replay takes
+about 1.6–1.9 seconds. With a larger retained window, the first card takes about
+6.4 seconds and still contains the complete family. The delay is not a missing
+match: a sampled trace attributes 3.819 seconds of thread CPU to initial grouping
+and 0.810 seconds to subsequent reading-alias preparation. Picture observations
+arrive during that work. Profiling overhead separates these component figures
+from ordinary frame-delivery measurements.
+
+The native input stages 907 originals with recorded subscription bindings; the
+original research corpus also contains 55 unbound records, which remain in the
+separate 959-original JVM comparison. A native feed fixture must not invent
+memberships to import those records. No image fingerprints are supplied: the
+shipping loader rebuilds them from retained source files while selected-unready
+Tor prevents network fallback. The target card's actual text and painted picture
+were inspected, not inferred from a group count.
+
+### Display labels are not source bindings
+
+The Room query already normalizes subscription display names in its input key.
+The full-feed edition matcher still used the unnormalized subscription list.
+Updating only `Follow.name` and `personName` therefore discarded its completed
+source preparation. On the exact published APK, a native control reproduces one
+unnecessary matching job lasting **2,997 ms**, with unchanged posts, targets,
+memberships and picture evidence. The control reaches its one-second quiet
+checkpoint **4,413 ms** after the edit.
+
+The matcher, preparation source and readiness comparison now share the existing
+normalized subscription inputs. Initialization remains nullable; enabled state,
+target, account-group identity and every other policy field remain part of that
+input. The raw subscriptions still drive display. On the candidate, the same
+native control records **zero matching jobs**, reaches its quiet checkpoint in
+**1,356 ms**, and displays the changed labels in Subscriptions. A subsequent
+account-group change with the same pictures starts a fresh matching job. The
+complete album remains readable through both edits and navigation back to All.
+The quiet-check timings include test settling; they are not UI response times.
+
+### Compile the fixed social-host declarations
+
+The shared social-URL classifier previously scanned every declared host on each
+lookup. Its fixed exact-host index and ordered wildcard list preserve declaration
+priority, including an earlier wildcard preceding a later exact rule. Existing
+URI, port, credential, subdomain, short-link and federated-origin rules remain
+unchanged. This stores the fixed declarations, not observations about visited
+URLs. No matching threshold, web request, cache database or model is added.
+
+An untraced API 35 comparison restores the same 53.5 MB disposable-device state
+before each fresh-process run and verifies every restored file hash. It uses the
+same retained window, actual picture files and four-run ABBA order:
+
+| Observation | Published 0.38.81 median | Fixed-host index median |
+| --- | ---: | ---: |
+| Open → first inspected complete card | 6,461 ms | 6,138.5 ms |
+| Open → subsequent complete-family checkpoint | 6,761 ms | 6,436 ms |
+| Warm reentry → complete card | 925 ms | 898 ms |
+
+Every first inspected target card already has all three originals, its common
+caption once and three distinct pictures. Both candidate cold observations beat
+both controls. The approximately 0.32-second cold difference is a modest gain,
+not instant startup. The image and publisher-continuation paths issue no new
+requests. The frame observation includes a 100 ms compositor allowance after
+native semantic readiness. These are emulator observations, not phone p95 or
+battery measurements.
+
+A second prototype reuses parsed URIs within the same classifier operation.
+Its separate ABBA comparison improves the first-card median only from 6,415 to
+6,358 ms. That does not establish a useful additional gain, so those runtime
+edits are removed. Its regression cases for escaped share paths remain. The
+kept classifier preserves all 959 original group memberships, content-observation
+signatures and the measured URL results against the published implementation.
+The full release regression and artifact record is in
+[release qualification](RELEASE_QUALIFICATION.md).
+
+**Remaining work:** initial full-window analysis still costs several seconds on
+this large cold replay. This increment avoids an unnecessary repeat after name
+enrichment and trims URL dispatch; it does not remove that first-window cost or
+qualify every live-source acquisition delay.
+
 ## Post-0.38.76: distinguish delayed video qualification from a caption veto
 
 The October 30 investigation replays a retained five-edition video family on

@@ -219,6 +219,37 @@ new complete-card time and any matching jobs. Inputs and screenshots remain in
 the private external evidence area. These flags qualify engineering journeys;
 they do not enable a user-facing import or change ordinary acquisition policy.
 
+`FullFeedGalleryLiveTest.capturedCompleteAlbumsRebuildTheirEvidenceFromRetainedBytesWithoutRefetching`
+uses `antisocialFullFeedCompleteAlbums=true`, the isolation flag and private
+`files/full-album-cold-packet/input.json`. This separate mode contains already
+acquired root originals, rather than treating an album as an invented reply.
+It retains the window's `posts`, `follows`, actual `memberships`, `focusKeys`,
+`rootKey`, optional `anchorKey`, `files`, `expectedOriginals` and
+`expectedPictures`. The legacy-named `expectedChildUrl` selects an existing
+focused edition in this mode. `sharedCaption` is required; `expectedFamilyLabel`
+can describe a platform-count header instead of a repeated-original-count header.
+Optional `stageAllCachedPictures=true` stages matching supplied historical bytes
+as well. A missing background file stays missing; staging never downloads it.
+
+The loader starts without injected image fingerprints, with selected-unready Tor
+blocking network fallback. The native check requires a complete visible family,
+one shared heading, the expected distinct pictures and conservation of every
+retained original. The sibling
+`capturedCompleteAlbumsKeepTheirProjectionWhileDisplayNamesChange` method also
+requires `antisocialFeedVerifyDisplayRename=true`. It edits only temporary local
+display labels, requires zero new matching jobs and unchanged picture evidence,
+then changes a real account-group binding and requires analysis to restart.
+Subscriptions must display the new labels, and returning to Following must retain
+All and the complete card. These methods require an empty disposable fixture;
+their actual source records, files and screenshots remain private.
+
+When engineering inputs are staged through privileged ADB on an owned emulator,
+restore the staged app-private directory's SELinux labels before returning ADB
+to the ordinary shell. A matching Linux owner alone does not establish app
+access on older Android. Keep SELinux enforcing and verify the file through the
+native input guard; never bypass that guard or change app permissions to repair
+a diagnostic staging error. This is test setup, not a user-facing requirement.
+
 
 `NitterLinkCardsNativeTest.suppliedPrivatePreviewSurvivesTheRealCapturedRepresentation`
 requires `antisocialPrivateNitterCard=true` and

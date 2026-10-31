@@ -27,18 +27,22 @@ import org.junit.Assert.*
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** Explicit missing-child acquisition and cached-byte restart replays. Neither
- * fixture supplies fingerprints; the cold replay already contains its child. */
+/** Explicit continuation acquisition and cached-byte restart replays. No
+ * injected fingerprints; complete root albums use a separate private opt-in. */
 class FullFeedGalleryLiveTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
     @Test fun capturedWindowAcquiresAndJoinsItsPublisherContinuationBeforePublication()=replay(false)
     @Test fun capturedGalleryRebuildsItsEvidenceFromRetainedBytesWithoutRefetchingItsChild()=replay(true)
-    private fun replay(cold:Boolean) {
+    @Test fun capturedCompleteAlbumsRebuildTheirEvidenceFromRetainedBytesWithoutRefetching()=replay(true,completeAlbums=true)
+    @Test fun capturedCompleteAlbumsKeepTheirProjectionWhileDisplayNamesChange()=replay(true,completeAlbums=true,verifyRename=true)
+    private fun replay(cold:Boolean,completeAlbums:Boolean=false,verifyRename:Boolean=false) {
         val args=InstrumentationRegistry.getArguments()
-        Assume.assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString(if(cold)"antisocialFullFeedGalleryCold"else "antisocialFullFeedGalleryLive")=="true")
+        val option=if(completeAlbums)"antisocialFullFeedCompleteAlbums"else if(cold)"antisocialFullFeedGalleryCold"else "antisocialFullFeedGalleryLive"
+        Assume.assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString(option)=="true")
+        if(verifyRename)Assume.assumeTrue(args.getString("antisocialFeedVerifyDisplayRename")=="true")
         val repo=(ui.activity.application as AntiSocialApplication).repo
         runBlocking {repo.awaitReady()}
-        val directory=File(ui.activity.filesDir,if(cold)"full-gallery-cold-packet"else "full-gallery-private-packet")
+        val directory=File(ui.activity.filesDir,if(completeAlbums)"full-album-cold-packet"else if(cold)"full-gallery-cold-packet"else "full-gallery-private-packet")
         val input=File(directory,"input.json")
         require(input.isFile&&input.length() in 1..8L*1024*1024)
         val raw=JsonParser.parseString(input.readText()).asJsonObject
@@ -50,14 +54,18 @@ class FullFeedGalleryLiveTest {
         val requiredCaption=raw["requiredCaption"]?.asString
         val childUrl=raw["expectedChildUrl"].asString
         val expectedOriginals=raw["expectedOriginals"].asInt;val expectedPictures=raw["expectedPictures"].asInt
+        val familyLabel=raw["expectedFamilyLabel"]?.asString ?: "$expectedOriginals originals ·"
+        require(familyLabel.length in 8..128)
+        val sharedCaption=if(completeAlbums)requireNotNull(raw["sharedCaption"]?.asString).also {require(it.length in 12..4096)}else null
         require(posts.size in 1..1000&&follows.size in 1..2000&&focus.size in 2..CrossPosts.MAX_EDITIONS)
         require(posts.map(repo::key).distinct().size==posts.size&&posts.map(repo::key).containsAll(focus))
+        if(completeAlbums)require(focus.size==expectedOriginals&&posts.filter {repo.key(it)in focus}.all {it.parentId==null})
         require(posts.any {it.canonicalUrl==childUrl}==cold)
         val files=raw.getAsJsonObject("files").entrySet().associate {(url,v)->
             url to File(directory,v.asString).also {require(it.canonicalFile.parentFile==directory.canonicalFile&&it.isFile)}
         }
         val aliases=files.entries.mapNotNull {(url,file)->ImageAssetIdentity.key(url)?.let {it to file}}.groupBy({it.first},{it.second})
-        val output=File(ui.activity.getExternalFilesDir("validation"),if(cold)"full-feed-gallery-cold"else "full-feed-gallery-live").apply {mkdirs()}
+        val output=File(ui.activity.getExternalFilesDir("validation"),if(completeAlbums)"full-feed-album-cold"else if(cold)"full-feed-gallery-cold"else "full-feed-gallery-live").apply {mkdirs()}
         val prefs=repo.prefs.export().toString();val oldMemory=repo.feedMemory
         val policy=repo.gateway.currentPolicy()
         val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
@@ -92,17 +100,22 @@ class FullFeedGalleryLiveTest {
             // Restore only initial editions, using actual archived files. A
             // changed signed URL needs an unambiguous qualified object ID.
             runBlocking {
-                for(post in posts.filter {repo.key(it)in focus})for(media in post.media) {
+                val staging=if(cold&&raw["stageAllCachedPictures"]?.asBoolean==true)posts else posts.filter {repo.key(it)in focus}
+                for(post in staging)for(media in post.media) {
                     val file=files[media.url] ?: ImageAssetIdentity.key(media.url)?.let {key->
                         aliases[key]?.distinctBy {java.security.MessageDigest.getInstance("SHA-256").digest(it.readBytes()).toList()}?.singleOrNull()
                     }
                     if(file!=null) {
-                        val key=Repository.hash(media.url);cached.putIfAbsent(key,repo.dao.media(key))
-                        val destination=File(ui.activity.cacheDir,"gallery-replay-$key").also {file.copyTo(it,overwrite=true);staged+=it}
-                        repo.dao.putMedia(MediaRow(key,destination.path,destination.length(),System.currentTimeMillis()))
+                        val key=Repository.hash(media.url);repo.lease(key,true)
+                        try {
+                            if(!cached.containsKey(key))cached[key]=repo.dao.media(key)
+                            val destination=File(ui.activity.cacheDir,"gallery-replay-$key").also {file.copyTo(it,overwrite=true);staged+=it}
+                            repo.dao.putMedia(MediaRow(key,destination.path,destination.length(),System.currentTimeMillis()))
+                        }finally {repo.lease(key,false)}
                     }
-                    if(cold)require(file!=null){"Cold replay requires exact retained bytes for every focused picture"}
-                    else repo.images.load(media.url,post.contentSourceUrl,1600)
+                    if(cold) {
+                        if(repo.key(post)in focus)require(file!=null){"Cold replay requires exact retained bytes for every focused picture"}
+                    }else repo.images.load(media.url,post.contentSourceUrl,1600)
                 }
                 repo.db.withTransaction {
                     follows.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}
@@ -114,6 +127,7 @@ class FullFeedGalleryLiveTest {
                     }
                 };imported=true
             }
+            if(completeAlbums)assertTrue("No focused fingerprint may be injected or decoded before opening",posts.filter {repo.key(it)in focus}.flatMap {it.media}.none {repo.images.identities.knows(it.url)})
             repo.galleries.read={post->
                 threadReads++
                 event("stage" to "thread-start")
@@ -154,29 +168,43 @@ class FullFeedGalleryLiveTest {
             // the restored viewport. Give two real display frames time to paint.
             Thread.sleep(100);ui.waitForIdle()
             val first=visibleRows().map {words(it)}
-            event("stage" to "first-visible","familyRows" to first.size,"completeFamily" to first.any {list->list.any {it.startsWith("$expectedOriginals originals ·")}});screenshot("first-visible.png")
+            event("stage" to "first-visible","familyRows" to first.size,"completeFamily" to first.any {list->list.any {it.startsWith(familyLabel)}});screenshot("first-visible.png")
             // Do not invoke enrich(): the shipping card dwell owns acquisition.
             ui.waitUntil(90_000){runBlocking {repo.dao.allPosts().any {repo.gson.fromJson(it.payload,Post::class.java).canonicalUrl==childUrl}}}
             event("stage" to if(cold)"retained-child-present"else "child-committed")
             val added=runBlocking {repo.dao.allPosts().filter {it.key !in posts.map(repo::key)}}
             assertEquals("Only an actually missing publisher child can be added",if(cold)0 else 1,added.size)
             val child=if(cold)posts.single {it.canonicalUrl==childUrl}else repo.gson.fromJson(added.single().payload,Post::class.java)
-            assertEquals(childUrl,child.canonicalUrl);assertEquals(root.id,child.parentId)
-            assertEquals(ExtractionStatus.PRESENT,child.extractionCoverage?.replyParent)
-            assertNotNull(child.sourceParentId);assertNotNull(child.provenance)
-            assertEquals(members[repo.key(root)].orEmpty(),runBlocking {repo.dao.postFollowIds(repo.key(child))}.toSet())
-            ui.waitUntil(60_000){visibleRows().any {node->words(node).any {it.startsWith("$expectedOriginals originals ·")}}}
+            assertEquals(childUrl,child.canonicalUrl)
+            if(!completeAlbums) {
+                assertEquals(root.id,child.parentId)
+                assertEquals(ExtractionStatus.PRESENT,child.extractionCoverage?.replyParent)
+                assertNotNull(child.sourceParentId);assertNotNull(child.provenance)
+                assertEquals(members[repo.key(root)].orEmpty(),runBlocking {repo.dao.postFollowIds(repo.key(child))}.toSet())
+            }else assertTrue("Complete albums are captured root originals, never invented replies",posts.filter {repo.key(it)in focus}.all {it.parentId==null})
+            ui.waitUntil(60_000){val visible=visibleRows();(!completeAlbums||visible.size==1)&&visible.any {node->words(node).any {it.startsWith(familyLabel)}}}
             if(requiredCaption!=null)ui.waitUntil(60_000){visibleRows().any {node->words(node).any {requiredCaption in it}}}
             event("stage" to "full-family-visible");ui.waitForIdle();screenshot("settled.png")
             if(tracing){Debug.stopMethodTracing();tracing=false}
             File(output,"semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
             val observed=(posts+child).distinctBy(repo::key).map(repo.images.identities::captured)
             val bindings=members+(repo.key(child) to runBlocking {repo.dao.postFollowIds(repo.key(child))}.toSet())
-            val family=runBlocking {withContext(Dispatchers.Default){CrossPosts.group(observed,follows,bindings)}}.filter {g->g.posts.any {repo.key(it)in focus}}
+            val groups=runBlocking {withContext(Dispatchers.Default){CrossPosts.group(observed,follows,bindings)}}
+            assertEquals("Every retained original survives grouping",observed.map(repo::key).toSet(),groups.flatMap {it.posts}.map(repo::key).toSet())
+            assertEquals("An original cannot occupy two reading groups",observed.size,groups.sumOf {it.posts.size})
+            val family=groups.filter {g->g.posts.any {repo.key(it)in focus}}
             assertEquals(1,family.size);assertEquals(expectedOriginals,family.single().posts.size)
             val plan=collectionPlan(family.single().posts,repo.images.identities)
             assertEquals(expectedPictures,plan.attachments.size)
-            if(cold&&args.getString("antisocialFeedVerifyWarmReentry")=="true") {
+            if(sharedCaption!=null) {
+                fun literal(node:androidx.compose.ui.semantics.SemanticsNode):List<String> {
+                    val children=node.children.flatMap(::literal)
+                    return children.ifEmpty {node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}}
+                }
+                val text=literal(visibleRows().single()).joinToString("\n")
+                assertEquals("The complete visible card shares its heading once",1,Regex(Regex.escape(sharedCaption)).findAll(text).count())
+            }
+            if(cold&&(verifyRename||args.getString("antisocialFeedVerifyWarmReentry")=="true")) {
                 fun quiet():Boolean=repo.cardWork.active.value.none {it.label in setOf("Matching editions","Images")}
                 fun awaitQuiet() {
                     var since=0L
@@ -195,11 +223,48 @@ class FullFeedGalleryLiveTest {
                 }
                 try {
                     runBlocking {withTimeout(5000){watching.await()}}
+                    if(verifyRename) {
+                        val revision=repo.images.identities.revision.value
+                        val renamed=follows.mapIndexed {index,follow->follow.copy(name="Local display $index",personName="Local display only")}
+                        val renameAt=SystemClock.elapsedRealtime()-started
+                        event("stage" to "display-rename-start")
+                        runBlocking {
+                            repo.db.withTransaction {renamed.forEach {repo.dao.putFollow(FollowRow(it.id,it.target.platform.id,repo.gson.toJson(it)))}}
+                            withTimeout(5000){repo.follows.first {values->renamed.all {new->values.any {it.id==new.id&&it.name==new.name&&it.personName==new.personName}}}}
+                        }
+                        ui.waitForIdle();Thread.sleep(250);awaitQuiet()
+                        val comparisons=events.count {it["stage"]=="warm-matching-started"&&(it["atMs"]as? Number)?.toLong()?.let {at->at>=renameAt}==true}
+                        event("stage" to "display-rename-complete","matchingJobs" to comparisons,"imageRevisionUnchanged" to (revision==repo.images.identities.revision.value))
+                        screenshot("display-rename.png")
+                        assertEquals("Display-only subscription edits must reuse completed edition analysis",0,comparisons)
+                        assertEquals("The rename control must not introduce new picture evidence",revision,repo.images.identities.revision.value)
+                        // A real local account-group change has the same posts
+                        // and pictures too, but changes ownership admission.
+                        // It must retire the old source analysis despite the
+                        // already accepted complete album staying readable.
+                        val original=renamed.first {it.id in members[repo.key(root)].orEmpty()}
+                        val rebound=original.copy(personId=(original.personId ?: original.id)+":binding-control")
+                        val beforeBinding=events.count {it["stage"]=="warm-matching-started"}
+                        event("stage" to "identity-binding-start")
+                        runBlocking {
+                            repo.dao.putFollow(FollowRow(rebound.id,rebound.target.platform.id,repo.gson.toJson(rebound)))
+                            withTimeout(5000){repo.follows.first {values->values.any {it.id==rebound.id&&it.personId==rebound.personId}}}
+                        }
+                        ui.waitForIdle();Thread.sleep(250);awaitQuiet()
+                        val bindingJobs=events.count {it["stage"]=="warm-matching-started"}-beforeBinding
+                        event("stage" to "identity-binding-complete","matchingJobs" to bindingJobs)
+                        assertTrue("A changed account-group binding must invalidate source analysis",bindingJobs>0)
+                        assertEquals("The binding control changes no picture evidence",revision,repo.images.identities.revision.value)
+                    }
                     ui.onNodeWithTag("Primary destination follows").performClick()
                     ui.waitUntil(10_000){model.screen.value.section=="follows"};ui.waitForIdle()
+                    if(verifyRename) {
+                        ui.waitUntil(10_000){ui.onAllNodesWithText("Local display only").fetchSemanticsNodes().isNotEmpty()}
+                        screenshot("display-rename-subscriptions.png")
+                    }
                     event("stage" to "warm-reentry-start")
                     ui.onNodeWithTag("Primary destination feed").performClick()
-                    ui.waitUntil(30_000){visibleRows().any {node->val text=words(node);text.any {it.startsWith("$expectedOriginals originals ·")}&&(requiredCaption==null||text.any {requiredCaption in it})}}
+                    ui.waitUntil(30_000){visibleRows().any {node->val text=words(node);text.any {it.startsWith(familyLabel)}&&(requiredCaption==null||text.any {requiredCaption in it})}}
                     ui.waitForIdle();Thread.sleep(100)
                     event("stage" to "warm-first-complete");screenshot("warm-reentry.png")
                     assertTrue("Returning to Following retains All",model.screen.value.combined)

@@ -150,6 +150,10 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     var group by remember(state.platform){mutableStateOf(repo.prefs.readingGroup(state.platform))}
     // An explicit source change clears the old flow before the next frozen batch.
     val feedMembership=remember(follows){follows.filter {it.enabled}.map {it.copy(name="",personName=null)}}
+    // Display-name enrichment must update the labels without retiring this
+    // window's completed source analysis. Keep the not-yet-loaded state and
+    // every actual target, ownership and subscription-policy field distinct.
+    val matchingFollows=if(loadedFollows==null)null else feedMembership
     val candidatesFlow=remember(repo){repo.followedSnapshot(null)}
     val globalSnapshot=key(feedMembership){candidatesFlow.collectAsStateWithLifecycle<FollowedPostSnapshot?>(null).value}
     val useGlobal=state.section=="feed"&&state.target==null&&state.combined&&activeChannel==null
@@ -181,11 +185,11 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     // A page/reading-position change can restart preparation without changing
     // the actual source window. Keep that window's completed analysis, while
     // the matcher serializes cancelled/replacement observation collectors.
-    val editionMatcher=remember(repo,matchingCandidates,loadedFollows,matchingMemberships) {
-        if(matchingCandidates==null||loadedFollows==null)null else FeedEditionMatcher(loadedFollows,matchingMemberships)
+    val editionMatcher=remember(repo,matchingCandidates,matchingFollows,matchingMemberships) {
+        if(matchingCandidates==null||matchingFollows==null)null else FeedEditionMatcher(matchingFollows,matchingMemberships)
     }
     val knownGroups by produceState<KnownPostGroups?>(null,editionMatcher,preparationFeed) {
-        val candidates=matchingCandidates;val accounts=loadedFollows
+        val candidates=matchingCandidates;val accounts=matchingFollows
         val matcher=editionMatcher
         if(candidates==null||accounts==null||matcher==null){value=null;return@produceState}
         if(preparationFeed!=null) {
@@ -223,9 +227,9 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         }
     }
     val discussionGroups=knownGroups?.groups.orEmpty()
-    val videoPreparation=remember(preparationFeed,matchingCandidates,loadedFollows,matchingMemberships) {
-        if(preparationFeed==null||matchingCandidates==null||loadedFollows==null)null
-        else FeedVideoPreparationSource(matchingCandidates,loadedFollows,matchingMemberships)
+    val videoPreparation=remember(preparationFeed,matchingCandidates,matchingFollows,matchingMemberships) {
+        if(preparationFeed==null||matchingCandidates==null||matchingFollows==null)null
+        else FeedVideoPreparationSource(matchingCandidates,matchingFollows,matchingMemberships)
     }
     val videoLookup:VideoRequestLookup=remember(repo,knownGroups) {
         val snapshot=knownGroups
@@ -240,7 +244,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
         lookup
     }
     val counterpartsReady=!feedRefresh.publishing&&globalSnapshot?.generation==feedRefresh.readableGeneration&&
-        ((state.section!="subscription"&&(state.section!="feed"||state.target!=null))||storedSnapshot!=null&&storedSnapshot.generation==globalSnapshot?.generation)&&matchingCandidates!=null&&loadedFollows!=null&&knownGroups?.posts==matchingCandidates&&knownGroups?.follows==loadedFollows&&knownGroups?.memberships==matchingMemberships
+        ((state.section!="subscription"&&(state.section!="feed"||state.target!=null))||storedSnapshot!=null&&storedSnapshot.generation==globalSnapshot?.generation)&&matchingCandidates!=null&&matchingFollows!=null&&knownGroups?.posts==matchingCandidates&&knownGroups?.follows==matchingFollows&&knownGroups?.memberships==matchingMemberships
     val readerStates=rememberSaveableStateHolder()
     var readerKeys by rememberSaveable {mutableStateOf(listOf<String>())}
     val channelScope=channelId?.takeIf {state.target==null}?.let {":channel:$it:${activeChannel?.let(PersonalChannels::fingerprint).orEmpty()}"}.orEmpty()

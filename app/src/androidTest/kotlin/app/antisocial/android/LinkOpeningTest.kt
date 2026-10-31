@@ -40,6 +40,21 @@ class LinkOpeningTest {
         Intent(Intent.ACTION_VIEW,Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE).setPackage(context.packageName),PackageManager.MATCH_DEFAULT_ONLY
     ).map {it.activityInfo.name}.distinct()
 
+    @Test fun socialHostClassificationPreservesAliasesPortsAndDestinationBoundaries() {
+        SocialLinkHosts.hosts.forEach {(platform,hosts)->hosts.forEach {declared->
+            val host=declared.replace("*.","publicblog.")
+            for(origin in listOf("https://$host","http://$host","https://${host.uppercase(java.util.Locale.ROOT)}:443","http://$host:80"))
+                assertEquals(origin,platform,SocialLinkHosts.platform("$origin/public/path?next=https://another.example/#detail"))
+            for(url in listOf("https://$host.evil.example/path","https://user:secret@$host/path","https://$host:444/path","http://$host:443/path","https://$host:80/path","file://$host/path"))
+                assertNull(url,SocialLinkHosts.platform(url))
+        }}
+        assertNull(SocialLinkHosts.platform("https://eviltumblr.com/post/123"))
+        assertNull(SocialLinkHosts.platform("https://unlisted.example/@public"))
+        assertEquals("https://mstdn.social/@public/123",SocialLinkHosts.canonical("https://mstdn.social/@public/123"))
+        assertEquals("https://publicblog.tumblr.com/post/123",SocialLinkHosts.canonical("https://publicblog.tumblr.com/post/123"))
+        assertEquals("https://t.co/abc",SocialLinkHosts.canonical("https://t.co/abc"))
+    }
+
     @Test fun selectedHostsResolveThroughTheirOwnAliasAndUnrelatedSitesDoNot() {
         preferences.selected=Platform.entries.toList()
         SocialLinkHosts.hosts.forEach {(platform,hosts)->hosts.forEach {host->

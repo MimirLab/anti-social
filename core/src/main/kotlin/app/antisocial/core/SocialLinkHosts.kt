@@ -34,14 +34,39 @@ object SocialLinkHosts {
     )
     private val shorteners=setOf("t.co","redd.it","reddit.app.link","t.umblr.com","vm.tiktok.com","vt.tiktok.com","pin.it","fb.me","www.fb.me","fb.watch","lnkd.in","t.snapchat.com")
     private val federated=setOf(Platform.MASTODON,Platform.LEMMY,Platform.PIXELFED,Platform.MISSKEY)
+    /** Compile the fixed declarations, never a result about a visited URL.
+     * Earlier wildcard declarations keep priority over later exact entries. */
+    internal class HostIndex(declarations:Map<Platform,List<String>>) {
+        private data class Entry(val platform:Platform,val order:Int)
+        private data class Wildcard(val suffix:String,val entry:Entry)
+        private val exact:Map<String,Entry>
+        private val wildcards:List<Wildcard>
+        init {
+            val names=linkedMapOf<String,Entry>();val patterns=mutableListOf<Wildcard>();var order=0
+            declarations.forEach {(platform,hosts)->hosts.forEach {name->
+                val entry=Entry(platform,order++)
+                if(name.startsWith("*."))patterns+=Wildcard(name.substring(1),entry)
+                else names.putIfAbsent(name,entry)
+            }}
+            exact=names;wildcards=patterns
+        }
+        fun platform(host:String):Platform? {
+            val direct=exact[host]
+            for(rule in wildcards) {
+                if(direct!=null&&direct.order<rule.entry.order)break
+                if(host.length>rule.suffix.length&&host.endsWith(rule.suffix))return rule.entry.platform
+            }
+            return direct?.platform
+        }
+    }
+    private val index=HostIndex(hosts)
     private fun parsed(value: String): URI?=runCatching {CrossPostFusion.parsedUri(value.trim())}.getOrNull()?.takeIf {
         it.scheme?.lowercase(Locale.ROOT) in setOf("http","https")&&it.host!=null&&it.userInfo==null&&it.port in setOf(-1,80,443)&&
             (it.port==-1||it.scheme.equals("http",true)&&it.port==80||it.scheme.equals("https",true)&&it.port==443)
     }
-    private fun matches(host: String,declared: String)=if(declared.startsWith("*."))host.endsWith(declared.removePrefix("*"))&&host.length>declared.length-1 else host==declared
     fun platform(url: String): Platform? {
         val host=parsed(url)?.host?.lowercase(Locale.ROOT) ?: return null
-        return hosts.entries.firstOrNull {(_,names)->names.any {matches(host,it)}}?.key
+        return index.platform(host)
     }
     fun needsExpansion(url: String): Boolean {
         val uri=parsed(url) ?: return false

@@ -4,6 +4,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SocialLinkHostsTest {
+    @Test fun compiledDeclarationsKeepFirstMatchPriorityAcrossExactAndWildcardRules() {
+        val broadFirst=SocialLinkHosts.HostIndex(linkedMapOf(Platform.X to listOf("*.studio.example"),Platform.FACEBOOK to listOf("news.studio.example","*.news.studio.example")))
+        assertEquals(Platform.X,broadFirst.platform("news.studio.example"))
+        assertEquals(Platform.X,broadFirst.platform("local.news.studio.example"))
+        val exactFirst=SocialLinkHosts.HostIndex(linkedMapOf(Platform.FACEBOOK to listOf("news.studio.example"),Platform.X to listOf("*.studio.example")))
+        assertEquals(Platform.FACEBOOK,exactFirst.platform("news.studio.example"))
+        assertEquals(Platform.X,exactFirst.platform("other.studio.example"))
+    }
+    @Test fun compiledDeclarationsKeepDuplicatePriorityAndWholeSubdomainBoundaries() {
+        val index=SocialLinkHosts.HostIndex(linkedMapOf(Platform.INSTAGRAM to listOf("studio.example","*.studio.example"),Platform.X to listOf("studio.example")))
+        assertEquals(Platform.INSTAGRAM,index.platform("studio.example"))
+        assertEquals(Platform.INSTAGRAM,index.platform("public.studio.example"))
+        assertNull(index.platform("evilstudio.example"));assertNull(index.platform("studio.example.evil"))
+        assertNull(SocialLinkHosts.HostIndex(mapOf(Platform.X to listOf("*.studio.example"))).platform("studio.example"))
+    }
     @Test fun everyPlatformHasKnownHostEntryPoints() {
         assertEquals(Platform.entries.filterNot {it==Platform.RSS}.toSet(),SocialLinkHosts.hosts.keys)
         SocialLinkHosts.hosts.forEach {(platform,hosts)->hosts.forEach {host->
@@ -34,6 +49,18 @@ class SocialLinkHostsTest {
         assertEquals("https://t.co/abc",SocialLinkHosts.canonical("https://t.co/abc"))
         assertFalse(SocialLinkHosts.needsExpansion("https://x.com/nasa/status/123"))
         assertFalse(SocialLinkHosts.needsExpansion("https://unknown.example/t/abc"))
+    }
+    @Test fun shareRoutesKeepTheirOriginalHostEscapedPathQueryAndFragment() {
+        for(url in listOf("https://mbasic.facebook.com/share/p/AbC?source=fixture#Panel",
+            "https://m.instagram.com/share/AbC/more?source=fixture#Panel",
+            "https://old.reddit.com/r/studio/s/AbC?source=fixture#Panel",
+            "https://m.tiktok.com/t/AbC?source=fixture#Panel",
+            "https://mbasic.facebook.com/%73hare/p/AbC?source=fixture#Panel")) {
+            assertTrue(url,SocialLinkHosts.needsExpansion(url));assertEquals(url,SocialLinkHosts.canonical(url))
+        }
+        assertFalse(SocialLinkHosts.needsExpansion("https://mbasic.facebook.com/Share/p/AbC"))
+        assertFalse(SocialLinkHosts.needsExpansion("https://mbasic.facebook.com/share/article/AbC"))
+        assertEquals("https://www.facebook.com/Share/p/AbC",SocialLinkHosts.canonical("https://mbasic.facebook.com/Share/p/AbC"))
     }
     @Test fun knownFederatedServersNeverTurnIntoInterchangeableMirrors() {
         assertEquals(Platform.MASTODON,SocialLinkHosts.platform("https://mstdn.social/@stux/123"))
