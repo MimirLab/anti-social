@@ -1,5 +1,51 @@
 # Feed performance qualification
 
+## Post-0.38.87 investigation: reject repeated-link answer caching
+
+A fresh API 35 trace of the exact published 0.38.87 APK confirms remaining
+cold-deck preparation work. The retained 896-source journey passes with three
+originals, three distinct pictures, preserved read marks and source credit, and
+zero continuation reads. Under 2 ms method sampling, first visible delivery is
+9,955 ms and late-source adoption is 4,444 ms. These are diagnostic observations,
+not ordinary latency estimates. Repeated native regex compilation and image-URL
+parsing remain leads, not automatically justified caches.
+
+The earlier compiled-pattern cache was already rejected. This distinct prototype
+reuses the complete source-qualified mention-link answer for an exact immutable
+post and exact URL inside one synchronous operation. It keeps the literal native
+regex, all source/destination gates, the shared 8 MiB allowance and a 2,048-answer
+cap. Revised posts, independent operations and readers cannot inherit answers.
+The desktop corpus counter records 535 computations and 345 hits; this is not a
+speed measurement. Shared accounting is already full in that counter, so reduced
+work in one cache cannot be assumed to improve the complete operation.
+
+All 21 focused JVM methods pass. The first native harness finds both the real
+classifier and its generated static lambda and fails three method lookups before
+their assertions; the two caption controls pass. Excluding static methods fixes
+the harness without changing the candidate app bytes. All five selected native
+checks then pass, including literal Unicode case folding, source gates and
+faithful caption presentation/saving.
+
+The untraced API 35 ABBA comparison uses two cores, 2,048 MiB RAM and the same
+hash-restored app state and captured sources before every run:
+
+| Checkpoint | Published 0.38.87 | Answer-cache prototype |
+| --- | ---: | ---: |
+| Open → first visible card, individual runs | 9,974 / 10,469 ms | 12,155 / 9,735 ms |
+| Late source commit → current picture credit | 4,209 / 4,558 ms | 4,809 / 5,313 ms |
+| First-card median | 10,221.5 ms | 10,945 ms |
+| Late-source median | 4,383.5 ms | 5,061 ms |
+
+All four journeys pass the original, picture, read-state and pixel-anchor checks;
+the actual native frames are inspected. This small comparison establishes **no
+useful end-to-end speed gain**. It does not establish a general regression rate
+or its cause. The prototype runtime changes and prototype-only tests are removed;
+their exact patch, frozen artifacts, failures and receipts remain in private
+external evidence. No new APK, cache, matcher rule or release is introduced.
+First-card and join latency remain open, independently of the released caption
+correction below. Physical-phone p95, energy and live acquisition are unmeasured
+by this investigation.
+
 ## 0.38.87: share compatible prose around literal reference differences
 
 A captured three-source collection was correctly grouped, but every compact

@@ -95,6 +95,10 @@ The [post-0.38.70 pattern investigation](FEED_PERFORMANCE.md#post-03870-investig
 records a JVM-passing prototype rejected by the native control, then a faithful
 prototype rejected for lack of a useful full-feed speed gain. Retained regression
 coverage is separate from a runtime improvement or a new published APK.
+The later [repeated-link answer investigation](FEED_PERFORMANCE.md#post-03887-investigation-reject-repeated-link-answer-caching)
+also rejects a distinct, semantically faithful cache after the complete native
+comparison shows no useful speed gain. Avoid treating fewer local computations
+as proof of faster visible delivery.
 
 The [0.38.72 feed investigation](FEED_PERFORMANCE.md#03872-investigation-prioritize-coverage-and-keep-details-adoption-reliable)
 similarly distinguishes an earlier sample start from a useful complete card.
