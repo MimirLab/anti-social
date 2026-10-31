@@ -45,6 +45,13 @@ class FullFeedVideoLiveTest {
         val focus=raw.getAsJsonArray("focusKeys").map {it.asString}.toSet()
         val requiredBody=raw.getAsJsonArray("expectedBodyPassages")?.map {it.asString}.orEmpty()
         val minimumRecordings=raw["minimumObservedRecordings"]?.asInt ?: 3
+        val observeRefresh=args.getString("antisocialFeedObserveSourceRefresh")=="true"
+        // Frozen-capture replay keeps its original contract. This separate
+        // opt-in journey follows a whole source edition actually renewed in Room.
+        fun currentPosts():List<Post> = if(!observeRefresh)posts else runBlocking {posts.map {original->
+            repo.dao.post(repo.key(original))?.let {row->runCatching {repo.gson.fromJson(row.payload,Post::class.java)}.getOrNull()}
+                ?.takeIf {VideoPostRefresh.sameInput(original,it)||VideoPostRefresh.accepts(original,it)} ?: original
+        }}
         val warmup=raw.getAsJsonArray("warmupPosts")?.map {repo.gson.fromJson(it,Post::class.java)}.orEmpty()
         require(warmup.isEmpty()||warmup.size==2&&warmup.map(repo::key).distinct().size==2&&warmup.all {
             repo.key(it)in focus&&it.media.singleOrNull {m->m.type=="video"}?.let {m->m.videoFootage==null&&m.audioUrl==null}==true
@@ -61,7 +68,7 @@ class FullFeedVideoLiveTest {
         val prefs=repo.prefs.export().toString();val oldMemory=repo.feedMemory
         val scope=CoroutineScope(SupervisorJob()+Dispatchers.IO)
         val memory=File(ui.activity.cacheDir,"full-feed-video-memory.json")
-        val sampler=repo.videos.sample;val metadata=repo.videos.metadata;val prefix=repo.videos.preparePrefix
+        val sampler=repo.videos.sample;val metadata=repo.videos.metadata;val prefix=repo.videos.preparePrefix;val refresh=repo.videos.refreshPost
         require(args.getString("antisocialFeedExperimentEarlyVideo")!="true") {
             "The older early-sampling experiment requires its matching retained APK/tester."
         }
@@ -79,7 +86,7 @@ class FullFeedVideoLiveTest {
             try {File(output,name).outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}}finally {bitmap.recycle()}
         }
         fun capturedEvidence() {
-            val observed=posts.map {repo.images.identities.captured(repo.videos.captured(it))}
+            val observed=currentPosts().map {repo.images.identities.captured(repo.videos.captured(it))}
             File(output,"observed-posts.json").writeText(repo.gson.toJson(observed))
         }
         try {
@@ -113,6 +120,10 @@ class FullFeedVideoLiveTest {
                 event("stage" to "metadata-start","key" to repo.key(post))
                 (if(args.getString("antisocialFeedExperimentMetadataUnavailable")=="true")null else metadata(post))
                     .also {event("stage" to "metadata-end","key" to repo.key(post),"found" to (it!=null))}
+            }
+            if(observeRefresh)repo.videos.refreshPost={post,admit->
+                event("stage" to "source-refresh-start","key" to repo.key(post))
+                refresh(post,admit).also {event("stage" to "source-refresh-end","key" to repo.key(post),"changed" to it)}
             }
             if(warmup.isNotEmpty()) {
                 event("stage" to "warmup-start")
@@ -164,7 +175,7 @@ class FullFeedVideoLiveTest {
             // Observe the production preparation, dwell and catalogue. This
             // tester never schedules enrich() after opening or fabricates observations.
             ui.waitUntil(150_000){
-                val captured=posts.filter {repo.key(it)in focus}.map(repo.videos::captured)
+                val captured=currentPosts().filter {repo.key(it)in focus}.map(repo.videos::captured)
                 captured.count {p->p.media.any {it.videoFootage?.scenes?.size?.let {n->n>=3}==true}}>=minimumRecordings
             }
             event("stage" to "required-recordings-observed","required" to minimumRecordings)
@@ -219,7 +230,14 @@ class FullFeedVideoLiveTest {
                 // useful future edition. Record timing; do not outlaw reads.
                 event("stage" to "sample-tail-observed","samples" to samples.size,"outsideFocus" to outside)
             }
-            val observed=posts.map(repo.videos::captured)
+            val current=currentPosts()
+            if(observeRefresh) {
+                val renewed=posts.zip(current).filter {(old,fresh)->!VideoPostRefresh.sameInput(old,fresh)}
+                assertTrue("This journey must actually renew a retained source edition",renewed.isNotEmpty())
+                renewed.forEach {(old,fresh)->assertTrue(VideoPostRefresh.accepts(old,fresh));assertNull(repo.videos.captured(old).media.single().videoFootage)}
+                File(output,"current-source-posts.json").writeText(repo.gson.toJson(current))
+            }
+            val observed=current.map(repo.videos::captured)
             val groups=runBlocking {withContext(Dispatchers.Default){CrossPosts.groupWithVideoFootage(observed,follows,members,sharedFootage={a,b->repo.videos.related(a,b){}})}}
             val family=groups.filter {g->g.posts.any {repo.key(it)in focus}}
             File(output,"result.json").writeText(repo.gson.toJson(mapOf("focusGroups" to family,"work" to repo.cardWork.active.value,"events" to events)))
@@ -240,7 +258,7 @@ class FullFeedVideoLiveTest {
         }finally {
             if(tracing){Debug.stopMethodTracing();tracing=false}
             ui.runOnIdle {vm?.viewModelScope?.cancel();ui.activity.setContent {Text("Private full-window replay complete")}}
-            repo.videos.sample=sampler;repo.videos.metadata=metadata;repo.videos.preparePrefix=prefix
+            repo.videos.sample=sampler;repo.videos.metadata=metadata;repo.videos.preparePrefix=prefix;repo.videos.refreshPost=refresh
             runBlocking {
                 repo.feedMemory.flush();scope.coroutineContext[Job]?.cancelAndJoin()
                 if(imported)repo.db.withTransaction {

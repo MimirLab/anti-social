@@ -1,5 +1,44 @@
 # Shared video scenes
 
+## Retained TikTok delivery recovery, 0.38.80
+
+A retained post can outlive the video URL supplied with it. A bounded range
+failure with HTTP 200, 401, 403, 404 or 410 can now request the same original
+through the existing TikWM post route. Transport, decoder, 429 and server-error
+failures do not initiate this recovery. It waits for actual card interest and
+the same resource policy as frame sampling. Successful ordinary sampling adds
+no parent lookup.
+
+This is a complete current source read, rather than a guessed replacement URL.
+Admission requires the same original and publisher, complete presented caption,
+destinations, compatible publication time and duration, and preservation of
+previously supplied source declarations. Only the qualified single progressive
+TikTok CDN shape is supported. The old and current delivery objects need not be
+identical; the current one must obtain its own frame observations. No old
+signature, image observation or video evidence is transferred to it.
+
+The existing alternate-only pool checks at most two eligible metadata routes
+within eight seconds and the original comparison's enclosing allowances. An
+unchanged or unrelated result cannot win. An explicit TikWM server pause covers
+both internal POST and MEDIA uses of that same HTTP operation. Empty metadata
+does not declare its ordinary post reader broken. Parent attempts additionally
+share a bounded, five-minute per-post pause across rotating URLs. Explicit
+refresh clears this local retry pause; cancellation and resource deferral do not
+create it. Gateway still governs every read and selected Tor still fails closed.
+
+An admitted record replaces only its existing ordinary cache row, with the
+same retained creation/view times and memberships. Admission is repeated inside
+the transaction and before commit. Purged, revised, unsubscribed, rebound or
+obsolete work cannot recreate or overwrite a row. Saved editions and retained
+history remain intact. A successful replacement ends work on its obsolete pair;
+the normal cache flow then plans the actual current edition. Existing stable
+reading and captured-details adoption rules still govern the visible body.
+
+This recovery supports comparison of retained recordings; it does not add a
+general expired-playback resolver, authenticate complete recordings, or guarantee
+that every original remains retrievable. Dated native observations and remaining
+latency limits are in [release qualification](RELEASE_QUALIFICATION.md).
+
 Version 0.38.56 adds a bounded, visible-card comparison route to the
 existing caption and image routes. Recorded
 shared scenes can connect different captions without rewriting their originals.

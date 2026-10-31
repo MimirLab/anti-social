@@ -117,6 +117,23 @@ class GatewayMediaRangesTest {
             }
         }
     }
+    @Test fun refusedRangesRetainOnlyTheirStatusAndNeverFallBackToTheWholeFile()=runBlocking {
+        for(status in listOf(200,401,403,404,410,500,503))MockWebServer().use {s->
+            s.start();s.enqueue(MockResponse().setResponseCode(status).setBody("Not a bounded recording range"))
+            val g=NetworkGateway(cleaner,permit,true)
+            val error=assertThrows(RecordingRangeUnavailable::class.java){runBlocking {g.mediaRanges(s.url("/clip").toString())}}
+            assertEquals(status,error.statusCode);assertEquals(status in setOf(200,401,403,404,410),error.mayRefreshPost)
+            assertEquals("Recording does not supply bounded byte ranges",error.message);assertEquals(1,s.requestCount)
+            val request=s.takeRequest();assertEquals("bytes=0-${block-1}",request.getHeader("Range"));assertNull(request.getHeader("Cookie"));assertNull(request.getHeader("Authorization"))
+        }
+        assertFalse(RecordingRangeUnavailable(429).mayRefreshPost)
+    }
+    @Test fun malformedSuccessfulRangesAreProtocolFailuresRatherThanRefreshHints()=runBlocking {
+        MockWebServer().use {s->s.start();s.enqueue(range(0,10).setHeader("Content-Range","invalid"))
+            val error=assertThrows(IOException::class.java){runBlocking {NetworkGateway(cleaner,permit,true).mediaRanges(s.url("/clip").toString())}}
+            assertFalse(error is RecordingRangeUnavailable);assertEquals(1,s.requestCount)
+        }
+    }
     @Test fun aChangedRepresentationIsRejectedAndNeverCached()=runBlocking {
         MockWebServer().use {s->s.start();s.enqueue(range(0,block+7));s.enqueue(range(block,block+7,"\"two\""));s.enqueue(range(block,block+7))
             val view=NetworkGateway(cleaner,permit,true).mediaRanges(s.url("/clip").toString())

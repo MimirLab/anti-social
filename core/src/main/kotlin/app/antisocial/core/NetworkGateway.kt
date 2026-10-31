@@ -23,6 +23,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 data class MediaPrefix(val bytes: ByteArray,val finalUrl: String,val contentType: String,val status: Int)
+/** A refused range is not decoder failure. The response body is never consumed
+ * as a whole-file fallback; selected callers can request a fresh source record. */
+class RecordingRangeUnavailable(val statusCode:Int):IOException("Recording does not supply bounded byte ranges") {
+    val mayRefreshPost get()=statusCode in setOf(200,401,403,404,410)
+}
 data class GatewayMediaPayload(val bytes:ByteArray,val finalUrl:String,val contentType:String,val manifestUrls:List<String>)
 
 data class GatewayDocument(val status: Int,val message: String,val headers: Map<String,List<String>>,val text: String,val finalUrl: String,val conditional:Boolean=false)
@@ -235,6 +240,12 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
     }
     internal fun currentSession(route:NetworkRoute=NetworkRoute.DEFAULT):NetworkSession=if(route==NetworkRoute.TOR)torPolicy.get()else policy.get()
     internal fun currentSelection():NetworkSelection=selection.get()
+    /** Local admission only. Readiness can finish, but a reader's connection
+     * selection round trip cannot revive work queued under the former choice. */
+    fun selectionGuard():()->Boolean {
+        val selected=currentSelection()
+        return {currentSelection()===selected}
+    }
     /** Use the session the actual source host would select, including mandatory
      * Tor search hosts. Unrelated search readiness must not cancel direct reads. */
     internal fun sessionFor(url:String):NetworkSession=currentSession(routeFor(Request.Builder().url(url).build()))
@@ -751,7 +762,7 @@ class NetworkGateway(private val cleaner: UrlCleaner, initialFilter: RequestFilt
                 .tag(RequestContext::class.java,RequestContext(sourceUrl,"video"))
                 .header("Accept-Encoding","identity").header("Range","bytes=$offset-${offset+size-1}")
                 .apply {expected?.validator?.let {header("If-Range",it)}}.build(),15_000) {response->
-                if(response.code!=206)throw IOException("Recording does not supply bounded byte ranges")
+                if(response.code!=206)throw RecordingRangeUnavailable(response.code)
                 if(response.header("Content-Encoding")?.let {it!="identity"}==true)throw IOException("Encoded recording range was rejected")
                 val range=response.header("Content-Range")?.let {Regex("bytes ([0-9]+)-([0-9]+)/([0-9]+)").matchEntire(it)} ?: throw IOException("Missing recording byte range")
                 val start=range.groupValues[1].toLongOrNull();val end=range.groupValues[2].toLongOrNull() ?: throw IOException("Invalid recording range end");val total=range.groupValues[3].toLongOrNull()

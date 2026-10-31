@@ -19,8 +19,13 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     // whose query happened to receive the refusal. No query text is retained.
     private val providerCooldowns=linkedMapOf<String,Long>()
     private fun key(s: Source,c: Capability,t: Boolean)="${s.key}|$c|$t"
-    private fun providerKey(s:Source,c:Capability,t:Boolean):String?=
-        if(c==Capability.SEARCH&&s.frontend in LocalWebDiscovery.frontends)"${s.frontend}|${s.root}|$t"else null
+    private fun providerKey(s:Source,c:Capability,t:Boolean):String?=when {
+        c==Capability.SEARCH&&s.frontend in LocalWebDiscovery.frontends->"${s.frontend}|${s.root}|$t"
+        // Both operations use the same /api/?url= public post route. A server
+        // wait cannot be bypassed by requesting its metadata under MEDIA.
+        s.platform==Platform.TIKTOK&&s.frontend=="tikwm"&&c in setOf(Capability.POST,Capability.MEDIA)->"tikwm|${s.root}|post-media|$t"
+        else->null
+    }
     private fun providerUntil(s:Source,c:Capability,t:Boolean)=providerKey(s,c,t)?.let {providerCooldowns[it]} ?: 0L
     private fun effective(value:RouteStats):RouteStats {
         val until=maxOf(value.cooldownUntil,providerUntil(value.source,value.capability,value.tor))
@@ -52,7 +57,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     @Synchronized fun failure(s: Source,c: Capability,t: Boolean,target: Target): SourceFailure? {
         val now=clock()
         val pause=maxOf(providerUntil(s,c,t),if(providerKey(s,c,t)!=null)stats[key(s,c,t)]?.cooldownUntil ?: 0 else 0)
-        if(pause>now)return SourceFailure(HealthStatus.UNAVAILABLE,"Public search source is paused; try again later.",pause-now)
+        if(pause>now)return SourceFailure(HealthStatus.UNAVAILABLE,if(c==Capability.SEARCH)"Public search source is paused; try again later."else "Public video source is paused; try again later.",pause-now)
         val value=targetFailures[scope(s,c,t,target)]?.takeIf {it.until>clock()} ?: return null
         return SourceFailure(value.status,value.detail)
     }

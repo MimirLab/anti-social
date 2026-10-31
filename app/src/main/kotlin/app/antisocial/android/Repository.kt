@@ -450,6 +450,42 @@ class Repository(val context: Context) {
         } ?: return@withContext null
         supplied(page)
     }
+    private fun videoRefreshBinding(post:Post,follow:Follow)=follow.enabled&&follow.target.platform==post.platform&&
+        MentionNames.account(follow.target,routes)?.key?.let {"${it.platform.id}:${it.username}"}==CrossPosts.originalAccount(post)
+    /** Only an actual failed delivery asks for this read. Return a complete
+     * current source edition, never a URL alias or evidence for the old file. */
+    internal suspend fun refreshVideoPost(post:Post,admit:()->Boolean):Boolean=withContext(Dispatchers.IO) {
+        val sameSelection=gateway.selectionGuard()
+        fun current()=manualCacheClears.get()==0&&sameSelection()&&admit()
+        if(!current()||!VideoPostRefresh.eligible(post))return@withContext false
+        val row=dao.post(key(post)) ?: return@withContext false
+        val current=runCatching {gson.fromJson(row.payload,Post::class.java)}.getOrNull() ?: return@withContext false
+        if(!VideoPostRefresh.sameInput(current,post))return@withContext false
+        val ids=dao.postFollowIds(row.key).toSet()
+        val bindings=dao.allFollows().filter {it.id in ids}.map {gson.fromJson(it.payload,Follow::class.java)}.filter {videoRefreshBinding(post,it)}
+        if(bindings.isEmpty()||!current())return@withContext false
+        val target=routes.recognize(post.canonicalUrl,post.platform)?.takeIf {it.kind==TargetKind.POST} ?: return@withContext false
+        val page=withTimeoutOrNull(8_000) {pool.load(target,originalFallback=false,background=true,progress={},requestedCapability=Capability.MEDIA,mediaMetadataOnly=true,mediaRefreshPost=post)} ?: return@withContext false
+        val fresh=VideoPostRefresh.candidate(post,page) ?: return@withContext false
+        storeRefreshedVideoPost(post,fresh,bindings,::current)
+    }
+    /** Repeat admission inside Room, including before commit. A purge, changed
+     * source edition or removed subscription cannot be revived by a late read. */
+    internal suspend fun storeRefreshedVideoPost(post:Post,fresh:Post,bindings:List<Follow>,admit:()->Boolean):Boolean=db.withTransaction {
+        if(manualCacheClears.get()>0||!admit()||!VideoPostRefresh.accepts(post,fresh)||bindings.isEmpty()||bindings.any {!videoRefreshBinding(post,it)})return@withTransaction false
+        val row=dao.post(key(post)) ?: return@withTransaction false
+        val current=runCatching {gson.fromJson(row.payload,Post::class.java)}.getOrNull() ?: return@withTransaction false
+        if(!VideoPostRefresh.sameInput(current,post)||dao.seen(row.key)?.purged==true)return@withTransaction false
+        val ids=dao.postFollowIds(row.key).toSet()
+        val follows=dao.allFollows().associate {it.id to gson.fromJson(it.payload,Follow::class.java)}
+        if(bindings.any {old->old.id !in ids||follows[old.id]?.let {it.enabled&&it.target==old.target&&Subscriptions.id(it)==Subscriptions.id(old)}!=true})return@withTransaction false
+        val json=gson.toJson(fresh)
+        // Existing cache row and memberships only. Saved editions, byte caches,
+        // retained history and their original observations are not rewritten.
+        dao.upsertPost(row.copy(payload=json,publishedAt=fresh.publishedAt,bytes=json.toByteArray().size.toLong()))
+        if(manualCacheClears.get()>0||!admit())throw CancellationException("Video source refresh was retired before commit")
+        true
+    }
     suspend fun cachedPage(target: Target): Page?=withContext(Dispatchers.IO) {mediaMutex.withLock {
         val row=dao.media(pageKey(target)) ?: return@withLock null
         val file=File(row.path)

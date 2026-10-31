@@ -230,3 +230,20 @@ record field, link and attachment against the corrected extraction. Parser CPU
 and wall timings are recorded separately from fetch/decoder/display work.
 Captured source material and outputs stay outside the public checkout. The
 ordinary native batch skips this opt-in source-capture check.
+
+`VideoPostRefreshNativeTest.suppliedStaleRecordingRenewsThroughTheExistingRouterAndJoinsItsMeasuredPeer`
+requires `antisocialVideoPostRefreshLive=true`, the isolation flag and an empty
+disposable installation. Private `files/video-post-refresh/input.json` supplies
+the actual retained `original` and its `peer`. The check uses the existing router
+to acquire a whole current edition, measures its own video bytes, verifies the
+old file remains unobserved, and exercises protected collection saving. It does
+not transplant a replacement URL or inject scene evidence. Inputs, source
+records, sample receipts and reports remain private outside the checkout.
+
+For a separate visible-feed journey, `antisocialFeedObserveSourceRefresh=true`
+lets `FullFeedVideoLiveTest` observe a qualified whole source edition actually
+renewed in ordinary Room cache. The original frozen-packet path remains the
+default. The opt-in journey additionally requires an actual source change and
+checks that the former file receives no new observation. Existing body-adoption
+and pixel-anchor assertions can be combined with it. Screenshot and source
+outputs remain private. These are engineering controls, not user requirements.

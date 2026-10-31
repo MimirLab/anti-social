@@ -690,7 +690,7 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         }finally {readFinished()}
     }
     @OptIn(ExperimentalCoroutinesApi::class)
-    suspend fun load(target: Target, feed: Boolean=false, cursor: String?=null, originalFallback: Boolean=true,progress: (String)->Unit=onProgress,requestedCapability: Capability?=null,background: Boolean=false,profileNameOnly: Boolean=false,mediaMetadataOnly:Boolean=false,publisherThreadOnly:Boolean=false): Page = withContext(Dispatchers.IO) {
+    suspend fun load(target: Target, feed: Boolean=false, cursor: String?=null, originalFallback: Boolean=true,progress: (String)->Unit=onProgress,requestedCapability: Capability?=null,background: Boolean=false,profileNameOnly: Boolean=false,mediaMetadataOnly:Boolean=false,publisherThreadOnly:Boolean=false,mediaRefreshPost:Post?=null): Page = withContext(Dispatchers.IO) {
         val supplementalJob=if(background)currentCoroutineContext()[Job]else null
         readStarted(background,supplementalJob)
         val capability=requestedCapability ?: when {feed->Capability.FEED;target.kind==TargetKind.MEDIA->Capability.MEDIA;target.kind in setOf(TargetKind.POST,TargetKind.THREAD)->Capability.POST;target.kind==TargetKind.SEARCH->Capability.SEARCH;else->Capability.TIMELINE}
@@ -701,18 +701,22 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val attempted=java.util.concurrent.atomic.AtomicBoolean()
         try {
         require(!profileNameOnly||capability==Capability.PROFILE){"Name lookups require an exact profile"}
-        require(!mediaMetadataOnly||capability==Capability.MEDIA&&target.platform==Platform.X&&target.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&!originalFallback&&cursor==null){"Video metadata needs an exact public X post and alternate-only reads"}
+        require(mediaRefreshPost==null||mediaMetadataOnly&&target.platform==Platform.TIKTOK&&target.kind==TargetKind.POST&&VideoPostRefresh.eligible(mediaRefreshPost)&&
+            mediaRefreshPost.platform==target.platform&&mediaRefreshPost.identityKey==target.platform.id+":"+ContentIdentity.key(target.platform,target.canonicalUrl)&&
+            CrossPosts.originalAccount(mediaRefreshPost)==CrossPosts.originalAccount(mediaRefreshPost.copy(canonicalUrl=target.canonicalUrl))){"Video refresh needs its exact retained TikTok post"}
+        require(!mediaMetadataOnly||capability==Capability.MEDIA&&target.platform==(if(mediaRefreshPost==null)Platform.X else Platform.TIKTOK)&&target.kind in setOf(TargetKind.POST,TargetKind.THREAD)&&!originalFallback&&cursor==null){"Video metadata needs an exact supported post and alternate-only reads"}
         require(!publisherThreadOnly||capability==Capability.POST&&target.platform==Platform.X&&target.kind==TargetKind.THREAD&&!originalFallback&&cursor==null&&!mediaMetadataOnly){"Publisher continuations need an exact alternate-only X thread"}
         fun usablePublisherThread(page:Page):Boolean {
             if(!publisherThreadOnly)return true
             val root=page.posts.singleOrNull {it.platform==target.platform&&ContentIdentity.key(it.platform,it.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)} ?: return false
             return PublisherThreads.descendants(root,page.posts).isNotEmpty()
         }
-        fun usableMediaMetadata(page:Page)=!mediaMetadataOnly||page.posts.any {post->
+        fun usableMediaMetadata(page:Page)=!mediaMetadataOnly||(if(mediaRefreshPost!=null)VideoPostRefresh.candidate(mediaRefreshPost,page)!=null else page.posts.any {post->
             post.platform==target.platform&&!post.preview&&ContentIdentity.key(post.platform,post.canonicalUrl)==ContentIdentity.key(target.platform,target.canonicalUrl)&&
                 post.media.any {m->m.type=="video"&&VideoAssetIdentity.validSampling(m)&&
                     (m.durationMs?.let {it in 2_000..VideoFootage.MAX_DURATION_MS}==true||m.samplingUrl!=null)}
-        }
+        })
+        fun metadataSource(source:Source)=source.role==SourceRole.ALTERNATE&&source.frontend==if(mediaRefreshPost==null)"fxembed-api"else "tikwm"
         fun usableProfileName(page: Page): Boolean {
             if(!profileNameOnly)return true
             val expected=MentionNames.account(target,routes) ?: return false
@@ -740,11 +744,11 @@ class SourcePool(private val gateway: NetworkGateway, private val routes: Darwin
         val tor=gateway.currentPolicy().tor
         val now=clock()
         val candidates=requestedOrder(sourcesFor(target,capability).filter {
-            it.role!=SourceRole.CACHE&&(!(mediaMetadataOnly||publisherThreadOnly)||it.role==SourceRole.ALTERNATE&&it.frontend=="fxembed-api")&&
+            it.role!=SourceRole.CACHE&&(!(mediaMetadataOnly||publisherThreadOnly)||metadataSource(it))&&
                 (history==null||history.allows(it))&&capability in adapter(it).capabilities&&adapter(it).accepts(target)&&routeAllowed(it,capability)&&learning.eligible(it,capability,usesTor(it),target)
         },capability).let {if(mediaMetadataOnly||publisherThreadOnly)it.take(2)else it}
         var last: Exception?=sourcesFor(target,capability,originalFallback).filter {
-            !(mediaMetadataOnly||publisherThreadOnly)||it.role==SourceRole.ALTERNATE&&it.frontend=="fxembed-api"
+            !(mediaMetadataOnly||publisherThreadOnly)||metadataSource(it)
         }.firstNotNullOfOrNull {learning.failure(it,capability,usesTor(it),target)}
         var partial: Page?=null
         var originalRedirect: Page?=null

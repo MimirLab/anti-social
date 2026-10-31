@@ -23,6 +23,8 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     private val aliases=mutableMapOf<String,MutableSet<String>>()
     private data class FailedInput(val acquisition:VideoAcquisitionKey,val metadata:Boolean)
     private val failures=linkedMapOf<FailedInput,Long>()
+    private data class ParentAttempt(val at:Long,val sameSelection:()->Boolean)
+    private val parentAttempts=linkedMapOf<String,ParentAttempt>()
     private val proofs=object:LinkedHashMap<Pair<VideoFootageEvidence,VideoFootageEvidence>,SharedVideoFootage?>(16,.75f,true){}
     private val running=linkedSetOf<Job>()
     private var generation=0L
@@ -36,6 +38,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     fun playback(active:Boolean){playing.value=active}
     internal var sample:suspend (Media,String)->GatewayVideoSampler.Result=GatewayVideoSampler(repo)::sample
     internal var metadata:suspend (Post)->Media?=repo::videoMetadata
+    internal var refreshPost:suspend (Post,()->Boolean)->Boolean=repo::refreshVideoPost
     internal var preparePrefix:suspend (Media,String)->Unit={media,source->
         require(media.type=="video"&&media.audioUrl==null&&!VideoFormats.adaptive(VideoFormats.mime(media))&&VideoAssetIdentity.validSampling(media))
         val selected=VideoAssetIdentity.sampleUrl(media)
@@ -69,6 +72,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
     private fun observed(media:Media)=lookup(media)!=null||media.videoFootage?.let {it.scenes.size>=3&&VideoFootage.valid(media)}==true
     private fun metadataNeeded(request:VideoFootageRequest)=request.resolveMetadata&&listOf(request.first,request.second).none {p->p.media.singleOrNull {it.type=="video"}?.let(::observed)==true}
     private fun cooling(input:VideoAcquisitionKey,metadata:Boolean)=failures[FailedInput(input,metadata)]?.let {clock()-it in 0 until 5*60_000L}==true
+    private fun parentCooling(post:Post)=parentAttempts[post.identityKey]?.let {clock()-it.at in 0 until 5*60_000L&&it.sameSelection()}==true
     private fun metadataRoute(post:Post,media:Media,resolve:Boolean)=resolve&&media.samplingUrl==null&&VideoAssetIdentity.canResolveMetadata(post)
     /** In-memory references only. Call on the matching worker, never decode,
      * fetch, touch Room or read a cache file while projecting a feed. */
@@ -120,25 +124,26 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             if(epoch==generation){loaded=true;if(entries.isNotEmpty())changes.value+=1}
         }
     }
-    private suspend fun acquire(post:Post,epoch:Long,resolveMetadata:Boolean,beforeMetadata:(suspend ()->Boolean)?,beforeSample:(suspend (Media,String)->Boolean)?) {
-        val media=post.media.singleOrNull {it.type=="video"} ?: return
+    private suspend fun acquire(post:Post,epoch:Long,resolveMetadata:Boolean,automatic:Boolean,beforeMetadata:(suspend ()->Boolean)?,beforeSample:(suspend (Media,String)->Boolean)?):Boolean {
+        val sameSelection=repo.gateway.selectionGuard()
+        val media=post.media.singleOrNull {it.type=="video"} ?: return false
         val input=VideoAssetIdentity.acquisitionKey(media)
         val useMetadata=metadataRoute(post,media,resolveMetadata)
-        if(media.videoFootage?.scenes?.size?.let {it>=3}==true&&VideoFootage.valid(media))return
+        if(media.videoFootage?.scenes?.size?.let {it>=3}==true&&VideoFootage.valid(media))return false
         synchronized(lock) {
-            if(lookup(media)!=null)return
-            if(cooling(input,false)||useMetadata&&cooling(input,true))return
+            if(lookup(media)!=null)return false
+            if(cooling(input,false)||useMetadata&&cooling(input,true))return false
         }
         try {
             // A metadata-dependent route is not cheap prefix preparation.
             // Its lookup waits for the actual card just like frame decoding.
-            if(useMetadata&&beforeMetadata?.invoke()==false)return
+            if(useMetadata&&beforeMetadata?.invoke()==false)return false
             val prepared=if(useMetadata) {
                 val supplied=metadata(post) ?: throw IOException("No supported current video metadata")
                 currentCoroutineContext().ensureActive()
                 VideoAssetIdentity.withMetadata(media,supplied) ?: throw IOException("Video metadata belongs to another recording")
             }else media
-            if(beforeSample?.invoke(prepared,post.contentSourceUrl)==false)return
+            if(beforeSample?.invoke(prepared,post.contentSourceUrl)==false)return false
             val result=sample(prepared,post.contentSourceUrl)
             currentCoroutineContext().ensureActive()
             val observation=VideoFootageEvidence(result.renditionUrl,result.frames.durationMs,clock(),result.frames.scenes.toList())
@@ -146,12 +151,37 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
             val row=Entry(media.url,observation);val bytes=repo.gson.toJson(row).toByteArray()
             require(bytes.size<=MAX_ENTRY_BYTES)
             synchronized(lock) {
-                if(epoch!=generation)return
+                if(epoch!=generation)return false
                 directory.mkdirs();Repository.atomic(File(directory,Repository.hash(media.url)+".json"),bytes)
                 put(row);failures.remove(FailedInput(input,false));failures.remove(FailedInput(input,true));trim(false);changes.value+=1
             }
         }catch(e:CancellationException){throw e}
-        catch(_:Exception){synchronized(lock){if(epoch==generation){failures[FailedInput(input,useMetadata)]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}}
+        catch(e:Exception){
+            val owner=currentCoroutineContext()[Job]
+            fun current()=owner?.isActive==true&&sameSelection()&&synchronized(lock){epoch==generation}
+            var refreshed=false
+            if(e is RecordingRangeUnavailable&&e.mayRefreshPost&&VideoPostRefresh.eligible(post)) {
+                if(!current()||automatic&&!automaticAllowedNow())return false
+                if(!synchronized(lock){parentCooling(post)}) {
+                    if(beforeMetadata?.invoke()==false)return false
+                    try {refreshed=refreshPost(post,::current)}
+                    catch(cancel:CancellationException){throw cancel}
+                    catch(_:Exception){/* A failed refresh is not evidence about either recording. */}
+                    synchronized(lock) {
+                        // A rotating unusable delivery must not buy another
+                        // parent lookup. Cancellation/resource deferral never
+                        // reaches this point; a mode change retires the pause.
+                        if(current()) {
+                            parentAttempts[post.identityKey]=ParentAttempt(clock(),sameSelection)
+                            while(parentAttempts.size>MAX_ENTRIES)parentAttempts.remove(parentAttempts.keys.first())
+                        }
+                    }
+                }
+            }
+            synchronized(lock){if(epoch==generation){failures[FailedInput(input,useMetadata)]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}
+            return refreshed
+        }
+        return false
     }
     /** The same resource decision gates demand planning and the eventual
      * acquisition. No cached decision can outlive a queue wait or mode change. */
@@ -193,11 +223,12 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                 for(post in listOf(request.first,request.second)) {
                     currentCoroutineContext().ensureActive()
                     val attempt=VideoSamplingAttempt()
+                    var refreshed=false
                     try {withContext(attempt) {
                         var retries=0
                         while(true)try {
                             while(repo.gateway.hasForegroundRequests||playing.value)delay(300)
-                            repo.gateway.deferredRead {acquire(post,epoch,synchronized(lock){metadataNeeded(request)},beforeMetadata,beforeSample)}
+                            refreshed=repo.gateway.deferredRead {acquire(post,epoch,synchronized(lock){metadataNeeded(request)},automatic,beforeMetadata,beforeSample)}
                             break
                         }catch(e:CancellationException) {
                             currentCoroutineContext().ensureActive()
@@ -205,6 +236,9 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                             delay(700)
                         }
                     }}finally {attempt.close()}
+                    // The normal feed will plan the actual current record.
+                    // Do not spend more bytes on this obsolete input pair.
+                    if(refreshed)break
                 }
             }}
         }}}catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive()}
@@ -222,13 +256,14 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         entries.keys.toList().filter {url->!fresh(entries.getValue(url).evidence)}.forEach(::remove)
         proofs.keys.removeAll {key->!fresh(key.first)||!fresh(key.second)}
         failures.entries.removeAll {clock()-it.value !in 0 until 5*60_000L}
+        parentAttempts.entries.removeAll {clock()-it.value.at !in 0 until 5*60_000L||!it.value.sameSelection()}
         while(entries.size>MAX_ENTRIES)remove(entries.keys.first())
     }
     fun cleanup(clear:Boolean)=synchronized(lock) {
-        if(clear){generation++;running.toList().forEach {it.cancel(CancellationException("Ordinary video evidence cleared"))};entries.clear();aliases.clear();failures.clear();proofs.clear();loaded=true;changes.value+=1}
+        if(clear){generation++;running.toList().forEach {it.cancel(CancellationException("Ordinary video evidence cleared"))};entries.clear();aliases.clear();failures.clear();parentAttempts.clear();proofs.clear();loaded=true;changes.value+=1}
         trim(clear)
     }
-    fun retryFailures()=synchronized(lock){failures.clear();changes.value+=1;retryChanges.value+=1}
+    fun retryFailures()=synchronized(lock){failures.clear();parentAttempts.clear();changes.value+=1;retryChanges.value+=1}
     fun bytes():Long=directory.listFiles().orEmpty().filter {it.isFile}.sumOf {it.length()}
     companion object {private const val MAX_ENTRIES=128;private const val MAX_ENTRY_BYTES=64*1024}
 }

@@ -9,6 +9,90 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.80: recover a failed retained recording before comparing its current edition
+
+A retained TikTok delivery returned HTTP 403 while the same original remained
+readable through the existing public router. The returned complete source edition
+had the same publisher and presented caption but a different CDN region and
+object name. Treating those objects as aliases would be incorrect. The new
+[recovery path](VIDEO_FOOTAGE.md#retained-tiktok-delivery-recovery-03880) conditionally
+updates the existing ordinary row, then measures the current file independently.
+Saved source editions and retained history are not rewritten.
+
+Recovery is demand-driven, alternate-only and bounded by the existing comparison,
+Gateway, resource and source-selection rules. It adds no request to successful
+sampling. Completed parent attempts share a bounded five-minute per-post pause
+across rotating URLs; explicit refresh can clear that local pause. A resource
+hold or cancellation remains retryable. Changing connection selection retires
+old admission, including a direct/Tor/direct round trip. TikWM's explicit server
+wait also covers its POST and MEDIA uses of the same HTTP operation; an empty
+metadata result remains distinct from an ordinary post failure.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM: **2,724 cases, 2,720 passes, four optional skips, zero failures or
+  errors**. Twenty-three added methods cover whole-record admission, unchanged
+  and foreign responses, bounded source selection, disclosure conservation,
+  HTTP failure classification, connection selection and shared server deadlines.
+  An early focused test reproduced the capability-specific server-pause gap.
+- API 35 frozen-release instrumentation: **281 named methods, 276 passes,
+  five opt-in skips, zero failures**. API 26: **40 cases, 39 passes, one live
+  opt-in skip, zero failures**, plus ordinary native startup. The owned older-API
+  diagnostic is stopped afterwards. These are emulator checks.
+- Eleven ordinary native recovery methods exercise actual Room transactions,
+  protected saves/history, disabled/removed/rebound subscriptions, missing and
+  revised rows, retirement while waiting for the database, pre-commit rollback,
+  purge races, resource deferral, foreground preemption and retry expiry. Three
+  selected controls fail on the earlier draft and pass after correction: stopping
+  the obsolete pair, leaving an unattempted resource-held recovery retryable,
+  and preventing rotating failed URLs from buying repeated parent reads.
+- A separate live check starts with the actual expired source record. The normal
+  router obtains its whole current edition; real Gateway reads and Android
+  frame decoding join it with its measured peer. The protected collection retains
+  both current originals, while the former URL remains unobserved. One run takes
+  **17,492 ms**, including two preempted sampling attempts. Cancellation is
+  retained as cancellation, rather than a successful read or differing footage.
+- Actual native feed journeys also start with the expired original and no scene
+  observations. Two-source runs form one card **10,440 ms and 15,258 ms after
+  opening**. The stronger run adopts the captured body through its real control,
+  retains the source-specific title once and preserves the row's pixel anchor.
+  A six-original, five-platform run recovers the source, measures three recording
+  representatives and shows the full family **27,062 ms after opening**. Its
+  complete attributed body is visible after adoption; distinct raw editions
+  remain available. Screens and detailed inputs stay private.
+- A separate save replay of those newly observed six originals initially fails
+  the older capture's four-entry attachment expectation. The actual save already
+  preserves every original. This new evidence set has no strict observed cover
+  match for its Instagram still, so the inventory retains that source-marked
+  preview beside four playable editions. The native card shows one player and
+  one media-edition shelf. Its separate expectation preserves all five inventory
+  entries; the prior capture and its four-entry assertion remain unchanged.
+- Initial semantic readiness events are separate from presented pixels; early
+  screenshots can precede the next drawn frame. They are not a qualified
+  first-visible-card latency benchmark. The observations above are individual
+  mixed-cache/live runs, not phone measurements, latency percentiles or energy
+  qualification. The larger recording family still takes noticeable time.
+- Twelve retained-source packet runs cover **24 announcement-family replays
+  and 81 source-edition instances**. Each expected family has one row, its
+  expected attachments, one common passage and all original sources saved.
+  The same **959-original** corpus retains 767 rows, every original and every
+  previously combined family. No new family combines in that frozen corpus;
+  the expiring delivery is qualified separately through a current source read.
+- Release lint: **zero errors, 182 warnings and one hint**. Privacy-guard
+  controls: **eight passes**; Context-retention scoring: **four passes**.
+  The private-denylist tree audit reports zero findings and two reviewed unchanged
+  upstream files. Final frozen-member correspondence, source/signer verification,
+  preview backup and compatible promotion are checked before release. There is
+  no added model, dependency, permission or database migration.
+
+**Remaining work:** current recordings can still be unavailable or outside the
+qualified single-video source shape. General expired-playback recovery is not
+added. Current recording objects never inherit old-file evidence, and protected
+old copies are not silently replaced. Dense gallery-window continuation, broader
+cold-feed latency and unresolved announcement leaves remain open. This increment
+and its retained cases do not establish that a complete live feed has no remaining
+duplicates.
+
 ## 0.38.79: unrelated history cannot disable local picture collection
 
 A retained three-source gallery reproduced one card in isolation but two cards
