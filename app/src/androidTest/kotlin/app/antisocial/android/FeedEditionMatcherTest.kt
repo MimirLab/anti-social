@@ -5,10 +5,64 @@ import app.antisocial.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
+import androidx.test.platform.app.InstrumentationRegistry
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.*
 import org.junit.Test
 
 class FeedEditionMatcherTest {
+    @Test fun sourceRetentionStartsSmallAndLaterObservationsCanGrowIt():Unit=runBlocking {
+        val matcher=FeedEditionMatcher(follows,emptyMap(),preparationBudget={SourcePreparationBudget.EXPANDED})
+        val first=resourceImage(0)
+        assertEquals(2,matcher.project(first,{it},{_,_->null}).size)
+        assertEquals(SourcePreparationBudget.BASIC,sourceAnalysisAllocation(matcher).first)
+        val second=resourceImage(1)
+        matcher.project(second,{it},{_,_->null})
+        assertEquals(SourcePreparationBudget.EXPANDED,sourceAnalysisAllocation(matcher).first)
+        matcher.releaseSourceAnalysis()
+        assertEquals(0L to 0,sourceAnalysisAllocation(matcher))
+        assertEquals(2,matcher.project(second,{it},{_,_->null}).size)
+        assertEquals(0L to 0,sourceAnalysisAllocation(matcher))
+        matcher.project(resourceImage(2),{it},{_,_->null})
+        assertEquals(SourcePreparationBudget.EXPANDED,sourceAnalysisAllocation(matcher).first)
+        assertTrue(sourceAnalysisAllocation(matcher).second>0)
+    }
+    @Test fun aReleasedReaderCannotReinstallAnOlderResourceAnswer():Unit=runBlocking {
+        val entered=CountDownLatch(1);val release=CountDownLatch(1);val calls=AtomicInteger()
+        val matcher=FeedEditionMatcher(follows,emptyMap(),preparationBudget={
+            if(calls.incrementAndGet()==1){entered.countDown();check(release.await(5,TimeUnit.SECONDS))}
+            SourcePreparationBudget.EXPANDED
+        })
+        val task=async(Dispatchers.Default){matcher.project(resourceImage(0),{it},{_,_->null})}
+        try {
+            assertTrue(entered.await(5,TimeUnit.SECONDS))
+            matcher.releaseSourceAnalysis();release.countDown()
+            assertEquals(2,withTimeout(5000){task.await()}.size)
+            assertEquals(0L to 0,sourceAnalysisAllocation(matcher))
+            matcher.project(resourceImage(1),{it},{_,_->null})
+            assertEquals(SourcePreparationBudget.EXPANDED,sourceAnalysisAllocation(matcher).first)
+        }finally {release.countDown();task.cancelAndJoin()}
+    }
+    @Test fun aVisibilityRoundTripRejectsItsOldMemorySnapshot():Unit=runBlocking {
+        val entered=CountDownLatch(1);val release=CountDownLatch(1);val calls=AtomicInteger()
+        val healthy=SourcePreparationMemory(false,false,256L*1024*1024,16L*1024*1024,512L*1024*1024,128L*1024*1024)
+        val resources=FeedAnalysisResources(InstrumentationRegistry.getInstrumentation().targetContext,true) {
+            if(calls.incrementAndGet()==1){entered.countDown();check(release.await(5,TimeUnit.SECONDS))};healthy
+        }
+        val task=async(Dispatchers.Default){resources.allowance()}
+        try {
+            assertTrue(entered.await(5,TimeUnit.SECONDS))
+            resources.visible(false);resources.visible(true);release.countDown()
+            assertEquals(0L,withTimeout(5000){task.await()})
+            assertEquals(SourcePreparationBudget.EXPANDED,resources.allowance())
+            resources.visible(false);val before=calls.get()
+            assertEquals(0L,resources.allowance());assertEquals(before,calls.get())
+        }finally {release.countDown();task.cancelAndJoin()}
+    }
+    private fun resourceImage(revision:Int)=MediaIdentitySnapshot(posts.mapIndexed {i,p->p.copy(media=listOf(
+        Media("https://images.example.org/$i.jpg",attachmentFingerprint="resource-observation-$revision")))}){_,_->false}
     @Test fun aCancelledCollectorCannotRaceItsReplacementAndDoesNotBlockAnotherSource():Unit=runBlocking {
         val first=MediaIdentitySnapshot(posts){_,_->false};val second=MediaIdentitySnapshot(posts.map {it.copy(body=it.body+" Updated.")}){_,_->false}
         val entered=CompletableDeferred<Unit>();val nextEntered=CompletableDeferred<Unit>();val hold=CompletableDeferred<Unit>();var published=false
@@ -128,4 +182,15 @@ class FeedEditionMatcherTest {
             assertSame(newest,feedMatchingInputs(flowOf(newest),MutableStateFlow(0L),MutableStateFlow(0L)).first())
         }finally {task.cancelAndJoin();commands.close();gate.complete(Unit)}
     }
+}
+
+/** Own application classes only; no Android hidden/system API reflection. */
+internal fun sourceAnalysisAllocation(matcher:FeedEditionMatcher):Pair<Long,Int> {
+    val prepared=FeedEditionMatcher::class.java.getDeclaredField("sourcePreparation").apply {isAccessible=true}.get(matcher)as Lazy<*>
+    if(!prepared.isInitialized())return -1L to 0
+    val source=requireNotNull(prepared.value)
+    val storage=source.javaClass.getDeclaredField("preparation").apply {isAccessible=true}.get(source)
+    val budget=storage.javaClass.getDeclaredField("budget").apply {isAccessible=true}.getLong(storage)
+    val stats=source.javaClass.declaredMethods.single {it.name.substringBefore('$')=="stats"}.invoke(source)
+    return budget to(stats.javaClass.getDeclaredMethod("getEntries").invoke(stats)as Int)
 }

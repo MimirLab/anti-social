@@ -35,11 +35,13 @@ class FullFeedGalleryLiveTest {
     @Test fun capturedGalleryRebuildsItsEvidenceFromRetainedBytesWithoutRefetchingItsChild()=replay(true)
     @Test fun capturedCompleteAlbumsRebuildTheirEvidenceFromRetainedBytesWithoutRefetching()=replay(true,completeAlbums=true)
     @Test fun capturedCompleteAlbumsKeepTheirProjectionWhileDisplayNamesChange()=replay(true,completeAlbums=true,verifyRename=true)
-    private fun replay(cold:Boolean,completeAlbums:Boolean=false,verifyRename:Boolean=false) {
+    @Test fun capturedCompleteAlbumsKeepTheirReadCardWhileALateImageTriggersFreshComparison()=replay(true,completeAlbums=true,verifyLateImage=true)
+    private fun replay(cold:Boolean,completeAlbums:Boolean=false,verifyRename:Boolean=false,verifyLateImage:Boolean=false) {
         val args=InstrumentationRegistry.getArguments()
         val option=if(completeAlbums)"antisocialFullFeedCompleteAlbums"else if(cold)"antisocialFullFeedGalleryCold"else "antisocialFullFeedGalleryLive"
         Assume.assumeTrue(args.getString("antisocialIsolatedFixtureDevice")=="true"&&args.getString(option)=="true")
         if(verifyRename)Assume.assumeTrue(args.getString("antisocialFeedVerifyDisplayRename")=="true")
+        if(verifyLateImage)Assume.assumeTrue(args.getString("antisocialFeedVerifyLateImage")=="true")
         val repo=(ui.activity.application as AntiSocialApplication).repo
         runBlocking {repo.awaitReady()}
         val directory=File(ui.activity.filesDir,if(completeAlbums)"full-album-cold-packet"else if(cold)"full-gallery-cold-packet"else "full-gallery-private-packet")
@@ -65,6 +67,15 @@ class FullFeedGalleryLiveTest {
             url to File(directory,v.asString).also {require(it.canonicalFile.parentFile==directory.canonicalFile&&it.isFile)}
         }
         val aliases=files.entries.mapNotNull {(url,file)->ImageAssetIdentity.key(url)?.let {it to file}}.groupBy({it.first},{it.second})
+        val lateUrls=if(verifyLateImage)raw.getAsJsonArray("lateImageUrls")?.map {it.asString}
+            ?: listOf(requireNotNull(raw["lateImageUrl"]?.asString))else emptyList()
+        val lateAssets=lateUrls.map {requireNotNull(ImageAssetIdentity.key(it))}.toSet()
+        val latePosts=lateUrls.associateWith {url->posts.first {post->post.media.any {it.type=="image"&&it.url==url}}}
+        if(verifyLateImage) {
+            require(lateUrls.size in 1..3&&lateAssets.size==lateUrls.size&&completeAlbums&&cold)
+            require(latePosts.values.all {repo.key(it) !in focus}&&lateUrls.all {it in files})
+            require(posts.filter {repo.key(it)in focus}.flatMap {it.media}.none {ImageAssetIdentity.key(it.url) in lateAssets})
+        }
         val output=File(ui.activity.getExternalFilesDir("validation"),if(completeAlbums)"full-feed-album-cold"else if(cold)"full-feed-gallery-cold"else "full-feed-gallery-live").apply {mkdirs()}
         val prefs=repo.prefs.export().toString();val oldMemory=repo.feedMemory
         val policy=repo.gateway.currentPolicy()
@@ -100,8 +111,19 @@ class FullFeedGalleryLiveTest {
             // Restore only initial editions, using actual archived files. A
             // changed signed URL needs an unambiguous qualified object ID.
             runBlocking {
+                if(lateAssets.isNotEmpty()) {
+                    val withheld=(posts.flatMap {p->p.media.flatMap {listOfNotNull(it.url,it.preview)}}+files.keys)
+                        .filter {ImageAssetIdentity.key(it) in lateAssets}.distinct()
+                    for(url in withheld) {
+                        val key=Repository.hash(url);val old=repo.dao.media(key)
+                        require(old?.saved!=true){"Late-image qualification uses ordinary fixture cache only"}
+                        if(!cached.containsKey(key))cached[key]=old
+                        repo.dao.removeMedia(listOf(key))
+                    }
+                }
                 val staging=if(cold&&raw["stageAllCachedPictures"]?.asBoolean==true)posts else posts.filter {repo.key(it)in focus}
                 for(post in staging)for(media in post.media) {
+                    if(ImageAssetIdentity.key(media.url) in lateAssets)continue
                     val file=files[media.url] ?: ImageAssetIdentity.key(media.url)?.let {key->
                         aliases[key]?.distinctBy {java.security.MessageDigest.getInstance("SHA-256").digest(it.readBytes()).toList()}?.singleOrNull()
                     }
@@ -205,6 +227,69 @@ class FullFeedGalleryLiveTest {
                 }
                 val text=literal(visibleRows().single()).joinToString("\n")
                 assertEquals("The complete visible card shares its heading once",1,Regex(Regex.escape(sharedCaption)).findAll(text).count())
+            }
+            for((step,lateUrl)in lateUrls.withIndex()) {
+                val latePost=latePosts.getValue(lateUrl)
+                fun lateEvent(vararg fields:Pair<String,Any?>)=event("step" to step,*fields)
+                fun quiet()=repo.cardWork.active.value.none {it.label in setOf("Matching editions","Images")}
+                fun awaitQuiet() {
+                    var since=0L
+                    ui.waitUntil(60_000){val now=SystemClock.elapsedRealtime();if(!quiet())since=0 else if(since==0L)since=now;since>0&&now-since>=1000}
+                }
+                awaitQuiet()
+                assertFalse("Every late object's cached alias must remain undecoded initially",repo.images.identities.knows(lateUrl))
+                val beforeTop=visibleRows().single().boundsInRoot.top
+                val sourceBefore=runBlocking {repo.dao.allPosts().associate {it.key to it.payload}}
+                repo.feedMemory.markRead("all",focus)
+                assertTrue(repo.feedMemory.get("all").readKeys.containsAll(focus))
+                val watching=CompletableDeferred<Unit>()
+                val observer=scope.launch {
+                    val active=mutableMapOf<Long,Long>()
+                    repo.cardWork.active.map {tasks->tasks.filter {it.label=="Matching editions"}.map {it.id}.toSet()}.distinctUntilChanged().collect {tasks->
+                        val now=SystemClock.elapsedRealtime()
+                        for(id in active.keys.toList())if(id !in tasks){lateEvent("stage" to "late-matching-finished","job" to id,"durationMs" to now-active.getValue(id));active.remove(id)}
+                        tasks.filterNot(active::containsKey).forEach {id->active[id]=now;lateEvent("stage" to "late-matching-started","job" to id)}
+                        watching.complete(Unit)
+                    }
+                }
+                try {
+                    runBlocking {withTimeout(5000){watching.await()}}
+                    lateEvent("stage" to "late-image-start","imageRevision" to repo.images.identities.revision.value)
+                    runBlocking {
+                        val key=Repository.hash(lateUrl);repo.lease(key,true)
+                        try {
+                            if(!cached.containsKey(key))cached[key]=repo.dao.media(key)
+                            val destination=File(ui.activity.cacheDir,"gallery-replay-late-$key").also {files.getValue(lateUrl).copyTo(it,overwrite=true);staged+=it}
+                            repo.dao.putMedia(MediaRow(key,destination.path,destination.length(),System.currentTimeMillis()))
+                        }finally {repo.lease(key,false)}
+                        withTimeout(30_000){repo.images.restoreCachedIdentities(listOf(requireNotNull(latePost).copy(media=latePost.media.filter {it.url==lateUrl}))) }
+                    }
+                    assertTrue("The shipping decoder must supply the late observation",repo.images.identities.knows(lateUrl))
+                    lateEvent("stage" to "late-image-decoded","imageRevision" to repo.images.identities.revision.value)
+                    ui.waitUntil(60_000){events.any {it["stage"]=="late-matching-started"&&it["step"]==step}}
+                    val activity=SemanticsMatcher("target activity") {node->
+                        node.config.getOrNull(SemanticsProperties.TestTag)?.removePrefix("Card activity ")in focus
+                    }
+                    ui.waitUntil(10_000){ui.onAllNodes(activity,useUnmergedTree=true).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Updating"}}
+                    lateEvent("stage" to "late-updating-visible");requireNativeFeedVisible(ui.activity);screenshot("late-$step-updating.png")
+                    awaitQuiet();ui.waitForIdle();Thread.sleep(100)
+                    ui.waitUntil(10_000){ui.onAllNodes(activity,useUnmergedTree=true).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Ready"}}
+                    requireNativeFeedVisible(ui.activity)
+                    assertEquals("Late evidence keeps one target card",1,visibleRows().size)
+                    assertTrue("Late evidence preserves the target's pixel anchor",kotlin.math.abs(visibleRows().single().boundsInRoot.top-beforeTop)<=2f)
+                    assertTrue("An unrelated image cannot unread the viewed originals",repo.feedMemory.get("all").readKeys.containsAll(focus))
+                    assertEquals("Image observations never rewrite the acquired source payloads",sourceBefore,runBlocking {repo.dao.allPosts().associate {it.key to it.payload}})
+                    lateEvent("stage" to "late-image-visible","readOriginalsPreserved" to true)
+                    screenshot("late-$step-ready.png")
+                    val current=posts.map(repo.images.identities::captured)
+                    val latest=runBlocking {withContext(Dispatchers.Default){CrossPosts.group(current,follows,members)}}
+                    assertEquals(current.size,latest.sumOf {it.posts.size})
+                    assertEquals(current.map(repo::key).toSet(),latest.flatMap {it.posts}.map(repo::key).toSet())
+                    val target=latest.single {g->g.posts.any {repo.key(it)in focus}}
+                    assertEquals(focus,target.posts.map(repo::key).toSet())
+                    assertEquals(expectedPictures,collectionPlan(target.posts,repo.images.identities).attachments.size)
+                    lateEvent("stage" to "late-evidence-verified","matchingJobs" to events.count {it["stage"]=="late-matching-started"&&it["step"]==step},"readOriginalsPreserved" to true,"allSourcesPreserved" to true)
+                }finally {observer.cancel()}
             }
             if(cold&&(verifyRename||args.getString("antisocialFeedVerifyWarmReentry")=="true")) {
                 fun quiet():Boolean=repo.cardWork.active.value.none {it.label in setOf("Matching editions","Images")}

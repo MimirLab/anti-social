@@ -23,12 +23,21 @@ internal fun feedMatchingInputs(images:Flow<MediaIdentitySnapshot>,videos:Flow<L
 internal class FeedEditionMatcher(
     private val follows:List<Follow>,
     private val memberships:Map<String,Set<String>>,
+    private val preparationBudget:(()->Long)?=null,
     private val group:(suspend (MediaIdentitySnapshot)->List<PostGroup>)? = null
 ) {
-    private val source by lazy {CrossPosts.sourceProjection(follows,memberships)}
+    private val sourcePreparation=lazy {if(preparationBudget==null)CrossPosts.sourceProjection(follows,memberships)
+        else CrossPosts.sourceProjection(follows,memberships,SourcePreparationBudget.EXPANDED)}
+    private val source get()=sourcePreparation.value
+    private val released=java.util.concurrent.atomic.AtomicLong()
+    private var preparedSourcePass=false
     private val gate=Mutex()
     private var snapshot:MediaIdentitySnapshot?=null
     private var base=emptyList<PostGroup>()
+    internal fun releaseSourceAnalysis() {
+        released.incrementAndGet()
+        if(sourcePreparation.isInitialized())sourcePreparation.value.setPreparationBudget(0)
+    }
     suspend fun project(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?)=
         projectWithImages(evidence,captured,related,null)
     suspend fun projectCurrent(evidence:MediaIdentitySnapshot,captured:(Post)->Post,related:(Post,Post)->SharedVideoFootage?,currentImages:()->MediaIdentitySnapshot)=
@@ -38,13 +47,21 @@ internal class FeedEditionMatcher(
         context.ensureActive()
         var used=currentImages?.invoke() ?: evidence
         if(snapshot?.sameInput(used)!=true) {
+            if(group==null&&preparationBudget!=null) {
+                val epoch=released.get()
+                val allowed=preparationBudget()
+                source.setPreparationBudget(if(preparedSourcePass)allowed else minOf(allowed,SourcePreparationBudget.BASIC))
+                // A stopped/disposed reader can release memory while the
+                // resource query waits. Its old answer must not refill it.
+                if(epoch!=released.get())source.setPreparationBudget(0)
+            }
             val next=if(group!=null)group.invoke(used)else if(currentImages==null)source.group(used.posts,used::same)
             else source.groupWithCurrentMedia(used.posts) {
                 context.ensureActive();val latest=currentImages();used=latest
                 CrossPostMediaSnapshot(latest.posts,latest::same)
             }
             context.ensureActive()
-            base=next;snapshot=used
+            base=next;snapshot=used;preparedSourcePass=true
         }
         val observed=base.map {g->context.ensureActive();g.copy(posts=g.posts.map(captured))}
         CrossPosts.withVideoFootage(observed,follows,memberships,related){context.ensureActive()}

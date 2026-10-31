@@ -1,5 +1,77 @@
 # Feed performance qualification
 
+## 0.38.84: reuse later source analysis within the reader’s memory allowance
+
+Late picture observations still require fresh matching against source text,
+account bindings and current pixels. The reader previously retained at most
+8 MiB of reusable source analysis even when a larger active window repeatedly
+needed the entries that did not fit.
+
+The initial source pass retains the existing 8 MiB allowance. Subsequent real
+source/image comparisons may retain up to 16 MiB on a visible, non-low-RAM
+reader with sufficient managed-heap and system headroom. At the next source/image
+comparison, low-memory conditions release that optional analysis. Separate expansion/recovery margins reduce
+repeated shrinking and regrowth near the boundary. The accounting limit is not
+an exact heap or PSS measurement. No larger cache is preallocated.
+
+A direct activity lifecycle observer releases retained source analysis on stop
+or disposal, including while Compose is paused. An obsolete memory query cannot
+refill the released cache, including across a stop/resume round trip. Completed
+visible groups, source records, reading position and protected saves are not
+removed. The next eligible comparison can rebuild disposable analysis. Immutable
+local references already used by an in-flight operation live until that work
+returns; release does not claim to free every byte immediately.
+
+The resource check uses `ActivityManager.MemoryInfo`, managed-heap headroom and
+`isLowRamDevice`. Android documents that legacy running-pressure trim callbacks
+are no longer delivered from API 34 onward; this policy therefore does not rely
+on those callbacks. Available system RAM is a snapshot rather than an allocation
+guarantee. See [Android’s callback contract](https://developer.android.com/reference/android/content/ComponentCallbacks2)
+and [memory snapshot fields](https://developer.android.com/reference/android/app/ActivityManager.MemoryInfo).
+
+### Actual late-picture delivery
+
+An API 35 ABBA comparison restores and hash-verifies the same 53.5 MB disposable
+app-state snapshot before each run. It opens the native feed with 907 retained
+originals and 25 subscription bindings. After its complete three-source,
+three-picture target card is visible, two genuine retained image files arrive
+separately through the shipping decoder and identity bank. No fingerprint is
+injected. All original payloads, target read marks and the pixel anchor remain
+intact after each fresh comparison. The target heading appears once.
+
+| Observation | Published 0.38.83 control 1 | Staged candidate 1 | Staged candidate 2 | Published control 2 |
+| --- | ---: | ---: | ---: | ---: |
+| Open → first complete card | 7,763 ms | 7,617 ms | 7,913 ms | 7,572 ms |
+| First late-image matching work | 2,008 ms | 1,415 ms | 1,474 ms | 2,049 ms |
+| Second late-image matching work | 1,954 ms | 1,401 ms | 1,469 ms | 1,998 ms |
+
+The first late-comparison medians are **2,028.5 and 1,444.5 ms**, about 29%
+apart; the second medians are **1,976 and 1,435 ms**, about 27% apart. There is
+no established cold-card improvement: first-card medians are **7,667.5 and
+7,765 ms**, with overlapping observations. Earlier comparisons before the first
+visible checkpoint may already populate the permitted working set.
+
+Each arrival requires the actual card’s Updating → Ready transition, before
+an independent fresh-group conservation check. Settled-ready checkpoints include
+a one-second quiet period and a 100 ms compositor allowance, so they are not
+exact busy-indicator intervals. Their first/second medians fall from
+3,286/3,234.5 ms to 2,702.5/2,690 ms. Publisher-continuation reads stay at zero.
+This qualifies fresh full-window comparisons, not a previously missing original
+joining the target as a result of the unrelated late image.
+
+All four native invocations pass with zero skips/failures. The minimum-API-26
+replay also passes both actual image arrivals with sources, read marks and anchor
+preserved. Twelve focused named native checks pass separately on each API,
+including a real activity stop/resume, stale resource-query rejection,
+cancellation, fresh image/source admission and notification-shade rejection.
+Screenshots are inspected in addition to the focused-window assertions. These
+are owned-emulator observations, not phone p95, peak-PSS or battery figures.
+
+No pair/group decision, admission threshold, source identity, cached image
+validation, video equivalence rule, routing allowance, permission, model or
+persistent schema changes. The separate synchronous matching workspace keeps
+its existing 8 MiB bound. Analysis remains disposable and local.
+
 ## Post-0.38.83 investigation: verify foreground delivery and reject an ineffective shortcut
 
 An experimental ASCII-only shortcut avoids entity/Unicode preparation when its

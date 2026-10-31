@@ -9,6 +9,59 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.84: memory-aware reuse for later picture comparisons
+
+The initial source pass retains the existing 8 MiB analysis allowance. Later
+source/image work can retain up to 16 MiB when the visible reader has sufficient
+managed-heap and system headroom and Android does not classify it as low-RAM.
+Current pressure can reduce or disable reuse at the next comparison; a direct
+activity-stop callback releases the disposable entries independently of Compose.
+Hysteresis and generation checks prevent repeated boundary toggling and a stale
+resource answer refilling a released cache. Displayed groups, acquired source
+payloads, saved copies and read anchors remain separate from that working set.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM suite: **2,753 cases, 2,749 passes, four optional skips, zero failures
+  or errors**. The new controls cover allowance bounds, pressure, recovery,
+  hysteresis and identical fresh admission through cache growth and release.
+- API 35 frozen release: **295 named methods, 287 passes, eight opt-in skips,
+  zero failures**. Exact returned method identities are checked. Controls include
+  a real activity stop/resume, stale resource-query rejection, cancellation,
+  new source/image evidence and rejection of a card hidden by the notification
+  shade. These tests do not depend on a real low-memory event occurring on demand.
+- Minimum API 26 frozen release: **59 named methods, 58 passes, one live opt-in
+  skip, zero failures**. A separate 907-original native replay also passes two
+  genuine late-image arrivals with actual Updating → Ready transitions, unchanged
+  source payloads, target read marks and pixel anchor. No fingerprint is injected.
+- Twelve retained-source packets pass **24 announcement-family replays and
+  81 source-edition instances**, including unique media and every saved original.
+- A newer three-platform gallery capture is separately checked on official
+  0.38.83 and this candidate. All nine current image URLs are readable through the
+  Android Gateway and yield three distinct attachments. Both native replays show
+  one complete card and one common heading in a surrounding window of **896
+  explicitly source-bound retained originals**. Twelve unrelated ordinary-cache
+  rows without recorded memberships are excluded rather than given invented
+  bindings. This is a preserved success, not evidence of a newly repaired matcher
+  defect or proof that live acquisition and late adoption are always timely.
+- The restored-state API 35 ABBA comparison uses 907 originals, actual retained
+  files and two successive late picture observations. Matching medians fall from
+  **2,028.5/1,976 ms to 1,444.5/1,435 ms**. First-card observations overlap and
+  establish **no initial-delivery gain**. The measurements, memory-accounting
+  limits and visible-checkpoint allowances are recorded in
+  [feed performance](FEED_PERFORMANCE.md#03884-reuse-later-source-analysis-within-the-readers-memory-allowance).
+- Release assembly and lint pass with **zero errors, 182 warnings and one hint**.
+  Privacy-audit controls pass **eight** checks; retention-scoring controls pass
+  **four**. Source/APK correspondence, frozen-member equality apart from the source
+  stamp, compatible signer, unchanged native libraries, private-fixture audits
+  and backed-up state-preserving preview promotion are verified before publication.
+
+The source-analysis budget is an accounting limit rather than a peak-PSS claim.
+There is no new persistence, model, dependency, permission, network request,
+matching threshold or protected-retention change. The separate synchronous
+workspace retains its existing 8 MiB bound. These observations do not establish
+phone p95, battery use, uniformly fast cold loading or a duplicate-free live feed.
+
 ## 0.38.83: prepare the focused recording and reuse unchanged presentations
 
 The first candidate's full native run finds a preparation handoff defect: after

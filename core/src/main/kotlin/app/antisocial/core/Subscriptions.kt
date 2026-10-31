@@ -136,8 +136,15 @@ object CrossPosts {
             return CrossPostFusion.withPrepared {groupPrepared(posts,follows,memberships,{_,_->false},preparation=preparation,refreshMedia=capture){context.ensureActive()}}
         }
         internal fun stats()=preparation.stats()
+        /** Discardable source analysis only. Every admission still runs with
+         * current observations; changing this limit never changes source data. */
+        fun setPreparationBudget(bytes:Long)=preparation.setBudget(bytes)
     }
     fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>> = emptyMap())=SourceProjection(follows,memberships)
+    fun sourceProjection(follows:List<Follow>,memberships:Map<String,Set<String>>,maxBytes:Long):SourceProjection {
+        require(maxBytes in 1..SourcePreparationBudget.EXPANDED)
+        return SourceProjection(follows,memberships,maxBytes=maxBytes)
+    }
     internal data class SourcePreparationStats(val hits:Int,val misses:Int,val entries:Int,val bytes:Long)
     private data class SourceFeatures(val source:Post,val features:Features,val decorative:Boolean,
         val decorationKnown:Boolean,val decoration:DecoratedPostCopies.Prepared?,val candidates:Set<String>,val bytes:Long)
@@ -145,6 +152,7 @@ object CrossPosts {
         init {require(maxEntries>0&&maxBytes>0)}
         private val gate=Any()
         private val entries=LinkedHashMap<String,SourceFeatures>()
+        private var budget=maxBytes
         private var bytes=0L;private var hits=0;private var misses=0
         private fun eligible(post:Post)=post.title.length.toLong()+post.body.length<=MAX_TEXT&&post.media.size<=64&&post.links.orEmpty().size<=32
         /** Only comparison observations vary independently of source facts.
@@ -160,6 +168,7 @@ object CrossPosts {
         }
         fun retain(post:Post,features:Features,decorative:Boolean,decorationKnown:Boolean,decoration:DecoratedPostCopies.Prepared?,candidates:Set<String>) {
             if(!eligible(post)){synchronized(gate){entries.remove(originalKey(post))?.let {bytes-=it.bytes}};return}
+            if(synchronized(gate){budget==0L})return
             val source=source(post)
             // Charge each reference, but a shared String instance owns only one
             // backing value in this entry. Keep equal-but-distinct instances
@@ -176,8 +185,13 @@ object CrossPosts {
                 // Replace a revision rather than accumulating this original's
                 // old text. Overflow only disables reuse, never matching.
                 entries.remove(originalKey(post))?.let {bytes-=it.bytes}
-                if(entries.size<maxEntries&&cost<=maxBytes-bytes){entries[originalKey(post)]=entry;bytes+=cost}
+                if(entries.size<maxEntries&&cost<=budget-bytes){entries[originalKey(post)]=entry;bytes+=cost}
             }
+        }
+        fun setBudget(value:Long)=synchronized(gate) {
+            require(value in 0..maxBytes)
+            if(value<budget){entries.clear();bytes=0}
+            budget=value
         }
         fun stats()=synchronized(gate){SourcePreparationStats(hits,misses,entries.size,bytes)}
         fun restrictTo(keys:Set<String>)=synchronized(gate) {

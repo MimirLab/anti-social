@@ -243,6 +243,21 @@ Subscriptions must display the new labels, and returning to Following must retai
 All and the complete card. These methods require an empty disposable fixture;
 their actual source records, files and screenshots remain private.
 
+The sibling
+`capturedCompleteAlbumsKeepTheirReadCardWhileALateImageTriggersFreshComparison`
+also requires `antisocialFeedVerifyLateImage=true`. Its private packet supplies
+`lateImageUrls` (one through three distinct non-target image objects), or the
+legacy single `lateImageUrl`. Each must have unambiguous retained bytes and a
+qualified object identity distinct from the target gallery. The loader withholds
+those objects and their known cache aliases initially, then passes each real file
+through the shipping decoder and identity bank after the target card is visible.
+It requires an actual Updating → Ready transition, unchanged raw source payloads,
+target read marks, one target card and its pixel anchor. A separate fresh grouping
+check conserves every original and the expected target pictures. This tests
+later full-window work; it does not invent a previously missing target edition
+or claim that the unrelated image causes a new merge. Private timestamps identify
+the later verification separately from the visible-card checkpoint.
+
 When engineering inputs are staged through privileged ADB on an owned emulator,
 restore the staged app-private directory's SELinux labels before returning ADB
 to the ordinary shell. A matching Linux owner alone does not establish app

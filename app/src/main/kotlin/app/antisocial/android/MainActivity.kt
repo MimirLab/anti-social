@@ -185,9 +185,11 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
     // A page/reading-position change can restart preparation without changing
     // the actual source window. Keep that window's completed analysis, while
     // the matcher serializes cancelled/replacement observation collectors.
-    val editionMatcher=remember(repo,matchingCandidates,matchingFollows,matchingMemberships) {
-        if(matchingCandidates==null||matchingFollows==null)null else FeedEditionMatcher(matchingFollows,matchingMemberships)
+    val analysisResources=rememberFeedAnalysisResources(repo.context)
+    val editionMatcher=remember(repo,matchingCandidates,matchingFollows,matchingMemberships,analysisResources) {
+        if(matchingCandidates==null||matchingFollows==null)null else FeedEditionMatcher(matchingFollows,matchingMemberships,preparationBudget=analysisResources::allowance)
     }
+    FeedAnalysisLifetime(analysisResources,editionMatcher)
     val knownGroups by produceState<KnownPostGroups?>(null,editionMatcher,preparationFeed) {
         val candidates=matchingCandidates;val accounts=matchingFollows
         val matcher=editionMatcher

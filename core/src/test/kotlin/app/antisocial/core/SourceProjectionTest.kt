@@ -21,6 +21,30 @@ class SourceProjectionTest {
         assertEquals(values.map {it.identityKey}.toSet(),actual.flatMap {it.posts}.map {it.identityKey}.toSet())
         return actual
     }
+    @Test fun reducingOrDisablingReuseNeverRemovesSourceDataOrKeepsAnOldImageDecision():Unit=runBlocking {
+        val projection=CrossPosts.sourceProjection(emptyList(),emptyMap(),SourcePreparationBudget.EXPANDED)
+        parity(projection,posts,same=true);assertTrue(projection.stats().entries>0)
+        projection.setPreparationBudget(0)
+        assertEquals(0,projection.stats().entries);assertEquals(0L,projection.stats().bytes)
+        parity(projection,posts,same=false);assertEquals(0,projection.stats().entries)
+        projection.setPreparationBudget(SourcePreparationBudget.BASIC)
+        parity(projection,posts,same=true);assertTrue(projection.stats().entries>0)
+        val current=posts.map {p->p.copy(media=p.media.map {it.copy(attachmentFingerprint="new-detail")})}
+        val actual=projection.groupWithCurrentMedia(current) {
+            projection.setPreparationBudget(0)
+            CrossPostMediaSnapshot(current){_,_->false}
+        }
+        assertEquals(CrossPosts.groupCancellable(current,emptyList()){_,_->false},actual)
+        assertEquals(0,projection.stats().entries);assertEquals(0L,projection.stats().bytes)
+    }
+    @Test fun aBudgetCannotExceedTheProjectionOwnersMaximum() {
+        val basic=CrossPosts.sourceProjection(emptyList())
+        assertThrows(IllegalArgumentException::class.java){basic.setPreparationBudget(SourcePreparationBudget.EXPANDED)}
+        val expanded=CrossPosts.sourceProjection(emptyList(),emptyMap(),SourcePreparationBudget.EXPANDED)
+        assertThrows(IllegalArgumentException::class.java){expanded.setPreparationBudget(-1)}
+        assertThrows(IllegalArgumentException::class.java){expanded.setPreparationBudget(SourcePreparationBudget.EXPANDED+1)}
+        assertThrows(IllegalArgumentException::class.java){CrossPosts.sourceProjection(emptyList(),emptyMap(),SourcePreparationBudget.EXPANDED+1)}
+    }
     @Test fun reusingCaptionsNeverReusesAnImageDecisionOrLosesTheCurrentMediaFields():Unit=runBlocking {
         val projection=CrossPosts.sourceProjection(emptyList())
         for((i,same)in listOf(false,true,false,true).withIndex()) {
