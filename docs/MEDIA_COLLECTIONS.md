@@ -5,6 +5,20 @@ keeps its existing account, text, time, ambiguity and source checks. A gallery
 removes a repeated picture only among editions already admitted to that card.
 Original posts, URLs, media attachments and comment roots are retained.
 
+Since 0.38.92, a complete short caption can join an already corroborated
+announcement when one public extraction supplies no media. This requires an
+anchor on at least two linked platforms, the same publisher, at least six
+distinct words, literal caption agreement, matching claim/destination checks,
+and a ten-minute total interval. A leaf cannot choose between competing anchors
+or create another transitive anchor. This does not make two short standalone
+posts sufficient proof, erase changed symbols, or establish video equivalence.
+All captured originals and distinct recordings remain in the collection.
+
+URL-bearing caption weaves also retain the ordinary inline platform marks.
+A literal URL no longer selects the verbose whole-caption source-name fallback.
+Account mentions keep their source-scoped resolution; original source text and
+saved records retain the full literal references.
+
 Since 0.38.46, the complete attachment inventory and its screen layout are
 separate. A shared cover or qualified related interview frame can occupy one
 slot with source-edition controls. Every distinct recording/frame remains in

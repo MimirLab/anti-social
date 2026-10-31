@@ -9,6 +9,85 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.92: compact caption differences and complete media-free editions
+
+URL-bearing caption weaves now use the ordinary inline platform marks instead
+of sending the entire caption through the verbose source-name fallback. Common
+prose stays visible once; literal alternatives, original links and saved source
+paths remain intact. Account mentions retain their source-scoped name resolver.
+
+An independently captured three-edition greeting reproduces two cards on the
+exact published 0.38.91 APK: two media-bearing editions group, while the same
+six-word caption from a linked platform has no media and remains separate. The
+native research replay makes zero external requests and injects no fingerprints.
+The correction lets that missing-media leaf join a frozen, established pair
+only with six distinct words, normalized literal caption agreement, the same
+linked publisher, matching claims/destinations, a ten-minute total interval and
+one unambiguous anchor. It does not introduce transitive anchors or certify
+recordings as identical. All originals and distinct recordings remain retained.
+
+The separate literal-word optimization uses one matcher per call and stops
+threshold-only counts when their existing answer is known. Its two word
+expressions, normalization and thresholds remain unchanged. The complete gallery
+composition word list remains available. No new request, shared source cache,
+model, dependency, permission or migration is introduced. Version code is 201;
+application ID and signing identity remain compatible.
+
+Qualification on October 31, 2026 (UTC):
+
+- Full JVM run: **2,787 cases, 2,783 passes, four optional skips, zero failures
+  or errors**. Two added collection methods cover the six-word missing-media
+  family, title echoes, input order, retained recordings, ownership, destinations,
+  timing, questions, claims, flags, competing anchors and weak generic captions.
+  Four tokenizer methods compare the former expressions with bounded reads/counts,
+  Unicode and concurrent independent readers.
+- Frozen API 35 selection: **323 named checks, 313 passes, ten explicit skips,
+  zero failures**. The new native greeting journey shows one card and caption,
+  preserves both distinct recording URLs and saves all three original editions.
+  The updated literal-reference journey checks platform marks in dark/light mode,
+  common prose once, one shared picture and faithful saved sources. Actual native
+  frames are inspected. The tokenizer helper runs in the shipping application.
+- Minimum API 26 selection: **90 named checks, 88 passes, two opt-in skips,
+  zero failures**, including both caption journeys and tokenizer equivalence.
+- Twelve retained private packets pass **24 family replays / 81 source-edition
+  instances**, preserving one card, common passages once, distinct attachments
+  and saved originals. The captured caption and account-reference replays pass
+  on both APIs. The newly captured three-source media-free greeting also renders
+  one card, one caption and a faithful saved collection on API 35, retaining two
+  recordings without new footage downloads or invented pixel evidence.
+- The **896-original** staged late-source journey passes on both APIs: one final
+  card, three originals and three distinct pictures; prior credit, read marks and
+  pixel anchor survive, with zero continuation reads. Cancellation probes still
+  stop each obsolete phase after one of 64 originals without an obsolete commit.
+- Eight restored-state, untraced prototype observations compare published
+  0.38.91 with the literal-word candidate. Four-per-runtime medians are
+  **8,974.5 → 8,386 ms** to the first card and **4,234.5 → 4,010 ms** to late-source
+  credit. Reversed-order first-card medians show a smaller gain. Every source,
+  distinct picture, read mark and anchor check passes. These are small staged
+  emulator observations of the word-scanning prototype, not physical-phone p95,
+  energy, thermal or live-acquisition measurements; the later caption fixes are
+  qualified separately above. See [individual observations](FEED_PERFORMANCE.md).
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Eight privacy-audit controls and four retention controls pass. Personal inputs,
+  source captures and native screenshots remain in the private external build
+  area. Clean source stamp, frozen-member identity, signer, corresponding source,
+  protected preview state and full anonymous download are publication gates.
+
+The first feedback build command omits the release-test variant selector and
+fails during task selection before tests execute. The corrected command builds
+and tests the final frozen candidate. Both logs are retained; this setup failure
+is not counted as a passing test or an application defect.
+
+During captured-packet qualification, the owned API 35 emulator host terminates
+with a SIGSEGV in its graphics RenderThread after instrumentation has reported a
+pass. Result copying stops, and recovered test-report JSON files are empty. The
+host core metadata, graphics log, passing instrumentation status and incomplete
+pulls are retained. After confirming that the emulator process has exited, only
+that fixture is restarted. The unchanged frozen APK reruns that packet and
+produces complete passing reports; preceding native and packet receipts are
+revalidated and retained. The interruption is not used to infer an app defect
+or to claim that incomplete result files passed qualification.
+
 ## 0.38.91: avoid HTML trees for qualified plain-caption comparison
 
 Caption comparison now uses the existing parser's public text-node normalization

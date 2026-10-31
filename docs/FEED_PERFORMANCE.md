@@ -4,6 +4,86 @@
 process launch, application initialization and the first cached reading card.
 Its test-only sampler does not change the released reader's manifest or runtime.
 
+## 0.38.92: reuse matchers for bounded literal caption words
+
+Fresh observations use the exact published 0.38.91 APK, two owned emulator cores,
+2,048 MiB RAM and the same hash-restored 53.5 MB state. Restored app-directory
+owners and SELinux categories are verified too. The staged source window holds
+896 originals; the reader's Gateway is held in its selected-Tor/unready state
+while the cached feed is exercised. This separates local preparation from live
+publisher acquisition without treating a failed request as working content.
+
+| 0.38.91 observation | Ordinary before | Sampled diagnostic | Ordinary after |
+| --- | ---: | ---: | ---: |
+| Open → first visible card | 8,895 ms | 8,366 ms | 9,271 ms |
+| Late source → current picture credit | 4,042 ms | 4,460 ms | 4,197 ms |
+
+Every journey preserves the three-source album, three distinct pictures, prior
+source credit, read marks and pixel anchor, with zero continuation reads. The
+sampling trace has 108,280 records, dual clocks, no overflow and no reconstruction
+anomalies. Approximate first-card attribution excludes 100 ms at each boundary.
+It places about 4,686 ms inclusively in grouping, including source features,
+decorative preparation, candidate keys and gallery comparison. Reading-state
+preparation separately appears at about 931 ms. Nested method figures are not
+additive or predicted savings, and the sampler is not an ordinary latency measure.
+
+Some caption helpers still used Kotlin's lazy regex sequence for each word.
+The pinned [Kotlin implementation](https://raw.githubusercontent.com/JetBrains/kotlin/v2.2.21/libraries/stdlib/jvm/src/kotlin/text/regex/Regex.kt)
+constructs another matcher when advancing that sequence. The existing numeric
+caption tokenizer already uses one matcher per call. The new literal-word helper
+applies that mechanism to heading, gallery and generated-title word scans. It
+keeps both existing expressions: apostrophe-bearing words and the simpler
+letter/number count remain distinct. Locale folding, word definitions and every
+matching threshold retain their previous behavior. No matcher or source input
+survives its call; only the two immutable patterns are shared.
+
+Threshold-only counts stop when the answer is determined. Upper bounds retain
+the first disqualifying word (65, 25 or 257); lower bounds stop at the required
+two, three or six words. Gallery composition still reads its complete word list.
+No source record is shortened, and the helper supplies no ownership, image or
+post-admission proof. There is no new request, cache, model, dependency, permission
+or database migration.
+
+Four core methods compare the previous expressions with word lists and counts,
+including threshold boundaries, fixed mixed Unicode and simultaneous readers.
+The actual Android helper is compared with both expressions in a separate native
+method. The prototype passes 2,781 JVM methods with four optional skips across
+2,785 cases, and all 28 focused native checks. Those native methods overlap the
+final release selection. DEX class-definition inspection finds zero project
+production-class overlap in the pinned tester, so it cannot supply candidate
+implementation classes to the baseline app.
+
+An untraced ABBA first showed faster prototype cards, but its first control was
+unusually slow. A reversed BAAB adds a second order before deciding what to keep.
+Both use identical source/cache bytes, validated ownership/categories, real
+cached images and the same tester. No build runs during these comparisons.
+
+| Order/run | Runtime | First card | Late-source credit |
+| --- | --- | ---: | ---: |
+| ABBA 1 | Published 0.38.91 | 10,970 ms | 4,546 ms |
+| ABBA 2 | Prototype | 8,375 ms | 4,115 ms |
+| ABBA 3 | Prototype | 8,406 ms | 3,709 ms |
+| ABBA 4 | Published 0.38.91 | 9,245 ms | 4,164 ms |
+| BAAB 1 | Prototype | 8,397 ms | 3,909 ms |
+| BAAB 2 | Published 0.38.91 | 8,704 ms | 4,259 ms |
+| BAAB 3 | Published 0.38.91 | 8,625 ms | 4,210 ms |
+| BAAB 4 | Prototype | 8,372 ms | 4,111 ms |
+
+Combined four-per-runtime medians are **8,974.5 → 8,386 ms** for the first card
+and **4,234.5 → 4,010 ms** for late-source credit. The reversal's first-card
+medians alone are **8,664.5 → 8,384.5 ms**, a smaller gain than the first order.
+All eight native journeys retain every original, three distinct pictures,
+previous source credit/read marks and the two-pixel anchor bound, with zero
+continuation reads. Actual caption, source and distinct-picture frames are
+inspected. These small staged-emulator observations support retaining the local
+change; they do not establish phone p95, battery, thermal or live-acquisition
+improvements. OS/ART state and host scheduling are not reset. Cached first-card
+delivery still takes several seconds and remains an optimization target.
+
+Final frozen APK, native compatibility, retained-source, saved-copy and publication
+gates are recorded in [release qualification](RELEASE_QUALIFICATION.md).
+
+
 ## 0.38.91: normalize plain captions without building an HTML tree
 
 The [whole-process diagnostic](STARTUP_QUALIFICATION.md) found repeated HTML

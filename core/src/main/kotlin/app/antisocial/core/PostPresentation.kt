@@ -38,7 +38,6 @@ object PostPresentation {
     private val replyHeading=Regex("^R to (@[a-zA-Z0-9_]{1,15}):\\s*(.+)$",setOf(RegexOption.IGNORE_CASE,RegexOption.DOT_MATCHES_ALL))
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
     private val shortenedHostLabel=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9-]+(?:…|\\.\\.\\.)(?!\\S)")
-    private val captionWords=Regex("[\\p{L}\\p{N}]+")
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
 
     fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: (if('\uffff' in post.title||'\uffff' in post.body)
@@ -116,10 +115,10 @@ object PostPresentation {
             // ending in an ellipsis still participates in presentation.
             val completeAttributedEcho=heading==unwrapped&&prefix==body
             val generatedShort=post.platform in setOf(Platform.INSTAGRAM,Platform.FACEBOOK)&&post.provenance?.source?.frontend in setOf("rss-bridge","rsshub")&&
-                prefix!=null&&prefix.length>=12&&captionWords.findAll(prefix).count()>=2
+                prefix!=null&&prefix.length>=12&&CaptionWordScan.count(prefix,2,simple=true)>=2
             val truncatedEcho=prefix!=null&&(prefix.length>=24||generatedShort)&&
                 (body.length>prefix.length&&body.startsWith(prefix)||completeAttributedEcho)
-            val fullPrefix=heading.length>=40&&captionWords.findAll(heading).count()>=6&&body.startsWith("$heading ")&&
+            val fullPrefix=heading.length>=40&&CaptionWordScan.count(heading,6,simple=true)>=6&&body.startsWith("$heading ")&&
                 (heading.trimEnd('"','\'','’','”').lastOrNull() in listOf('.','!','?')||heading==repostCaption)
             return heading.isNotEmpty()&&(heading==body||truncatedEcho||fullPrefix)
         }
@@ -134,7 +133,7 @@ object PostPresentation {
                 if(headings.any {it==comparison(without)})presentedBody=without
             }
         }
-        val bridgeTitleEcho=sourceBody!=post.body&&captionWords.findAll(title).count()>=3&&body.startsWith("$title ")
+        val bridgeTitleEcho=sourceBody!=post.body&&CaptionWordScan.count(title,3,simple=true)>=3&&body.startsWith("$title ")
         val redundant=headings.any(::echo)||shortenedEcho||bridgeTitleEcho
         val attribution=if(repost!=null&&repostCaption!=null&&(echo(repostCaption)||shortenedEcho))"Reposted by ${repost.groupValues[1]}"else null
         return PostTextPresentation(if(redundant)""else post.title,presentedBody,attribution)

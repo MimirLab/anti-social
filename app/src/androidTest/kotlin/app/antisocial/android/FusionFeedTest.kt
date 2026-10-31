@@ -827,6 +827,30 @@ class FusionFeedTest {
         evidence("caption-revision-adopted-in-place")
     }
 
+    @Test fun aMediaFreeGreetingJoinsTwoVideoEditionsAsOneReadableAndSavedAnnouncement() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val greeting="Happy autumn from the public workshop! 🎃"
+        val preview="https://fusion-x-$suffix.invalid/greeting-cover.png"
+        val first=Media("https://video-x-$suffix.invalid/greeting.mp4","video",preview)
+        val second=Media("https://video-fb-$suffix.invalid/greeting.mp4","video",preview)
+        val x=oldX.copy(title="",body=greeting,media=listOf(first))
+        val fb=x.copy(id="98${suffix}1002",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",publishedAt=x.publishedAt!!+4*60_000,media=listOf(second))
+        val instagram=oldInstagram.copy(title=greeting,body=greeting,publishedAt=x.publishedAt!!+6*60_000,media=emptyList())
+        val originals=listOf(x,fb,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform))};cacheGalleryPicture(preview,1)
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x)
+        row(fb).assertDoesNotExist();row(instagram).assertDoesNotExist()
+        ui.onAllNodesWithText(greeting).assertCountEquals(1)
+        val plan=collectionPlan(originals,repo.images.identities)
+        assertEquals(setOf(first.url,second.url),plan.attachments.map {it.media.url}.toSet())
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=originals)}
+        val captured=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertEquals(originals.map(repo::key).toSet(),captured.map(repo::key).toSet())
+        assertEquals(setOf(first.url,second.url),captured.flatMap {it.media}.map {it.url}.toSet())
+        assertTrue(captured.single {it.platform==Platform.INSTAGRAM}.media.isEmpty())
+        evidence("media-free-greeting-one-announcement-two-recordings")
+    }
+
     @Test fun identicalVideoCoversUseOneSlotWithBothSourceRecordingsSelectableAndSaved() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val preview="https://fusion-x-$suffix.invalid/shared-cover.png"
@@ -1189,7 +1213,9 @@ class FusionFeedTest {
             val text=ui.onNodeWithTag("Fusion woven text").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
             for(shared in listOf(intro,middle,end))assertEquals("Shared prose is read once",1,Regex(Regex.escape(shared)).findAll(text).count())
             assertTrue(text.contains("Example.org"));assertTrue(text.contains("https://t.co/Fixture91"))
-            assertTrue(text.contains("Facebook"));assertTrue(text.contains("Instagram"));assertTrue(text.contains("X"))
+            for(platform in listOf(Platform.FACEBOOK,Platform.INSTAGRAM,Platform.X))
+                ui.onAllNodesWithContentDescription("${platform.label} wording source",useUnmergedTree=true).onFirst().assertExists()
+            assertFalse("URL alternatives use compact platform marks",text.contains(" — Facebook")||text.contains(" — X"))
         }
         assertCaption();evidence("literal-reference-alternatives-dark")
         ui.runOnIdle {repo.prefs.theme="light";ui.activity.setContent {AntiSocialApp(vm)}}

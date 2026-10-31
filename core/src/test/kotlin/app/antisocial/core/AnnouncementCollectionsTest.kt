@@ -32,6 +32,40 @@ class AnnouncementCollectionsTest {
         AnnouncementCollections.collect(groups,owners(groups.flatMap {it.posts}),artwork)
     private fun anchor()=platforms.take(3).map {post(it,"Our workshop is open. 🎷",minutes=1)}
 
+    @Test fun aCompleteSixWordGreetingJoinsItsEstablishedAnnouncementWithoutMedia() {
+        val greeting="Happy autumn from the public workshop! 🎃"
+        val x=post(Platform.X,greeting)
+        val fb=post(Platform.FACEBOOK,greeting,minutes=4)
+        val ig=post(Platform.INSTAGRAM,greeting,minutes=6).copy(title=greeting,media=emptyList())
+        for(input in listOf(listOf(x,fb,ig),listOf(ig,fb,x))) {
+            val result=group(input).single()
+            assertEquals(input.toSet(),result.posts.toSet())
+            assertEquals(setOf(x.media.single().url,fb.media.single().url),result.posts.flatMap {it.media}.map {it.url}.toSet())
+            assertEquals(setOf(greeting),result.posts.map(PostPresentation::content).toSet())
+        }
+        assertEquals("One other platform alone is not a corroborated anchor",2,group(listOf(x,ig)).size)
+    }
+
+    @Test fun aMediaFreeShortEditionNeedsLiteralMeaningOwnershipTimingAndOneDestination() {
+        val greeting="Happy autumn from the public workshop! 🎃"
+        val base=listOf(post(Platform.X,greeting),post(Platform.FACEBOOK,greeting,minutes=4))
+        val leaf=post(Platform.INSTAGRAM,greeting,minutes=6).copy(media=emptyList())
+        for(changed in listOf(leaf.copy(body=greeting.replace("public","private")),
+            leaf.copy(body=greeting.replace("!","?")),leaf.copy(body="$greeting Not today."),
+            leaf.copy(body=greeting.replace("🎃","🇨🇦")),leaf.copy(body=greeting+" 2"),
+            leaf.copy(links=listOf("https://example.org/different-announcement")),
+            leaf.copy(publishedAt=at+11*60_000),leaf.copy(preview=true),leaf.copy(parentId="parent")))
+            assertEquals(changed.body,2,collect(listOf(PostGroup(base),PostGroup(listOf(changed)))).size)
+        val otherOwners=owners(base)+mapOf(CrossPosts.originalKey(leaf) to "other-publisher")
+        assertEquals(2,AnnouncementCollections.collect(listOf(PostGroup(base),PostGroup(listOf(leaf))),otherOwners,{_,_->false}).size)
+        val second=PostGroup(base.map {it.copy(id="other-${it.id}",canonicalUrl=it.canonicalUrl+"0",publishedAt=it.publishedAt!!+60_000)})
+        assertEquals(3,collect(listOf(PostGroup(base),second,PostGroup(listOf(leaf)))).size)
+        val vague=base.map {it.copy(body="Our workshop is open.")}
+        assertEquals(2,collect(listOf(PostGroup(vague),PostGroup(listOf(leaf.copy(body="Our workshop is open."))))).size)
+        val flags=base.map {it.copy(body=greeting.replace("🎃","🇺🇸"))}
+        assertEquals(2,collect(listOf(PostGroup(flags),PostGroup(listOf(leaf.copy(body=greeting.replace("🎃","🇨🇦")))))).size)
+    }
+
     private val decoratedStatement="The laboratory team demonstrates the winter telescope workshop. Visitors can build their own instruments during the open afternoon."
     private fun decoratedAnchor(statement:String=decoratedStatement):List<Post> {
         val video=post(Platform.X,"$statement 👻",minutes=1)

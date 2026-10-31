@@ -99,8 +99,19 @@ internal object AnnouncementCollections {
                 }
             }
             val bucket=own?.let {anchors[leaf.owner to it.first().text]}.orEmpty()
-            if(own!=null&&bucket.size<=128&&leaf.posts.all {it.media.isNotEmpty()})for(anchor in bucket) {
-                if(leaf.platforms.any {it in anchor.row.platforms}||!close(leaf,anchor.row,30*60_000L))continue
+            if(own!=null&&bucket.size<=128)for(anchor in bucket) {
+                if(leaf.platforms.any {it in anchor.row.platforms})continue
+                val missingMedia=leaf.posts.any {it.media.isEmpty()}
+                if(!close(leaf,anchor.row,if(missingMedia)10*60_000L else 30*60_000L))continue
+                // A complete six-word caption already corroborated on two
+                // linked platforms can establish the announcement even when
+                // another public reader supplied no media. Require literal
+                // caption agreement as well as the existing claim/resource
+                // checks; decoration removal alone cannot supply this proof.
+                // Frozen anchors and unique assignment below prevent chains
+                // of short greetings or competing editions from collapsing.
+                if(missingMedia&&(own.any {it.tokens.size<6||it.tokens.distinct().size<6}||
+                        (anchor.row.posts+leaf.posts).map(PostPresentation::comparableContent).distinct().size!=1))continue
                 if(matches(anchor.captions+own))possible+=anchor.row.index
             }
             // A trailing account reference is retained as an attributed

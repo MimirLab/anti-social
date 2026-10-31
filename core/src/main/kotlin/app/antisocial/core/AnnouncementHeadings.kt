@@ -8,7 +8,6 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
  * short platform-specific call to action. CrossPosts still requires explicitly
  * linked publishers, separate platforms and close publication times. */
 internal object AnnouncementHeadings {
-    private val words=Regex("[\\p{L}\\p{N}]+(?:['’][\\p{L}\\p{N}]+)*")
     private val sentenceEnd=Regex("[.!](?=\\s|$)")
     private val unsafeTail=Regex("\\b(?:no|not|never|without|cannot|can't|don't|doesn't|didn't|won't|isn't|aren't|cancelled|canceled|correction|instead|retracted|updated)\\b",RegexOption.IGNORE_CASE)
     private data class Edition(val head:String,val key:String,val tail:String,val resources:Set<String>?,val shortCall:Boolean,val longHead:Boolean,val articles:Set<String>)
@@ -18,11 +17,11 @@ internal object AnnouncementHeadings {
         if(text.endsWith("...")||text.endsWith('…'))return null
         val boundary=sentenceEnd.find(text)?.range?.last?.plus(1) ?: return null
         val head=text.substring(0,boundary)
-        val terms=words.findAll(head).map {it.value.lowercase(Locale.ROOT)}.toList()
+        val terms=CaptionWordScan.read(head,65).map {it.lowercase(Locale.ROOT)}
         if(head.length<35||terms.size !in 7..64||terms.distinct().size<6||head.contains('?'))return null
         val tail=text.substring(boundary).trim()
         val prose=PostPresentation.proseWithoutLinks(tail)
-        val shortCall=head.length>=90&&terms.size>=16&&terms.distinct().size>=12&&tail.length<=240&&words.findAll(prose).count()<=24&&!prose.any(Char::isDigit)&&!unsafeTail.containsMatchIn(prose)
+        val shortCall=head.length>=90&&terms.size>=16&&terms.distinct().size>=12&&tail.length<=240&&CaptionWordScan.count(prose,25)<=24&&!prose.any(Char::isDigit)&&!unsafeTail.containsMatchIn(prose)
         val resources=linkedSetOf<String>()
         val articles=linkedSetOf<String>()
         var rootsOnly=true

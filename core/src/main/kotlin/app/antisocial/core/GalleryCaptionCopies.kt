@@ -10,7 +10,6 @@ import java.util.Locale
 internal object GalleryCaptionCopies {
     private data class Caption(val post:Post,val text:String,val key:String,val paragraphs:Set<Int>)
     private val urls=Regex("https://[^\\s<>\"']+",RegexOption.IGNORE_CASE)
-    private val words=Regex("[\\p{L}\\p{N}]+(?:['’][\\p{L}\\p{N}]+)*")
     private val paragraphBreaks=Regex("(?:\\r?\\n[\\t \\p{Zs}]*){2,}|\\u2029")
     private val unsafe=Regex("\\b(?:no|not|never|without|false|fake|untrue|misleading|debunked|disputed|rejected|cancelled|canceled|correction|fact.check)\\b",RegexOption.IGNORE_CASE)
     private val reminder=Regex("^(?:never|do not) forget\\s+",RegexOption.IGNORE_CASE)
@@ -36,7 +35,7 @@ internal object GalleryCaptionCopies {
             TextWhitespace.collapse(text.take(it.range.last+1)).trimEnd().length+1
         }.toSet()
         text=TextWhitespace.collapse(text).trim().replace(Regex("(?:[⬇↓↘👇][\\uFE0E\\uFE0F]?){1,4}$"),"").trimEnd().removeSuffix(":").trimEnd()
-        if(text.length>4096||words.findAll(text).take(257).count()>256||text.any {it in '\u202a'..'\u202e'||it in '\u2066'..'\u2069'})return null
+        if(text.length>4096||CaptionWordScan.count(text,257)>256||text.any {it in '\u202a'..'\u202e'||it in '\u2066'..'\u2069'})return null
         val key=text.lowercase(Locale.ROOT)
         if(key.length!=text.length)return null // Source character offsets must remain exact.
         return Caption(post,text,key,paragraphs)
@@ -56,7 +55,8 @@ internal object GalleryCaptionCopies {
     }
     private fun range(full:Caption,part:Caption,scope:List<Post>,complete:Boolean=false):IntRange? {
         if(part.key==full.key)return 0 until full.text.length
-        if(part.key.length<(if(complete)12 else 35)||words.findAll(part.key).count()<(if(complete)2 else 6))return null
+        val minimum=if(complete)2 else 6
+        if(part.key.length<(if(complete)12 else 35)||CaptionWordScan.count(part.key,minimum)<minimum)return null
         val start=full.key.indexOf(part.key)
         if(start<0||full.key.indexOf(part.key,start+1)>=0)return null
         val end=start+part.key.length
@@ -89,7 +89,7 @@ internal object GalleryCaptionCopies {
         val captions=posts.map {caption(it) ?: return null}.filter {it.text.isNotBlank()}
         if(captions.size<2)return null
         if(complete) {
-            val terms=captions.map {words.findAll(it.key).map {m->m.value}.toList()}
+            val terms=captions.map {CaptionWordScan.read(it.key,Int.MAX_VALUE)}
             if(captions.size!=posts.size||captions.indices.any {captions[it].key.length<12||terms[it].toSet().size<2}||
                 captions.indices.none {captions[it].key.length<35||terms[it].size<6})return null
         }

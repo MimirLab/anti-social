@@ -117,9 +117,10 @@ import androidx.compose.ui.unit.TextUnit
 @Composable private fun WovenPostText(fusion:PostFusion,roots:List<Post>,repo:Repository?,onOpen:(()->Unit)?,networkAllowed:Boolean) {
     val runs=fusion.weave.orEmpty().filter {it.variants.any {variant->variant.visibleText.isNotBlank()}}
     val textTag=if(runs.size==1&&runs.single().shared)"Fusion shared text"else "Fusion woven text"
-    // Keep scoped mention/link handling on its existing reader path. Its plain
-    // representation carries the same alternatives with explicit source names.
-    if(runs.any {run->run.variants.any {'@' in it.visibleText||it.visibleText.contains("https://")}}) {
+    // Account mentions still need their source-scoped name resolution. An
+    // ordinary URL does not: it must not replace a flowing, attributed weave
+    // with the verbose source-name fallback for the entire caption.
+    if(runs.any {run->run.variants.any {'@' in it.visibleText}}) {
         val text=fusion.segments.single().text;val context=fusionMentionContext(roots,text,repo)
         PostBodyText(text,repo,context?.platform,onOpen=onOpen,tag=textTag,sourceUrl=context?.sourceUrl,
             networkAllowed=networkAllowed,explicitProfileLinks=context?.explicitProfileLinks.orEmpty())
