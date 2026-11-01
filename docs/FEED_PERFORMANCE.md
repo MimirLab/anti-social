@@ -4,6 +4,79 @@
 process launch, application initialization and the first cached reading card.
 Its test-only sampler does not change the released reader's manifest or runtime.
 
+## Post-0.38.93 investigation: reject earlier memory expansion
+
+A fresh diagnostic uses the exact published 0.38.93 APK, a restored 53.5 MB
+source/cache fixture and the existing complete-feed late-edition journey on an
+owned API 35 emulator with two cores and 2,048 MiB RAM. The sampled first-card
+window has **105,609 trace records**, no overflow and no reconstruction anomalies.
+The window excludes 100 ms at either end; alignment with the visible checkpoint
+is approximate. Inclusive sampled thread CPU attributes **4,331 ms** to grouping
+and **775 ms** to reading preparation. The latter includes **450 ms** of display
+projection, including **326 ms** in URL cleaning. Nested costs are not additive,
+ordinary latency estimates or predicted savings. Earlier rejected cleaner and
+literal-question shortcuts are not reintroduced.
+
+The investigation tests a different retention policy: let the existing Android
+memory chooser govern the cold pass immediately instead of imposing an additional
+8 MiB first-pass cap. The maximum remains 16 MiB. Low-memory admission, lifecycle
+release, cancellation, exact sources and fresh pixel/footage decisions retain
+their controls. This is an **unshipped prototype**, not a new release capability.
+Android's [memory fields](https://developer.android.com/reference/android/app/ActivityManager.MemoryInfo)
+describe current availability and the system's low-memory threshold; they do not
+guarantee future capacity. The experiment retains the existing conservative heap
+and system margins rather than treating available RAM as an allocation target.
+
+The actual-resource probe permits 16 MiB and retains all **895** prepared entries
+on the cold pass, at **14,202,222 charged bytes**. Its repeat reuses every entry;
+the 896-original window prepares only the arriving edition, and stopping retains
+zero entries. Each phase agrees with a fresh source-only grouping and preserves
+source fields. These are accounting estimates and sequential local observations,
+not measured heap size, ground-truth collection accuracy or painted-card times.
+
+The prototype passes **31 selected native methods**, with zero skips or failures,
+covering admission, source handoff, current image evidence, withdrawal, cancellation,
+lifecycle release, compact captions and protected saved originals. The engineering
+resource probe also passes. Runtime/tester DEX inspection finds zero project-class
+definition overlap. The prototype build's JVM task is up to date; it is not counted
+as a fresh full-suite run.
+
+Eight untraced native journeys then restore and verify the same file
+hashes, Unix ownership and SELinux categories before each run. Both runtimes use
+the same pinned tester. No build or trace-analysis job overlaps these comparisons.
+Each preserves one final card, three originals, three distinct pictures, existing
+source credit, read marks and the two-pixel anchor bound, with zero continuation
+reads. Actual first-card and late-credit frames are inspected.
+
+| Order/run | Runtime | First card | Late-source credit |
+| --- | --- | ---: | ---: |
+| ABBA 1 | Published 0.38.93 | 8,592 ms | 3,346 ms |
+| ABBA 2 | Earlier expansion | 8,995 ms | 3,835 ms |
+| ABBA 3 | Earlier expansion | 8,120 ms | 3,334 ms |
+| ABBA 4 | Published 0.38.93 | 8,241 ms | 3,576 ms |
+| BAAB 1 | Earlier expansion | 7,893 ms | 3,414 ms |
+| BAAB 2 | Published 0.38.93 | 8,307 ms | 3,433 ms |
+| BAAB 3 | Published 0.38.93 | 8,142 ms | 3,304 ms |
+| BAAB 4 | Earlier expansion | 7,979 ms | 3,467 ms |
+
+Combined first-card medians are **8,274 / 8,049.5 ms** for published/prototype,
+but the directions disagree across orders: **8,416.5 / 8,557.5 ms** in ABBA and
+**8,224.5 / 7,936 ms** in BAAB. Late-credit medians are **3,389.5 / 3,440.5 ms**,
+with the prototype slower in both orders. Reduced preparation misses do not
+establish a consistent useful delivery gain. **The runtime and test-policy edits
+are removed.** The released cold-pass cap and qualified warm handoff remain.
+
+A fresh final JVM selection passes **25 tests**, zero skips/failures/errors,
+covering memory admission, source projection and immutable handoff. Five further
+native checks against the original official APK pass, with zero skips/failures,
+confirming the retained cold cap, warm handoff and lifecycle release. Private
+fixtures, frozen prototype APK/tester, raw trace, native receipts and screenshots
+remain outside public source under `evidence/cold-feed93-20261101`. The earlier
+diagnostic after-run overlaps subsequent trace analysis near its tail and is
+retained separately, not used in the controlled table. OS/ART state and host load
+are not reset; these small observations establish no physical-phone p95, energy,
+thermal or live-acquisition result. No new release APK is produced from this work.
+
 ## 0.38.93: retain completed warm analysis within current capacity
 
 The observations below apply to the frozen prototype. The final 0.38.93 artifact
