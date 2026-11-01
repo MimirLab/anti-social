@@ -15,7 +15,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 internal class LocalIndexNativeFixture(private val publisher:String,private val fourget:Boolean=false,private val duck:Boolean=false,
-    private val firstBody:String?=null,private val quickBody:String?=null):Closeable {
+    private val firstBody:String?=null,private val quickBody:String?=null,
+    private val quickReply:((String)->Pair<Int,String>)?=null):Closeable {
     private val socket=ServerSocket(0,8,InetAddress.getByName("127.0.0.1"))
     private val acceptor=Executors.newSingleThreadExecutor();private val workers=Executors.newFixedThreadPool(4)
     private val connections=ConcurrentHashMap.newKeySet<Socket>()
@@ -45,15 +46,17 @@ internal class LocalIndexNativeFixture(private val publisher:String,private val 
                         if(line.isEmpty()){ended=true;break}
                         check(!line.startsWith("Cookie:",true)&&!line.startsWith("Authorization:",true))
                     };check(ended);requests+=host+request.substringAfter(' ').substringBefore(' ')
-                    val body=when(host) {
+                    val response=if(host=="quick-index.fixture.invalid"&&quickReply!=null)
+                        quickReply.invoke(request.substringAfter(' ').substringBefore(' '))else 200 to when(host) {
                         "first-index.fixture.invalid"->firstBody ?: if(duck&&request.substringAfter(' ').startsWith("/lite/"))"""<table><tr><td><a class="result-link" href="https://x.com/FixtureWorkshop/status/123">Workshop announcement</a></td></tr></table>"""
                             else {check(release.await(if(duck)12 else 8,TimeUnit.SECONDS));"[]"}
                         "quick-index.fixture.invalid"->quickBody ?: if(fourget)"""{"status":"ok","web":[{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"}],"answer":[{"url":"https://ignored.fixture.invalid/"}],"npt":"do-not-consume"}"""
                             else """{"0":{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"},"results_source":"upstream.fixture.invalid"}"""
                         "publisher.fixture.invalid"->publisher
                         else->error("Unexpected fixture destination")
-                    }.toByteArray()
-                    out.write("HTTP/1.1 200 Fixture\r\nContent-Type: text/plain\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray());out.write(body);out.flush()
+                    }
+                    val body=response.second.toByteArray()
+                    out.write("HTTP/1.1 ${response.first} Fixture\r\nContent-Type: text/plain\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray());out.write(body);out.flush()
                 }}catch(_:java.io.IOException){/* Losing reads close their own sockets. */}
                 catch(_:InterruptedException){Thread.currentThread().interrupt()}
                 finally {connections.remove(connection)}}

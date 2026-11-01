@@ -178,6 +178,11 @@ keeps waiting on one endpoint outside its three shared readers. Provisional
 attempts preserve queued API/HTML paths and each query's separate results.
 This is the publisher-link stage; the social SourcePool retains its own plan.
 
+[Publisher response classification](LOCAL_DISCOVERY_ROUTING.md#publisher-response-classification-03899)
+also preserves readable marked JSON and keeps an empty response from teaching
+an HTML-only preference. The existing strict parser and fallback budgets remain
+the admission authority; acquired evidence is unchanged.
+
 [Recent useful publisher priority](LOCAL_DISCOVERY_ROUTING.md#recent-useful-publisher-priority-03898)
 also retains a bounded, memory-only timing hint when a useful answer wins while
 an earlier admitted read is still outstanding. It changes priority for at most

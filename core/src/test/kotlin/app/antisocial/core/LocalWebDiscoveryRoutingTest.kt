@@ -68,6 +68,49 @@ class LocalWebDiscoveryRoutingTest {
         private fun api()="""{"0":{"url":"https://publisher.fixture.invalid/calendar","title":"Community workshop"},"results_source":"index.fixture.invalid"}"""
     }
     private suspend fun failure(block:suspend ()->Unit):SourceFailure=try {block();error("Expected source refusal")}catch(e:SourceFailure){e}
+    @Test fun anInitialUtf8MarkerDoesNotDiscardApiLinksOrTeachAnHtmlOnlyEndpoint():Unit=runBlocking {
+        val host="index.fixture.invalid"
+        Fixture(listOf(host),apis=setOf(host)).use {f->
+            val received=ConcurrentLinkedQueue<String>();f.gateway.onTextResponse={received+=it.text}
+            f.respond={r->Reply(if(r.path.startsWith("/api.php"))"\uFEFF \n"+api()else html())}
+            for(query in listOf("first workshop","another workshop"))
+                assertEquals("https://publisher.fixture.invalid/calendar",f.engine.search(query,SearchProvider.DARWIN,false).single().url)
+            println("Initial-marker API requests=${f.requests.map {it.path.substringBefore('?')}}; received prefixes=${received.map {it.firstOrNull()?.code}}")
+            assertEquals(listOf("/api.php","/api.php"),f.requests.map {it.path.substringBefore('?')})
+            assertTrue(received.all {it.startsWith('\uFEFF')})
+            assertEquals(2,f.learning.snapshot().single().successes)
+        }
+    }
+    @Test fun anIndependentApiCanDeliverItsMarkedJsonWithoutAnotherRoute():Unit=runBlocking {
+        val host="independent.fixture.invalid"
+        Fixture(listOf(host),fourget=setOf(host)).use {f->
+            f.respond={Reply("\uFEFF\t{\"status\":\"ok\",\"web\":[{\"title\":\"Community workshop\",\"url\":\"https://publisher.fixture.invalid/calendar\"}]}")}
+            assertEquals("https://publisher.fixture.invalid/calendar",f.engine.search("community workshop",SearchProvider.DARWIN,false).single().url)
+            assertEquals(1,f.requests.size);assertTrue(f.requests.single().path.startsWith("/api/v1/web?"))
+            assertEquals(1,f.learning.snapshot().single().successes)
+        }
+    }
+    @Test fun aResponseWithoutARepresentationDoesNotDisableAFutureUsefulApi():Unit=runBlocking {
+        val host="index.fixture.invalid"
+        for(blank in listOf(Reply(code=204),Reply(" \t\r\n"),Reply("\uFEFF \t"),Reply("No representation available")))Fixture(listOf(host),apis=setOf(host)).use {f->
+            f.respond={r->if(r.path.startsWith("/api.php"))blank else Reply(html())}
+            assertEquals(1,f.engine.search("first workshop",SearchProvider.DARWIN,false).size)
+            assertEquals(listOf("/api.php","/search.php"),f.requests.map {it.path.substringBefore('?')})
+            f.respond={r->if(r.path.startsWith("/api.php"))Reply(api())else Reply("<p>No results</p>")}
+            assertEquals("https://publisher.fixture.invalid/calendar",f.engine.search("another workshop",SearchProvider.DARWIN,false).single().url)
+            assertEquals("/api.php",f.requests.last().path.substringBefore('?'))
+            assertEquals(3,f.requests.size)
+        }
+    }
+    @Test fun actualHtmlAtAnApiAddressStillTeachesItsSupportedRepresentation():Unit=runBlocking {
+        val host="index.fixture.invalid"
+        for(prefix in listOf("","\uFEFF \t"))Fixture(listOf(host),apis=setOf(host)).use {f->
+            f.respond={Reply(prefix+html())}
+            for(query in listOf("first workshop","another workshop"))assertEquals(1,f.engine.search(query,SearchProvider.DARWIN,false).size)
+            assertEquals(listOf("/api.php","/search.php"),f.requests.map {it.path.substringBefore('?')})
+            assertEquals(2,f.learning.snapshot().single().successes)
+        }
+    }
     @Test fun aRepeatedLookupStartsWithItsRecentUsefulWinnerInsteadOfItsHeldFormerWinner():Unit=runBlocking {
         Fixture(listOf("first.fixture.invalid","second.fixture.invalid")).use {f->
             val first=f.routes.publisherSearchSources.first()

@@ -858,6 +858,12 @@ class LocalDiscoveryTest {
     @Test fun nativeBusinessAndEventDecksCanUseAnIndependentPublisherProtocol() {
         nativeIndexDecks(true)
     }
+    @Test fun anInitialEncodingMarkerKeepsStructuredBusinessAndEventCards() {
+        nativeIndexDecks(false,marked=true)
+    }
+    @Test fun anInitialEncodingMarkerKeepsIndependentBusinessAndEventCards() {
+        nativeIndexDecks(true,marked=true)
+    }
     @Test fun nativeBusinessAndEventDecksCanUseTheDefaultProvidersLiteRepresentation() {
         nativeIndexDecks(false,true)
     }
@@ -984,9 +990,12 @@ class LocalDiscoveryTest {
         assertEquals(HealthStatus.UNAVAILABLE,error.status)
         assertTrue(error.message.orEmpty().startsWith("DuckDuckGo returned a server error"))
     }
-    private fun nativeIndexDecks(fourget:Boolean,duck:Boolean=false) {
+    private fun nativeIndexDecks(fourget:Boolean,duck:Boolean=false,marked:Boolean=false) {
         val document="""<script type="application/ld+json">[{"@type":"LocalBusiness","@id":"https://publisher.fixture.invalid/","name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}},{"@type":"Event","name":"Radio workshop","startDate":"${firstDeckArea.today().plusDays(1)}","location":{"name":"Community workshop","address":{"streetAddress":"1 Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}}}]</script>"""
-        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document,fourget,duck).use {f->
+        val markedBody=if(!marked)null else "\uFEFF \t\r\n"+if(fourget)
+            """{"status":"ok","web":[{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"}]}"""
+            else """{"0":{"title":"Public workshop","url":"https://publisher.fixture.invalid/calendar"}}"""
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))LocalIndexNativeFixture(document,fourget,duck,quickBody=markedBody).use {f->
             runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}
             ui.runOnIdle {
                 model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
@@ -1007,14 +1016,20 @@ class LocalDiscoveryTest {
                         return LocalStructuredData.html(payload.text,source.url,System.currentTimeMillis(),firstDeckArea)
                     }
                 }
-                model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop");model.localSearch.search(force=true)
+                model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop")
+                if(!marked)model.localSearch.search(force=true)
             }
+            if(marked){requireNativeFeedVisible(ui.activity);ui.onNodeWithTag("Run discovery search").performClick()}
             try {
                 ui.waitUntil(if(duck)8000 else 6000){if(mode==LocalSearchMode.BUSINESSES)model.localSearch.state.value.businesses.any {it.name=="Community workshop"}else model.localSearch.state.value.events.any {it.title=="Radio workshop"}}
                 val title=if(mode==LocalSearchMode.BUSINESSES)"Community workshop"else "Radio workshop"
                 ui.onNodeWithText(title).assertIsDisplayed();assertEquals(1L,f.release.count)
                 assertTrue(f.requests.any {it.startsWith(if(duck)"first-index.fixture.invalid/lite/?"else "quick-index.fixture.invalid/"+if(fourget)"api/v1/web?"else "api.php?")});assertTrue(f.requests.any {it.startsWith("publisher.fixture.invalid/")})
-                evidence("${if(duck)"default"else if(fourget)"independent"else "structured"}-index-${mode.name.lowercase()}")
+                if(marked)requireNativeFeedVisible(ui.activity)
+                evidence("${if(marked)"marked-"else ""}${if(duck)"default"else if(fourget)"independent"else "structured"}-index-${mode.name.lowercase()}")
+            }catch(e:Throwable) {
+                if(marked){requireNativeFeedVisible(ui.activity);evidence("marked-${if(fourget)"independent"else "structured"}-${mode.name.lowercase()}-failure")}
+                throw e
             }finally {ui.runOnIdle {model.localSearch.stop()};runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}}
         }
     }

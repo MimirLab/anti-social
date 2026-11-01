@@ -153,7 +153,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                             val payload=gateway.text(address(candidate),maxBytes=1024*1024,route=NetworkRoute.TOR,allowedOrigins=setOf(source.root),expectedSession=session)
                             currentCoroutineContext().ensureActive();current()
                             val hits=parse(payload.text,payload.finalUrl,source.frontend)
-                            if(candidate.api&&source.frontend=="librey"&&!json(payload.text)) {
+                            if(candidate.api&&source.frontend=="librey"&&firstContent(payload.text)=='<') {
                                 rememberHtml(source)
                                 if(hits.isEmpty())return@publisherSlot Trial(index,failure=SourceFailure(HealthStatus.UNSUPPORTED,"This index does not offer readable API results; trying its public HTML route"),htmlFallback=source)
                             }
@@ -216,7 +216,15 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
     companion object {
         /** Availability scope, distinct from adapters that hydrate social posts. */
         val frontends=setOf("librey","4get","bing-rss","duckduckgo")
-        private fun json(body:String)=body.trimStart().firstOrNull() in setOf('{','[')
+        // Match the strict reader's one initial UTF-8 marker without changing
+        // the evidence or stripping characters inside JSON values. Absence of
+        // JSON alone is not evidence that the endpoint supplied HTML.
+        private fun firstContent(body:String):Char? {
+            var i=if(body.startsWith('\uFEFF'))1 else 0
+            while(i<body.length&&body[i].isWhitespace())i++
+            return body.getOrNull(i)
+        }
+        private fun json(body:String)=firstContent(body) in setOf('{','[')
         fun parse(body:String,url:String,frontend:String="librey"):List<LocalWebHit> {
             require(body.length<=1024*1024)
             if(json(body))return normalize(api(body,frontend),url)

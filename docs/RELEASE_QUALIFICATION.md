@@ -9,6 +9,79 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.99: preserve readable publisher API responses
+
+Two owned Gateway/SOCKS counterexamples reproduce response-classification
+failures on the exact published 0.38.98 APK. An initial UTF-8 byte order marker
+could send supported JSON through the HTML path or reject the supported 4get
+object. A blank response could also teach a six-hour HTML preference, preventing
+a later query from reaching useful API results. The acquired evidence remains
+unchanged; the classifier now agrees with the existing strict reader's initial
+marker handling and requires a markup-shaped response or the existing explicit
+404/405/410 response before learning HTML preference. Current-query HTML fallback
+remains available for empty API responses.
+
+See [the routing contract](LOCAL_DISCOVERY_ROUTING.md#publisher-response-classification-03899).
+No source, request type, model, dependency, permission or schema is added. Provider
+selection, Tor/session checks, structural limits, request/concurrency budgets,
+source waits and recent-winner timing hints remain unchanged. Application ID and
+signing compatibility remain publication gates; version code is 208.
+
+Prototype qualification on November 1, 2026 (UTC):
+
+- Four focused positive/recovery JVM counterexamples fail on the unchanged
+  baseline source. After correction, all **55 focused parser/routing checks**
+  pass, with zero failures or skips.
+- One fixed tester, with zero application-project class overlap, runs against
+  the exact published APK and prototype in both comparison orders. Each
+  prototype run passes **12 named native checks, zero failures or skips**.
+  Each baseline run retains six existing fairness/plain-card passes and six
+  expected counterexample/control failures. All **20 required native frames**
+  are inspected. Marked-response business cards are absent on the baseline;
+  business and event cards render on the prototype. Raw Gateway text survives.
+- Empty 204 and whitespace responses retain current-query HTML coverage while
+  allowing the next useful API read. Real HTML still teaches its supported
+  representation; malformed JSON, challenge responses and parser limits remain
+  separate controls.
+- The first broader JVM run has one failing new test expectation: 4get's
+  ordinary HTML login page is already classified unsupported, while LibreY's
+  is classified login-required. The corrected guard explicitly checks that
+  marked and unmarked pages preserve those existing statuses. No runtime change
+  was made for that test correction; the failed results remain retained.
+
+Final candidate qualification on November 1, 2026 (UTC):
+
+- Full JVM suite: **2,827 cases, 2,823 passes, four optional skips, zero failures
+  or errors**. The corrected refusal-status control is included in this fresh run.
+- Frozen API 35 selection: **358 named checks, 346 passes, twelve explicit skips,
+  zero failures**. Minimum API 26 selection: **125 named checks, 121 passes, four
+  explicit skips, zero failures**. Both include all six new native response/card
+  methods. Ten additional, non-overlapping publisher/deck methods pass on each
+  API, with **36 fresh required deck frames** inspected. All **eight additional
+  marked-response frames** and six hybrid-caption/greeting frames are inspected.
+- Both APIs' captured **896-original** late-source journeys retain one final
+  card, three originals and three distinct pictures, earlier media attribution,
+  read marks and the two-pixel anchor bound, with zero continuation reads.
+  Captured monthly-caption cases also retain one card and one common passage,
+  every original and saved source. The separately captured API 26 account-reference
+  case passes its shared-passage, source and save checks. Actual native target
+  frames are inspected. These observations do not claim every publisher finished.
+- Both APIs' cancellation phases touch one of 64 sources in each stopped phase
+  and make no obsolete commit. Existing transport, source-refusal, contention,
+  lifecycle and real System UI rejection/recovery controls remain in the selections.
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Production/tester DEX inspection finds **47,318 / 8,202 definitions**, with zero
+  application-project overlap. All **33 native libraries** remain unchanged from
+  0.38.98. Eight public-fixture audit controls and four retention-scoring controls
+  pass; the source-tree privacy review reports zero findings. All seven frozen
+  compiler inputs remain unchanged through qualification.
+
+These are owned response-coverage checks, not an observed live endpoint emitting
+a marker or a phone latency, p95 or energy benchmark. Clean-source stamping,
+signer compatibility, frozen-member correspondence, source ZIP/privacy review,
+recoverable preview-state backup and anonymous permanent-download verification
+remain publication gates.
+
 ## 0.38.98: prefer recent useful publisher sources
 
 A previously fast publisher endpoint can remain outstanding while its useful

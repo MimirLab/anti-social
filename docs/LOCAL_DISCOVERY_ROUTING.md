@@ -9,6 +9,39 @@ The [local opportunities extension](LOCAL_OPPORTUNITIES.md) adds geographically
 gated publishers, LiveWhale/SpaceAPI/Linked Events readers, offered calendar exports
 and bounded address resolution while keeping this staged delivery model.
 
+## Publisher response classification (0.38.99)
+
+A readable publisher-index API response can begin with one UTF-8 byte order
+mark. The bounded Gateway text reader retains that character. The former JSON
+prefix check did not recognize it, even though the existing strict JSON reader
+can consume it. LibreY links could consequently disappear into the HTML path
+and teach a six-hour HTML preference; the supported 4get response was rejected.
+The classifier now recognizes one initial marker and the existing leading
+whitespace. It leaves acquired text and characters inside values unchanged.
+[RFC 8259 section 8.1](https://www.rfc-editor.org/rfc/rfc8259#section-8.1)
+permits this parser tolerance while prohibiting marker emission by generators.
+
+An empty or unclassified response also cannot establish that an API supplies
+HTML. Temporary HTML preference now requires a markup-shaped response or the
+existing explicit 404/405/410 method response. Blank replies still retain their
+ordinary HTML fallback for the current query; a later query can use the API.
+Actual HTML responses still teach the supported representation. The same strict
+JSON, protocol, structure, byte, destination and challenge checks remain active.
+
+Owned Gateway/SOCKS counterexamples reproduce both causes. A fixed tester
+against the exact published 0.38.98 APK and the prototype in both comparison
+orders also exercises actual foreground business and event cards. The marked
+responses produce no business card on that baseline and readable business/event
+cards on the prototype; ordinary responses work in both. These are controlled
+response-coverage checks, not an observation that a particular current public
+endpoint emits a marker or a physical-phone latency benchmark.
+
+Endpoint/global concurrency, the three-request allowance, selected provider,
+Tor/session admission, source pauses and recent-winner timing hints are unchanged.
+No source is newly activated. The change adds no request type, model, dependency,
+permission, persistence or schema. See the dated release qualification for the
+versioned candidate's broader results.
+
 ## Delivery and enrichment
 
 Cached records publish first. Independent place, identity and selected-index routes
