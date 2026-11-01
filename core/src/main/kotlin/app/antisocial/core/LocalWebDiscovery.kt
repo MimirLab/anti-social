@@ -13,6 +13,7 @@ import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentHashMap
 import com.google.gson.Strictness
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
@@ -41,6 +42,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
         while(htmlOnly.size>64)htmlOnly.remove(htmlOnly.keys.first())
     }
     private data class Trial(val index:Int,val hits:List<LocalWebHit>?=null,val failure:Exception?=null,val htmlFallback:Source?=null,val waitingForEndpoint:Boolean=false)
+    private data class IssuedRead(val source:Source,val began:Long,val expected:RouteStats?)
     private fun sources(provider:SearchProvider,originalFallback:Boolean)=when(provider) {
         SearchProvider.BING,SearchProvider.DUCKDUCKGO->if(originalFallback)listOf(Source(Platform.X,provider.frontend!!,provider.root!!,true,SourceRole.ORIGINAL))else emptyList()
         SearchProvider.DARWIN->routes.publisherSearchSources
@@ -117,6 +119,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
             // peers cannot spend that place before it acquires an endpoint.
             // Admission skips refund it; an issued read never does.
             val replies=Channel<Trial>(3);val running=linkedMapOf<Int,Job>();val budget=AtomicInteger()
+            val issuedReads=ConcurrentHashMap<Int,IssuedRead>()
             var next=0;var latest=-1;var started=0L;var hedgeMs=0L;var advance=true
             fun observe(candidate:Candidate,status:HealthStatus,elapsed:Long,detail:String,retry:Long?=null) {
                 current();learning.observe(ProbeResult(candidate.source,Capability.SEARCH,status,elapsed,clock(),true,detail,retry),target(candidate));onLearning(learning.snapshot())
@@ -145,6 +148,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                         if(!learning.eligible(source,Capability.SEARCH,true,target(candidate)))return@publisherSlot Trial(index)
                         issued=true
                         val begin=System.nanoTime()
+                        issuedReads[index]=IssuedRead(source,begin,learning.get(source,Capability.SEARCH,true))
                         try {
                             val payload=gateway.text(address(candidate),maxBytes=1024*1024,route=NetworkRoute.TOR,allowedOrigins=setOf(source.root),expectedSession=session)
                             currentCoroutineContext().ensureActive();current()
@@ -168,7 +172,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                             }
                             observe(candidate,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
                             Trial(index,failure=e,htmlFallback=source.takeIf {candidate.api&&source.frontend=="librey"&&(e as? SourceFailure)?.status==HealthStatus.EMPTY})
-                        }
+                        }finally {issuedReads.remove(index)}
                     }}finally {if(!issued)budget.decrementAndGet()}
                     }catch(e:CancellationException){currentCoroutineContext().ensureActive();Trial(index,failure=e)}
                     // Policy cancellation while this child remains active is a
@@ -192,7 +196,16 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                         // ahead of unstarted mirrors, never after a refusal.
                         result.htmlFallback?.let {source->val at=candidates.indexOfFirst {it.source==source&&!it.api}
                             if(at>0)candidates.add(0,candidates.removeAt(at))}
-                        if(!result.hits.isNullOrEmpty()){current();return@coroutineScope result.hits}
+                        if(!result.hits.isNullOrEmpty()){
+                            current();val observedAt=System.nanoTime()
+                            // Read each live receipt after the timestamp. A
+                            // completed or still-queued candidate has none.
+                            for(index in running.keys)issuedReads[index]?.let {read->
+                                currentCoroutineContext().ensureActive();current()
+                                learning.observeRaceLoss(read.source,Capability.SEARCH,true,(observedAt-read.began)/1_000_000,read.expected)
+                            }
+                            return@coroutineScope result.hits
+                        }
                         if(result.index==latest)advance=true
                     }
                 }

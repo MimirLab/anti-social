@@ -18,6 +18,16 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     // Provider capacity belongs to its endpoint and transport, not the platform
     // whose query happened to receive the refusal. No query text is retained.
     private val providerCooldowns=linkedMapOf<String,Long>()
+    // A won race can bound an issued loser's latency without calling it a
+    // failed request. These short-lived ranking hints are never persisted.
+    private data class RaceDelay(val elapsedMs:Long,val observedAt:Long)
+    private val raceDelays=linkedMapOf<String,RaceDelay>()
+    private fun raceDelay(k:String):Double {
+        val value=raceDelays[k] ?: return 0.0
+        val age=clock()-value.observedAt
+        if(age !in 0 until 30_000L){raceDelays.remove(k);return 0.0}
+        return value.elapsedMs*(1.0-age/30_000.0)
+    }
     private fun key(s: Source,c: Capability,t: Boolean)="${s.key}|$c|$t"
     private fun providerKey(s:Source,c:Capability,t:Boolean):String?=when {
         c==Capability.SEARCH&&s.frontend in LocalWebDiscovery.frontends->"${s.frontend}|${s.root}|$t"
@@ -37,6 +47,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
         return key(s,c,t)+"|"+hash
     }
     @Synchronized fun restore(values: List<RouteStats>) {
+        raceDelays.clear()
         val now=clock()
         values.takeLast(512).filter {it.lastObservedAt in (now-7*DAY)..(now+60_000)&&it.samples in 1..1_000_000&&it.successes in 0..it.samples&&it.deliverySamples in 0..it.successes&&it.deliveryMs.isFinite()&&it.deviationMs.isFinite()&&it.deliveryMs in 0.0..180_000.0&&it.deviationMs in 0.0..180_000.0}.forEach {stats[key(it.source,it.capability,it.tor)]=it.copy(cooldownUntil=maxOf(it.cooldownUntil,it.retryAfterUntil).coerceIn(0,now+DAY),retryAfterUntil=it.retryAfterUntil.coerceIn(0,now+DAY),consecutiveFailures=it.consecutiveFailures.coerceIn(0,100))}
         stats.values.forEach {value->providerKey(value.source,value.capability,value.tor)?.let {k->
@@ -64,7 +75,17 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     @Synchronized fun score(s: Source,c: Capability,t: Boolean): Double {
         val v=stats[key(s,c,t)] ?: return 2500.0
         val stale=if(clock()-v.lastSuccessAt>DAY)1200.0 else 0.0
-        return ((v.deliveryMs+v.deviationMs*.5)/v.successRate.coerceAtLeast(.15))+stale
+        return (maxOf(v.deliveryMs+v.deviationMs*.5,raceDelay(key(s,c,t)))/v.successRate.coerceAtLeast(.15))+stale
+    }
+    /** Only the caller's still-issued same-query loser qualifies. A newer
+     * observation wins over this receipt; queues and cancellations do not. */
+    @Synchronized fun observeRaceLoss(s:Source,c:Capability,t:Boolean,elapsedMs:Long,expected:RouteStats?):Boolean {
+        val k=key(s,c,t);val old=stats[k] ?: return false
+        if(c!=Capability.SEARCH||!t||s.frontend !in LocalWebDiscovery.frontends||expected!=effective(old)||old.deliverySamples==0||
+            !eligible(s,c,t)||elapsedMs !in 1..180_000L||elapsedMs<=maxOf(old.deliveryMs+old.deviationMs*.5,raceDelay(k)))return false
+        raceDelays.remove(k);raceDelays[k]=RaceDelay(elapsedMs,clock())
+        while(raceDelays.size>512)raceDelays.remove(raceDelays.keys.first())
+        return true
     }
     @Synchronized fun hedgeDelay(s: Source,c: Capability,t: Boolean): Long {
         val v=stats[key(s,c,t)]?.takeIf {it.deliverySamples>0}
@@ -104,6 +125,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
         }
         val sample=(partialMs ?: result.latencyMs).coerceIn(1,180_000).toDouble()
         val delivered=success&&delivery
+        if(delivered)raceDelays.remove(k)
         val deliveryMs=if(delivered){if(old.deliverySamples==0)sample else old.deliveryMs*.75+sample*.25}else old.deliveryMs
         val deviation=if(delivered){if(old.deliverySamples==0)sample*.25 else old.deviationMs*.75+kotlin.math.abs(sample-old.deliveryMs)*.25}else old.deviationMs
         val next=old.copy(samples=old.samples.coerceAtMost(999_999)+1,successes=old.successes.coerceAtMost(999_999)+(if(success)1 else 0),deliveryMs=deliveryMs,deviationMs=deviation,lastObservedAt=now,lastSuccessAt=if(success)now else old.lastSuccessAt,cooldownUntil=cooldown,consecutiveFailures=failures.coerceAtMost(100),deliverySamples=old.deliverySamples.coerceAtMost(999_999)+(if(delivered)1 else 0),retryAfterUntil=retryAfterUntil)
@@ -120,6 +142,7 @@ class AdaptiveRouting(private val clock: ()->Long=System::currentTimeMillis) {
     }
     @Synchronized private fun trim() {
         val now=clock();stats.entries.removeAll {now-it.value.lastObservedAt>7*DAY};while(stats.size>512)stats.remove(stats.keys.first())
+        raceDelays.entries.removeAll {it.key !in stats||now-it.value.observedAt !in 0 until 30_000L}
         targetFailures.entries.removeAll {it.value.until<=now};while(targetFailures.size>1024)targetFailures.remove(targetFailures.keys.first())
         providerCooldowns.entries.removeAll {it.value<=now};while(providerCooldowns.size>512)providerCooldowns.remove(providerCooldowns.keys.first())
     }

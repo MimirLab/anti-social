@@ -178,6 +178,11 @@ keeps waiting on one endpoint outside its three shared readers. Provisional
 attempts preserve queued API/HTML paths and each query's separate results.
 This is the publisher-link stage; the social SourcePool retains its own plan.
 
+[Recent useful publisher priority](LOCAL_DISCOVERY_ROUTING.md#recent-useful-publisher-priority-03898)
+also retains a bounded, memory-only timing hint when a useful answer wins while
+an earlier admitted read is still outstanding. It changes priority for at most
+30 seconds while preserving source availability, outcome counters and retry waits.
+
 A reachable homepage, login wall, unrelated profile or empty shell is not working
 content. An undated preview cannot certify a feed refresh. Source identity,
 ownership of cursors, extraction coverage and canonical original links survive

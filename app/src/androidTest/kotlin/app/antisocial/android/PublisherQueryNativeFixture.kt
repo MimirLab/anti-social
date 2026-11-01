@@ -16,9 +16,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 internal class PublisherQueryNativeFixture(val fastFirst:Boolean=false,val htmlOnlyFirst:Boolean=false,
+    val holdFirstOnly:Boolean=false,private val clock:()->Long=System::currentTimeMillis,
     private val publisher:(String)->String={""}):Closeable {
     data class Request(val host:String,val path:String)
-    val hosts=listOf("first-index.fixture.invalid","second-index.fixture.invalid","third-index.fixture.invalid")
+    val hosts=listOf("first-index.fixture.invalid","second-index.fixture.invalid","third-index.fixture.invalid").take(if(holdFirstOnly)2 else 3)
     private val socket=ServerSocket(0,16,InetAddress.getByName("127.0.0.1"))
     private val acceptor=Executors.newSingleThreadExecutor()
     // At most six index attempts plus two publisher reads. Cancelled owned
@@ -37,8 +38,8 @@ internal class PublisherQueryNativeFixture(val fastFirst:Boolean=false,val htmlO
     val routes=DarwinRoutes(JsonParser.parseString("""{"sources":[],"services":{},"searchSources":[${hosts.joinToString(","){
         """{"platform":"twitter","frontend":"librey","root":"http://$it","jsonApi":true,"fallbackOnly":true}"""
     }}]}""").asJsonObject,cleaner)
-    val learning=AdaptiveRouting()
-    val engine=LocalWebDiscovery(gateway,routes,learning)
+    val learning=AdaptiveRouting(clock)
+    val engine=LocalWebDiscovery(gateway,routes,learning,clock=clock)
     init {
         gateway.configureTor(NetworkPolicy(true,socket.localPort,true))
         acceptor.submit {
@@ -77,10 +78,11 @@ internal class PublisherQueryNativeFixture(val fastFirst:Boolean=false,val htmlO
                     path.startsWith("/api.php")-> {firstApi.countDown();check(apiReady.await(5,TimeUnit.SECONDS));"<p>This endpoint supplies its public HTML search.</p>"}
                     else->"<div class=\"text-result-wrapper\"><a href=\"${destination(host,path)}\"><h2>Public workshop</h2></a></div>"
                 }
+                else if(holdFirstOnly&&host==hosts[1]) {Thread.sleep(120);links(host,path)}
                 else if(fastFirst&&host==hosts[0]) {Thread.sleep(30);links(host,path)}
                 else {check(release.await(10,TimeUnit.SECONDS));"[]"}
             }
-            hosts[2]->if(htmlOnlyFirst)"[]"else links(host,path)
+            hosts.getOrNull(2)->if(htmlOnlyFirst)"[]"else links(host,path)
             "publisher.fixture.invalid"->publisher(path)
             else->error("Unexpected owned-fixture destination")
         }.toByteArray()
@@ -94,7 +96,7 @@ internal class PublisherQueryNativeFixture(val fastFirst:Boolean=false,val htmlO
     }
     private fun links(host:String,path:String)="""{"0":{"title":"Public workshop","url":"${destination(host,path)}"}}"""
     fun knownWinner()=learning.observe(ProbeResult(routes.publisherSearchSources.first(),Capability.SEARCH,
-        HealthStatus.HEALTHY,20,System.currentTimeMillis(),true,"Controlled earlier useful delivery"))
+        HealthStatus.HEALTHY,20,clock(),true,"Controlled earlier useful delivery"))
     override fun close() {
         release.countDown();apiReady.countDown();socket.close();connections.forEach {runCatching {it.close()}}
         acceptor.shutdownNow();workers.shutdownNow()

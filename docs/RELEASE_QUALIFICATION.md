@@ -9,6 +9,78 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.98: prefer recent useful publisher sources
+
+A previously fast publisher endpoint can remain outstanding while its useful
+peer wins. Correctly cancelling the loser does not establish an outage, but its
+old fast estimate can keep putting it first on the next query. A new owned
+Gateway/SOCKS control independently reproduces that repeated wait on the exact
+published 0.38.97 APK.
+
+Publisher routing now records an elapsed timing hint for a still-issued loser
+only after a useful answer wins the same query. Queued and completed reads have
+no receipt. A changed health observation invalidates the receipt. Hints affect
+ranking for at most 30 seconds, decay without a timer, clear on useful delivery
+and are absent from persisted snapshots. Outcome counters, availability, server
+waits, hedge intervals, selected providers, Tor/session checks and request budgets
+retain their existing rules. Both query topics and eligible fallback sources
+remain intact. See [the implementation contract and native observations](LOCAL_DISCOVERY_ROUTING.md#recent-useful-publisher-priority-03898).
+
+No endpoint, dependency, model, permission or database migration is added. All
+33 native libraries remain identical to 0.38.97. Version code is 207; application
+ID and signing identity remain compatible.
+
+Qualification on November 1, 2026 (UTC):
+
+- Full JVM suite: **2,820 cases, 2,816 passes, four optional skips, zero failures
+  or errors**. Sixty-one focused checks cover timing decay, unchanged outcomes,
+  scoped hints, newer health observations, expiry, recovery, a refusing recent
+  winner, cancellation, session changes and retained routing budgets.
+- The same prototype tester compares published/prototype runtimes in both orders.
+  Each published phase passes six index controls and fails the repeated-read
+  assertion; its native deck assertion also fails after rendering both results.
+  Each prototype phase passes all nine index controls and both native deck journeys.
+  Twelve fresh foreground frames are inspected. In this owned 120 ms-response
+  case, first business cards change from **1,698/1,697 ms to 956/1,046 ms** and
+  two stable useful records from **2,150/2,148 ms to 1,382/1,436 ms**. Index
+  requests fall from four to two. These are two observations per runtime, not
+  live-source or physical-phone p95/energy measurements.
+- Final frozen API 35 selection: **352 named checks, 340 passes, twelve explicit
+  skips, zero failures**. Ten additional, non-overlapping business/event methods
+  pass without skips. All eighteen required fresh deck frames and six fresh
+  hybrid-caption/greeting frames are inspected.
+- Minimum API 26 selection: **119 named checks, 115 passes, four explicit skips,
+  zero failures**, plus all ten additional deck methods without skips. Its
+  eighteen required fresh frames are inspected. The lifecycle and real System UI
+  rejection/recovery controls pass on both APIs.
+- The **896-original** late-source journey passes on both APIs: one final card,
+  three originals and three distinct pictures, preserved earlier source credit,
+  read marks and the two-pixel anchor bound, with zero continuation reads. Both
+  cancellation phases touch one of 64 originals and make no obsolete commit.
+  Captured monthly-caption/source/save checks pass on both APIs with one common
+  passage; the separate captured-reference replay passes on API 26.
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Runtime/tester DEX inspection records zero project-class overlap. Eight public
+  fixture audit controls and four retention-scoring controls pass. Clean-source
+  stamping, frozen-member equivalence, signer/source correspondence, source/privacy
+  review, recoverable preview backup and full anonymous permanent-download
+  verification remain publication gates.
+
+The first wider selection stops after **62 completed methods (61 passes and one
+skip)** on the lifecycle test's final shown/focused-window guard; its resource
+assertions pass. The same unchanged tester then passes three isolated repetitions
+on each runtime. The qualifier now waits for the actual shown/focused window
+before its unchanged strict visibility guard. The real notification-shade
+rejection/recovery control still passes on both runtimes. The production APK is
+bit-identical across that test-only correction; the tester is rebuilt and the
+complete selection rerun. Failed and final runs remain separate.
+
+A later follow-up helper retains an old filename after all 119 minimum-version
+methods have completed successfully. Only the unexecuted deck/cancellation and
+captured-source stages resume after correcting the reference. Completed results
+and the failed helper log remain retained. No failed prototype or incomplete
+qualification is promoted or published.
+
 ## 0.38.97: coordinate publisher queries without losing their results
 
 Two different publisher queries can occupy all three shared readers with held

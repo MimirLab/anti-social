@@ -11,6 +11,8 @@ import org.junit.Assert.*
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class FeedAnalysisLifetimeTest {
     @get:Rule val ui=createAndroidComposeRule<MainActivity>()
@@ -22,8 +24,22 @@ class FeedAnalysisLifetimeTest {
         fun image(revision:Int)=MediaIdentitySnapshot(listOf(Post("71000001",Platform.X,"https://x.com/workshop/status/71000001",
             "workshop","A source retained by the reader.",publishedAt=1_800_000_000_000L,
             media=listOf(Media("https://images.example.org/photo.jpg",attachmentFingerprint="resource-$revision"))))){_,_->false}
+        val waits=mutableListOf<Long>()
+        fun awaitVisible() {
+            val began=android.os.SystemClock.elapsedRealtime()
+            // Lifecycle RESUMED and Compose idle do not await window focus.
+            // Keep the strict visibility guard after an actual focus signal.
+            ui.waitUntil(5_000) {
+                val visible=AtomicBoolean()
+                ui.runOnUiThread {visible.set(ui.activity.window.decorView.isShown&&ui.activity.window.decorView.hasWindowFocus())}
+                visible.get()
+            }
+            waits+=android.os.SystemClock.elapsedRealtime()-began
+            requireNativeFeedVisible(ui.activity)
+        }
         ui.runOnUiThread {ui.activity.setContent {FeedAnalysisLifetime(resources,matcher);Text("Source analysis lifecycle control")}}
         ui.waitForIdle()
+        awaitVisible()
         val first=image(0)
         runBlocking {matcher.project(first,{it},{_,_->null})}
         assertTrue(sourceAnalysisAllocation(matcher).second>0)
@@ -37,6 +53,12 @@ class FeedAnalysisLifetimeTest {
         assertEquals(0L to 0,sourceAnalysisAllocation(matcher))
         runBlocking {matcher.project(image(2),{it},{_,_->null})}
         assertEquals(SourcePreparationBudget.EXPANDED,sourceAnalysisAllocation(matcher).first)
-        requireNativeFeedVisible(ui.activity)
+        awaitVisible()
+        val dir=File(ui.activity.getExternalFilesDir("validation"),"feed-analysis-lifetime").apply {mkdirs()}
+        File(dir,"visibility.json").writeText(org.json.JSONObject().put("initialWindowWaitMs",waits[0]).put("resumedWindowWaitMs",waits[1]).put("strictVisibilityGuardPassed",true).toString())
+        val screenshot=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        assertNotNull(screenshot)
+        File(dir,"resumed.png").outputStream().use {assertTrue(screenshot!!.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it))}
+        screenshot!!.recycle()
     }
 }

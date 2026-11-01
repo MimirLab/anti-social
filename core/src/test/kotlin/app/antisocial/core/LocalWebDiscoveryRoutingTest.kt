@@ -68,6 +68,25 @@ class LocalWebDiscoveryRoutingTest {
         private fun api()="""{"0":{"url":"https://publisher.fixture.invalid/calendar","title":"Community workshop"},"results_source":"index.fixture.invalid"}"""
     }
     private suspend fun failure(block:suspend ()->Unit):SourceFailure=try {block();error("Expected source refusal")}catch(e:SourceFailure){e}
+    @Test fun aRepeatedLookupStartsWithItsRecentUsefulWinnerInsteadOfItsHeldFormerWinner():Unit=runBlocking {
+        Fixture(listOf("first.fixture.invalid","second.fixture.invalid")).use {f->
+            val first=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(first,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Controlled earlier delivery"))
+            val before=f.learning.get(first,Capability.SEARCH,true)
+            f.respond={r->if(r.host==f.hosts[0]){check(f.release.await(8,TimeUnit.SECONDS));Reply()}else {Thread.sleep(120);Reply(html())}}
+            val elapsed=mutableListOf<Long>()
+            for(query in listOf("workshop alpha","workshop beta")) {
+                val start=System.nanoTime()
+                assertEquals(1,withTimeout(3000){f.engine.search(query,SearchProvider.DARWIN,false)}.size)
+                elapsed+=(System.nanoTime()-start)/1_000_000
+            }
+            val later=f.requests.filter {DarwinRoutes.queryValue(java.net.URI("http://"+it.host+it.path),"q")=="workshop beta"}
+            println("Repeated-query controlled timing ms=$elapsed; next requests=${later.map {it.host}}")
+            assertEquals(before,f.learning.get(first,Capability.SEARCH,true))
+            assertEquals(1L,f.release.count)
+            assertEquals("A real recent useful winner should avoid another known-slow first read",listOf(f.hosts[1]),later.map {it.host})
+        }
+    }
     @Test fun aResponsiveMirrorCanDeliverWhileTheEarlierReadRemainsHeld():Unit=runBlocking {
         Fixture().use {f->
             f.respond={request->if(request.host==f.hosts.first()){check(f.release.await(8,TimeUnit.SECONDS));Reply()}else Reply(html())}
@@ -75,6 +94,59 @@ class LocalWebDiscoveryRoutingTest {
             assertEquals("https://publisher.fixture.invalid/calendar",hits.single().url)
             assertEquals(1L,f.release.count)
             assertTrue(f.requests.any {it.host==f.hosts[1]})
+        }
+    }
+    @Test fun aPreviousRaceLoserStillSuppliesTheResultWhenTheRecentWinnerRefuses():Unit=runBlocking {
+        Fixture(listOf("first.fixture.invalid","second.fixture.invalid")).use {f->
+            val source=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Earlier delivery"))
+            f.respond={r->if(r.host==f.hosts[0]){check(f.release.await(8,TimeUnit.SECONDS));Reply()}else {Thread.sleep(120);Reply(html())}}
+            assertEquals(1,withTimeout(3000){f.engine.search("workshop alpha",SearchProvider.DARWIN,false)}.size)
+            f.respond={r->if(r.host==f.hosts[0])Reply(html())else Reply(code=503,headers=mapOf("Retry-After" to "120"))}
+            assertEquals(1,withTimeout(3000){f.engine.search("workshop beta",SearchProvider.DARWIN,false)}.size)
+            val later=f.requests.filter {DarwinRoutes.queryValue(java.net.URI("http://"+it.host+it.path),"q")=="workshop beta"}
+            assertEquals(listOf(f.hosts[1],f.hosts[0]),later.map {it.host})
+            assertEquals(2,f.learning.get(source,Capability.SEARCH,true)!!.successes)
+        }
+    }
+    @Test fun aRecoveredFormerWinnerReturnsAfterTheShortLivedTimingHintExpires():Unit=runBlocking {
+        Fixture(listOf("first.fixture.invalid","second.fixture.invalid")).use {f->
+            val source=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Earlier delivery"))
+            f.respond={r->if(r.host==f.hosts[0]){check(f.release.await(8,TimeUnit.SECONDS));Reply()}else {Thread.sleep(120);Reply(html())}}
+            assertEquals(1,withTimeout(3000){f.engine.search("workshop alpha",SearchProvider.DARWIN,false)}.size)
+            f.now+=30_001;f.respond={Reply(html())}
+            assertEquals(1,withTimeout(1500){f.engine.search("workshop beta",SearchProvider.DARWIN,false)}.size)
+            val later=f.requests.filter {DarwinRoutes.queryValue(java.net.URI("http://"+it.host+it.path),"q")=="workshop beta"}
+            assertEquals(listOf(f.hosts[0]),later.map {it.host})
+        }
+    }
+    @Test fun cancellingTheWholeLookupDoesNotTeachALostRace():Unit=runBlocking {
+        Fixture(listOf("first.fixture.invalid","second.fixture.invalid")).use {f->
+            val source=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Earlier delivery"))
+            val before=f.learning.get(source,Capability.SEARCH,true);val score=f.learning.score(source,Capability.SEARCH,true)
+            f.respond={check(f.release.await(8,TimeUnit.SECONDS));Reply()}
+            val pending=launch(Dispatchers.IO){f.engine.search("workshop alpha",SearchProvider.DARWIN,false)}
+            withTimeout(2500){while(f.requests.size<2)delay(10)}
+            pending.cancelAndJoin()
+            assertEquals(before,f.learning.get(source,Capability.SEARCH,true));assertEquals(score,f.learning.score(source,Capability.SEARCH,true),0.0)
+            f.respond={Reply(html())}
+            assertEquals(1,withTimeout(1500){f.engine.search("workshop beta",SearchProvider.DARWIN,false)}.size)
+            val later=f.requests.filter {DarwinRoutes.queryValue(java.net.URI("http://"+it.host+it.path),"q")=="workshop beta"}
+            assertEquals(listOf(f.hosts[0]),later.map {it.host})
+        }
+    }
+    @Test fun aChangedSessionCannotTeachTimingFromItsFormerRace():Unit=runBlocking {
+        Fixture(listOf("first.fixture.invalid","second.fixture.invalid")).use {f->
+            val source=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Earlier delivery"))
+            val before=f.learning.get(source,Capability.SEARCH,true);val score=f.learning.score(source,Capability.SEARCH,true)
+            f.respond={r->if(r.host==f.hosts[0]){check(f.release.await(8,TimeUnit.SECONDS));Reply()}else Reply(html())}
+            f.gateway.onTextResponse={payload->if(payload.finalUrl.contains(f.hosts[1]))f.renewSession()}
+            try {withTimeout(3000){f.engine.search("workshop alpha",SearchProvider.DARWIN,false)};fail("The old session must stop")}
+            catch(_:CancellationException){}
+            assertEquals(before,f.learning.get(source,Capability.SEARCH,true));assertEquals(score,f.learning.score(source,Capability.SEARCH,true),0.0)
         }
     }
     @Test fun aSessionRoundTripCannotMoveTheOldQueryToAnotherMirror():Unit=runBlocking {

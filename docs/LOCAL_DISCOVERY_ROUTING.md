@@ -305,6 +305,41 @@ Protocol references: [4get API](https://git.lolcat.ca/lolcat/4get/src/branch/mas
 This is a native protocol implementation; no external engine, scripting runtime,
 model, dependency, permission or service account is bundled.
 
+### Recent useful publisher priority (0.38.98)
+
+Publisher queries record a short-lived ranking hint when a useful publisher
+answer wins while an earlier, previously measured read remains outstanding.
+That earlier read has established an elapsed lower bound, even though cancelling
+it does not establish a failed endpoint. Otherwise its old fast timing can keep
+putting it first on subsequent queries.
+
+Only admitted reads have a receipt. Endpoint/global-slot queues, completed
+results, whole-query cancellation and invalidated sessions do not supply one.
+The receipt must still match the source's current health observation; a newer
+completed observation takes precedence. Hints are scoped to the exact source,
+search capability and Tor transport, bounded to 512 keys and absent from persisted
+health snapshots. Their ranking contribution decays to zero within 30 seconds.
+A new useful delivery clears the hint; a weaker elapsed receipt cannot renew its
+window. A clock rollback drops the affected hint. Availability, outcome counters,
+server waits, hedge intervals and the three-attempt allowance retain their
+existing policies. The earlier endpoint remains eligible for fallback.
+
+In two owned Android 15 comparison orders, the published 0.38.97 business journey
+observes its first visible card at 1,698/1,697 ms and two stable useful records at
+2,150/2,148 ms. The prototype observes 956/1,046 ms and 1,382/1,436 ms respectively,
+with two rather than four index requests. Both query topics remain present.
+The same tester independently reproduces the repeated-read assertion failure on
+the published APK, then passes its new index and native deck controls on the
+prototype. Twelve fresh foreground frames are inspected. These are two controlled
+observations per runtime, with owned 120 ms responses and fixed source/cache
+state; they establish no live-source, phone, p95 or energy distribution.
+
+The [release qualification](RELEASE_QUALIFICATION.md#03898-prefer-recent-useful-publisher-sources)
+records the final APK's wider Android and retained-source checks separately.
+Design references include [Finagle's Peak EWMA](https://twitter.github.io/finagle/guide/Clients.html)
+and [C3's adaptive replica-selection study](https://www.usenix.org/conference/nsdi15/technical-sessions/presentation/suresh).
+No upstream implementation, dependency or server-coordination mechanism is bundled.
+
 ### Publisher query contention and queued representations (0.38.97)
 
 The two publisher queries share three reader slots. Previously, they could fill

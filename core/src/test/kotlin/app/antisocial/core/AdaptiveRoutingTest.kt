@@ -97,6 +97,68 @@ class AdaptiveRoutingTest {
         routing.observe(result(HealthStatus.UNAVAILABLE,detail="Source returned 503"),second)
         assertFalse(routing.eligible(source,Capability.TIMELINE,false,first))
     }
+    @Test fun lostRaceTimingChangesOnlyShortLivedPriorityWithoutInventingAnOutcome() {
+        val routing=policy();val index=Source(Platform.X,"librey","https://index.example")
+        routing.observe(result(HealthStatus.HEALTHY,20,cap=Capability.SEARCH,selected=index,tor=true))
+        val before=routing.get(index,Capability.SEARCH,true)!!;val score=routing.score(index,Capability.SEARCH,true)
+        val hedge=routing.hedgeDelay(index,Capability.SEARCH,true)
+        assertTrue(routing.observeRaceLoss(index,Capability.SEARCH,true,900,before))
+        assertEquals(before,routing.get(index,Capability.SEARCH,true));assertEquals(listOf(before),routing.snapshot())
+        assertTrue(routing.score(index,Capability.SEARCH,true)>score)
+        assertTrue(routing.eligible(index,Capability.SEARCH,true));assertEquals(hedge,routing.hedgeDelay(index,Capability.SEARCH,true))
+        now+=15_000
+        assertEquals(450/before.successRate,routing.score(index,Capability.SEARCH,true),0.001)
+        now+=15_000
+        assertEquals(score,routing.score(index,Capability.SEARCH,true),0.0)
+    }
+    @Test fun raceTimingRejectsMissingStaleWeakOrPausedReceiptsAndOtherOperations() {
+        val routing=policy();val index=Source(Platform.X,"librey","https://index.example")
+        assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,true,900,null))
+        routing.observe(result(HealthStatus.HEALTHY,20,cap=Capability.SEARCH,selected=index,tor=true))
+        val before=routing.get(index,Capability.SEARCH,true)!!
+        for(time in listOf(-1L,0L,20L,180_001L))assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,true,time,before))
+        assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,false,900,before))
+        assertFalse(routing.observeRaceLoss(index,Capability.POST,true,900,before))
+        routing.observe(result(HealthStatus.HEALTHY,30,cap=Capability.SEARCH,selected=index,tor=true))
+        assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,true,900,before))
+        val fresh=routing.get(index,Capability.SEARCH,true)!!
+        routing.observe(result(HealthStatus.RATE_LIMITED,cap=Capability.SEARCH,selected=index,tor=true))
+        assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,true,900,fresh))
+    }
+    @Test fun aRealDeliveryClearsRaceTimingWhileAProbeCannotAndSnapshotsDoNotPersistIt() {
+        val routing=policy();val index=Source(Platform.X,"librey","https://index.example")
+        routing.observe(result(HealthStatus.HEALTHY,20,cap=Capability.SEARCH,selected=index,tor=true))
+        val before=routing.get(index,Capability.SEARCH,true)!!
+        assertTrue(routing.observeRaceLoss(index,Capability.SEARCH,true,900,before))
+        val delayed=routing.score(index,Capability.SEARCH,true)
+        routing.observe(result(HealthStatus.HEALTHY,10,cap=Capability.SEARCH,selected=index,tor=true),delivery=false)
+        assertEquals(delayed*before.successRate,routing.score(index,Capability.SEARCH,true)*routing.get(index,Capability.SEARCH,true)!!.successRate,0.0)
+        val restored=policy();restored.restore(routing.snapshot())
+        assertTrue(restored.score(index,Capability.SEARCH,true)<delayed)
+        routing.observe(result(HealthStatus.HEALTHY,20,cap=Capability.SEARCH,selected=index,tor=true))
+        val untinted=policy();untinted.restore(routing.snapshot())
+        assertEquals(untinted.score(index,Capability.SEARCH,true),routing.score(index,Capability.SEARCH,true),0.0)
+        val score=routing.score(index,Capability.SEARCH,true)
+        assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,true,900,before));assertEquals(score,routing.score(index,Capability.SEARCH,true),0.0)
+    }
+    @Test fun raceTimingStaysScopedAndClockRollbackDoesNotExtendIt() {
+        val routing=policy();val index=Source(Platform.X,"librey","https://index.example")
+        val others=listOf(index.copy(root="https://other.example"),index.copy(platform=Platform.INSTAGRAM),index.copy(frontend="4get"))
+        for(item in listOf(index)+others)routing.observe(result(HealthStatus.HEALTHY,20,cap=Capability.SEARCH,selected=item,tor=true))
+        val score=routing.score(index,Capability.SEARCH,true);val before=routing.get(index,Capability.SEARCH,true)!!
+        assertTrue(routing.observeRaceLoss(index,Capability.SEARCH,true,900,before))
+        others.forEach {assertEquals(score,routing.score(it,Capability.SEARCH,true),0.0)}
+        now-=1;assertEquals(score,routing.score(index,Capability.SEARCH,true),0.0)
+        now+=1;assertEquals(score,routing.score(index,Capability.SEARCH,true),0.0)
+    }
+    @Test fun aWeakerReceiptDoesNotRefreshTheTransientTimingWindow() {
+        val routing=policy();val index=Source(Platform.X,"librey","https://index.example")
+        routing.observe(result(HealthStatus.HEALTHY,20,cap=Capability.SEARCH,selected=index,tor=true))
+        val before=routing.get(index,Capability.SEARCH,true)!!;val score=routing.score(index,Capability.SEARCH,true)
+        assertTrue(routing.observeRaceLoss(index,Capability.SEARCH,true,900,before))
+        now+=15_000;assertFalse(routing.observeRaceLoss(index,Capability.SEARCH,true,200,before))
+        now+=15_000;assertEquals(score,routing.score(index,Capability.SEARCH,true),0.0)
+    }
     @Test fun deliveryEstimatesUseSuccessfulReadsAndHedgesStayBounded() {
         val routing=policy();routing.observe(result(HealthStatus.HEALTHY,400),first)
         assertEquals(500L,routing.hedgeDelay(source,Capability.TIMELINE,false))

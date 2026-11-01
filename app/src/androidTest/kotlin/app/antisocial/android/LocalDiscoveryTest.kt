@@ -867,6 +867,60 @@ class LocalDiscoveryTest {
     @Test fun nativeDecksKeepFastTwoTopicIndexDelivery() {
         parallelIndexDecks(true)
     }
+    @Test fun nativeDecksReuseARecentPublisherWinnerWithoutAnotherHeldFirstRead() {
+        for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))PublisherQueryNativeFixture(holdFirstOnly=true) {path->
+            val edition=if(path=="/alpha")"Alpha"else "Beta"
+            """<script type="application/ld+json">[{"@type":"LocalBusiness","@id":"https://publisher.fixture.invalid/$edition","name":"$edition workshop","address":{"streetAddress":"${if(edition=="Alpha")1 else 2} Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}},{"@type":"Event","name":"$edition radio workshop","startDate":"${firstDeckArea.today().plusDays(1)}","location":{"name":"$edition workshop","address":{"streetAddress":"${if(edition=="Alpha")1 else 2} Example Street","addressLocality":"Example City"},"geo":{"latitude":10.0,"longitude":20.0}}}]</script>"""
+        }.use {f->
+            runBlocking(Dispatchers.IO){
+                repo.localDiscovery.cleanup(clear=true);f.knownWinner()
+                coroutineScope {listOf("alpha","beta").map {edition->async {
+                    withTimeout(4000){f.engine.search("initial workshop $edition",SearchProvider.DARWIN,false)}
+                }}.awaitAll()}
+            }
+            ui.runOnIdle {
+                model.localSearch.backend=object:LocalDiscoveryBackend by fixture(LocalExtraction(validEmpty=true)) {
+                    override suspend fun discover(query:LocalDiscoveryQuery,onHits:suspend(List<LocalWebHit>)->Unit)=coroutineScope {
+                        listOf("alpha","beta").map {edition->launch {
+                            onHits(f.engine.search("later "+query.text+" "+edition,SearchProvider.DARWIN,false))
+                        }}.joinAll()
+                    }
+                    override suspend fun read(source:LocalPublisherSource,query:LocalDiscoveryQuery,business:LocalBusiness?):LocalExtraction {
+                        val payload=f.gateway.text(source.url.replace("https://","http://"),route=NetworkRoute.TOR)
+                        return LocalStructuredData.html(payload.text,source.url,System.currentTimeMillis(),firstDeckArea)
+                    }
+                }
+                model.localSearch.mode(mode);model.localSearch.area(firstDeckArea);model.localSearch.text("workshop")
+            }
+            ui.waitUntil(3000){model.localSearch.state.value.businesses.isEmpty()&&model.localSearch.state.value.events.isEmpty()}
+            requireNativeFeedVisible(ui.activity)
+            val started=android.os.SystemClock.elapsedRealtime();ui.onNodeWithTag("Run discovery search").performClick()
+            try {
+                val suffix=if(mode==LocalSearchMode.BUSINESSES)" workshop"else " radio workshop"
+                ui.waitUntil(6000) {
+                    val matches=ui.onAllNodes(hasText("Alpha$suffix") or hasText("Beta$suffix"))
+                    (0 until matches.fetchSemanticsNodes().size).any {runCatching {matches[it].assertIsDisplayed()}.isSuccess}
+                }
+                val first=android.os.SystemClock.elapsedRealtime()-started
+                val frame="recent-winner-${mode.name.lowercase()}"
+                requireNativeFeedVisible(ui.activity);evidence("$frame-first")
+                ui.waitUntil(6000) {
+                    val state=model.localSearch.state.value
+                    val names=if(mode==LocalSearchMode.BUSINESSES)state.businesses.map {it.name}else state.events.map {it.title}
+                    names.toSet()==setOf("Alpha$suffix","Beta$suffix")&&!state.loading&&!state.enriching
+                }
+                val stable=android.os.SystemClock.elapsedRealtime()-started
+                requireNativeFeedVisible(ui.activity);evidence("$frame-complete")
+                val later=f.requests.filter {DarwinRoutes.queryValue(java.net.URI("http://${it.host}${it.path}"),"q")?.startsWith("later ")==true}
+                val dir=File(ui.activity.getExternalFilesDir("validation"),"local-discovery")
+                File(dir,"$frame.json").writeText(JSONObject().put("firstObservedVisibleCardMs",first).put("stableTwoUsefulRecordsMs",stable)
+                    .put("laterIndexRequests",later.size).put("heldFirstRequests",later.count {it.host==f.hosts[0]})
+                    .put("scope","Owned recent-winner native deck; no phone, live-source or p95 claim.").toString())
+                assertEquals(2,later.size);assertTrue(later.all {it.host==f.hosts[1]})
+                assertEquals(1L,f.release.count)
+            }finally {ui.runOnIdle {model.localSearch.stop()};runBlocking(Dispatchers.IO){repo.localDiscovery.cleanup(clear=true)}}
+        }
+    }
     private fun parallelIndexDecks(fast:Boolean) {
         for(mode in listOf(LocalSearchMode.BUSINESSES,LocalSearchMode.EVENTS))PublisherQueryNativeFixture(fast) {path->
             val edition=if(path=="/alpha")"Alpha"else "Beta"
