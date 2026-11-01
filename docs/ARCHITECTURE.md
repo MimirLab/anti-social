@@ -173,6 +173,11 @@ to save that checkpoint. Content and saved-record persistence retain their
 existing contracts. See [health persistence](ROUTE_SCHEDULING.md#advisory-health-persistence-03894)
 for the native counterexample, queue bounds, failure behavior and scope.
 
+Regional [publisher-query coordination](LOCAL_DISCOVERY_ROUTING.md#publisher-query-contention-and-queued-representations-03897)
+keeps waiting on one endpoint outside its three shared readers. Provisional
+attempts preserve queued API/HTML paths and each query's separate results.
+This is the publisher-link stage; the social SourcePool retains its own plan.
+
 A reachable homepage, login wall, unrelated profile or empty shell is not working
 content. An undated preview cannot certify a feed refresh. Source identity,
 ownership of cursors, extraction coverage and canonical original links survive

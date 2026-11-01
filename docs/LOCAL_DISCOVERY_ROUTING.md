@@ -305,6 +305,42 @@ Protocol references: [4get API](https://git.lolcat.ca/lolcat/4get/src/branch/mas
 This is a native protocol implementation; no external engine, scripting runtime,
 model, dependency, permission or service account is bundled.
 
+### Publisher query contention and queued representations (0.38.97)
+
+The two publisher queries share three reader slots. Previously, they could fill
+those slots with requests to the same two stalled endpoints, leaving a useful
+third endpoint waiting. When multiple Darwin endpoints are eligible, a small
+gate for each endpoint now precedes the shared readers. Waiting holds no reader
+slot. A first queued read keeps its normal grace; a queued hedge to another
+endpoint can advance the plan. An HTML representation of the same endpoint
+retains its normal grace. Single eligible endpoints and the selected Bing and
+DuckDuckGo paths keep their existing admission.
+
+| Boundary | Limit and meaning |
+| --- | --- |
+| Endpoint gates | At most 64 keys from the fixed publisher bank; no query history or background poller. |
+| Shared readers | Three admitted reads across concurrent publisher queries. |
+| Query budget | Three issued or provisionally reserved attempts. An admission skip releases its unissued place; an issued attempt is never refunded. |
+| Query work | At most three running or queued candidates; waiting is a scheduling event, not a source failure or completed result. |
+
+Reservations preserve the earlier queued read when faster empty peers finish.
+If a companion learns that an API needs its public HTML route, the waiting
+query keeps that HTML candidate at the front without issuing the obsolete API
+call. Explicit endpoint waits still prevent a representation retry. Every
+admitted read rechecks source eligibility, the selected provider and the captured
+Gateway session before acquisition. Each query retains its own results; a useful
+answer cancels that query's losers.
+
+A healthy endpoint's companion can wait for one earlier response. No fixed delay
+or extra request is added to the ordinary fast case. One paired native fixture
+with 30 ms responses completes both topics in 46/49 ms before this change and
+84/82 ms afterward, with two requests in both cases. These are owned index
+observations, not live-source or phone figures. First cards stream independently
+of the companion. See [release qualification](RELEASE_QUALIFICATION.md#03897-coordinate-publisher-queries-without-losing-their-results)
+for native card delivery, retained-content controls and the rejected preemption
+experiment. Tor, origin, refusal and saved-record rules remain in force; this
+does not serialize the separate social SourcePool.
+
 ### Publisher availability and browser challenges (0.38.96)
 
 The publisher-link bank adds four qualified 4get hosts to the three retained
@@ -747,9 +783,14 @@ remain candidates for explicit adapters or regional data packs:
   additional published-calendar families.
 - Municipal GIS, licenses/inspection records, meeting agendas and permitted events,
   retaining storefront versus legal-address and application versus approval roles.
-- Public newsletters, flyers, menus/PDFs, products and temporary business notices.
-  Existing media engines are not automatically wired into this collector: poster
-  OCR, product stock inference and prose-to-event date extraction are not claimed.
+- Additional newsletter, product and temporary-notice publishers. The current
+  [announcement parser](../core/src/main/kotlin/app/antisocial/core/LocalAnnouncements.kt)
+  already reads explicit dates from identified local publishers' public posts.
+  Its [Android flyer reader](../app/src/main/kotlin/app/antisocial/android/LocalAnnouncementReader.kt)
+  performs bounded English OCR after initial results, without enabling AI.
+  Missing dates, times or qualified venues remain under Possible events; image
+  evidence retains its source region. See [current limits](CAPABILITIES.md).
+  Product stock inference and arbitrary prose interpretation are not claimed.
 
 Additional endpoints should earn a place through useful public data and bounded
 retrieval, then reuse the same field evidence, branch matching, deferred traffic,

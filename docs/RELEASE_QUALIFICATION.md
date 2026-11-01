@@ -9,6 +9,78 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.97: coordinate publisher queries without losing their results
+
+Two different publisher queries can occupy all three shared readers with held
+copies of the first two endpoints. A useful third endpoint then remains queued
+until the query deadlines. Both unproven and formerly fast endpoints reproduce
+this starvation against the exact published 0.38.96 APK.
+
+Multi-endpoint Darwin publisher queries now coordinate one read per endpoint
+before acquiring a shared reader. Waiting consumes no shared reader. A queued
+new-endpoint hedge can advance, while the first candidate and same-endpoint HTML
+fallback keep their normal grace. Three provisional-or-issued attempts remain
+the per-query limit; only unissued admission skips return their reservation.
+Companion queries retain an endpoint's newly learned HTML route. Only a useful
+winner for the same query cancels its alternatives. Single-endpoint and selected
+provider admission remain unchanged. See [the routing contract and measured
+tradeoff](LOCAL_DISCOVERY_ROUTING.md#publisher-query-contention-and-queued-representations-03897).
+
+No source, protocol, parser dependency, model, permission, background poller or
+database migration is added. Gateway, Tor/session, selected-provider, origin,
+refusal and health-admission checks remain authoritative. Version code is 206;
+application ID and signing identity remain compatible.
+
+Qualification on November 1, 2026 (UTC):
+
+- Full JVM suite: **2,810 cases, 2,806 passes, four optional skips, zero failures
+  or errors**. Focused controls retain both query topics when earlier useful
+  reads finish after peers refuse, preserve queued HTML fallback and its budget,
+  and cover cancellation, session changes, source pauses and single providers.
+- The same final tester runs five owned Gateway/SOCKS scenarios against three
+  runtimes. Published 0.38.96 passes three controls and fails both held-endpoint
+  assertions. An intermediate gate implementation fails the queued HTML control.
+  The frozen candidate passes all five. Per-query requests remain at most three,
+  active shared reads at most three, and fast controls use two total requests.
+- Frozen API 35 selection: **348 named checks, 336 passes, twelve explicit skips,
+  zero failures**. Nine additional, non-overlapping business/event methods pass
+  without skips. Their fourteen required fresh native frames are inspected,
+  including first-card and completed-search states for both query topics beside
+  held endpoints, structured and independent indexes, and the default provider.
+- Minimum API 26 selection: **115 named checks, 111 passes, four explicit skips,
+  zero failures**, plus all nine additional deck methods without skips. Its
+  fourteen required fresh frames are also inspected. These journeys use the real
+  search button, controller, Gateway, publisher extraction, store and native cards.
+- The **896-original** late-source journey passes on both APIs: one final card,
+  three originals and three distinct pictures, preserved source credit, read
+  marks and the two-pixel anchor bound, with zero continuation reads. Both APIs'
+  cancellation phases touch one of 64 originals and make no obsolete commit.
+  Captured monthly-caption/source/save checks pass on both APIs with one common
+  passage; the separate captured-reference replay passes on API 26. Fresh wide
+  hybrid captions and the three-platform greeting retain their native controls.
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Runtime/tester DEX inspection finds **47,315 / 8,160 definitions** and zero
+  project-class overlap. All 33 native libraries remain identical to 0.38.96.
+  Public-fixture and retention-scoring controls, source/privacy review, clean
+  source stamp, frozen-member equivalence, signer/source correspondence,
+  recoverable preview backup and anonymous permanent-download verification are
+  required publication gates.
+
+A rejected cancellation prototype rescues the fast third endpoint but loses
+one topic when an earlier, still-useful read finishes later. It is not shipped.
+The final approach preserves that read. It can make a healthy companion wait
+for one same-endpoint response: one paired owned 30 ms-response observation
+changes two-topic completion from **46/49 ms to 84/82 ms**, with two requests
+in each runtime. These are controlled emulator observations, not physical-phone
+p95, battery or full live-search measurements.
+
+Retained qualification corrections include a first-semantic-node visibility
+assumption (another matching card was actually visible) and a helper adaptation
+that corrupted an evidence-directory date before running minimum-version tests.
+The corrected observer requires a genuinely visible foreground card; only the
+unexecuted helper stage resumes. Completed results and failed setup logs remain
+separate. No failing prototype is promoted or published.
+
 ## 0.38.96: add qualified publisher paths and recognize browser challenges
 
 Publisher discovery adds four qualified hosts to the three retained 4get paths.

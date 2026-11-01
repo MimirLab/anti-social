@@ -93,6 +93,62 @@ class LocalWebDiscoveryRoutingTest {
             assertTrue(f.learning.snapshot().none {it.source.root.endsWith(f.hosts[0])})
         }
     }
+    @Test fun parallelQueriesCanReachAProductiveThirdHostWhileTheFirstTwoRemainHeld():Unit=runBlocking {
+        Fixture().use {f->
+            f.respond={request->
+                if(request.host in f.hosts.take(2)){check(f.release.await(8,TimeUnit.SECONDS));Reply()}
+                else Reply(html())
+            }
+            val jobs=(1..2).map {async(Dispatchers.IO){f.engine.search("workshop $it",SearchProvider.DARWIN,false)}}
+            try {
+                val hits=withTimeoutOrNull(4500){jobs.awaitAll()}
+                assertNotNull("A working third host must remain reachable; requests=${f.requests.map {it.host}}",hits)
+                assertEquals(2,hits!!.size);assertTrue(hits.all {it.single().url=="https://publisher.fixture.invalid/calendar"})
+                assertEquals(2,f.requests.count {it.host==f.hosts[2]})
+                assertEquals(1L,f.release.count)
+                val perQuery=f.requests.groupingBy {DarwinRoutes.queryValue(java.net.URI("http://"+it.host+it.path),"q")}.eachCount()
+                assertEquals(setOf("workshop 1","workshop 2"),perQuery.keys)
+                assertTrue(perQuery.values.all {it<=3})
+                assertTrue(f.learning.snapshot().all {it.source.root.endsWith(f.hosts[2])})
+            }finally {jobs.forEach {it.cancel()};jobs.joinAll()}
+        }
+    }
+    @Test fun aRecentlyProductiveHostDoesNotAddAHedgeDelayToItsCompanionQuery():Unit=runBlocking {
+        Fixture().use {f->
+            val source=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Known useful source"))
+            f.respond={request->
+                check(request.host==f.hosts[0]);Thread.sleep(30);Reply(html())
+            }
+            val hits=withTimeout(500){(1..2).map {async(Dispatchers.IO){f.engine.search("workshop $it",SearchProvider.DARWIN,false)}}.awaitAll()}
+            assertTrue(hits.all {it.size==1});assertEquals(2,f.requests.size)
+        }
+    }
+    @Test fun aFormerlyFastHostCannotKeepBothQueriesAwayFromAWorkingThirdHost():Unit=runBlocking {
+        Fixture().use {f->
+            val source=f.routes.publisherSearchSources.first()
+            f.learning.observe(ProbeResult(source,Capability.SEARCH,HealthStatus.HEALTHY,20,f.now,true,"Earlier delivery"))
+            f.respond={request->if(request.host in f.hosts.take(2)){check(f.release.await(8,TimeUnit.SECONDS));Reply()}else Reply(html())}
+            val jobs=(1..2).map {async(Dispatchers.IO){f.engine.search("workshop $it",SearchProvider.DARWIN,false)}}
+            try {
+                val hits=withTimeoutOrNull(4500){jobs.awaitAll()}
+                assertNotNull("A stale fast winner must leave room for a different endpoint",hits)
+                assertTrue(hits!!.all {it.size==1});assertEquals(1L,f.release.count)
+                assertEquals(2,f.requests.count {it.host==f.hosts[2]})
+                assertTrue(f.learning.snapshot().all {it.source.root.endsWith(f.hosts[0])||it.source.root.endsWith(f.hosts[2])})
+                assertEquals(1,f.learning.get(source,Capability.SEARCH,true)!!.samples)
+            }finally {jobs.forEach {it.cancel()};jobs.joinAll()}
+        }
+    }
+    @Test fun aSingleAvailableHostDoesNotSerializeItsUnprovenQueries():Unit=runBlocking {
+        Fixture(listOf("only.fixture.invalid")).use {f->
+            val firstTwo=CountDownLatch(2)
+            f.respond={firstTwo.countDown();check(firstTwo.await(2,TimeUnit.SECONDS));Reply(html())}
+            val hits=withTimeout(3000){(1..2).map {async(Dispatchers.IO){f.engine.search("workshop $it",SearchProvider.DARWIN,false)}}.awaitAll()}
+            assertTrue(hits.all {it.size==1});assertEquals(2,f.requests.size)
+            assertEquals(0L,firstTwo.count)
+        }
+    }
     @Test fun allFormatsAndMirrorsShareThreeAttempts():Unit=runBlocking {
         val hosts=(1..6).map {"index-$it.fixture.invalid"}
         Fixture(hosts,hosts.toSet()).use {f->
@@ -108,10 +164,90 @@ class LocalWebDiscoveryRoutingTest {
             val jobs=(1..5).map {async(Dispatchers.IO){f.engine.search("workshop $it",SearchProvider.DARWIN,false)}}
             try {
                 withTimeout(4000){while(f.requests.size<3)delay(10)}
-                delay(1700);assertEquals(3,f.requests.size)
+                val until=System.nanoTime()+1_700_000_000L
+                while(System.nanoTime()<until) {
+                    val active=f.gateway.client(NetworkRoute.TOR).dispatcher.runningCalls().count {!it.isCanceled()}
+                    assertTrue("Cancelled calls must not be confused with active readers: $active",active<=3)
+                    delay(5)
+                }
+                val perQuery=f.requests.groupingBy {DarwinRoutes.queryValue(java.net.URI("http://"+it.host+it.path),"q")}.eachCount()
+                assertTrue(perQuery.values.all {it<=3})
             }finally {jobs.forEach {it.cancel()};jobs.joinAll()}
             withTimeout(2000){while(f.gateway.client(NetworkRoute.TOR).dispatcher.runningCallsCount()>0)delay(10)}
             assertTrue(f.learning.snapshot().isEmpty())
+            f.release.countDown();f.respond={Reply(html())}
+            assertEquals(1,withTimeout(2500){f.engine.search("fresh workshop",SearchProvider.DARWIN,false)}.size)
+            assertEquals(1,f.learning.snapshot().single().samples)
+        }
+    }
+    @Test fun aNewlyPausedAlternativeCannotDisplaceAStillUsefulRead():Unit=runBlocking {
+        Fixture().use {f->
+            val firstReady=CountDownLatch(1);val firstStarted=CountDownLatch(1);val secondStarted=CountDownLatch(1)
+            val third=f.routes.publisherSearchSources.last()
+            f.respond={request->when(request.host) {
+                f.hosts[0]->{
+                    f.learning.observe(ProbeResult(third,Capability.SEARCH,HealthStatus.RATE_LIMITED,0,f.now,true,"Observed elsewhere",120_000))
+                    firstStarted.countDown();check(firstReady.await(7,TimeUnit.SECONDS));Reply(html())
+                }
+                f.hosts[1]->{
+                    secondStarted.countDown();check(f.release.await(8,TimeUnit.SECONDS));Reply()
+                }
+                else->error("The paused endpoint cannot be requested")
+            }}
+            val jobs=(1..2).map {async(Dispatchers.IO){f.engine.search("workshop $it",SearchProvider.DARWIN,false)}}
+            try {
+                withTimeout(2500){while(firstStarted.count>0||secondStarted.count>0)delay(10)}
+                delay(1800);firstReady.countDown()
+                assertTrue(withTimeout(2000){jobs.awaitAll()}.all {it.size==1})
+                assertEquals(2,f.requests.count {it.host==f.hosts[0]})
+                assertTrue(f.requests.none {it.host==f.hosts[2]})
+                assertEquals(2,f.learning.get(f.routes.publisherSearchSources.first(),Capability.SEARCH,true)!!.successes)
+            }finally {firstReady.countDown();jobs.forEach {it.cancel()};jobs.joinAll()}
+        }
+    }
+    @Test fun tryingARefusingAlternativeMustNotLoseEitherOriginalQuery():Unit=runBlocking {
+        Fixture().use {f->
+            val ready=CountDownLatch(1);val firstStarted=CountDownLatch(1)
+            f.respond={request->when(request.host) {
+                f.hosts[0]->{firstStarted.countDown();check(ready.await(7,TimeUnit.SECONDS));Reply(html())}
+                f.hosts[1]->{check(f.release.await(8,TimeUnit.SECONDS));Reply()}
+                else->Reply(code=503,headers=mapOf("Retry-After" to "120"))
+            }}
+            val jobs=(1..2).map {async(Dispatchers.IO) {
+                try {Result.success(f.engine.search("workshop $it",SearchProvider.DARWIN,false))}
+                catch(e:SourceFailure){Result.failure(e)}
+            }}
+            try {
+                withTimeout(2000){while(firstStarted.count>0)delay(10)}
+                delay(3500);ready.countDown()
+                val results=withTimeout(2500){jobs.awaitAll()}
+                assertTrue("Different query topics are not expendable copies: $results",results.all {it.getOrNull()?.size==1})
+            }finally {ready.countDown();jobs.forEach {it.cancel()};jobs.joinAll()}
+        }
+    }
+    @Test fun aQueuedCompanionRetainsTheNewlyLearnedHtmlRouteWithoutSpendingItsApiAttempt():Unit=runBlocking {
+        val hosts=listOf("first.fixture.invalid","second.fixture.invalid","third.fixture.invalid")
+        Fixture(hosts,hosts.toSet()).use {f->
+            val apiReady=CountDownLatch(1)
+            f.respond={request->when {
+                request.host==hosts[0]&&request.path.startsWith("/api.php")-> {check(apiReady.await(5,TimeUnit.SECONDS));Reply(code=404)}
+                request.host==hosts[0]->Reply(html())
+                else->Reply(if(request.path.startsWith("/api.php"))"[]"else "<p>No results</p>")
+            }}
+            suspend fun lookup(query:String)=try {Result.success(f.engine.search(query,SearchProvider.DARWIN,false))}
+                catch(e:SourceFailure){Result.failure(e)}
+            val first=async(Dispatchers.IO){lookup("workshop alpha")}
+            withTimeout(2000){while(f.requests.isEmpty())delay(10)}
+            // This companion builds its concrete API candidates before the
+            // first response teaches the engine to prefer public HTML.
+            val second=async(start=CoroutineStart.UNDISPATCHED){lookup("workshop beta")}
+            yield();apiReady.countDown()
+            try {
+                val results=withTimeout(5000){listOf(first,second).awaitAll()}
+                assertTrue("Both original topics need the retained HTML route: $results",results.all {it.getOrNull()?.size==1})
+                assertEquals(2,f.requests.count {it.host==hosts[0]&&it.path.startsWith("/search.php")})
+                assertTrue(f.requests.none {it.host!=hosts[0]})
+            }finally {apiReady.countDown();first.cancel();second.cancel();joinAll(first,second)}
         }
     }
     @Test fun explicitWaitsCoverOtherQueriesAndPlatformCopiesButNotOtherEndpoints():Unit=runBlocking {

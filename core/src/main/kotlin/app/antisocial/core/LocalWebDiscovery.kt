@@ -23,15 +23,24 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
     private val learning:AdaptiveRouting=AdaptiveRouting(),private val clock:()->Long=System::currentTimeMillis,
     private val onLearning:(List<RouteStats>)->Unit={}) {
     private val permits=Semaphore(3)
+    // The fixed bank has at most 64 endpoints. Waiting for the same endpoint
+    // holds no global reader and spends no attempt. Single-endpoint providers
+    // keep their existing parallel behavior.
+    private val endpointPermits=routes.publisherSearchSources.map {it.root}.distinct().associateWith {Semaphore(1)}
+    private suspend fun <T> publisherSlot(endpoint:Semaphore?,waiting:suspend ()->Unit,read:suspend ()->T):T {
+        if(endpoint==null)return permits.withPermit {read()}
+        if(!endpoint.tryAcquire()){waiting();endpoint.acquire()}
+        try {return permits.withPermit {read()}}finally {endpoint.release()}
+    }
     private val htmlOnly=linkedMapOf<String,Long>()
-    private data class Candidate(val source:Source,val api:Boolean)
+    private data class Candidate(val source:Source,val api:Boolean,val fallback:Boolean=false)
     private data class RankedSource(val source:Source,val recent:Boolean,val score:Double,val unproven:Boolean)
     @Synchronized private fun prefersHtml(source:Source)=(htmlOnly[source.root] ?: 0)>clock()
     @Synchronized private fun rememberHtml(source:Source) {
         htmlOnly.remove(source.root);htmlOnly[source.root]=clock()+6*3_600_000L
         while(htmlOnly.size>64)htmlOnly.remove(htmlOnly.keys.first())
     }
-    private data class Trial(val index:Int,val hits:List<LocalWebHit>?=null,val failure:Exception?=null,val htmlFallback:Source?=null)
+    private data class Trial(val index:Int,val hits:List<LocalWebHit>?=null,val failure:Exception?=null,val htmlFallback:Source?=null,val waitingForEndpoint:Boolean=false)
     private fun sources(provider:SearchProvider,originalFallback:Boolean)=when(provider) {
         SearchProvider.BING,SearchProvider.DUCKDUCKGO->if(originalFallback)listOf(Source(Platform.X,provider.frontend!!,provider.root!!,true,SourceRole.ORIGINAL))else emptyList()
         SearchProvider.DARWIN->routes.publisherSearchSources
@@ -97,35 +106,55 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
         // Cheap structured reads precede a retained HTML/server-assisted path.
         // Both representations spend the SAME three-attempt allowance.
         val primary=ordered.map {Candidate(it,it.frontend=="4get"||it.root.trimEnd('/') in routes.searchJsonApis&&!prefersHtml(it))}
-        val available=primary+primary.filter {it.api&&it.source.frontend=="librey"}.map {it.copy(api=false)}
+        val available=primary+primary.filter {it.api&&it.source.frontend=="librey"}.map {it.copy(api=false,fallback=true)}
         val candidates=available.filter {learning.eligible(it.source,Capability.SEARCH,true,target(it))}.toMutableList()
         var failure:Exception?=available.firstNotNullOfOrNull {learning.failure(it.source,Capability.SEARCH,true,target(it))}
         if(candidates.isEmpty())throw failure ?: SourceFailure(HealthStatus.EMPTY,"No publisher links were available")
+        val shareEndpoints=provider==SearchProvider.DARWIN&&candidates.map {it.source.root}.distinct().size>1
         if(!session.policy.ready||session.policy.socksPort !in 1..65535)throw SourceFailure(HealthStatus.UNAVAILABLE,"Waiting for a private search connection. No direct fallback was used.")
         return coroutineScope {
-            val replies=Channel<Trial>(3);val running=linkedMapOf<Int,Job>();val attempts=AtomicInteger()
+            // A queued useful read keeps its provisional attempt. Faster empty
+            // peers cannot spend that place before it acquires an endpoint.
+            // Admission skips refund it; an issued read never does.
+            val replies=Channel<Trial>(3);val running=linkedMapOf<Int,Job>();val budget=AtomicInteger()
             var next=0;var latest=-1;var started=0L;var hedgeMs=0L;var advance=true
             fun observe(candidate:Candidate,status:HealthStatus,elapsed:Long,detail:String,retry:Long?=null) {
                 current();learning.observe(ProbeResult(candidate.source,Capability.SEARCH,status,elapsed,clock(),true,detail,retry),target(candidate));onLearning(learning.snapshot())
             }
-            fun claim():Boolean {while(true){val count=attempts.get();if(count>=3)return false;if(attempts.compareAndSet(count,count+1))return true}}
+            fun reserve():Boolean {while(true){val count=budget.get();if(count>=3)return false;if(budget.compareAndSet(count,count+1))return true}}
             fun start() {
+                check(reserve())
                 val index=next++;val candidate=candidates.removeAt(0);val source=candidate.source
                 latest=index;started=System.nanoTime();hedgeMs=learning.hedgeDelay(source,Capability.SEARCH,true);advance=false
                 running[index]=launch {
-                    val result=try {permits.withPermit {
+                    var issued=false
+                    val result=try {
+                        try {
                         current();currentCoroutineContext().ensureActive()
-                        if(candidate.api&&source.frontend=="librey"&&prefersHtml(source)||!learning.eligible(source,Capability.SEARCH,true,target(candidate))||!claim())return@withPermit Trial(index)
+                        publisherSlot(if(shareEndpoints)endpointPermits[source.root]else null,
+                            // Let a queued hedge reach another endpoint now.
+                            // An ordinary first read keeps its usual grace:
+                            // fast companion queries need no extra request.
+                            waiting={if(index>0&&!candidate.fallback)replies.send(Trial(index,waitingForEndpoint=true))}) {
+                        current();currentCoroutineContext().ensureActive()
+                        // A companion may teach this endpoint's representation
+                        // while this API candidate waits. Keep its HTML place
+                        // in the plan; skipping the unspent API is not enough.
+                        if(candidate.api&&source.frontend=="librey"&&prefersHtml(source))return@publisherSlot Trial(index,
+                            htmlFallback=source.takeIf {learning.eligible(it,Capability.SEARCH,true)})
+                        if(!learning.eligible(source,Capability.SEARCH,true,target(candidate)))return@publisherSlot Trial(index)
+                        issued=true
                         val begin=System.nanoTime()
                         try {
                             val payload=gateway.text(address(candidate),maxBytes=1024*1024,route=NetworkRoute.TOR,allowedOrigins=setOf(source.root),expectedSession=session)
+                            currentCoroutineContext().ensureActive();current()
                             val hits=parse(payload.text,payload.finalUrl,source.frontend)
                             if(candidate.api&&source.frontend=="librey"&&!json(payload.text)) {
                                 rememberHtml(source)
-                                if(hits.isEmpty())return@withPermit Trial(index,failure=SourceFailure(HealthStatus.UNSUPPORTED,"This index does not offer readable API results; trying its public HTML route"),htmlFallback=source)
+                                if(hits.isEmpty())return@publisherSlot Trial(index,failure=SourceFailure(HealthStatus.UNSUPPORTED,"This index does not offer readable API results; trying its public HTML route"),htmlFallback=source)
                             }
                             if(hits.isEmpty())throw SourceFailure(HealthStatus.EMPTY,"The selected index supplied no publisher links for this query")
-                            current();observe(candidate,HealthStatus.HEALTHY,(System.nanoTime()-begin)/1_000_000,"Public publisher links extracted")
+                            currentCoroutineContext().ensureActive();current();observe(candidate,HealthStatus.HEALTHY,(System.nanoTime()-begin)/1_000_000,"Public publisher links extracted")
                             Trial(index,hits)
                         }catch(e:CancellationException) {
                             currentCoroutineContext().ensureActive();current()
@@ -135,25 +164,27 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
                         }catch(e:Exception) {
                             currentCoroutineContext().ensureActive();current()
                             if(candidate.api&&source.frontend=="librey"&&(e as? SourceFailure)?.httpStatus in setOf(404,405,410)) {
-                                rememberHtml(source);return@withPermit Trial(index,failure=e,htmlFallback=source)
+                                rememberHtml(source);return@publisherSlot Trial(index,failure=e,htmlFallback=source)
                             }
                             observe(candidate,(e as? SourceFailure)?.status ?: HealthStatus.UNAVAILABLE,0,e.message.orEmpty().take(180),(e as? SourceFailure)?.retryAfterMs)
                             Trial(index,failure=e,htmlFallback=source.takeIf {candidate.api&&source.frontend=="librey"&&(e as? SourceFailure)?.status==HealthStatus.EMPTY})
                         }
-                    }}catch(e:CancellationException){currentCoroutineContext().ensureActive();Trial(index,failure=e)}
+                    }}finally {if(!issued)budget.decrementAndGet()}
+                    }catch(e:CancellationException){currentCoroutineContext().ensureActive();Trial(index,failure=e)}
                     // Policy cancellation while this child remains active is a
                     // completion too; the parent must not wait on a lost event.
                     replies.send(result)
                 }
             }
             try {
-                while(candidates.isNotEmpty()&&attempts.get()<3||running.isNotEmpty()) {
+                while(candidates.isNotEmpty()&&budget.get()<3||running.isNotEmpty()) {
                     currentCoroutineContext().ensureActive();current()
                     if(running.isEmpty()){start();continue}
-                    val canStart=candidates.isNotEmpty()&&running.size<3&&attempts.get()<3
+                    val canStart=candidates.isNotEmpty()&&running.size<3&&budget.get()<3
                     val remaining=((hedgeMs*1_000_000-(System.nanoTime()-started)+999_999)/1_000_000).coerceAtLeast(0)
                     val result=if(canStart)select<Trial?> {replies.onReceive {it};onTimeout(if(advance)0 else remaining){null}}else replies.receive()
                     if(result==null)start()else {
+                        if(result.waitingForEndpoint){if(result.index==latest)advance=true;continue}
                         running.remove(result.index)
                         result.failure?.let {if(it is CancellationException)throw it;failure=it}
                         // Retain the server-assisted HTML path when a cheap
