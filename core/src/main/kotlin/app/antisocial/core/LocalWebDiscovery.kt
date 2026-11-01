@@ -179,7 +179,7 @@ class LocalWebDiscovery(private val gateway:NetworkGateway,private val routes:Da
             HtmlAdmission.check(body)
             val page=Jsoup.parse(body,url,if(body.trimStart().startsWith("<?xml")||body.contains("<rss"))Parser.xmlParser()else Parser.htmlParser())
             if(frontend=="duckduckgo")return normalize(DuckDuckGoProtocol.page(page,DarwinRoutes.queryValue(URI(url),"q").orEmpty()).links.map {LocalWebHit(it.url,it.title)},url)
-            if(page.select("form[action*=challenge],#challenge-form,.anomaly-modal,input[name=captcha]").isNotEmpty()||
+            if(page.select("form[action*=challenge],#challenge-form,.anomaly-modal,input[name=captcha],script#anubis-main").isNotEmpty()||
                 Regex("verify (?:that )?you are human|unusual traffic|automated queries|bots use duckduckgo|challenge-form",RegexOption.IGNORE_CASE).containsMatchIn(page.text().take(12000)))
                 throw SourceFailure(HealthStatus.CHALLENGE,"The selected search source requested verification. Cached results remain available.")
             if(frontend=="4get")throw SourceFailure(HealthStatus.UNSUPPORTED,"This publisher index did not return its supported API representation")

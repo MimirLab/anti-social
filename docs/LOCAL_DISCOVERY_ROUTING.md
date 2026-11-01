@@ -305,6 +305,52 @@ Protocol references: [4get API](https://git.lolcat.ca/lolcat/4get/src/branch/mas
 This is a native protocol implementation; no external engine, scripting runtime,
 model, dependency, permission or service account is bundled.
 
+### Publisher availability and browser challenges (0.38.96)
+
+The publisher-link bank adds four qualified 4get hosts to the three retained
+ones: `search.yonderly.org`, `search.hacktivista.org`, `4get.circulars.dev` and
+`4get.lurx.net`. Candidates came from the
+[published directory](https://4get.ca/instances) and the hosts' own instance
+pages. They remain publisher-link sources, without acquiring native social-search
+or historical-feed capabilities.
+
+On November 1, eight candidate roots each received one Android Gateway/Tor read.
+Four returned ten links accepted by the production strict parser; three failed with
+HTTP 500, HTTP 403 or a refused origin-changing redirect. The remaining HTTP-200
+response was an Anubis browser challenge. Only the four productive candidates
+advanced. A second, separate query for an unrelated public institution passed
+through the native production protocol on each: ten links, including five for
+the selected institution or its calendar. Their post-readiness observations are
+5.902, 4.105, 2.963 and 3.207 seconds in the order listed above. Responses are
+cached outside public source and inspected without repeating the requests.
+
+These dated reads qualify particular link operations. They do not establish
+continued availability, separate operators or independent underlying indexes,
+nor measure a complete local deck or physical-phone latency distribution. Search
+snippets remain discovery hints; the publisher must supply factual records.
+The same three-attempt and three-reader limits, learned ordering, selected
+provider, Tor/session and origin rules apply. No background sweep, new protocol,
+runtime, model, dependency, permission or database migration is added.
+
+The challenge response also exposes a confirmed classification gap. Publisher
+search previously treated its HTTP-200 HTML as an unsupported representation,
+while the article/archive readers already recognize its Anubis script marker.
+A LibreY API could consequently retry the same gate as HTML; an unsupported
+4get response did not establish the normal endpoint-wide challenge pause.
+Publisher search now recognizes `script#anubis-main` before considering an HTML
+capability fallback. It neither runs the script nor makes another challenge
+request. Literal escaped markup or ordinary result text discussing Anubis stays
+readable. The [Anubis project](https://github.com/TecharoHQ/anubis) documents its
+browser-challenge role; no server code is bundled.
+
+Native controls fail on exact published 0.38.95 and pass on the candidate. Both
+protocol cases retain a usable peer, make no HTML retry, and preserve the original
+cooldown across the next query and platform copies. Skipping a paused endpoint
+does not train another failure or extend its wait. Existing expiry, refusal,
+cancellation, provider isolation and request-budget controls remain in force.
+See [release qualification](RELEASE_QUALIFICATION.md#03896-add-qualified-publisher-paths-and-recognize-browser-challenges)
+for the final regression and artifact gates.
+
 ### Publisher method diversity and unchanged cache work (0.38.51)
 
 The current bank retains `4get.canine.tools` and adds two endpoints from the

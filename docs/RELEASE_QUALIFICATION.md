@@ -9,6 +9,77 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.96: add qualified publisher paths and recognize browser challenges
+
+Publisher discovery adds four qualified hosts to the three retained 4get paths.
+The same investigation reproduces an HTTP-200 Anubis challenge being classified
+as an unsupported representation. A LibreY API can consequently retry that gate
+as HTML, while the 4get outcome fails to establish the normal endpoint-wide
+challenge pause. Publisher search now recognizes the Anubis script marker already
+used by article/archive readers. It preserves a usable peer, avoids that HTML
+retry and retains the existing cooldown across queries and platform copies.
+Plain results discussing the challenge software remain readable.
+
+The new hosts are `search.yonderly.org`, `search.hacktivista.org`,
+`4get.circulars.dev` and `4get.lurx.net`. They discover publisher links; snippets
+do not become business/event facts, native social search or chronological feeds.
+Selected providers, required Tor/session and origin checks, learned ordering,
+three attempts per query and three shared readers remain unchanged. No new
+protocol, dependency, model, permission, background poller or database migration
+is introduced. Version code is 205; application ID and signer remain compatible.
+See [routing and dated source observations](LOCAL_DISCOVERY_ROUTING.md#publisher-availability-and-browser-challenges-03896).
+
+Qualification on November 1, 2026 (UTC):
+
+- Eight candidates receive one bounded Android Gateway/Tor probe each. Four
+  responses yield ten links apiece through the production strict parser; three
+  fail with HTTP 500, HTTP 403 or a refused origin-changing redirect. The final
+  HTTP-200 response is the browser challenge. No failed candidate enters the bank.
+- Four separate enabled native production-protocol checks pass on the new hosts,
+  using a different query for an unrelated public institution. Each yields ten
+  links, with five identifying that institution or its calendar. These are dated
+  operation checks, not independent-operator/index or continued-uptime claims.
+- Cached actual responses are replayed through the production JVM parser. All
+  forty productive links are identical before/after; the challenge changes from
+  `UNSUPPORTED` to `CHALLENGE`, with no additional network requests.
+- Two new native controls fail by assertion on exact published **0.38.95** and
+  pass on the frozen candidate, using the same tester. Owned SOCKS exchanges
+  verify two requests for the first successful lookup, one for the next lookup,
+  no HTML retry, no repeated challenge request or renewed wait, and a usable
+  independent peer. The before-fix focused JVM run records **36 cases, 34 passes
+  and two failures**; both failed results are retained separately.
+- Full JVM suite: **2,803 cases, 2,799 passes, four optional skips, zero failures
+  or errors**. New cases cover challenge classification, ordinary result markup,
+  cross-query/provider pause scope and legitimate recovery after expiry.
+- Frozen API 35 selection: **343 named checks, 331 passes, twelve explicit skips,
+  zero failures**. Seven additional, non-overlapping native business/event
+  methods pass without skips. Their six required fresh deck frames are inspected:
+  structured, independent-protocol and default-provider cards remain readable,
+  including genuine pending/Ready states and delivery beside held slow work.
+  Fresh dark/light hybrid-caption and three-platform greeting frames are inspected.
+- Minimum API 26 selection: **110 named checks, 106 passes, four explicit skips,
+  zero failures**, plus all seven additional business/event methods without
+  skips. Fresh independent-protocol business/event frames are inspected.
+- The **896-original** late-source journey passes on both APIs: one final card,
+  three originals and three distinct pictures, earlier source credit, read marks
+  and the two-pixel anchor bound, with zero continuation reads. Both APIs'
+  cancellation phases touch one of 64 originals and make no obsolete commit.
+  Captured caption/source/save checks pass on both; a separate captured-reference
+  replay also passes on API 26. These are staged cached-source journeys.
+- Release/test assembly and lint pass: **zero lint errors, 179 warnings**.
+  Runtime/tester DEX inspection finds **47,312 / 8,122 definitions** and zero
+  project-class overlap. Eight public-fixture audit controls and four retention
+  scoring controls pass. Clean-source stamping, frozen-member equivalence,
+  signer/source correspondence, privacy review, recoverable preview backup and
+  full anonymous permanent-download verification are required publication gates.
+
+These checks preserve the named reading, media, cache, saved-record, route-budget
+and privacy behavior. Synthetic native decks establish staged presentation with
+owned publishers; live index reads establish useful links through the actual
+transport and parser. Neither supplies physical-phone p95, battery measurements
+or a complete live business/event-search latency distribution. Source captures,
+challenge payloads and reader state stay outside public source.
+
 ## 0.38.95: share compatible captions within complete collections
 
 A small three-edition excerpt already rendered a flowing hybrid caption, while

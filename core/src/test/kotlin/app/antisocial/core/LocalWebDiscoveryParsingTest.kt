@@ -24,6 +24,17 @@ class LocalWebDiscoveryParsingTest {
         assertEquals(HealthStatus.CHALLENGE,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse("<form id='challenge-form'>Verify you are human</form>",source)}.status)
         assertEquals(HealthStatus.LOGIN_REQUIRED,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse("<form><input type='password'></form>",source)}.status)
     }
+    @Test fun aProofOfWorkPageKeepsChallengeSemanticsWithoutExecutingItsScripts() {
+        val body="""<html><head><script id="anubis_challenge" type="application/json">{"rules":{"algorithm":"fast"}}</script></head><body><h1>Making sure you're not a bot!</h1><script id="anubis-main" type="module" src="/.within.website/x/cmd/anubis/static/js/main.mjs"></script></body></html>"""
+        for(frontend in listOf("librey","4get"))
+            assertEquals(frontend,HealthStatus.CHALLENGE,assertFailsWith<SourceFailure>{LocalWebDiscovery.parse(body,source,frontend)}.status)
+    }
+    @Test fun aPublishedResultCanDiscussChallengeMarkupWithoutBecomingAChallenge() {
+        val body="""<pre>&lt;script id="anubis-main"&gt;&lt;/script&gt;</pre><div class="text-result-wrapper"><a href="https://publisher.fixture.invalid/anubis"><h2>Making sure you're not a bot! Understanding Anubis</h2></a></div>"""
+        assertEquals("https://publisher.fixture.invalid/anubis",LocalWebDiscovery.parse(body,source).single().url)
+        val json="""{"status":"ok","web":[{"url":"https://publisher.fixture.invalid/anubis","title":"Anubis: Making sure you're not a bot!"}]}"""
+        assertEquals("https://publisher.fixture.invalid/anubis",LocalWebDiscovery.parse(json,source,"4get").single().url)
+    }
     @Test fun anOptionalLoginFormDoesNotHideAlreadyPublicPublisherLinks() {
         val body="""<form><input type="password"></form><div class="text-result-wrapper"><a href="https://publisher.fixture.invalid/calendar"><h2>Public workshop</h2></a></div>"""
         assertEquals(listOf(LocalWebHit("https://publisher.fixture.invalid/calendar","Public workshop")),LocalWebDiscovery.parse(body,source))

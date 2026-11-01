@@ -269,6 +269,28 @@ class LocalWebDiscoveryRoutingTest {
             assertEquals(1,f.requests.size)
         }
     }
+    @Test fun aProofOfWorkIndexWaitsAcrossQueriesWithoutTryingAnotherRepresentation():Unit=runBlocking {
+        val host="proof-of-work.fixture.invalid"
+        val gate="""<h1>Making sure you're not a bot!</h1><script id="anubis-main" type="module" src="/.within.website/x/cmd/anubis/static/js/main.mjs"></script>"""
+        for(fourget in listOf(false,true))Fixture(listOf(host),apis=if(fourget)emptySet()else setOf(host),fourget=if(fourget)setOf(host)else emptySet()).use {f->
+            f.respond={Reply(gate)}
+            assertEquals(HealthStatus.CHALLENGE,failure {f.engine.search("community workshop",SearchProvider.DARWIN,false)}.status)
+            val source=f.routes.publisherSearchSources.single()
+            val deadline=f.now+60_000
+            assertEquals(deadline,f.learning.eligibleAt(source,Capability.SEARCH,true))
+            assertFalse(f.learning.eligible(source.copy(platform=Platform.INSTAGRAM),Capability.SEARCH,true))
+            f.now+=1000
+            failure {f.engine.search("another workshop",SearchProvider.DARWIN,false)}
+            assertEquals(1,f.requests.size)
+            assertEquals(deadline,f.learning.eligibleAt(source,Capability.SEARCH,true))
+            assertEquals(1,f.learning.get(source,Capability.SEARCH,true)!!.samples)
+            f.now=deadline+1
+            f.respond={Reply(if(fourget)"""{"status":"ok","web":[{"url":"https://publisher.fixture.invalid/calendar","title":"Workshop"}]}"""else api())}
+            assertEquals(1,f.engine.search("community workshop",SearchProvider.DARWIN,false).size)
+            assertEquals(2,f.requests.size)
+            assertTrue(f.learning.eligible(source,Capability.SEARCH,true))
+        }
+    }
     @Test fun aHeldIndependentEndpointCannotMonopolizeAUsableAlternate():Unit=runBlocking {
         val hosts=listOf("independent.fixture.invalid","alternate.fixture.invalid")
         Fixture(hosts,fourget=setOf(hosts[0])).use {f->

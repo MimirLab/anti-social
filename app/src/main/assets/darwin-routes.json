@@ -841,6 +841,26 @@
       "frontend": "4get",
       "root": "https://4get.edmateo.site",
       "curated": true
+    },
+    {
+      "frontend": "4get",
+      "root": "https://search.yonderly.org",
+      "curated": true
+    },
+    {
+      "frontend": "4get",
+      "root": "https://search.hacktivista.org",
+      "curated": true
+    },
+    {
+      "frontend": "4get",
+      "root": "https://4get.circulars.dev",
+      "curated": true
+    },
+    {
+      "frontend": "4get",
+      "root": "https://4get.lurx.net",
+      "curated": true
     }
   ]
 }
