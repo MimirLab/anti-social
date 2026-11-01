@@ -95,7 +95,13 @@ import androidx.compose.ui.unit.TextUnit
         else fusion.segments.forEachIndexed {index,segment->
             if(!showDetails&&PostBodyDetails.split(segment.text,allowStandalone=!segment.shared&&substantiveShared).body.isBlank())return@forEachIndexed
             Column {
-                if(!segment.shared) {
+                // A heading and body from exactly the same originals keep one
+                // source label. A hidden field cannot consume that label.
+                val previous=fusion.segments.getOrNull(index-1)
+                val continuing=previous!=null&&!previous.shared&&segment.originalKeys.isNotEmpty()&&
+                    segment.originalKeys==previous.originalKeys&&segment.platforms==previous.platforms&&
+                    (showDetails||PostBodyDetails.split(previous.text,allowStandalone=substantiveShared).body.isNotBlank())
+                if(!segment.shared&&!continuing) {
                     val originals=roots.filter {CrossPosts.originalKey(it) in segment.originalKeys}
                     val platforms=segment.platforms.joinToString(" · "){it.label}
                     if(originals.isEmpty())Text(platforms,fontSize=11.sp,fontWeight=FontWeight.Medium,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(bottom=4.dp))
@@ -105,8 +111,11 @@ import androidx.compose.ui.unit.TextUnit
                     }
                 }
                 val segmentRoots=roots.filter {CrossPosts.originalKey(it) in segment.originalKeys}
-                val context=fusionMentionContext(segmentRoots,segment.text,repo)
-                PostBodyText(segment.text,repo,context?.platform,onOpen=onOpen,tag=if(segment.shared)"Fusion shared text"else "Fusion context $index",allowStandaloneDetails=!segment.shared&&substantiveShared,showDetails=showDetails,sourceUrl=context?.sourceUrl,networkAllowed=networkAllowed,explicitProfileLinks=context?.explicitProfileLinks.orEmpty())
+                if(!segment.weave.isNullOrEmpty())WovenPostText(PostFusion(listOf(segment),segment.weave),segmentRoots,repo,onOpen,networkAllowed)
+                else {
+                    val context=fusionMentionContext(segmentRoots,segment.text,repo)
+                    PostBodyText(segment.text,repo,context?.platform,onOpen=onOpen,tag=if(segment.shared)"Fusion shared text"else "Fusion context $index",allowStandaloneDetails=!segment.shared&&substantiveShared,showDetails=showDetails,sourceUrl=context?.sourceUrl,networkAllowed=networkAllowed,explicitProfileLinks=context?.explicitProfileLinks.orEmpty())
+                }
             }
         }
     }

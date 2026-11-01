@@ -1,8 +1,8 @@
 /* anti social, GPL-3.0-or-later. Presentation of independently admitted editions. */
 package app.antisocial.core
 
-/** A distinct source title must not make a repeated body appear twice. This
- * composes literal source fields after independent pair admission. Successful
+/** Shared bodies read once while distinct headings and prose stay attributed.
+ * This composes literal source fields after independent pair admission. Successful
  * presentation alone never supplies a pair match or saved-membership proof. */
 object CaptionFieldBlocks {
     private data class Part(val verbatim:Boolean,val text:String)
@@ -62,7 +62,42 @@ object CaptionFieldBlocks {
         return (bodyEdition(first) ?: return null)to(bodyEdition(second) ?: return null)
     }
     private data class Fields(val post:Post,val title:String,val body:String,val bodyPost:Post)
-    fun compose(posts:List<Post>):PostFusion? {
+    private data class BodyGroup(val sources:List<Fields>,val fusion:PostFusion?=null,val opaque:Boolean=false)
+    private fun sourcePath(runs:List<FusionRun>,key:String):String? {
+        val parts=mutableListOf<String>()
+        for(run in runs)parts+=run.variants.singleOrNull {key in it.originalKeys}?.text ?: return null
+        return parts.joinToString(" ")
+    }
+    /** Only the already-admitted reader opts into partial reference weaving.
+     * Nomination/representation checks keep the literal default. At most 32
+     * whole-group attempts run; unexamined bodies retain their literal blocks. */
+    private fun referenceGroups(groups:List<List<Fields>>,fields:List<Fields>):List<BodyGroup> {
+        val positions=fields.mapIndexed {index,field->CrossPosts.originalKey(field.post) to index}.toMap()
+        fun first(sources:List<Fields>)=sources.minOf {positions.getValue(CrossPosts.originalKey(it.post))}
+        fun opaque(sources:List<Fields>)=sources.any {PostLinks.urls(it.bodyPost.copy(links=null)).any(CrossPosts::opaqueLink)}
+        val out=mutableListOf<BodyGroup>();var attempts=0
+        for(sources in groups.sortedWith(compareByDescending<List<Fields>> {it.size}.thenBy(::first))) {
+            val incoming=opaque(sources);var joined=false
+            for(index in out.indices) {
+                if(!incoming&&!out[index].opaque)continue
+                if(attempts>=32)break
+                attempts++
+                val combined=(out[index].sources+sources).sortedBy {positions.getValue(CrossPosts.originalKey(it.post))}
+                // Fields have already applied source transport decoding. These
+                // temporary body-only copies must not decode it a second time.
+                val fusion=CaptionWeave.composeReferences(combined.map {it.bodyPost.copy(provenance=null)}) ?: continue
+                val runs=fusion.weave ?: continue
+                if(combined.any {source->
+                    val path=sourcePath(runs,CrossPosts.originalKey(source.post))
+                    path==null||projection(path)!=projection(source.body)
+                })continue
+                out[index]=BodyGroup(combined,fusion,incoming||out[index].opaque);joined=true;break
+            }
+            if(!joined)out+=BodyGroup(sources,opaque=incoming)
+        }
+        return out.sortedBy {first(it.sources)}
+    }
+    fun compose(posts:List<Post>,partialReferences:Boolean=false):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size||
             posts.any {it.preview||it.title.length.toLong()+it.body.length>4096})return null
         val fields=posts.sortedWith(compareBy<Post> {it.publishedAt ?: Long.MAX_VALUE}.thenBy(CrossPosts::originalKey)).map {post->
@@ -77,20 +112,32 @@ object CaptionFieldBlocks {
         } ?: BodyKey(null,projection(source.body,compact=false))}.values.flatMap {sources->
             if(sources.size>1&&CrossPosts.literalCaptionVersions(sources.map {it.bodyPost}))listOf(sources)
             else sources.groupBy {projection(it.body,compact=false)}.values
-        }
-        if(groups.none {it.size>1&&it.any {source->source.title.isNotBlank()}})return null
+        // A resolved link inventory can disable the formatting route for one
+        // edition while its peers still use it. Those are nomination buckets,
+        // not a reason to repeat literally equal bodies in an admitted card.
+        // Verbatim URL/identifier spans stay in the key; the complete per-source
+        // title/body projection below must still pass for every merged group.
+        }.groupBy {sources->projection(sources.first().body,compact=false)}.values.map {it.flatten()}
+        val bodies=if(partialReferences)referenceGroups(groups,fields)else groups.map {BodyGroup(it)}
+        if(bodies.none {it.sources.size>1})return null
         fun segment(text:String,sources:List<Fields>)=FusionSegment(text,sources.mapTo(linkedSetOf()){it.post.platform},
             sources.size==posts.size,sources.mapTo(linkedSetOf()){CrossPosts.originalKey(it.post)})
-        val segments=groups.flatMap {sources->
+        val segments=bodies.flatMap {group->
+            val sources=group.sources
             val titles=sources.filter {it.title.isNotBlank()}.groupBy {projection(it.title,compact=false)}.values
                 .map {segment(it.first().title,it)}
-            titles+segment(sources.first().body,sources)
+            val body=group.fusion?.let {fusion->segment(fusion.segments.single().text,sources).copy(weave=fusion.weave)}
+                ?: segment(sources.first().body,sources)
+            titles+body
         }
         // Keep each source's whole title/body relationship. A formatting
         // equivalence cannot silently discard a distinct URL, clause or title.
         for(source in fields) {
             val key=CrossPosts.originalKey(source.post)
-            val projected=segments.filter {key in it.originalKeys}.joinToString("\n\n"){it.text}
+            val parts=segments.filter {key in it.originalKeys}.map {segment->
+                segment.weave?.let {sourcePath(it,key) ?: return null} ?: segment.text
+            }
+            val projected=parts.joinToString("\n\n")
             if(projection(projected)!=projection(PostPresentation.content(source.post)))return null
         }
         return PostFusion(segments)

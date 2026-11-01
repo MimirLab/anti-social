@@ -24,11 +24,13 @@ internal fun orderedCollectedOriginals(posts: List<Post>): List<Post> {
 internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusion.composeCollectedEditions(posts)
     ?: CrossPostFusion.compose(posts)
     ?: CrossPostFusion.composeMedia(posts)
-    ?: CaptionFieldBlocks.compose(posts)
+    // A complete literal weave is preferable to sharing just an identical
+    // subset of bodies. Keep its inline source marks before the field fallback.
+    ?: CrossPostFusion.composeCollectedReferences(posts)
+    ?: CaptionFieldBlocks.compose(posts,partialReferences=true)
     ?: CrossPostFusion.composeRelated(posts)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}
     ?: CrossPostFusion.composeCollectedPrefixes(posts)
-    ?: CrossPostFusion.composeCollectedReferences(posts)
     ?: sourceCaptionBlocks(posts)
 
 /** Compression is optional after admission. A failed aligner must not choose a

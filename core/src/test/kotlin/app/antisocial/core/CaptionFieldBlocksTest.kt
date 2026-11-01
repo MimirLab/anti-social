@@ -9,6 +9,38 @@ class CaptionFieldBlocksTest {
     private val first=Post("100",Platform.X,"https://x.com/publicstudio/status/100","Public studio",body,"Workshop film",publishedAt=1_800_000_000_000)
     private val second=first.copy(id="200",platform=Platform.BLUESKY,canonicalUrl="https://bsky.app/profile/publicstudio.test/post/fixture",body=body.replace(" ",""),title="",publishedAt=first.publishedAt!!+1_000)
     private val other=first.copy(id="300",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/publicstudio/posts/300",body="See how the public workshop came together.",title="",publishedAt=first.publishedAt!!+2_000)
+    @Test fun aResolvedLinkInventoryCannotSplitIdenticalLongBodiesInsideAWiderCollection() {
+        val caption="Last month, the repair team opened Example.org, a workshop built around visitors. " +
+            "It respects their time. Gives clear instructions. And helps everyone repair their belongings. " +
+            "See the complete workshop tour and meet the people who made it possible."
+        val x=first.copy(body=caption,title="Workshop tour",links=listOf("https://example.org/"))
+        val fb=other.copy(body=caption,title="",links=emptyList())
+        val instagram=second.copy(platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/workshop/",body=caption.replace(". Gives",".\n\nGives"),title="",links=emptyList())
+        val commentary=(1..4).map {i->first.copy(id="extra$i",canonicalUrl="https://x.com/publicstudio/status/${400+i}",
+            title="Tour response $i",body="An independently worded response from workshop partner $i.",publishedAt=first.publishedAt!!+i*10_000)}
+        val originals=listOf(x,fb,instagram)+commentary
+        val fusion=requireNotNull(CaptionFieldBlocks.compose(originals))
+        assertEquals(1,fusion.segments.count {it.text.startsWith("Last month,")})
+        val shared=fusion.segments.single {it.text.startsWith("Last month,")}
+        assertEquals(setOf(x,fb,instagram).mapTo(linkedSetOf(),CrossPosts::originalKey),shared.originalKeys)
+        for(post in originals) {
+            val projected=fusion.segments.filter {CrossPosts.originalKey(post)in it.originalKeys}.joinToString("\n\n"){it.text}
+            assertEquals(PostPresentation.content(post).filterNot(Char::isWhitespace),projected.filterNot(Char::isWhitespace))
+        }
+        assertEquals(fusion,CaptionFieldBlocks.compose(originals.reversed()))
+        assertEquals(listOf("https://example.org/"),x.links)
+    }
+    @Test fun anIdenticalLongBodyDoesNotNeedASuppliedHeadingToShareItsPassage() {
+        val caption="The workshop team welcomes every visitor with clear directions for safely repairing household equipment. " +
+            "Experienced volunteers explain the tools, inspect the repair and help beginners learn practical skills."
+        val x=first.copy(title="",body=caption,links=listOf("https://example.org/workshop"))
+        val b=second.copy(title="",body=caption,links=emptyList())
+        val posts=listOf(x,b,other)
+        val fusion=requireNotNull(CaptionFieldBlocks.compose(posts))
+        assertEquals(1,fusion.segments.count {it.text==caption})
+        assertEquals(setOf(CrossPosts.originalKey(x),CrossPosts.originalKey(b)),fusion.segments.single {it.text==caption}.originalKeys)
+        assertEquals(PostPresentation.content(other),fusion.segments.single {CrossPosts.originalKey(other)in it.originalKeys}.text)
+    }
     @Test fun aSourceTitleStaysAttributedWhileItsSharedBodyIsReadOnce() {
         val posts=listOf(first,second,other);val fusion=CaptionFieldBlocks.compose(posts)!!
         assertEquals(listOf("Workshop film",body,other.body),fusion.segments.map {it.text})

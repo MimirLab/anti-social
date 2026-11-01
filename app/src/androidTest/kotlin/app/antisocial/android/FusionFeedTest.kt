@@ -7,9 +7,17 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
@@ -1194,6 +1202,68 @@ class FusionFeedTest {
         revealCombinedControl(save);ui.onNode(save).performClick()
         ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
         assertCapturedSources(listOf(x,fb,instagram),runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+    }
+
+    @Test fun aWiderCollectionReadsItsIdenticalLongBodiesOnceDespiteDifferentLinkInventories() {
+        val (baseX,baseInstagram)=pair()
+        val caption="Last month, the repair team opened Example.org, a workshop built around visitors. " +
+            "It respects their time. Gives clear instructions. And helps everyone repair their belongings. " +
+            "See the complete workshop tour and meet the people who made it possible."
+        val x=baseX.copy(title="Workshop tour",body=caption,links=listOf("https://example.org/"))
+        val instagram=baseInstagram.copy(title="",body=caption,links=emptyList())
+        val facebook=x.copy(id="fb-wide-$suffix",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/987${suffix}",title="",body=caption.replace(". Gives",".\n\nGives"),links=emptyList())
+        val secondFacebook=facebook.copy(id="fb-wide-other-$suffix",canonicalUrl=facebook.canonicalUrl+"1",title=caption.take(80)+"...")
+        val responses=(1..4).map {i->x.copy(id="response-$i-$suffix",canonicalUrl="https://x.com/$handle/status/999${suffix}$i",title="Response $i",body="An independently worded response from workshop partner $i.",links=emptyList())}
+        val originals=listOf(x,instagram,facebook,secondFacebook)+responses
+        for(mode in 0..2) {
+            val headings=mode!=1
+            val sources=when(mode) {
+                1->originals.map {it.copy(title="")}
+                2->originals.map {if(it==x)it.copy(body=it.body.replace("Example.org","https://t.co/Fixture91")+" https://t.co/More72")else it}
+                else->originals
+            }
+            val before=sources.map(repo.gson::toJson)
+            val plan=collectionPlan(sources)
+            val fusion=requireNotNull(plan.fusion)
+            assertEquals(1,fusion.segments.count {it.text.startsWith("Last month,")})
+            assertEquals(sources,plan.originals)
+            ui.runOnIdle {ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()) {
+                Surface(Modifier.fillMaxSize()) {
+                    Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState())) {
+                        FusedPostText(fusion,roots=sources,networkAllowed=false)
+                    }
+                }
+            }}}
+            ui.onAllNodesWithText("Last month,",substring=true).assertCountEquals(1)
+            ui.onNodeWithText("Last month,",substring=true).performScrollTo()
+            ui.runOnIdle {
+                assertTrue(ui.activity.hasWindowFocus())
+                assertTrue(ui.activity.getSystemService(android.os.PowerManager::class.java).isInteractive)
+                assertFalse(ui.activity.getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked)
+            }
+            evidence("wide-collection-one-common-long-caption"+when(mode){1->"-without-headings";2->"-reference-variants";else->""})
+            fun words(node:androidx.compose.ui.semantics.SemanticsNode):List<String> {
+                val own=node.config.getOrNull(SemanticsProperties.Text).orEmpty().map {it.text}
+                return own.ifEmpty {node.children.flatMap(::words)}
+            }
+            val spaces=Regex("[\\s\\p{Z}]+")
+            fun compact(value:String)=spaces.replace(value," ").trim()
+            val shown=compact(words(ui.onNodeWithTag("Fused post text",useUnmergedTree=true).fetchSemanticsNode()).joinToString(" "))
+            val common=listOf("Last month, the repair team opened","It respects their time. Gives clear instructions. And helps everyone repair their belongings.")
+            for(passage in common+responses.map {it.body})
+                assertEquals("Every common or distinct passage is read once",1,Regex(Regex.escape(compact(passage))).findAll(shown).count())
+            if(mode==2) {
+                assertTrue(shown.contains("Example.org"));assertTrue(shown.contains("https://t.co/Fixture91"));assertTrue(shown.contains("https://t.co/More72"))
+                ui.onNodeWithTag("Fusion woven text").assertExists()
+            }
+            if(headings)responses.forEach {response->
+                val heading=fusion.segments.indexOfFirst {it.text==response.title}
+                val body=fusion.segments.indexOfFirst {it.text==response.body}
+                ui.onNodeWithTag("Fusion authors $heading").assertExists()
+                ui.onNodeWithTag("Fusion authors $body").assertDoesNotExist()
+            }
+            assertEquals(before,sources.map(repo.gson::toJson))
+        }
     }
 
     @Test fun inlineReferenceAlternativesShareTheCaptionPictureAndEverySavedSource() {

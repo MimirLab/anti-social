@@ -1,5 +1,48 @@
 # Attachment collections
 
+## Shared text inside larger collections (0.38.95)
+
+A complete collection can contain several equivalent captions alongside other
+source commentary. Qualifying a three-edition excerpt does not establish that
+the complete card presents that excerpt well. A retained eight-original case
+exposes repeated long bodies after the smaller excerpt already renders correctly.
+
+One cause is a split between formatting nominations: a resolved link inventory
+can disable that route for one source while its peers still use it. Literal
+body groups now converge across those nomination buckets. A supplied heading is
+not required to share an identical body. Every original's complete heading/body
+path must still reconstruct, including its protected URL, identifier and code
+spelling. Distinct headings and commentary retain their source association.
+
+Complete literal-reference weaves precede the field fallback, preserving the
+existing flowing caption and inline platform marks. If unrelated commentary
+prevents a whole-card weave, the already-admitted reader can also weave a
+compatible body component. Each tentative component must reconstruct every
+source body before the complete heading/body proof runs again. Its variants keep
+their original-post keys; an inline mark opens the corresponding source within
+that component. It does not infer the destination behind a shortened link.
+
+Partial-reference work is limited to 32 whole-group attempts within the existing
+64-original, bounded-field and 256-word weave limits. Larger literal groups get
+priority. An unexamined or unsupported body retains its faithful source block.
+Changed claims and projections altered by entity decoding cannot silently become
+word choices. This is local presentation work, retained with the adopted caption;
+it adds no network request, model, dependency, permission or database schema.
+
+Pair nominations, ownership, timing and media proofs remain independent. The
+existing representation gate can now retain otherwise-qualified groups whose
+literal bodies are presentable. That gate keeps the literal composer default;
+only the already-admitted reader opts into partial reference alignment. Text
+compression supplies no new account, image or recording identity evidence.
+
+Consecutive heading/body fields from exactly the same nonempty original-key and
+platform sets share one visible source label. A hidden field cannot consume that
+label. Source changes still receive attribution. Original records, attachments,
+discussion roots and saved source paths remain in the shared collection plan.
+See the [release qualification](RELEASE_QUALIFICATION.md#03895-share-compatible-captions-within-complete-collections)
+for the full-context counterexample, rejected intermediate presentation and
+dated native inspection.
+
 ## Literal account-reference alternatives (0.38.89)
 
 An already combined card could repeat a short connecting phrase between two

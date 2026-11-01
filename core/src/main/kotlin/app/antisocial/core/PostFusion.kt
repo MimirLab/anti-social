@@ -4,7 +4,8 @@ package app.antisocial.core
 import java.util.Locale
 import java.text.Normalizer
 
-data class FusionSegment(val text: String,val platforms: Set<Platform>,val shared: Boolean,val originalKeys: Set<String> = emptySet())
+data class FusionSegment(val text: String,val platforms: Set<Platform>,val shared: Boolean,val originalKeys: Set<String> = emptySet(),
+    val weave:List<FusionRun>?=null)
 data class FusionVariant(val text:String,val platforms:Set<Platform>,val originalKeys:Set<String>,val displayText:String?=null) {
     /** Source reconstruction keeps text; link inventories keep references. */
     val visibleText get()=displayText ?: text

@@ -9,6 +9,91 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.95: share compatible captions within complete collections
+
+A small three-edition excerpt already rendered a flowing hybrid caption, while
+the corresponding eight-original collection repeated its shared paragraph. The
+larger card also contained distinct commentary, so complete-caption alignment
+fell through. Its field fallback split identical bodies when frontends supplied
+different link inventories. A native control against the exact published 0.38.94
+APK reproduces two common paragraphs where the new wide-card check requires one.
+
+Literal body groups now converge across those formatting buckets, including
+captions without a separate heading. The complete reference weave precedes the
+field fallback, retaining the existing inline platform marks. Within an already
+admitted larger collection, compatible reference variants can also share a body
+component. Each component must reconstruct every source body; the whole field
+composition must reconstruct every original heading/body path. Work stops after
+32 whole-group attempts, preserving complete literal blocks for unexamined or
+unsupported variants. Repeated adjacent source labels are suppressed only for
+the same nonempty original-key and platform sets. See
+[the presentation contract](ATTACHMENT_COLLECTIONS.md#shared-text-inside-larger-collections-03895).
+
+Pair nominations and account, clock and media evidence remain independent. The
+existing representation gate keeps the literal composer default; only the
+already-admitted reader requests partial reference weaving. Pictures, recordings,
+source links and discussions retain the existing collection plan. No network
+request, model, dependency, permission or database migration is added. Version
+code is 204; application ID and signing identity remain compatible.
+
+Qualification on November 1, 2026 (UTC):
+
+- Full JVM suite: **2,800 cases, 2,796 passes, four optional skips, zero failures
+  or errors**. New controls cover differing link inventories, headingless bodies,
+  partial references, changed claims, literal entity spelling, immutable inputs,
+  reversed input order and all 64 originals under the compression allowance.
+- Frozen API 35 selection: **341 named checks, 329 passes, twelve explicit skips,
+  zero failures**. It includes the previous routing, cancellation, media,
+  read-position and protected-save controls. Three focused caption methods also
+  pass separately, including the new eight-original fixture in headed,
+  headingless and shortened-reference modes. Fresh dark/light frames are inspected.
+- Twelve private packets pass **24 announcement-family replays / 81 source-edition
+  instances**, preserving one card, common passages once, distinct attachments
+  and saved originals. Separate captured caption/reference and three-edition
+  greeting checks pass with their original-source and save assertions. The
+  greeting fixture contains no cached footage and supplies no footage proof.
+- A complete retained-reader clone is restored and checked in the normal native
+  app, including its cached source/media context. The actual eight-original
+  **Ready** card shows its common paragraph once and all four distinct
+  commentaries with attribution. The actual greeting appears as one three-platform
+  card with two selectable recording editions. Some captured cards still show
+  background updates; this inspection does not claim every publisher finished.
+- Saving the eight-original card through the native bookmark control retains all
+  eight source identities and captions. Read-only production recomposition of
+  that saved collection still presents its common paragraph once. This clone
+  initially has no saved rows; nonempty protected-record retention is covered
+  separately by the native Library regression controls.
+- Minimum API 26 selection: **108 named checks, 104 passes, four explicit skips,
+  zero failures**, including the new wide-caption control. Captured caption and
+  reference cases pass separately on both APIs. The **896-original** late-source
+  journey also passes on both: one final card, three originals and three distinct
+  pictures, earlier source credit, read marks and the two-pixel anchor bound,
+  with zero continuation reads. Both APIs' cancellation phases touch only one
+  of 64 originals and make no obsolete commit.
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Runtime/tester DEX inspection finds **47,312 / 8,114 definitions** and zero
+  project-class overlap. Eight public-fixture audit controls and four retention
+  scoring controls pass. Clean-source stamping, frozen-member identity,
+  compatible signer, corresponding source, privacy review, recoverable preview
+  backup and full anonymous permanent-download verification remain release gates.
+
+Rejected intermediate results remain in the private engineering record. An early
+field fallback preempts the established complete reference weave; its unchanged
+native inline-reference control fails. Moving the complete weave earlier repairs
+that regression. A later prototype passes the three focused methods but still
+repeats the shared paragraph when the full captured collection contains an actual
+alternate frontend edition. The bounded component alignment addresses that larger
+counterexample. No failing prototype is promoted or published.
+
+Test setup corrections include a whitespace-only assertion mismatch, an internal
+test-helper compilation error, an unpainted standalone test surface and a focus
+probe using a command that omits the required fields. Corrected runs regenerate
+the frames and verify app focus. A stripped packet without the complete cached
+media context is not reported as a whole-reader grouping reproduction. These
+checks establish the named composition, presentation and save behavior, without
+claiming new live acquisition, recording identity or physical-phone p95/energy
+measurements.
+
 ## 0.38.94: keep advisory health writes out of route delivery
 
 Repository's source-health callback no longer waits for an advisory Room write
