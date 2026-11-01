@@ -151,7 +151,12 @@ data class PostCacheRow(val key: String,val bytes: Long,val createdAt: Long,val 
     @Query("SELECT d.* FROM local_documents d WHERE d.entryKey=d.ownerKey AND ((:includeSaved AND d.kind='saved') OR (:includeHistory AND d.kind='history')) AND (:collectionId IS NULL OR (d.kind='saved' AND EXISTS (SELECT 1 FROM saved_collections c WHERE c.ownerKey=d.ownerKey AND c.collectionId=:collectionId))) ORDER BY d.sortAt DESC,d.ownerKey,d.entryKey LIMIT MIN(200,MAX(0,:limit))")
     fun browseDocuments(includeSaved: Boolean=true,includeHistory: Boolean=false,collectionId: String?=null,limit: Int=200): Flow<List<LocalDocumentRow>>
     @Query("SELECT * FROM health") suspend fun allHealth(): List<HealthRow>
+    @Query("SELECT * FROM health WHERE `key`=:key") suspend fun health(key: String): HealthRow?
     @Upsert suspend fun putHealth(row: HealthRow)
+    /** Queued advisory writes cannot replace a newer completed observation. */
+    @Transaction suspend fun putCurrentHealth(row: HealthRow) {
+        if(health(row.key)?.let {it.checkedAt>row.checkedAt}!=true)putHealth(row)
+    }
     @Query("SELECT * FROM media_cache") suspend fun allMedia(): List<MediaRow>
     @Query("SELECT COALESCE(SUM(bytes),0) FROM media_cache WHERE saved=:saved") suspend fun mediaBytes(saved: Boolean): Long
     @Query("SELECT * FROM media_cache WHERE `key`=:key") suspend fun media(key: String): MediaRow?

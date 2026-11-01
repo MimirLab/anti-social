@@ -125,7 +125,10 @@ class Repository(val context: Context) {
         if(BuildConfig.EXPERIMENTAL_PUBLIC_READ&&android.os.Process.is64Bit())installPublicReadFactory(NativePublicReadFactory())
     }
     val tor=TorController(context,gateway,scope)
-    val pool=SourcePool(gateway,routes,PublicPathways(assetJson("public-pathways.json"))) {r->dao.putHealth(HealthRow("${r.source.key}|${r.capability}|${r.tor}",gson.toJson(r),r.checkedAt))}
+    private val probeCacheWrites=ProbeCacheWriter(scope) {r->
+        dao.putCurrentHealth(HealthRow("${r.source.key}|${r.capability}|${r.tor}",gson.toJson(r),r.checkedAt))
+    }
+    val pool=SourcePool(gateway,routes,PublicPathways(assetJson("public-pathways.json"))) {r->probeCacheWrites.offer(r);Unit}
     internal val localPlaces by lazy {LocalPlaceDirectory(gateway,{localDiscovery.cache(it)},{key,value,ttl->localDiscovery.cache(key,value,ttl)})}
     internal val localWeb by lazy {LocalWebDiscovery(gateway,routes,pool.learning,onLearning={pool.onLearning(it)})}
     internal var directLoader: suspend (Target,(String)->Unit)->Page = {target,progress->pool.load(target,originalFallback=prefs.originalFallback,progress=progress)}

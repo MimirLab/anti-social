@@ -9,6 +9,75 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.94: keep advisory health writes out of route delivery
+
+Repository's source-health callback no longer waits for an advisory Room write
+before returning extracted content. A native counterexample against the exact
+published 0.38.93 APK holds an unrelated database transaction: one source already
+has healthy extracted content, but the three-second delivery assertion fails
+and a second source is requested. This establishes a local bookkeeping dependency,
+not a live-provider latency measurement.
+
+The callback now offers immutable probe metadata to one bounded application-owned
+writer. In-memory health, delivery learning and retry pauses still update before
+the callback. At most 128 distinct pending keys plus one active write are retained;
+keys separate source, capability and transport. Updates coalesce, oversized entries
+are declined and overflow discards ordinary cache work. A transactional date check
+prevents an older queued row replacing a newer stored observation. Failed writes
+stay advisory, without a retry timer. No parser, request allowance, hedge interval,
+selected provider, Tor rule, source tier, permission, dependency or database schema
+changes. Saved records keep their existing persistence paths. Version code is 203;
+application ID and signing identity remain compatible. See
+[the persistence contract](ROUTE_SCHEDULING.md#advisory-health-persistence-03894).
+
+Qualification on November 1, 2026 (UTC):
+
+- Full JVM suite: **2,794 cases, 2,790 passes, four optional skips, zero failures
+  or errors**. Six new queue controls cover coalescing, operation/transport scope,
+  bounded overflow, write failure and retry, cancellation and oversized metadata.
+- Frozen API 35 selection: **340 named checks, 328 passes, twelve explicit skips,
+  zero failures**. It includes all eight routing and six heartbeat methods,
+  current-source/media admission, privacy, caption/source conservation, saved
+  records, lifecycle release and cancellation.
+- Minimum API 26 selection: **107 named checks, 103 passes, four explicit skips,
+  zero failures**. The real Repository callback returns while the unrelated
+  transaction remains held on both APIs, with one request and no backup. Its row
+  commits after release. Controlled checkpoint times are **15 / 21 ms** on API
+  35 / 26; these establish no physical-phone, complete-card or p95 speed claim.
+  Both APIs also confirm immediate HTTP-refusal admission, a second read avoiding
+  the paused source, eventual persistence and rejection of an older queued observation.
+- An additional **19 existing native checks per API** pass with zero skips or
+  failures. They cover manual cache purge/refill, automatic expiry, incomplete
+  catch-up, partial publication and cancellation, atomic rollback with saved
+  material, failed/corrupt image recovery and protected offline bytes.
+- Twelve private packets pass **24 announcement-family replays / 81 source-edition
+  instances**, preserving one card, common passages once, distinct attachments
+  and saved originals. Captured hybrid-caption/reference cases pass on both APIs;
+  the three-source greeting remains one card with its two recordings retained.
+  Actual native dark/light captions and distinct-picture frames are inspected.
+- The **896-original** late-source journey passes on both APIs: one final card,
+  three originals and three distinct pictures, prior source credit, read marks,
+  the two-pixel anchor bound and zero continuation reads. Both cancellation
+  phases stop after one of 64 originals without an obsolete commit.
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Runtime/tester DEX inspection finds **47,308 / 8,109 definitions** and zero
+  project-class overlap. Eight public-fixture audit controls and four retention
+  scoring controls pass. Public source review, clean-source stamping, frozen-member
+  identity, compatible signer, corresponding source, recoverable preview backup
+  and full anonymous permanent-download verification remain publication gates.
+
+An initial unshipped queue prototype has **30 passes and one failure** across
+31 focused JVM checks. The failure finds an offer briefly accepted under an
+already-cancelled owner before the worker's completion callback runs. Immediate
+worker-state admission fixes that race; the failed result is retained separately
+from the final passing runs. No failing prototype is promoted or published.
+
+One auxiliary retention-check invocation uses a module entry point that cannot
+resolve its sibling import, so it runs no scoring controls. The direct script
+entry point then passes all four controls without a source change. Both logs
+remain in the private engineering record; the setup error is not counted as a
+passing check or an application regression.
+
 ## 0.38.93: retain prepared facts across warm source windows
 
 When a later platform edition changes a source window, the previous matcher can

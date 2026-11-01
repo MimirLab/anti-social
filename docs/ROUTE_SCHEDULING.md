@@ -98,3 +98,56 @@ cover initial search, directory and continuation admission with all outbound
 destinations denied by the fixture filter. Native checks use owned loopback
 sources and simulated readiness; they do not establish working live Tor exits
 or public-provider latency.
+
+## Advisory health persistence, 0.38.94
+
+The application's probe-cache callback previously awaited a Room health-row
+write before returning to route selection. A native counterexample against the
+exact published 0.38.93 APK holds an unrelated reader-database transaction,
+then supplies complete content from a loopback source. The source is already
+recorded as healthy in memory, but delivery times out at the fixture's three-second
+assertion and another route is requested. This is a reproduced local wait, not a
+claim that the publisher was slow. Room's
+[transaction contract](https://developer.android.com/reference/androidx/room/Transaction)
+explains why additional writes wait behind an active transaction.
+
+Repository's callback now offers the observation to one bounded
+[probe-cache writer](../core/src/main/kotlin/app/antisocial/core/ProbeCacheWriter.kt).
+SourcePool still updates in-memory health, delivery learning and retry admission
+before invoking that callback. The existing routing-file checkpoint receives its
+signal without awaiting Room. Foreground delivery does not serialize the health
+row or wait for its disk write. SourcePool's callback API remains unchanged;
+another embedding that supplies a blocking callback has its own behavior.
+
+The writer retains at most **128 pending keys and one active write**. Its key
+includes source, capability and transport. Repeated observations coalesce; an
+older pending observation cannot replace a newer one. Entries with an oversized
+source root, frontend name or diagnostic are declined. A conflated channel carries
+only the wake signal, not the observations themselves; the pinned library's
+[channel contract](https://raw.githubusercontent.com/Kotlin/kotlinx.coroutines/1.10.2/kotlinx-coroutines-core/common/src/channels/Channel.kt)
+does not provide an unbounded work queue. Under overflow, the oldest pending
+cache key is discarded. Current source health and retry deadlines are unaffected.
+
+The single IO worker writes advisory rows through a Room transaction which rejects
+an observation older than the row already stored. A failed cache write is dropped;
+a later observation can retry. It cannot reclassify the publisher as unavailable,
+and there is no retry timer or polling loop. Cancelling the owning application
+scope clears pending work; a writer constructed under an already-stopped scope
+refuses offers immediately. A completed read's metadata may finish after its
+caller leaves, but the writer performs no networking or content acquisition.
+
+This changes no source parser, request allowance, hedge interval, selected
+provider, original-access tier, Tor enforcement, permission or database schema.
+Saved posts, subscriptions, content revisions and explicit downloads retain their
+existing persistence paths. This correction does not promise that their required
+database operations never wait.
+
+[Queue regressions](../core/src/test/kotlin/app/antisocial/core/ProbeCacheWriterTest.kt)
+cover coalescing, transport/operation separation, bounded overflow, failed writes,
+cancellation and oversized metadata. The native
+[routing checks](../app/src/androidTest/kotlin/app/antisocial/android/RouteSchedulingTest.kt)
+use the actual Repository callback and Room transaction: a usable source returns
+before release without an extra hedge, older queued rows cannot replace newer
+ones, and an HTTP refusal still pauses its source while persistence is blocked.
+These controlled loopback assertions do not measure physical-phone latency,
+live-provider performance, battery use or the complete first-card distribution.

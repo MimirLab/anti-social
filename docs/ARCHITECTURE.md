@@ -166,6 +166,13 @@ remain behind alternatives and require the original-access setting. Matching
 archive recovery has its own historical role. A source switch never silently
 changes Tor or the selected public search provider.
 
+Current health and retry admission update before the application's advisory
+health-cache checkpoint. Its bounded writer coalesces ordinary metadata so a
+busy reader database cannot hold route selection or trigger extra hedges merely
+to save that checkpoint. Content and saved-record persistence retain their
+existing contracts. See [health persistence](ROUTE_SCHEDULING.md#advisory-health-persistence-03894)
+for the native counterexample, queue bounds, failure behavior and scope.
+
 A reachable homepage, login wall, unrelated profile or empty shell is not working
 content. An undated preview cannot certify a feed refresh. Source identity,
 ownership of cursors, extraction coverage and canonical original links survive
