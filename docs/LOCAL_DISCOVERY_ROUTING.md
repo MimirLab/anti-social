@@ -9,6 +9,39 @@ The [local opportunities extension](LOCAL_OPPORTUNITIES.md) adds geographically
 gated publishers, LiveWhale/SpaceAPI/Linked Events readers, offered calendar exports
 and bounded address resolution while keeping this staged delivery model.
 
+## Downloaded publisher documents (0.38.100)
+
+Publisher-index results and the documents reached from those results have
+separate format checks. The downloaded-document reader now recognizes one initial
+UTF-8 encoding marker before its existing leading-whitespace check. Generic
+SpaceAPI objects, HTML with a generic media type, and calendar exports can reach
+their existing parsers. The acquired document and characters inside values remain
+unchanged. The calendar reader separately tolerates one initial marker, after
+checking the original document's size; occurrence, timezone, recurrence and field
+extraction retain their existing rules. Repeated markers do not become a calendar.
+
+The [Encoding Standard](https://encoding.spec.whatwg.org/#bom-sniff) describes
+initial encoding signatures; this change does not introduce general charset
+sniffing or rewrite the Gateway's retained response. The JSON interoperability
+rule is described below. Calendar marker tolerance is an interoperability measure
+around the existing [iCalendar content grammar](https://www.rfc-editor.org/rfc/rfc5545#section-3.1).
+
+Owned native response exchanges reproduce missing business/event cards on the
+exact published 0.38.99 APK. Ordinary documents display correctly; adding only the
+marker makes four controls lose their cards. The prototype displays all seven
+ordinary/marked cases. These exercise actual Gateway decoding, the actual
+publisher reader and native Search cards, while replacing only the final exchange
+for a synthetic publisher. They establish a response-admission correction, not a
+live publisher incident or a phone speed measurement. The frozen API 35 and
+minimum API 26 selections also pass their business/event, cancellation and
+captured-source checks. See the dated
+[release qualification](RELEASE_QUALIFICATION.md#038100-retain-readable-downloaded-publisher-documents)
+for the counts and limits of that evidence.
+
+No source, request type, dependency, model, permission or persistence is added.
+Existing transport, purpose, locality, structural admission, source waits and
+request/concurrency allowances remain in force.
+
 ## Publisher response classification (0.38.99)
 
 A readable publisher-index API response can begin with one UTF-8 byte order

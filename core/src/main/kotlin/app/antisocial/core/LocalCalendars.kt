@@ -13,8 +13,11 @@ import org.jsoup.Jsoup
 object LocalCalendars {
     fun parse(body:String,url:String,at:Long,area:LocalArea,business:LocalBusiness?=null):LocalExtraction {
         require(body.length<=LocalStructuredData.MAX_DOCUMENT)
-        require(Regex("(?im)^BEGIN:VCALENDAR\\s*$").containsMatchIn(body)){"This source did not return a calendar"}
-        val reader=ICalReader(body)
+        // Some offered exports retain one UTF-8 encoding marker. It is not a
+        // content line; leave the source and every property value intact.
+        val content=body.removePrefix("\uFEFF")
+        require(Regex("(?im)^BEGIN:VCALENDAR\\s*$").containsMatchIn(content)){"This source did not return a calendar"}
+        val reader=ICalReader(content)
         val fallback=TimeZone.getTimeZone(area.zoneId ?: "UTC")
         reader.defaultTimezone=fallback
         // Only the operating system's timezone database and embedded VTIMEZONE

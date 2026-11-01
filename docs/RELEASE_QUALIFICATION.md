@@ -9,6 +9,73 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.100: retain readable downloaded publisher documents
+
+The downloaded publisher's format check is separate from the index-response
+check repaired in 0.38.99. A leading UTF-8 encoding marker can hide generic
+SpaceAPI or HTML content from that check; the calendar reader can also reject
+an otherwise readable marked export. The reader recognizes one initial marker
+without changing acquired text or property values, and preserves the existing
+parser, source, privacy and resource bounds. See
+[the document handoff](LOCAL_DISCOVERY_ROUTING.md#downloaded-publisher-documents-038100).
+Version code is 209; application ID and signing compatibility are unchanged.
+
+Investigation on November 1, 2026 (UTC):
+
+- On the exact published 0.38.99 APK, a fixed tester with zero application-project
+  class overlap reports **seven named native cases: three ordinary-document passes
+  and four expected marked-document failures, zero skips**. Per-read receipts
+  distinguish unsupported HTML, empty JSON-LD extraction and invalid calendar
+  extraction. All seven native frames are inspected.
+- The prototype passes **all seven native cases, zero failures or skips** with
+  that same tester. All seven fresh prototype frames are inspected; both business
+  and event cards are visible. Some legitimate enrichment remains in progress.
+  Reinstalling the baseline reproduces the same three passes/four failures;
+  reinstalling the prototype passes all seven again. All **28 final comparison
+  frames** are inspected. Both comparison orders use identical tester bytes.
+- The focused calendar JVM baseline has **three cases, two passes and one
+  expected failure**. After correction, **61 focused calendar/discovery/business
+  checks pass without skips**. Exact occurrence/field equivalence, an interior
+  marker, repeated markers and the original size allowance are covered.
+- Earlier fixture revisions are retained separately. One incorrectly
+  delegated streaming search and threw an unchecked exception for an unexpected
+  exchange; another still delegated the independent name-directory lane. These
+  are not the final owned-traffic qualification or performance evidence.
+
+Final candidate qualification on November 1, 2026 (UTC):
+
+- Full JVM suite: **2,830 cases, 2,826 passes, four optional skips, zero failures
+  or errors**.
+- Frozen API 35 selection: **365 named checks, 353 passes, twelve explicit skips,
+  zero failures**. Minimum API 26 selection: **132 named checks, 128 passes, four
+  explicit skips, zero failures**. Both include all seven new publisher-document
+  methods. Ten additional, non-overlapping publisher/deck methods pass on each
+  API. All **64 fresh required native frames** are inspected: 36 deck, fourteen
+  publisher-document, eight index-marker and six hybrid-caption/greeting frames.
+- Both APIs' captured **896-original** late-source journeys retain one final card,
+  three originals and three distinct pictures, earlier media attribution, read
+  marks and the two-pixel anchor bound, with zero continuation reads. Captured
+  monthly-caption journeys retain one common passage, every original and saved
+  source. The captured API 26 account-reference journey passes its passage,
+  source and save checks. The actual native target frames are inspected. These
+  checks do not assert that every publisher has finished or measure live acquisition.
+- Both APIs' cancellation phases touch one of 64 sources in each stopped phase
+  and make no obsolete commit. Existing transport, source-refusal, contention,
+  lifecycle and real System UI rejection/recovery controls remain in the selections.
+- Release/test assembly and lint pass: **zero lint errors, 182 warnings**.
+  Production/tester DEX inspection finds **47,318 / 8,217 definitions**, with zero
+  application-project overlap. All **33 native libraries** remain unchanged from
+  0.38.99. Eight privacy-audit controls and four retention-scoring controls pass;
+  the source-tree privacy review reports zero findings. All five frozen compiler
+  inputs remain unchanged through qualification.
+
+The controlled exchanges do not establish a current live publisher marker incident,
+physical-phone latency, p95 or energy measurements. No new source, request type,
+model, dependency, permission or database migration is introduced. Clean-source
+stamping, signer compatibility, frozen-member correspondence, source ZIP/privacy
+review, recoverable preview-state backup and anonymous permanent-download
+verification remain publication gates.
+
 ## 0.38.99: preserve readable publisher API responses
 
 Two owned Gateway/SOCKS counterexamples reproduce response-classification

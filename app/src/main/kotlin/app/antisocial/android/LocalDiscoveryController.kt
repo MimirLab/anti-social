@@ -159,16 +159,19 @@ internal class PublicLocalDiscoveryBackend(private val repo:Repository):LocalDis
         val payload=Payload(raw.text,raw.finalUrl,raw.headers.entries.firstOrNull {it.key.equals("Content-Type",true)}?.value?.firstOrNull().orEmpty(),raw.status)
         if(payload.status !in 200..299)throw SourceFailure(HealthStatus.UNAVAILABLE,"This publisher is temporarily unavailable",httpStatus=payload.status)
         val at=System.currentTimeMillis();val body=payload.text
+        // Recognize one initial UTF-8 encoding marker without changing the
+        // acquired document or any characters inside its field values.
+        val contentStart=body.removePrefix("\uFEFF").trimStart()
         val result=when {
-            source.kind==LocalSourceKind.CALENDAR||payload.contentType.contains("text/calendar")||body.trimStart().startsWith("BEGIN:VCALENDAR")->LocalCalendars.parse(body,payload.finalUrl,at,query.area,business).copy(validEmpty=true)
+            source.kind==LocalSourceKind.CALENDAR||payload.contentType.contains("text/calendar")||contentStart.startsWith("BEGIN:VCALENDAR")->LocalCalendars.parse(body,payload.finalUrl,at,query.area,business).copy(validEmpty=true)
             source.kind==LocalSourceKind.TRIBE->LocalStructuredData.tribe(body,payload.finalUrl,at,query.area,business)
             source.kind==LocalSourceKind.LOCALIST->LocalCalendarPlatforms.localist(body,payload.finalUrl,at,query.area)
             source.kind==LocalSourceKind.LIVEWHALE->LocalOpportunityDocuments.livewhale(body,payload.finalUrl,at,query.area)
             source.kind==LocalSourceKind.SPACEAPI->LocalOpportunityDocuments.space(body,payload.finalUrl,at,query.area)
             source.kind==LocalSourceKind.LINKED_EVENTS->LocalOpportunityDocuments.linkedEvents(body,payload.finalUrl,at,query.area)
-            body.trimStart().startsWith("{")&&LocalOpportunityDocuments.isSpaceApi(body)->LocalOpportunityDocuments.space(body,payload.finalUrl,at,query.area)
+            contentStart.startsWith("{")&&LocalOpportunityDocuments.isSpaceApi(body)->LocalOpportunityDocuments.space(body,payload.finalUrl,at,query.area)
             payload.contentType.substringBefore(';').trim() in setOf("application/ld+json","application/json")->LocalStructuredData.jsonld(body,payload.finalUrl,at,query.area,business)
-            payload.contentType.contains("html")||payload.contentType.contains("xml")||body.trimStart().startsWith("<")-> {
+            payload.contentType.contains("html")||payload.contentType.contains("xml")||contentStart.startsWith("<")-> {
                 val data=LocalDocumentWashing.extract(payload,at,query.area,business)
                 if(query.mode!=LocalSearchMode.EVENTS)data else {
                     val community=LocalCommunityPages.events(body,payload.finalUrl,at,query.area)
