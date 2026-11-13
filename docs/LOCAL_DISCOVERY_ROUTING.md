@@ -9,6 +9,39 @@ The [local opportunities extension](LOCAL_OPPORTUNITIES.md) adds geographically
 gated publishers, LiveWhale/SpaceAPI/Linked Events readers, offered calendar exports
 and bounded address resolution while keeping this staged delivery model.
 
+## Offered publisher content and first-card handoff (0.38.101)
+
+SpaceAPI's current [schema](https://spaceapi.io/docs/) puts a space's areas under
+`location.areas`. Their published descriptions now reach the existing services
+evidence and business search matcher. The previously supported root-level shape
+remains usable. Shared descriptions appear once, within the existing bounded
+services projection. This does not establish machine availability, public
+admission or opening hours.
+
+The structured-page reader also recognizes one initial encoding marker when
+choosing XML mode for RSS. The parser still receives the unchanged document, and
+publication dates remain distinct from event occurrences. An offered item URL
+can lead to its actual dated announcement through the ordinary Gateway path.
+
+There is a separate handoff between concurrent discovery lanes. A directory can
+hold the parent-page read while publisher nomination finishes with no further
+progress. Previously its later offered link could remain queued for manual More,
+with no first card and Search reporting completion. Before a deck is ready, the
+lane holding that parent now carries its offered links into another bounded read
+batch. Existing eligibility, locality, visited identities, source rests,
+connection policy, cancellation and total request/concurrency limits still apply.
+Once a usable deck exists, the existing enrichment stage handles later details.
+This uses already offered destinations; it adds no provider or speculative query.
+
+Controlled JVM and native comparisons reproduce these failures on the exact
+published 0.38.100 APK. A gated native case fixes the parent/nominator ordering
+without sleeps; its directly dated calendar control remains readable. The frozen
+API 35 and minimum API 26 selections also pass their discovery, cancellation and
+captured-source checks. No new model, dependency, permission or storage schema
+is introduced. See the dated
+[release qualification](RELEASE_QUALIFICATION.md#038101-retain-offered-content-and-finish-the-first-card-handoff)
+for the evidence scope.
+
 ## Downloaded publisher documents (0.38.100)
 
 Publisher-index results and the documents reached from those results have

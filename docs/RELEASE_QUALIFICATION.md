@@ -9,6 +9,87 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.101: retain offered content and finish the first-card handoff
+
+This increment repairs three independently investigated losses: SpaceAPI's
+documented `location.areas` was absent from service evidence and keyword matching;
+an initial encoding marker selected HTML mode for RSS and lost offered item
+links; and a parent read owned by another lane could leave its later child link
+unread after publisher nomination finished. See
+[the routing contract](LOCAL_DISCOVERY_ROUTING.md#offered-publisher-content-and-first-card-handoff-038101).
+Version code is 210; application ID and signing compatibility are unchanged.
+
+Investigation on November 1, 2026 (UTC):
+
+- Seven new JVM cases on unchanged source yield **four passes and three expected
+  failures**, with no skips. After the field corrections, **53 focused JVM
+  calendar/discovery/business checks pass**, with zero failures or skips.
+- The native handoff counterexample uses explicit gates: a directory owns the
+  parent read; publisher nomination finishes; the parent then supplies its child.
+  Exact published 0.38.100 retains that URL and reports completion with More
+  available, but issues no child request and shows no event card. A directly
+  dated calendar in the same ordering displays its card.
+- One fixed tester with zero application-project class overlap compares five
+  cases in both orders. Each baseline run yields **two passes and three expected
+  failures**; each prototype run passes **all five**, with no skips. All **20 final
+  settled native frames** are inspected; the baseline's two controls and the
+  prototype's five cards are visible. This is also the byte-identical tester
+  used in the final candidate qualification.
+- An extended prototype tester passes **14 named native methods**, zero failures
+  or skips. Its actual-controller chain case stops at **18 unique page reads**,
+  leaves remaining offered work available and invents no event. This is a
+  bounded owned-input check, not a live crawler or complete-search benchmark.
+- Earlier non-gated RSS runs are retained separately: the ordinary control once
+  failed, then passed with source receipts. That prompted the controlled handoff
+  reproduction. Visual inspection also caught two stale display-buffer captures
+  after passing semantic assertions. The frame helper now uses the same bounded
+  post-idle display settling as the existing discovery helper; the repeated
+  screenshots are not latency measurements. Initial JVM fixture compilation
+  errors in two field names were corrected before recording the seven-case
+  baseline. No production correction was made for those fixture errors.
+
+Final candidate qualification spans November 1 and November 13, 2026 (UTC).
+The frozen JVM/build run completed on November 1; the broader Android selections
+completed on November 13 against those unchanged compiler inputs:
+
+- Full JVM suite: **2,837 cases, 2,833 passes, four optional skips, zero failures
+  or errors**. Release/test assembly and lint pass, with **zero lint errors and
+  182 warnings**. Production/tester DEX inspection finds **47,322 / 8,224
+  definitions**, with zero application-project overlap. All **33 native libraries**
+  remain unchanged from 0.38.100. The six compiler inputs are frozen for Android
+  qualification.
+- API 35 selection: **372 named checks, 360 passes, twelve explicit skips, zero
+  failures**. Minimum API 26 selection: **139 named checks, 135 passes, four
+  explicit skips, zero failures**. Both include fourteen publisher-document,
+  handoff and request-allowance checks. Ten additional, non-overlapping discovery
+  methods pass on each API.
+- All **78 fresh required native frames** are checked: 71 directly inspected and
+  seven verified as byte-identical to inspected captures. They cover 28 publisher
+  frames, 36 additional deck frames, eight index-marker frames and six hybrid
+  caption/greeting frames. Eighteen captured-source target frames are also
+  inspected: all six late-source frames per API, plus the monthly and reference
+  cases' top/caption targets.
+- Both APIs' captured **896-original** late-source journeys retain one final card,
+  three originals and three distinct pictures, earlier media attribution, read
+  marks and the two-pixel anchor bound, with zero continuation reads. The captured
+  monthly-caption and API 26 account-reference journeys retain one common passage,
+  attributed differences, every original and saved source. These are staged
+  captured inputs, not complete live-acquisition benchmarks.
+- Both APIs' cancellation phases touch one of 64 sources in each stopped phase
+  and make no obsolete commit. Existing source-refusal, transport, contention,
+  lifecycle and System UI rejection/recovery checks remain in the selections.
+  Eight privacy-audit controls and four retention-scoring controls pass; the
+  source-tree privacy review reports zero findings. All six frozen compiler
+  inputs remain unchanged through qualification.
+
+The three production paths add no provider, request type, model, dependency,
+permission or database migration. Newly offered follow-ups use the existing
+request allowance; source selection, pauses and privacy boundaries remain in
+force. Clean-source stamping, signer compatibility, frozen-member correspondence,
+source ZIP/privacy review, recoverable preview-state backup and anonymous
+permanent-download verification remain publication gates. These checks do not
+measure physical-phone latency, p95 or energy use.
+
 ## 0.38.100: retain readable downloaded publisher documents
 
 The downloaded publisher's format check is separate from the index-response

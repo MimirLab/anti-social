@@ -58,7 +58,11 @@ object LocalOpportunityDocuments {
             s(contact,"twitter").removePrefix("@").takeIf {it.matches(Regex("[A-Za-z0-9_]{1,30}"))}?.let {add("https://x.com/$it")}
             s(contact,"mastodon").removePrefix("@").split('@').takeIf {it.size==2}?.let {p->LocalDiscoveryIdentity.url("https://${p[1]}/@${p[0]}")?.let(::add)}
         }.filter(LocalStructuredData::accountLink).take(8)
-        val services=rows(e,"areas").mapNotNull {it.takeIf(JsonElement::isJsonObject)?.asJsonObject}.map {clean(s(it,"description").ifBlank {s(it,"name")},500)}.filter(String::isNotBlank).joinToString(" · ").take(2000)
+        // Current SpaceAPI publishes areas under location. Retain the root
+        // shape already supported here, with one bounded, nonrepeating list.
+        val services=(loc?.let {rows(it,"areas")}.orEmpty()+rows(e,"areas")).asSequence()
+            .mapNotNull {it.takeIf(JsonElement::isJsonObject)?.asJsonObject}.map {clean(s(it,"description").ifBlank {s(it,"name")},500)}
+            .filter(String::isNotBlank).distinct().take(100).joinToString(" · ").take(2000)
         val business=LocalBusiness("place:"+LocalDiscoveryIdentity.hash(identity),name,"makerspace",address=address,locality=LocalDiscoveryFilter.addressLocality(area,"",address),point=geo,websites=listOf(website),socials=socials,
             phones=listOf(s(contact,"phone")).filter {LocalBusinessContact.phone(it)!=null},emails=listOfNotNull(LocalBusinessContact.email(s(contact,"email"))).takeIf {it.isNotEmpty()},sourceIds=listOf(identity),checkedAt=at,
             evidence=evidence+fields(mapOf("services" to services),url,at,LocalEvidenceKind.PUBLISHER)+listOfNotNull(geo?.let {LocalDiscoveryIdentity.evidence("location","${it.latitude},${it.longitude}",url,at,LocalEvidenceKind.PUBLISHER)}))

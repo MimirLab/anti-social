@@ -431,6 +431,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                     }
                     fun history(source:LocalPublisherSource)=store.cache(LocalBusinessEnrichment.key(source))?.let {runCatching {gson.fromJson(it,LocalRouteYield::class.java)}.getOrNull()}
                     suspend fun readSources(limit:Int,deep:Boolean=false) {
+                        val followup=java.util.concurrent.atomic.AtomicBoolean()
                         val owners=store.businesses(area).associateBy {it.id}
                         val candidates=store.sources(area).filter {source->
                             source.url !in visited&&(source.kind!=LocalSourceKind.SOCIAL||query.mode==LocalSearchMode.EVENTS||owners[source.businessId]==null)&&LocalOpportunityRouting.allowed(source,query)&&(source.kind!=LocalSourceKind.MENU||deep&&query.mode==LocalSearchMode.BUSINESSES&&owners[source.businessId]?.let {b->LocalMenuRouting.known(b).any {it.url==source.url}}==true)&&(force||source.nextCheckAt<=System.currentTimeMillis()||source.failures==0&&LocalCalendarPlatforms.window(source,query)?.let {it!=source.window}==true)&&
@@ -472,6 +473,7 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                     // Contact/calendars explicitly advertised by the page
                                     // can be read in this same bounded request.
                                     data.sources.forEach {currentSources.add(it.url)}
+                                    if(data.sources.any {it.url !in visited})followup.set(true)
                                     val observed=LocalBusinessEnrichment.observe(previous,data,System.currentTimeMillis()-before,System.currentTimeMillis(),calendar=query.mode==LocalSearchMode.EVENTS)
                                     store.sourceResult(area,source.copy(checkedAt=observed.checkedAt,nextCheckAt=observed.nextAt,failures=0,window=LocalCalendarPlatforms.window(source,query)),observed,admit=::current)
                                 }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();val failed=LocalBusinessEnrichment.failed(previous,System.currentTimeMillis());store.sourceResult(area,source.copy(nextCheckAt=failed.nextAt,failures=failed.failures),failed,admit=::current);throw SourceFailure(HealthStatus.UNAVAILABLE,"This source timed out")}
@@ -480,6 +482,11 @@ internal class LocalDiscoveryController(private val repo:Repository,private val 
                                 finally {val read=reads.incrementAndGet();if(current())state.update {it.copy(checked=read)}}
                             }
                         }}}}.joinAll()}
+                        // A different lane may have owned the parent after
+                        // publisher nomination stopped making progress. Carry
+                        // its offered links forward before declaring an empty
+                        // deck complete, using the same admission and budgets.
+                        if(!deep&&!deckReady.isCompleted&&current()&&attempts.get()<sourceBudget&&followup.get())readSources(limit)
                     }
                     suspend fun overtureAt(point:LocalPoint)=lane("Overture business links") {
                         val key="overture:${kotlin.math.round(point.latitude*1000)},${kotlin.math.round(point.longitude*1000)}"

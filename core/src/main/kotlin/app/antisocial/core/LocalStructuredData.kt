@@ -52,7 +52,9 @@ object LocalStructuredData {
     fun html(body:String,url:String,at:Long,area:LocalArea?=null,business:LocalBusiness?=null):LocalExtraction {
         require(body.length<=MAX_DOCUMENT){"This page exceeds the local discovery allowance"}
         HtmlAdmission.check(body)
-        val xml=Regex("(?is)^\\s*(?:<\\?xml[^>]*>\\s*)?<(?:rss|feed)(?:\\s|>)").containsMatchIn(body)
+        // Only the format probe ignores one initial encoding marker. The
+        // selected parser still receives the acquired document unchanged.
+        val xml=Regex("(?is)^\\s*(?:<\\?xml[^>]*>\\s*)?<(?:rss|feed)(?:\\s|>)").containsMatchIn(body.removePrefix("\uFEFF"))
         val page=Jsoup.parse(body,url,if(xml)Parser.xmlParser()else Parser.htmlParser())
         val records=mutableListOf<JsonObject>();var nodes=0
         fun visit(value:JsonElement,depth:Int=0) {
