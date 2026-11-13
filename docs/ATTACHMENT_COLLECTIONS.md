@@ -1,5 +1,37 @@
 # Attachment collections
 
+## Names and handles inside one observed picture announcement (0.38.103)
+
+A long shared caption can name people on one platform and use account handles
+on another. A new bounded relation keeps these editions together when their
+publishers are already explicitly linked, publication times are within ten
+minutes and the decoder has observed the same complete photographic image.
+It requires a substantial literal opening, a shared ending and only a short
+proper-name/handle list between them. Existing number, negation, symbol,
+source-reference and destination guards apply. Coarse hashes, video posters,
+avatars, galleries and unobserved images cannot supply the picture proof.
+
+The differing name list is one coupled, attributed alternative. The common
+paragraph is read once; the app does not infer that a named person owns a handle
+or combine fragments into a name list nobody published. Each original caption
+must reconstruct in full from its ordered source path. Literal source records,
+extra article links and all media-source credits survive saving. Existing
+source-qualified account labels can be clickable without the `@`; the original
+handle remains in the source record and saved weave.
+
+Only qualified Nitter mention navigation and already-recognized opaque links
+are excluded from this relation's concrete-destination comparison. A literal
+URL in the caption, another origin, query, fragment or unmentioned profile does
+not gain that exception. The portable content proof supports collection
+consumers; it does not establish publisher ownership or admit unknown accounts
+to a live collection.
+
+The captured three-edition case fails on released 0.38.102 with two visible
+cards, captions and pictures. Its corrected native replay yields one of each,
+preserving all three originals and their extra link. Both API 35 and minimum
+API 26 pass. The broader feed audit remains open; see
+[release qualification](RELEASE_QUALIFICATION.md).
+
 ## Small wording edits and observed short picture captions (0.38.102)
 
 An ordinary paragraph composition can succeed while repeating nearly an entire

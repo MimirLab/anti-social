@@ -1388,6 +1388,50 @@ class FusionFeedTest {
         for(reference in listOf("@ToolPartners","@toolpartnershq","@WorkshopSchool","@schoolworkshop"))assertTrue(caption.contains(reference))
     }
 
+    @Test fun fullNamesAndMultipleHandlesShareOneCaptionPictureAndEverySavedSource() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val prefix="From repairing damaged tools, to sharing practical skills, to welcoming new volunteers, the workshop continues to bring neighbors together and preserve useful equipment across our community,"
+        val names="Workshop Director Mira Vale and Rowan Beck's";val handles="@WorkshopLead and @RepairNotes";val end="efforts are delivering results."
+        val article="https://workshop.fixture.invalid/reports/2026/11/repair-notes"
+        val x=oldX.copy(title="",body="$prefix $handles $end",links=listOf("https://nitter.fixture.invalid/WorkshopLead","https://nitter.fixture.invalid/RepairNotes"),
+            provenance=Provenance(Source(Platform.X,"nitter","https://nitter.fixture.invalid"),now,"https://nitter.fixture.invalid/$handle/rss"))
+        val facebook=x.copy(id="reference-fb-$suffix",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",
+            body="$prefix $names $end\n\n$article",publishedAt=now-59_500,links=listOf(article),
+            provenance=Provenance(Source(Platform.FACEBOOK,"original","https://www.facebook.com",role=SourceRole.ORIGINAL),now,"https://www.facebook.com/$handle"),
+            media=listOf(Media("https://fusion-reference-fb-$suffix.invalid/original.png")))
+        val instagram=oldInstagram.copy(title="",body="$prefix ${names.replace("'","&#039;")} $end",
+            provenance=Provenance(Source(Platform.INSTAGRAM,"rss-bridge","https://rss.fixture.invalid"),now,"https://rss.fixture.invalid/feed"),
+            links=listOf("https://www.instagram.com/explore/tags/039"))
+        val originals=listOf(x,facebook,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform));cachePicture(it,jpeg=it.platform==Platform.INSTAGRAM)}
+        val captured=originals.map(repo.images.identities::captured)
+        assertTrue(captured.all {it.media.single().visualFingerprint?.startsWith("f2|")==true})
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();row(facebook).assertDoesNotExist()
+        fun assertCaption() {
+            val text=ui.onNodeWithTag("Fusion woven text").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+            for(shared in listOf(prefix,end))assertEquals(1,Regex(Regex.escape(shared)).findAll(text).count())
+            // Explicit source profile links render their clickable account labels;
+            // the literal @handles are checked separately in the weave and save.
+            assertTrue(text,text.contains("${handles.replace("@","")} — X"));assertTrue(text,text.contains("$names — "))
+            for(label in listOf("Facebook","Instagram"))assertTrue(text.contains(label))
+        }
+        assertCaption();ui.waitForIdle();Thread.sleep(300);evidence("coupled-reference-names-dark")
+        ui.runOnIdle {repo.prefs.theme="light";ui.activity.setContent {AntiSocialApp(vm)}}
+        waitRow(x);assertCaption();ui.waitForIdle();Thread.sleep(300);evidence("coupled-reference-names-light")
+        val plan=collectionPlan(captured);assertEquals(1,plan.attachments.size)
+        val references=requireNotNull(plan.fusion?.weave).single {run->run.variants.any {it.text==handles}}
+        assertEquals(setOf(names,handles),references.variants.map {it.text}.toSet())
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertCapturedSources(originals,saved);assertTrue(saved.flatMap(PostLinks::urls).contains(article))
+        val savedPlan=collectionPlan(saved);assertEquals(1,savedPlan.attachments.size)
+        val text=requireNotNull(savedPlan.fusion).segments.single().text
+        assertEquals(1,Regex(Regex.escape(prefix)).findAll(text).count());assertTrue(text.contains(names));assertTrue(text.contains(handles))
+    }
+
     @Test fun settingsCachePurgeRefillsTheNativeFeedAndRetainsConfigurationAndSavedText() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))

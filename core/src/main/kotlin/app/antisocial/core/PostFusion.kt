@@ -540,6 +540,7 @@ object CrossPostFusion {
     fun composeMedia(posts: List<Post>): PostFusion? {
         if(CrossPosts.shortPictureCaptionCollection(posts))return PostFusion(listOf(FusionSegment(
             PostPresentation.content(posts.first()),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
+        if(CrossPosts.pictureReferenceCollection(posts))return AnnouncementEditions.composeReferenceNames(posts)
         if(CrossPosts.completeGalleryCollection(posts))return GalleryCaptionCopies.composeComplete(posts)
         if(CrossPosts.imageEchoCollection(posts)) {
             val sources=posts.filter {PostPresentation.content(it).any(Char::isLetterOrDigit)}
@@ -653,6 +654,7 @@ object CrossPostFusion {
     fun composeCollectedEditions(posts:List<Post>):PostFusion? = AnnouncementEditions.compose(posts) ?: DecoratedPostCopies.composeShort(posts)
         ?: if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)else null
         ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
+        ?: if(CrossPosts.pictureReferenceCollection(posts))AnnouncementEditions.composeReferenceNames(posts)else null
 
     /** Last presentation fallback after ordinary formatting, passage, media,
      * field and quotation composers. Never used for collection admission. */
@@ -669,8 +671,10 @@ object CrossPostFusion {
             // weave; keep the existing single-caption fast path unchanged.
             if(ordinary.segments.size>1&&CrossPosts.literalWordingCollection(posts))
                 CaptionWeave.composeWordingEdits(posts)?.let {return it}
+            if(ordinary.segments.size>1&&CrossPosts.pictureReferenceCollection(posts))return AnnouncementEditions.composeReferenceNames(posts)
             return ordinary
         }
+        if(CrossPosts.pictureReferenceCollection(posts))return AnnouncementEditions.composeReferenceNames(posts)
         if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)?.let {return it}
         if(CrossPosts.literalWordingCollection(posts))CaptionWeave.composeWordingEdits(posts)?.let {return it}
         if(CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)?.let {return it}

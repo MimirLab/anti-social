@@ -97,7 +97,7 @@ android {
     namespace = "app.antisocial.android"
     compileSdk = 37
     buildToolsVersion = "36.0.0"
-    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 211; versionName = "0.38.102"
+    defaultConfig { applicationId = "app.antisocial.android"; minSdk = 26; targetSdk = 36; versionCode = 212; versionName = "0.38.103"
         // Explicit engineering sampler; the ordinary tester and shipping
         // application's manifest/authority retain their normal configuration.
         testInstrumentationRunner=providers.gradleProperty("antisocialStartupTraceRunner").map {value->

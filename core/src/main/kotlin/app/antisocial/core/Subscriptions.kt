@@ -424,6 +424,7 @@ object CrossPosts {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
         if(completeGalleryCollection(posts))return true
         if(RedditSupplements.collection(posts)||galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
+        if(pictureReferenceCollection(posts))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         if(prepared.indices.all {i->(i+1 until prepared.size).all {j->shortPictureCaptionPair(prepared[i],prepared[j])}})return true
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->copyMatch(prepared[i],prepared[j],sameMedia)}}
@@ -448,16 +449,38 @@ object CrossPosts {
         if(kotlin.math.abs(x-y)>600_000)return false
         fun literal(p:Post)=Normalizer.normalize(TextWhitespace.collapse(PostPresentation.content(p)).trim(),Normalizer.Form.NFC)
         if(literal(a.post)!=literal(b.post))return false
-        fun observation(p:Post):String? {
-            val image=p.media.singleOrNull()?.takeIf {it.type=="image"&&it.url!=p.avatar} ?: return null
-            val asset=ImageAssetIdentity.key(image.url)
-            if(asset!=null&&p.avatar?.let(ImageAssetIdentity::key)==asset)return null
-            // Keep the decoder's existing photographic admission. A URL,
-            // coarse hash, attachment-only graphic or video attachment's poster
-            // cannot supply this short caption's missing corroboration.
-            return image.visualFingerprint?.takeIf {it.startsWith("f2|")&&image.attachmentFingerprint==null}
-        }
-        val first=observation(a.post) ?: return false;val second=observation(b.post) ?: return false
+        val first=singlePhotograph(a.post) ?: return false;val second=singlePhotograph(b.post) ?: return false
+        return VisualFrames.sameImage(first,second)
+    }
+    private fun singlePhotograph(post:Post):String? {
+        val image=post.media.singleOrNull()?.takeIf {it.type=="image"&&it.url!=post.avatar} ?: return null
+        val asset=ImageAssetIdentity.key(image.url)
+        if(asset!=null&&post.avatar?.let(ImageAssetIdentity::key)==asset)return null
+        // Preserve the decoder's photographic admission. A URL, coarse hash,
+        // attachment-only graphic or video poster is not this corroboration.
+        return image.visualFingerprint?.takeIf {it.startsWith("f2|")&&image.attachmentFingerprint==null}
+    }
+    /** Portable announcement evidence, not equality of the referenced accounts.
+     * Live pair admission separately requires explicitly linked publishers. */
+    fun pictureReferenceCollection(posts:List<Post>):Boolean=CrossPostFusion.withPrepared {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size||
+            posts.none {'@' in it.body||'@' in it.title}||posts.any {it.title.length.toLong()+it.body.length>4096||singlePhotograph(it)==null})return@withPrepared false
+        if(AnnouncementEditions.composeReferenceNames(posts)==null)return@withPrepared false
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        rows.indices.all {i->(i+1 until rows.size).all {j->pictureReferenceContext(rows[i],rows[j])}}
+    }
+    private fun pictureReferenceContext(a:Features,b:Features):Boolean {
+        if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||
+            a.post.recoveredArchive!=null||b.post.recoveredArchive!=null||a.truncated||b.truncated||
+            a.post.title.length.toLong()+a.post.body.length>4096||b.post.title.length.toLong()+b.post.body.length>4096||
+            a.numbers!=b.numbers||a.negatives!=b.negatives||a.symbols!=b.symbols||!referenceIntegrity(a.post)||!referenceIntegrity(b.post))return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        if(kotlin.math.abs(x-y)>600_000)return false
+        fun concrete(row:Features)=row.destinations.filterNot {opaqueLink(it)||nitterMentionLink(row.post,it)}.toSet()
+        val left=concrete(a);val right=concrete(b)
+        if(left.isNotEmpty()&&right.isNotEmpty()&&left!=right)return false
+        if(!CrossPostFusion.neutralCopyFraming(a.post)||!CrossPostFusion.neutralCopyFraming(b.post))return false
+        val first=singlePhotograph(a.post) ?: return false;val second=singlePhotograph(b.post) ?: return false
         return VisualFrames.sameImage(first,second)
     }
     /** Corroborated literal editions, not inferred ownership or equal media.
@@ -1149,6 +1172,8 @@ object CrossPosts {
         if(!repeated&&wordingEdit(a,b))return true
         if(!repeated&&resourceAnnouncement(a,b))return true
         if(!repeated&&corroboratedPassage(a,b,sameMedia))return true
+        if(!repeated&&('@' in a.post.body||'@' in a.post.title||'@' in b.post.body||'@' in b.post.title)&&
+            AnnouncementEditions.composeReferenceNames(listOf(a.post,b.post))!=null&&pictureReferenceContext(a,b))return true
         // A specific shared article destination can corroborate a substantial
         // caption too. Neither a common URL nor image alone establishes a match.
         if(!repeated&&a.destinations.intersect(b.destinations).isEmpty()&&!sameImages(a.post,b.post,sameMedia))return false

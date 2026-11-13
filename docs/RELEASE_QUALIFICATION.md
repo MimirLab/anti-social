@@ -9,6 +9,55 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.103: collect name and handle variants of an observed picture announcement
+
+The continuing native feed audit on November 13, 2026 (UTC) reproduced a
+three-edition announcement with a long common paragraph and the same photograph.
+Two editions use proper names and one uses multiple account handles; the latter
+stays in a separate card on the exact released 0.38.102 APK. The bounded correction
+retains the whole name list as one attributed alternative, without asserting
+identity between any person and handle. See
+[the collection contract](ATTACHMENT_COLLECTIONS.md#names-and-handles-inside-one-observed-picture-announcement-038103).
+Version code is 212; application ID and signing compatibility are unchanged.
+
+- A native comparison with one fixed tester reproduces two cards, two caption
+  occurrences and two pictures on the released baseline. The prototype produces
+  one of each on API 35 and minimum API 26, preserves all three saved originals
+  and retains the additional article link. All three picture observations come
+  from the captured files decoded by the app; none is an injected fingerprint.
+- The actual case passes inside its **702-original** JVM context in both orders,
+  conserving the source records. The focused selection passes **90 checks**,
+  zero failures or skips. The full JVM suite completes **2,853 cases: 2,849
+  passes, four optional skips, zero failures or errors**, without private inputs.
+- Both complete native fusion suites pass **45 checks: 43 passes, two explicit
+  opt-in skips, zero failures** per API. They retain late-arrival reading anchors,
+  distinct photographs and recordings, deliberate body adoption, source credits
+  and protected saves. Fresh light/dark caption screens and existing wording and
+  late-merge checkpoints are inspected on both APIs.
+- The additional native media-identity, cross-post, saved-record, connection and
+  caption selection completes **82 checks: 77 passes, five explicit opt-in skips,
+  zero failures** on each API. These totals describe separate named selections;
+  optional captured/live checks are not counted as ordinary passes.
+- The first synthetic native screen assertion fails on both APIs because it
+  expects raw `@handles` where existing source-qualified mention presentation
+  renders clickable labels. Direct screen inspection establishes that cause.
+  The corrected expectation leaves the product renderer unchanged and separately
+  requires the complete literal handle list in the weave and saved originals.
+  The initial failures remain in the private evidence record.
+
+The new relation rejects unknown publisher ownership, unsupported or missing
+picture evidence, conflicting resource destinations, changed claims and
+ambiguous same-platform versions. Coarse hashes, video covers, avatars and
+galleries do not supply its photographic proof. Source-bound profile navigation
+is distinguished from literal caption links only within this bounded route.
+There is no new request, model, dependency, permission or schema migration.
+
+The wider duplicate-feed audit remains open. This increment does not qualify
+all gallery, quote, shared-author or acquisition cases, and does not measure
+physical-phone latency or energy use. Clean-source stamping, matching source
+archives, signer/integrity checks, a recoverable preview-state backup and
+anonymous permanent-download verification remain publication gates.
+
 ## 0.38.102: share wording variants and observed short picture announcements
 
 The native feed review on November 13, 2026 (UTC) reproduced two different

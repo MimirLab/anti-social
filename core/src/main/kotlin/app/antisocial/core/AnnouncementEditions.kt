@@ -63,7 +63,50 @@ internal object AnnouncementEditions {
         val docs=posts.map {caption(it) ?: return null}
         val messages=docs.map {it.post.copy(title="",body=it.message)}
         val fusion=CaptionWeave.composeSourceMentions(messages) ?: return null
-        val runs=fusion.weave.orEmpty().toMutableList()
+        return finishPassages(docs,fusion.weave.orEmpty())
+    }
+
+    private val nameWord=Regex("[\\p{L}]+(?:['’\\-][\\p{L}]+)*")
+    private val nameConnectives=setOf("and","of","the","de","del","van","von","da","di","du","le","la","&")
+    private val changedStatus=setOf("no","not","never","without","new","old","former","different","replacement","fake","counterfeit",
+        "approved","rejected","denied","closed","cancelled","canceled","postponed","rescheduled","increased","decreased")
+    private fun referenceNames(parts:List<String>):Boolean {
+        if(parts.size !in 1..16||parts.joinToString(" ").length>192)return false
+        val words=parts.map {it.removeSuffix(",")}
+        if(words.first()in nameConnectives||words.last()in nameConnectives)return false
+        return words.any {isMention(it)||it.firstOrNull()?.isUpperCase()==true}&&words.all {value->
+            isMention(value)||value in nameConnectives||
+                nameWord.matches(value)&&value.first().isUpperCase()&&value.lowercase(Locale.ROOT).removeSuffix("'s").removeSuffix("’s") !in changedStatus
+        }
+    }
+    /** A caller separately proves the same observed photograph and announcement.
+     * Name/handle lists stay one coupled alternative, never an identity assertion
+     * or independently selectable names that no source published together. */
+    fun composeReferenceNames(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        if(posts.none {'@' in it.body||'@' in it.title})return null
+        val docs=posts.sortedBy(CrossPosts::originalKey).map {caption(it) ?: return null}
+        val words=docs.map {it.messageTokens}
+        if(words.any {it.size !in 24..256})return null
+        val keys=words.map {it.map(::key)}
+        if(keys.distinct().size !in 2..8||docs.indices.groupBy {docs[it].post.platform}.values.any {rows->rows.map {keys[it]}.distinct().size>1})return null
+        val shortest=keys.minOf {it.size};var prefix=0;var suffix=0
+        while(prefix<shortest&&keys.all {it[prefix]==keys.first()[prefix]})prefix++
+        while(suffix<shortest-prefix&&keys.all {it[it.lastIndex-suffix]==keys.first()[keys.first().lastIndex-suffix]})suffix++
+        val shared=words.first().take(prefix)
+        if(prefix<24||shared.distinct().size<12||shared.joinToString(" ").length<140||suffix<3)return null
+        val alternatives=words.map {it.subList(prefix,it.size-suffix)}
+        if(alternatives.any {!referenceNames(it)}||alternatives.none {it.any(::isMention)})return null
+        val allPlatforms=posts.mapTo(linkedSetOf()){it.platform};val allKeys=posts.mapTo(linkedSetOf(),CrossPosts::originalKey)
+        fun common(text:String)=FusionRun(true,listOf(FusionVariant(text,allPlatforms,allKeys)))
+        val runs=listOf(common(shared.joinToString(" ")),FusionRun(false,docs.indices.groupBy {alternatives[it].map(::key)}.values.map {rows->
+            FusionVariant(alternatives[rows.first()].joinToString(" "),rows.mapTo(linkedSetOf()){docs[it].post.platform},rows.mapTo(linkedSetOf()){CrossPosts.originalKey(docs[it].post)})
+        }),common(words.first().takeLast(suffix).joinToString(" ")))
+        return finishPassages(docs,runs)
+    }
+    private fun finishPassages(docs:List<Caption>,parts:List<FusionRun>):PostFusion? {
+        val posts=docs.map {it.post}
+        val runs=parts.toMutableList()
         if(docs.any {it.references.isNotBlank()})runs+=FusionRun(false,docs.indices.groupBy {key(docs[it].references)}.values.map {indexes->
             FusionVariant(docs[indexes.first()].references,indexes.mapTo(linkedSetOf()){posts[it].platform},indexes.mapTo(linkedSetOf()){CrossPosts.originalKey(posts[it])},
                 docs[indexes.first()].referenceTokens.filter(::isMention).joinToString(" "))
