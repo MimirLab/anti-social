@@ -28,6 +28,47 @@ class CaptionWeaveTest {
         assertEquals(1,CrossPosts.group(posts,emptyList()).size)
         assertEquals(fusion,CaptionWeave.compose(posts.reversed()))
     }
+    @Test fun ordinaryCollectedCaptionsPreferTheLiteralWeaveOverRepeatedParagraphs() {
+        val versions=originals().take(2).map {it.copy(media=emptyList())}
+        for(posts in listOf(versions,versions.reversed())) {
+            val fusion=CrossPostFusion.compose(posts)!!
+            assertNotNull("An existing paragraph composition must not hide the compact wording edition",fusion.weave)
+            assertProjection(posts,fusion)
+            assertEquals(1,Regex(Regex.escape(intro)).findAll(fusion.segments.single().text).count())
+            assertEquals(setOf("results","direct results"),fusion.weave!!.single {!it.shared}.variants.map {it.text}.toSet())
+        }
+    }
+    @Test fun repeatedEquivalentVersionsStillPermitOneAttributedWordingEdit() {
+        val versions=originals().mapIndexed {i,p->p.copy(media=emptyList(),body=if(i==1)p.body.replace(". These", ".\n\nThese")else p.body)}
+        for(posts in listOf(versions,versions.reversed(),versions.drop(1)+versions.first())) {
+            assertTrue("Equivalent FB/Instagram editions must not veto their shared wording change",CrossPosts.literalWordingCollection(posts))
+            val fusion=CrossPostFusion.compose(posts)!!
+            assertNotNull(fusion.weave);assertProjection(posts,fusion)
+            val change=fusion.weave!!.single {!it.shared}
+            assertEquals(setOf(Platform.FACEBOOK,Platform.INSTAGRAM),change.variants.single {it.text=="direct results"}.platforms)
+            assertEquals(1,Regex(Regex.escape(intro)).findAll(fusion.segments.single().text).count())
+        }
+        for(changed in listOf("not results","results 27","replacement results")) {
+            val different=versions.toMutableList().apply {set(1,this[1].copy(body=this[1].body.replace("direct results",changed)))}
+            assertFalse("Changed claims stay outside this wording route",CrossPosts.literalWordingCollection(different))
+        }
+        assertFalse(CrossPosts.literalWordingCollection(listOf(versions[0],versions[1].copy(publishedAt=versions[0].publishedAt!!+600_001),versions[2])))
+    }
+    @Test fun paragraphLayoutCannotPreferWholeRepeatedCaptionsOverOneLocalInsertion() {
+        val start="Delivering on the promise to keep our workshop open."
+        val middle="Visitor attendance increased from 2023 to 2024."
+        val end="These are the results of our community outreach program in action. 🛠"
+        val x=post(Platform.X,"$start $middle $end").copy(media=emptyList())
+        val fb=post(Platform.FACEBOOK,"$start\n\n$middle ${end.replace("the results","the direct results")}").copy(media=emptyList())
+        val ig=post(Platform.INSTAGRAM,fb.body.replace("\n\n"," ")).copy(title="$start...",media=emptyList())
+        for(posts in listOf(listOf(x,fb),listOf(x,fb,ig),listOf(ig,fb,x))) {
+            val fusion=CrossPostFusion.compose(posts)!!
+            assertNotNull("Common sentences must not repeat around one attributed word",fusion.weave)
+            assertProjection(posts,fusion)
+            assertEquals(1,Regex(Regex.escape(start)).findAll(fusion.segments.single().text).count())
+            assertEquals(1,Regex(Regex.escape(middle)).findAll(fusion.segments.single().text).count())
+        }
+    }
     @Test fun aReplacementAndACompleteAddedSentenceBothRemainSourceText() {
         val x=post(Platform.X,"$intro $end")
         val fb=post(Platform.FACEBOOK,"$intro ${end.replace("training program","outreach program")}")

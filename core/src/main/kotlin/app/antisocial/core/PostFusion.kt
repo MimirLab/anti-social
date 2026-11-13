@@ -538,6 +538,8 @@ object CrossPostFusion {
     }
 
     fun composeMedia(posts: List<Post>): PostFusion? {
+        if(CrossPosts.shortPictureCaptionCollection(posts))return PostFusion(listOf(FusionSegment(
+            PostPresentation.content(posts.first()),posts.mapTo(linkedSetOf()){it.platform},true,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))))
         if(CrossPosts.completeGalleryCollection(posts))return GalleryCaptionCopies.composeComplete(posts)
         if(CrossPosts.imageEchoCollection(posts)) {
             val sources=posts.filter {PostPresentation.content(it).any(Char::isLetterOrDigit)}
@@ -661,7 +663,14 @@ object CrossPostFusion {
     fun composeCollectedReferences(posts:List<Post>):PostFusion?=CaptionWeave.composeReferences(posts)
 
     fun compose(posts: List<Post>): PostFusion? {
-        composeOrdinary(posts)?.let {return it}
+        composeOrdinary(posts)?.let {ordinary->
+            // A successful paragraph fallback can still repeat most of a
+            // caption. Refine those blocks with the strict, lossless wording
+            // weave; keep the existing single-caption fast path unchanged.
+            if(ordinary.segments.size>1&&CrossPosts.literalWordingCollection(posts))
+                CaptionWeave.composeWordingEdits(posts)?.let {return it}
+            return ordinary
+        }
         if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)?.let {return it}
         if(CrossPosts.literalWordingCollection(posts))CaptionWeave.composeWordingEdits(posts)?.let {return it}
         if(CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)?.let {return it}

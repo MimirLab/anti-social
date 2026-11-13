@@ -9,6 +9,66 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.102: share wording variants and observed short picture announcements
+
+The native feed review on November 13, 2026 (UTC) reproduced two different
+failures: an admitted three-edition card repeated most of its caption around one
+small insertion, and three linked publishers' identical two-word picture captions
+remained separate after the pictures loaded. The corrections use the existing
+literal wording weave and a bounded, observed whole-picture relation. See
+[the collection contract](ATTACHMENT_COLLECTIONS.md#small-wording-edits-and-observed-short-picture-captions-038102).
+Version code is 211; application ID and signing compatibility remain unchanged.
+
+- The wording case fails on the exact released 0.38.101 APK with a fixed native
+  tester and two distinct pictures; the prototype reads the common caption once
+  and retains both pictures and all three saved originals. A shared-picture
+  control already passes on the baseline and is retained as a control, not
+  reported as a repaired failure. The captured three-edition text case also
+  passes inside its 700-original context, in both input orders.
+- The short-caption native capture initially yields three cards, three captions
+  and three pictures. With the genuine downloaded files decoded by the app, the
+  prototype yields one card, one caption and one picture, including all three
+  media-source credits and protected saved originals. The actual captured case
+  passes on API 35 and minimum API 26. Its 702-original JVM replay uses those
+  actual decoder observations and conserves the source records in both orders.
+- The focused JVM selection passes **82 checks**, with zero failures or skips.
+  The full JVM suite completes **2,845 cases: 2,841 passes, four optional skips,
+  zero failures or errors**. The full suite runs without private reader inputs.
+- The API 35 native selection completes **168 checks: 162 passes, six explicit
+  skips, zero failures**. It covers the complete fusion suite, media identity,
+  saved media, cross-post cards, reading memory, matching handoffs and connection
+  policy. The captured short-caption case is a separate opt-in pass.
+- The API 26 fusion suite completes **44 checks: 42 passes, two explicit skips,
+  zero failures**, after correcting one assertion's scope. The earlier run and
+  isolated replay both fail because LazyColumn retains a preceding, offscreen
+  Instagram row's semantics. The exact released APK reproduces that failure with
+  the same diagnostic tester; the picture bank still reports no match and the X
+  reading anchor is correct. The control now checks absence within the X card,
+  then requires its late source, unchanged pixel anchor and deliberate body
+  adoption. The corrected control also passes separately on API 35.
+- An additional API 26 media/save/memory/privacy selection completes **71 named
+  checks: 70 passes, one explicit live-network skip, zero failures**. Its host
+  runner terminates after 65 completed methods; the six uncompleted methods run
+  separately after confirming that both host and Android instrumentation have
+  stopped. The retained partial receipts and final six-method run establish
+  coverage together; they are not described as an uninterrupted suite.
+
+The inspected native captures include the actual three-platform picture case,
+the distinct-picture wording case and late-merge reading-position checkpoints
+on both APIs. Missing counterpart files in the separate captured wording case
+remain unresolved attachments; that run is not evidence of complete image
+deduplication. Negative controls retain unknown publishers, differing claims,
+changed pictures, video recordings, avatars and galleries outside the new
+two-word admission rule.
+
+The feed audit remains ongoing, with other captured candidates still awaiting
+qualification. This increment is not a claim that all duplicate posts have been
+eliminated. The production changes add no request, provider, model, dependency,
+permission or schema migration. These staged and emulator checks do not measure
+physical-phone latency, p95 or energy use. Clean-source stamping, artifact/source
+correspondence, signer checks, a recoverable preview-state backup and anonymous
+permanent-download verification remain publication gates.
+
 ## 0.38.101: retain offered content and finish the first-card handoff
 
 This increment repairs three independently investigated losses: SpaceAPI's

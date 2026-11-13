@@ -1,5 +1,33 @@
 # Attachment collections
 
+## Small wording edits and observed short picture captions (0.38.102)
+
+An ordinary paragraph composition can succeed while repeating nearly an entire
+caption around one inserted phrase. Multi-block results now get the existing
+strict wording weave before that fallback is accepted. The one-caption fast
+path stays unchanged. A complete collection can include two identical editions
+alongside a wording variant: each pair retains its time, destination and claim
+checks, while the whole weave proves every original's ordered text path.
+The reader shares common prose and marks the literal alternatives inline.
+
+A separate, bounded route handles an identical two-word caption attached to one
+actually observed photograph. Live grouping requires explicitly linked
+publishers, complete literal caption agreement, positive publication dates within
+ten minutes, and the existing detailed whole-picture comparison. Symbols,
+punctuation, case, claims and destinations remain checked. Coarse observations,
+attachment-only graphics, avatars, video covers, galleries and missing picture
+evidence cannot establish this relation. It reuses downloaded picture evidence;
+it does not request another file to improve a short-caption match.
+
+The same content proof remains portable when saving the admitted collection.
+It does not establish account ownership or let a two-word caption group unknown
+publishers. One caption and repeated picture can be read once while every
+original, actual media source and saved source record stays available. Existing
+candidate limits, ambiguity checks, source blocks and distinct-media retention
+remain in force. No model, dependency, network route, permission or database
+migration is added. See [release qualification](RELEASE_QUALIFICATION.md) for the
+captured counterexamples and the scope of the ongoing feed review.
+
 ## Shared text inside larger collections (0.38.95)
 
 A complete collection can contain several equivalent captions alongside other

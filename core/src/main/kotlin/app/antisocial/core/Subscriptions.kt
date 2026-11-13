@@ -425,7 +425,40 @@ object CrossPosts {
         if(completeGalleryCollection(posts))return true
         if(RedditSupplements.collection(posts)||galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
+        if(prepared.indices.all {i->(i+1 until prepared.size).all {j->shortPictureCaptionPair(prepared[i],prepared[j])}})return true
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->copyMatch(prepared[i],prepared[j],sameMedia)}}
+    }
+    /** Portable content proof for a two-word caption and one actually observed
+     * whole picture. This never proves common account control. Pair admission
+     * separately requires linked publishers; saves retain every original. */
+    fun shortPictureCaptionCollection(posts:List<Post>):Boolean=CrossPostFusion.withPrepared {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size||
+            posts.any {it.title.length.toLong()+it.body.length>256||it.media.size!=1||it.media.single().type!="image"})return@withPrepared false
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        rows.indices.all {i->(i+1 until rows.size).all {j->shortPictureCaptionPair(rows[i],rows[j])}}
+    }
+    private fun shortPictureCaptionPair(a:Features,b:Features):Boolean {
+        if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||
+            a.post.title.length.toLong()+a.post.body.length>256||b.post.title.length.toLong()+b.post.body.length>256||
+            a.post.recoveredArchive!=null||b.post.recoveredArchive!=null||a.truncated||b.truncated||
+            a.text.length !in 6..80||a.tokens.size!=2||a.tokens.distinct().size!=2||a.tokens.any {it.none(Char::isLetter)}||
+            a.destinations!=b.destinations||!completeCopyText(a,b))return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false
+        val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        if(kotlin.math.abs(x-y)>600_000)return false
+        fun literal(p:Post)=Normalizer.normalize(TextWhitespace.collapse(PostPresentation.content(p)).trim(),Normalizer.Form.NFC)
+        if(literal(a.post)!=literal(b.post))return false
+        fun observation(p:Post):String? {
+            val image=p.media.singleOrNull()?.takeIf {it.type=="image"&&it.url!=p.avatar} ?: return null
+            val asset=ImageAssetIdentity.key(image.url)
+            if(asset!=null&&p.avatar?.let(ImageAssetIdentity::key)==asset)return null
+            // Keep the decoder's existing photographic admission. A URL,
+            // coarse hash, attachment-only graphic or video attachment's poster
+            // cannot supply this short caption's missing corroboration.
+            return image.visualFingerprint?.takeIf {it.startsWith("f2|")&&image.attachmentFingerprint==null}
+        }
+        val first=observation(a.post) ?: return false;val second=observation(b.post) ?: return false
+        return VisualFrames.sameImage(first,second)
     }
     /** Corroborated literal editions, not inferred ownership or equal media.
      * Saved manifests can replay the same bounded proof without a network read. */
@@ -439,7 +472,10 @@ object CrossPosts {
     fun literalWordingCollection(posts:List<Post>):Boolean {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
         val rows=posts.map {features(it,emptyMap(),emptyMap())}
-        return rows.indices.all {i->(i+1 until rows.size).all {j->wordingEdit(rows[i],rows[j])}}&&CaptionWeave.composeWordingEdits(posts)!=null
+        // The whole weave validates ordered overlap and every source path.
+        // Two identical editions need not themselves contain a wording change;
+        // they still retain all pairwise time, destination and claim guards.
+        return rows.indices.all {i->(i+1 until rows.size).all {j->wordingEditContext(rows[i],rows[j])}}&&CaptionWeave.composeWordingEdits(posts)!=null
     }
     fun resourceAnnouncementCollection(posts:List<Post>):Boolean {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
@@ -457,13 +493,14 @@ object CrossPosts {
     private fun referenceIntegrity(post:Post):Boolean = PostPresentation.destinationLabels(PostPresentation.content(post)).none {
         it.startsWith("http://",true)||it.contains("...")||it.contains('…')
     }
-    private fun wordingEdit(a:Features,b:Features):Boolean {
+    private fun wordingEditContext(a:Features,b:Features):Boolean {
         if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated)return false
         val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
         return kotlin.math.abs(x-y)<=600_000&&a.destinations==b.destinations&&a.numbers==b.numbers&&a.negatives==b.negatives&&a.symbols==b.symbols&&
             a.tokens.take(3)==b.tokens.take(3)&&a.tokens.takeLast(3)==b.tokens.takeLast(3)&&referenceIntegrity(a.post)&&referenceIntegrity(b.post)&&
-            CrossPostFusion.neutralCopyFraming(a.post)&&CrossPostFusion.neutralCopyFraming(b.post)&&CaptionWeave.composeWordingEdits(listOf(a.post,b.post))!=null
+            CrossPostFusion.neutralCopyFraming(a.post)&&CrossPostFusion.neutralCopyFraming(b.post)
     }
+    private fun wordingEdit(a:Features,b:Features):Boolean = wordingEditContext(a,b)&&CaptionWeave.composeWordingEdits(listOf(a.post,b.post))!=null
     private fun corroboratedPassage(a:Features,b:Features,sameMedia:(Post,Post)->Boolean):Boolean {
         if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated||!referenceIntegrity(a.post)||!referenceIntegrity(b.post))return false
         val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
@@ -948,6 +985,7 @@ object CrossPosts {
         val corroborated=a.destinations.intersect(b.destinations).isNotEmpty()||a.media.intersect(b.media).isNotEmpty()
         if(a.text==b.text) {
             val length=a.text.length;val count=a.tokens.size;val distinct=a.tokens.toSet().size
+            if(linked&&shortPictureCaptionPair(a,b))return true
             if(linked&&length>=80&&count>=10||length>=160&&count>=24&&distinct>=12||corroborated&&length>=80&&count>=12&&distinct>=8)return true
             // A linked publisher can distribute one short announcement with
             // different pictures or video opening frames. Collect those close

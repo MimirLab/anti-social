@@ -170,8 +170,12 @@ class FusionFeedTest {
             ui.onNodeWithTag("Fusion context $index").assertTextEquals(context.first).assert(hasAnySibling(hasContentDescription(context.second,substring=true)))
         }
     }
-    private fun cachePicture(post: Post,jpeg: Boolean=false,preload: Boolean=true) {
-        val source=picture();val render=if(jpeg)Bitmap.createScaledBitmap(source,256,160,true)else source
+    private fun cachePicture(post: Post,jpeg: Boolean=false,preload: Boolean=true,inverted:Boolean=false) {
+        val source=picture()
+        if(inverted)for(y in 0 until source.height)for(x in 0 until source.width) {
+            val pixel=source.getPixel(x,y);source.setPixel(x,y,Color.rgb(255-Color.red(pixel),255-Color.green(pixel),255-Color.blue(pixel)))
+        }
+        val render=if(jpeg)Bitmap.createScaledBitmap(source,256,160,true)else source
         val bytes=ByteArrayOutputStream().use {out->
             assertTrue(render.compress(if(jpeg)Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG,if(jpeg)83 else 100,out));out.toByteArray()
         }
@@ -1266,6 +1270,54 @@ class FusionFeedTest {
         }
     }
 
+    @Test fun aLocalWordingInsertionReadsOnceAcrossThreeEditionsAndSurvivesSaving() {
+        assertWordingInsertion(distinctPictures=false)
+    }
+    @Test fun aLocalWordingInsertionReadsOnceWhilePreservingDifferentPictures() {
+        assertWordingInsertion(distinctPictures=true)
+    }
+    private fun assertWordingInsertion(distinctPictures:Boolean) {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val first="Delivering on the promise to keep our workshop open."
+        val middle="Visitor attendance increased from 2023 to 2024."
+        val last="These are the results of our community outreach program in action. 🛠"
+        val x=oldX.copy(title="",body="$first $middle $last")
+        val facebook=x.copy(id="wording-fb-$suffix",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",
+            body="$first\n\n$middle ${last.replace("the results","the direct results")}",publishedAt=now-59_500,
+            media=listOf(Media("https://fusion-fb-$suffix.invalid/original.png")))
+        val instagram=oldInstagram.copy(title="$first...",body=facebook.body.replace("\n\n"," "))
+        val originals=listOf(x,facebook,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform));cachePicture(it,jpeg=it.platform==Platform.INSTAGRAM,inverted=distinctPictures&&it.platform!=Platform.X)}
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x)
+        row(facebook).assertDoesNotExist();row(instagram).assertDoesNotExist()
+        ui.onNodeWithTag("Fusion woven text").assertIsDisplayed()
+        val shown=ui.onNodeWithTag("Fusion woven text").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        for(common in listOf(first,middle))assertEquals("Common sentences are read once",1,Regex(Regex.escape(common)).findAll(shown).count())
+        val plan=collectionPlan(originals.map(repo.images.identities::captured))
+        assertEquals(if(distinctPictures)2 else 1,plan.attachments.size)
+        val change=requireNotNull(plan.fusion?.weave).single {!it.shared}
+        assertEquals(setOf("results","direct results"),change.variants.map {it.text}.toSet())
+        assertEquals(setOf(Platform.FACEBOOK,Platform.INSTAGRAM),change.variants.single {it.text=="direct results"}.platforms)
+        for(platform in listOf(Platform.X,Platform.FACEBOOK,Platform.INSTAGRAM))
+            ui.onAllNodesWithContentDescription("${platform.label} wording source",useUnmergedTree=true).onFirst().assertExists()
+        ui.runOnIdle {
+            assertTrue(ui.activity.hasWindowFocus())
+            assertTrue(ui.activity.getSystemService(android.os.PowerManager::class.java).isInteractive)
+            assertFalse(ui.activity.getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked)
+        }
+        // Let the screenshot surface catch the already asserted native frame.
+        ui.waitForIdle();Thread.sleep(300)
+        evidence("local-wording-one-caption-three-editions"+if(distinctPictures)"-different-pictures"else "")
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        assertCapturedSources(originals,saved)
+        val savedPlan=collectionPlan(saved)
+        for(common in listOf(first,middle))assertEquals(1,Regex(Regex.escape(common)).findAll(savedPlan.fusion!!.segments.single().text).count())
+        assertEquals(if(distinctPictures)2 else 1,savedPlan.attachments.size)
+    }
+
     @Test fun inlineReferenceAlternativesShareTheCaptionPictureAndEverySavedSource() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val intro="One month ago, the repair team launched"
@@ -1565,10 +1617,22 @@ class FusionFeedTest {
         ui.waitForIdle()
         ui.onNodeWithTag("Fused post text").assertDoesNotExist()
         ui.onNodeWithTag("Feed incoming banner").assertDoesNotExist()
-        ui.onNodeWithContentDescription("Instagram original actions").assertDoesNotExist()
+        // LazyColumn can retain the preceding offscreen Instagram row's
+        // semantics. Its original button says nothing about the X card.
+        val lateInstagram=hasContentDescription("Instagram original actions") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        try {
+            ui.onNode(lateInstagram).assertDoesNotExist()
+        }catch(failure:Throwable) {
+            evidence("failure-late-image-before-arrival")
+            val dir=File(requireNotNull(ui.activity.getExternalFilesDir("validation")),"fusion-feed")
+            File(dir,"failure-late-image-before-arrival-semantics.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
+            File(dir,"failure-late-image-before-arrival-facts.json").writeText(repo.gson.toJson(mapOf(
+                "x" to repo.key(x),"instagram" to repo.key(instagram),"sameImages" to repo.images.identities.same(x,instagram),
+                "memory" to repo.feedMemory.get(feed))))
+            throw failure
+        }
         val before=top(x);val offset=repo.feedMemory.get(feed).anchorOffset
         cachePicture(instagram,jpeg=true)
-        val lateInstagram=hasContentDescription("Instagram original actions") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
         ui.waitUntil(10_000){ui.onAllNodes(lateInstagram).fetchSemanticsNodes().isNotEmpty()}
         assertTrue(repo.images.identities.same(x,instagram))
         assertTrue("Late image evidence must not move the current card",abs(top(x)-before)<=2f)
