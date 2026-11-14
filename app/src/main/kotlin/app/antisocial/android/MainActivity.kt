@@ -465,8 +465,9 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     val savedKeys=LocalSavedPostKeys.current
     val isSaved=saved||threads.any {repo.key(it) in savedKeys}
     var fullImage by remember(post.id){mutableStateOf<Pair<List<Media>,Int>?>(null)}
+    var fullPanels by remember(post.id){mutableStateOf<ImagePanelLayout?>(null)}
     var saveCopy by remember(repo.key(post)){mutableStateOf<PostSaveCapture?>(null)}
-    val archive=rememberArchivePresentation(post,repo,active=fullImage==null&&!showOriginals&&!showOptions)
+    val archive=rememberArchivePresentation(post,repo,active=fullImage==null&&fullPanels==null&&!showOriginals&&!showOptions)
     val displayed=archive.post
     val authorSources=if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads
     val attributedAccounts=remember(authorSources){authorSources.distinctBy {CrossPosts.originalAccount(it) ?: CrossPosts.originalKey(it)}}
@@ -496,12 +497,18 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
     val shownMedia=remember(attachments){attachments.map {it.media}}
     val mediaSources=remember(plan.originals){plan.originals.asReversed().flatMap {root->root.media.map {it.url to root.contentSourceUrl}}.toMap()}
     val images=shownMedia.filter {it.type=="image"}
+    // A single original must supply this complete sequence. Never assemble
+    // unrelated collected pictures or infer panel order from their appearance.
+    val panels=remember(plan.originals,shownMedia){plan.originals.firstOrNull {original->
+        original.media.size==shownMedia.size&&original.media.zip(shownMedia).all {(a,b)->a.type==b.type&&a.url==b.url}
+    }?.let {ImagePanels.layout(it.media)}}
     val infoPosts=if(archive.showingArchive||displayed.recoveredArchive!=null)listOf(displayed)else threads
-    LaunchedEffect(archive.showingArchive){fullImage=null}
+    LaunchedEffect(archive.showingArchive){fullImage=null;fullPanels=null}
     // Keep an open viewer on the picture the reader chose if later local
     // evidence removes another copy from the card underneath it.
     fullImage?.let {(opened,index)->MediaViewer(opened,index,displayed.contentSourceUrl,repo,sources=mediaSources){fullImage=null}}
-    val reading=rememberArchiveDwellModifier("history:${repo.key(post)}",enabled=fullImage==null&&!showOriginals&&archiveViewportAllows(repo.key(post))&&!LocalArchiveChecksPaused.current,dwellMs=600){repo.viewed(post)}
+    fullPanels?.let {opened->ImagePanelViewer(opened,displayed.contentSourceUrl,repo,mediaSources,onIndividuals={fullPanels=null;fullImage=opened.images to 0},onClose={fullPanels=null})}
+    val reading=rememberArchiveDwellModifier("history:${repo.key(post)}",enabled=fullImage==null&&fullPanels==null&&!showOriginals&&archiveViewportAllows(repo.key(post))&&!LocalArchiveChecksPaused.current,dwellMs=600){repo.viewed(post)}
     DisposableEffect(repo.key(post)){repo.lease(repo.key(post),true);onDispose {repo.lease(repo.key(post),false)}}
     val shape=when(post.platform){Platform.X,Platform.BLUESKY,Platform.THREADS,Platform.MASTODON,Platform.LINKEDIN->RoundedCornerShape(4.dp);Platform.REDDIT,Platform.LEMMY->RoundedCornerShape(14.dp);Platform.INSTAGRAM,Platform.PIXELFED,Platform.FACEBOOK->RoundedCornerShape(8.dp);Platform.PINTEREST,Platform.TIKTOK->RoundedCornerShape(22.dp);else->RoundedCornerShape(18.dp)}
     Surface(modifier=archive.dwell.then(reading),shape=shape,color=MaterialTheme.colorScheme.surface,border=BorderStroke(.5.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.45f))) {
@@ -540,11 +547,19 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
             if(post.preview)Text("Public preview · full content unavailable",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(horizontal=16.dp,vertical=6.dp))
             if(linkedVideo&&caption.title.isNotBlank())MentionText(caption.title,repo,caption.platform,caption.canonicalUrl,fontSize=18.sp,fontWeight=FontWeight.SemiBold,maxLines=3,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(horizontal=16.dp,vertical=10.dp),explicitProfileLinks=caption.links.orEmpty())
             if(!visualFirst){if(fusion!=null)FusedPostText(fusion,onOpen,contentRoots,repo,showDetails=false,onOriginals={showOriginals=true})else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(horizontal=16.dp),repo,caption.platform,caption.canonicalUrl);PostText(caption,repo,onOpen,showDetails=false)}}
-            mediaGroups.forEach {group->val attachment=CollectedMediaChoice(group);val m=attachment.media
+            if(panels!=null) {
+                if(contentRoots.map {it.platform}.distinct().size>1) {
+                    val labels=panels.images.map {image->plan.attributions.firstOrNull {it.media.url==image.url}?.sourceLabel ?: "Image from ${displayed.platform.label}"}.distinct()
+                    Text(labels.singleOrNull() ?: "Image sources vary · View originals",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,
+                        modifier=Modifier.padding(start=16.dp,end=16.dp,top=8.dp).testTag("Media sources panels ${repo.key(post)}").clickable {showOriginals=true})
+                }
+                Text("${panels.images.size} image panels · original order",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(start=16.dp,end=16.dp,top=8.dp))
+                ImagePanelRow(panels,displayed.contentSourceUrl,repo,Modifier.fillMaxWidth().padding(top=12.dp).aspectRatio(panels.aspectRatio).testTag("Image panels ${repo.key(post)}").clickable {fullPanels=panels},repo.key(post),mediaSources)
+            }else mediaGroups.forEach {group->val attachment=CollectedMediaChoice(group);val m=attachment.media
                 val owner=if(fusion==null)displayed else contentRoots.firstOrNull {root->root.media.any {it.url==m.url}} ?: displayed
                 if(contentRoots.map {it.platform}.distinct().size>1)Text(mediaAttributions[attachment.media] ?: attachment.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,
                     modifier=Modifier.padding(start=16.dp,end=16.dp,top=8.dp).testTag("Media sources ${m.url}").clickable {showOriginals=true})
-                if(m.type=="image")RemoteImage(m.url,owner.contentSourceUrl,repo,Modifier.fillMaxWidth().testTag("Post image ${repo.key(post)} ${m.url}").aspectRatio(when(post.platform){Platform.TIKTOK,Platform.SNAPCHAT->.75f;Platform.INSTAGRAM,Platform.PIXELFED->1f;Platform.PINTEREST->.8f;else->1.25f}).padding(top=12.dp).clickable {fullImage=images.toList() to images.indexOf(m)},m.description) else VideoCard(m,owner,repo)
+                if(m.type=="image")RemoteImage(m.url,owner.contentSourceUrl,repo,Modifier.fillMaxWidth().testTag("Post image ${repo.key(post)} ${m.url}").aspectRatio(when(post.platform){Platform.TIKTOK,Platform.SNAPCHAT->.75f;Platform.INSTAGRAM,Platform.PIXELFED->1f;Platform.PINTEREST->.8f;else->1.25f}).padding(top=12.dp).clickable {fullImage=images.toList() to images.indexOf(m)},m.description,contentScale=ContentScale.Fit) else VideoCard(m,owner,repo)
             }
             if(post.platform==Platform.TIKTOK&&displayed.media.any {it.description.startsWith("Video preview;")})Text("Video preview · playback unavailable from this source",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(16.dp))
             if(linkedVideo&&(caption.body.isNotBlank()||fusion!=null)) {

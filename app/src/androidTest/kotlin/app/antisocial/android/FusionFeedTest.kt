@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
@@ -110,7 +111,7 @@ class FusionFeedTest {
                 for(table in listOf("history","seen"))repo.db.openHelper.writableDatabase.execSQL("DELETE FROM $table WHERE `key`=?",arrayOf(key))
             }
             repo.dao.removeRetainedHistory(keys);repo.dao.removePosts(keys)
-            mediaKeys.forEach {key->repo.dao.media(key)?.let {File(it.path).delete()};repo.dao.removeMedia(listOf(key))}
+            mediaKeys.forEach {key->repo.dao.media(key)?.let {File(it.path).delete()};repo.dao.removeMedia(listOf(key));repo.lease(key,false)}
             packetMedia.forEach {(key,old)->if(old==null)repo.dao.removeMedia(listOf(key))else repo.dao.putMedia(old);repo.lease(key,false)}
             packetFiles.forEach {it.delete()}
         }
@@ -228,6 +229,142 @@ class FusionFeedTest {
 
     /** Private reproductions exercise the real reader without committing its
      * subscriptions, source text or pictures as public fixtures. */
+    private fun showPanelFixture(post:Post,files:Map<String,File> = emptyMap(),editions:List<Post> = listOf(post)) {
+        records+=editions
+        post.media.forEachIndexed {index,media->
+            val key=Repository.hash(media.url);mediaKeys+=key;repo.lease(key,true)
+            val file=File(ui.activity.cacheDir,"panel-fixture-$suffix-$index.png")
+            val source=files[media.url]
+            if(source!=null)source.copyTo(file)else {
+                val bitmap=Bitmap.createBitmap(90,1200,Bitmap.Config.ARGB_8888)
+                bitmap.eraseColor(Color.HSVToColor(floatArrayOf(index*18f,.75f,.8f)))
+                Canvas(bitmap).drawRect(0f,0f,90f,80f,Paint().apply {color=Color.WHITE})
+                file.outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+            }
+            packetFiles+=file
+            runBlocking {repo.dao.putMedia(MediaRow(key,file.path,file.length(),now))}
+        }
+        val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme(colorScheme=darkColorScheme()){Surface {Column(Modifier.fillMaxSize().systemBarsPadding().verticalScroll(rememberScrollState())) {PostCard(post,vm,false,discussions=editions,onOpen={})}}}}}
+    }
+    private fun verifyPanelFixture(post:Post,label:String) {
+        val key=repo.key(post)
+        ui.waitUntil(30_000){post.media.all {media->ui.onAllNodes(hasTestTag("Post image $key ${media.url}") and SemanticsMatcher("decoded image"){it.config.getOrNull(SemanticsProperties.ContentDescription)!=null},useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}}
+        evidence("$label-before-panel-assertion")
+        ui.onNodeWithTag("Image panels $key").assertIsDisplayed()
+        val bounds=ui.onNodeWithTag("Image panels $key").fetchSemanticsNode().boundsInRoot
+        val children=post.media.map {ui.onNodeWithTag("Post image $key ${it.url}",useUnmergedTree=true).assertIsDisplayed().fetchSemanticsNode().boundsInRoot}
+        assertEquals(20,children.size)
+        assertTrue("Every original occupies its ordered, unclipped part of one compact row",children.zipWithNext().all {(a,b)->abs(a.right-b.left)<2f&&abs(a.top-b.top)<2f&&abs(a.bottom-b.bottom)<2f})
+        assertTrue("The twenty originals fit the same frame",abs(children.first().left-bounds.left)<2f&&abs(children.last().right-bounds.right)<2f)
+        evidence("$label-compact-panels")
+        ui.onNodeWithTag("Image panels $key").performClick()
+        ui.onNodeWithTag("Image panel viewer").assertIsDisplayed()
+        ui.waitUntil(30_000){post.media.all {media->ui.onAllNodes(hasTestTag("Image panel ${media.url}") and SemanticsMatcher("decoded viewer panel"){it.config.getOrNull(SemanticsProperties.ContentDescription)!=null},useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}}
+        evidence("$label-complete-panel-viewer")
+        val viewport=ui.onNodeWithTag("Image panel zoom viewport")
+        fun sampledPixels():List<Int> {
+            // Compose's dialog PixelCopy helper requires API 28. Use the
+            // actual display and window bounds on the supported older runtime.
+            val older=android.os.Build.VERSION.SDK_INT<28
+            val bitmap=if(older)InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()else viewport.captureToImage().asAndroidBitmap()
+            val bounds=if(older)viewport.fetchSemanticsNode().boundsInWindow else androidx.compose.ui.geometry.Rect(0f,0f,bitmap.width.toFloat(),bitmap.height.toFloat())
+            try {return (0 until 16).flatMap {y->(0 until 16).map {x->bitmap.getPixel((bounds.left+(2*x+1)*bounds.width/32).toInt().coerceIn(0,bitmap.width-1),(bounds.top+(2*y+1)*bounds.height/32).toInt().coerceIn(0,bitmap.height-1))}}}
+            finally {bitmap.recycle()}
+        }
+        val beforeZoom=sampledPixels()
+        ui.onNodeWithTag("Image panel viewer").performTouchInput {doubleClick(center)}
+        ui.waitForIdle()
+        viewport.assert(hasStateDescription("Zoom 200%"))
+        val afterZoom=sampledPixels()
+        assertTrue("Zoom must change actual displayed pixels without replacing the source panels",beforeZoom.zip(afterZoom).count {(a,b)->abs(Color.red(a)-Color.red(b))+abs(Color.green(a)-Color.green(b))+abs(Color.blue(a)-Color.blue(b))>30}>beforeZoom.size/10)
+        ui.onNodeWithContentDescription("Close image panels").assertIsDisplayed()
+        ui.onNodeWithText("Inspect individual panels").assertIsDisplayed()
+        evidence("$label-zoomed-panel-viewer")
+        // An explicit isolated inspection can hold this live native screen for
+        // an external display capture, independently of UiAutomation readback.
+        val inspection=InstrumentationRegistry.getArguments()
+        if(inspection.getString("antisocialPanelSourcePacket")=="true"&&inspection.getString("antisocialIsolatedFixtureDevice")=="true") {
+            val pause=inspection.getString("antisocialPanelInspectPauseMs")?.toLongOrNull() ?: 0L
+            require(pause in 0..10_000)
+            if(pause>0)Thread.sleep(pause)
+        }
+        ui.onNodeWithTag("Image panel viewer").performTouchInput {doubleClick(center)}
+        ui.onNodeWithText("Inspect individual panels").performClick()
+        ui.onNodeWithText("1 / 20").assertIsDisplayed()
+        evidence("$label-original-panel-viewer")
+        ui.onNodeWithContentDescription("Close image").performClick()
+        runBlocking {repo.library.save(post,emptyList())}
+        val saved=runBlocking {repo.library.copy(key)}!!
+        assertEquals(post.media.size,saved.post.media.size)
+        for((original,retained)in post.media.zip(saved.post.media)) {
+            val captured=repo.gson.toJsonTree(retained).asJsonObject
+            assertTrue("Every source field survives; newly observed fingerprints are additional evidence",repo.gson.toJsonTree(original).asJsonObject.entrySet().all {(name,value)->captured[name]==value})
+        }
+    }
+    @Test fun completeNumberedNarrowPanelsKeepTwentyOriginalsInOneCompactFrame() {
+        val media=(1..20).joinToString(",") {i->"""{"url":"https://panels-$suffix.fixture.invalid/panel-$i.png","type":"image","description":"Panel $i","sourceLayout":{"width":150,"height":2000,"position":$i,"count":20}}"""}
+        val post=repo.gson.fromJson("""{"id":"881","platform":"X","canonicalUrl":"https://x.com/panel_fixture/status/881","author":"Public workshop","title":"","body":"Workshop panels","media":[$media]}""",Post::class.java)
+        showPanelFixture(post);verifyPanelFixture(post,"numbered-source")
+    }
+    @Test fun compactPanelsKeepEveryCreditedPlatformWithoutRepeatingTwentySourceLabels() {
+        val media=(1..20).joinToString(",") {i->"""{"url":"https://panels-$suffix.fixture.invalid/panel-$i.png","type":"image","description":"Panel $i","sourceLayout":{"width":150,"height":2000,"position":$i,"count":20}}"""}
+        val post=repo.gson.fromJson("""{"id":"881","platform":"X","canonicalUrl":"https://x.com/panel_fixture/status/881","author":"Public workshop","title":"","body":"Workshop panels","media":[$media]}""",Post::class.java)
+        val other=post.copy(id="PanelCopy",platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/PanelCopy/")
+        showPanelFixture(post,editions=listOf(post,other))
+        ui.onNodeWithTag("Image panels ${repo.key(post)}").assertIsDisplayed()
+        ui.onAllNodesWithTag("Media sources panels ${repo.key(post)}").assertCountEquals(1)
+        ui.onNodeWithTag("Media sources panels ${repo.key(post)}").assert(hasText("X",substring=true)).assert(hasText("Instagram",substring=true)).assertHasClickAction()
+        evidence("compact-panels-shared-platform-attribution")
+    }
+    @Test fun incompletePanelDeclarationsKeepEverySeparateImage() {
+        val media=(1..4).joinToString(",") {i->"""{"url":"https://panels-$suffix.fixture.invalid/panel-$i.png","type":"image","description":"Panel $i","sourceLayout":{"width":150,"height":2000,"position":${if(i==4)3 else i},"count":4}}"""}
+        val post=repo.gson.fromJson("""{"id":"881","platform":"X","canonicalUrl":"https://x.com/panel_fixture/status/881","author":"Public workshop","title":"","body":"Separate workshop pictures","media":[$media]}""",Post::class.java)
+        showPanelFixture(post)
+        ui.onAllNodesWithTag("Image panels ${repo.key(post)}").assertCountEquals(0)
+        post.media.forEach {ui.onNodeWithTag("Post image ${repo.key(post)} ${it.url}",useUnmergedTree=true).assertExists()}
+        evidence("unqualified-panels-remain-separate")
+    }
+    @Test fun widePostImagesKeepBothPublishedEdgesAndTheirIndividualViewer() {
+        val url="https://wide-$suffix.fixture.invalid/picture.png"
+        val post=repo.gson.fromJson("""{"id":"881","platform":"X","canonicalUrl":"https://x.com/panel_fixture/status/881","author":"Public workshop","title":"","body":"Complete workshop picture","media":[{"url":"$url","type":"image","description":"Wide workshop picture"}]}""",Post::class.java)
+        val source=File(ui.activity.cacheDir,"wide-picture-source-$suffix.png");packetFiles+=source
+        val bitmap=Bitmap.createBitmap(1400,250,Bitmap.Config.ARGB_8888);bitmap.eraseColor(Color.BLUE)
+        val canvas=Canvas(bitmap);val paint=Paint();paint.color=Color.RED;canvas.drawRect(0f,0f,200f,250f,paint);paint.color=Color.GREEN;canvas.drawRect(1200f,0f,1400f,250f,paint)
+        source.outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        showPanelFixture(post,mapOf(url to source))
+        val node=ui.onNodeWithTag("Post image ${repo.key(post)} $url",useUnmergedTree=true)
+        ui.waitUntil(20_000){ui.onAllNodesWithContentDescription("Wide workshop picture",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        evidence("wide-picture-before-edge-assertion")
+        val image=node.captureToImage().asAndroidBitmap()
+        val left=image.getPixel(2,image.height/2);val right=image.getPixel(image.width-3,image.height/2)
+        assertTrue("The published left edge remains visible",Color.red(left)>200&&Color.blue(left)<50)
+        assertTrue("The published right edge remains visible",Color.green(right)>200&&Color.blue(right)<50)
+        node.performClick();ui.onNodeWithText("1 / 1").assertIsDisplayed();evidence("wide-picture-individual-viewer")
+        ui.onNodeWithContentDescription("Close image").performClick()
+    }
+    @Test fun suppliedPrivateNumberedPanelsPreserveEveryOriginalAndItsCompletePicture() {
+        val args=InstrumentationRegistry.getArguments()
+        Assume.assumeTrue(args.getString("antisocialPanelSourcePacket")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")
+        val input=File(ui.activity.filesDir,"panel-private-packet/input.json")
+        require(input.isFile&&input.length() in 1..4*1024*1024)
+        val packet=com.google.gson.JsonParser.parseReader(input.reader()).asJsonObject
+        val account=packet["account"].asString;val target=repo.routes.target(Platform.X,account)
+        val format=packet.get("format")?.asString ?: "sotwe"
+        require(format in setOf("sotwe","fx-status"))
+        val source=Source(Platform.X,if(format=="sotwe")"sotwe-api"else"fxembed-api","https://source.fixture.invalid")
+        val provenance=Provenance(source,now,source.root)
+        val post=if(format=="sotwe")ProtocolDiscoveryParsing.sotwe(packet.getAsJsonObject("response"),target,provenance).posts.single {it.canonicalUrl=="https://x.com/$account/status/${packet["id"].asString}"}
+            else requireNotNull(ProtocolDiscoveryParsing.fxStatus(packet.getAsJsonObject("response"),Platform.X,provenance,repo.routes))
+        assertEquals("https://x.com/$account/status/${packet["id"].asString}",post.canonicalUrl)
+        assertEquals(packet.getAsJsonArray("expectedPhotoUrls").map {it.asString},post.media.map {it.url})
+        val files=packet.getAsJsonObject("files").entrySet().associate {(url,value)->
+            val name=value.asString;require(name.matches(Regex("[A-Za-z0-9_.-]{1,100}")))
+            url to File(input.parentFile,name).also {require(it.isFile&&it.length() in 1..25L*1024*1024)}
+        }
+        require(files.keys==post.media.map {it.url}.toSet()) {"Every captured source URL requires its actual supplied file"}
+        showPanelFixture(post,files);verifyPanelFixture(post,"captured-numbered-source")
+    }
     @Test fun suppliedPrivateEditionsRenderOneCardAndOneCommonCaptionPerAnnouncement() {
         val args=InstrumentationRegistry.getArguments()
         Assume.assumeTrue(args.getString("antisocialCollectedFeedPacket")=="true"&&args.getString("antisocialIsolatedFixtureDevice")=="true")

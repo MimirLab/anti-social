@@ -1164,3 +1164,42 @@ Video comparison work also uses the actual card activity keys, including while
 queued for its decoder lane. The card therefore observes this pending work, and
 cache purge cancels queued comparisons before they can enter a newer generation.
 The existing native status indicator is reused.
+
+## Numbered image panels and complete photo framing (0.38.107)
+
+Some publishers divide one picture into many narrow photo attachments. Rendering
+each slice as a cropped, full-width card can turn that picture into many screens
+of fragments. Fresh supported responses now retain their published photo order
+and optional geometry. Ordinary post photos use complete-image fitting inside
+their existing frame.
+
+The Sotwe parser accepts numbered photo links only when every entry identifies
+the same requested account and post, uses an approved HTTPS original host and
+forms exactly the sequence 1 through N. Ambiguous links retain the returned
+order. The Fx parser retains layout only when its complete photo-only `all`
+sequence agrees with `photos` in count, URL order and declared dimensions.
+Both retain the existing twenty-photo bound; overflow and mixed galleries keep
+their established extraction paths.
+
+`ImagePanels.layout` admits four through twenty distinct image URLs with a
+complete position/count declaration, compatible narrow dimensions and a bounded
+combined aspect ratio. A single captured original must supply the entire shown
+sequence. Its panels occupy one stable frame before and after decoding. Measured
+fingerprints can enrich those images without invalidating layout selection.
+The combined view reuses the feed's bounded decoded images. Individual inspection
+uses the existing original-image viewer. Rendering creates no replacement media
+URL or file and leaves the original attachments available.
+
+Media attribution remains source-backed: a common label appears once for panels
+with the same credited platforms; differing credits open the original editions.
+Post admission and media comparison continue using their established evidence.
+Panel layout describes presentation and does not establish a cross-post match.
+
+`Media.sourceLayout` is an optional `SourceImageLayout` containing integer width,
+height, position and count. Strict saved-record validation registers that shape
+and keeps absent/null layout valid for legacy media. Import/export checks retain
+all twenty original records and reject malformed scalar shapes or unknown fields.
+Existing saved captures keep their first-capture guarantees. Fresh source reads
+can acquire the new hints; earlier captures with unknown order remain readable
+as their individual originals. There is no schema migration, new dependency,
+model call or additional automatic source search.

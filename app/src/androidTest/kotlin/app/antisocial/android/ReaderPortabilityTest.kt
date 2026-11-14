@@ -286,6 +286,36 @@ class ReaderPortabilityTest {
         try {strictSavedModel(captured,PostSnapshot::class.java);fail("Native reply IDs must remain strings.")}catch(expected: IllegalArgumentException) {}
     }
 
+    @Test fun sourcePanelLayoutsAreOptionalForLegacySavesAndStrictWhenPresent() {
+        val original=post(24).copy(media=listOf(Media("https://images.fixture.invalid/panel.png")))
+        val legacy=repo.gson.toJsonTree(original).asJsonObject
+        strictSavedModel(legacy,Post::class.java)
+        assertNull(repo.gson.fromJson(legacy,Post::class.java).media.single().sourceLayout)
+        val annotated=repo.gson.toJsonTree(original.copy(media=listOf(original.media.single().copy(sourceLayout=SourceImageLayout(150,2000,1,20))))).asJsonObject
+        strictSavedModel(annotated,Post::class.java)
+        val snapshot=repo.gson.toJsonTree(PostSnapshot.from(repo.gson.fromJson(annotated,Post::class.java))).asJsonObject
+        strictSavedModel(snapshot,PostSnapshot::class.java)
+        for(change in listOf<(JsonObject)->Unit>({it.addProperty("width","150")},{it.addProperty("height",2000.5)},{it.remove("position")},{it.addProperty("count",Long.MAX_VALUE)},{it.addProperty("url","https://foreign.fixture.invalid/picture")})) {
+            val malformed=annotated.deepCopy();change(malformed.getAsJsonArray("media")[0].asJsonObject.getAsJsonObject("sourceLayout"))
+            try {strictSavedModel(malformed,Post::class.java);fail("Panel metadata must retain its exact integer-only schema")}catch(expected:IllegalArgumentException) {}
+        }
+        annotated.getAsJsonArray("media")[0].asJsonObject.add("sourceLayout",com.google.gson.JsonNull.INSTANCE)
+        strictSavedModel(annotated,Post::class.java)
+        assertNull(repo.gson.fromJson(annotated,Post::class.java).media.single().sourceLayout)
+    }
+    @Test fun everySourcePanelSurvivesTheReaderStateImportAndExport()=runBlocking {
+        val saved=post(25).copy(media=(1..20).map {Media("https://images.fixture.invalid/panel-$it.png",description="Panel $it",sourceLayout=SourceImageLayout(150,2000,it,20))})
+        savedKeys+=repo.key(saved)
+        val document=PortableDocument(PortableKind.STATE,now,emptyList(),statePayload=libraryPayload(emptyList(),listOf(PortableSaved(saved,now))))
+        val preview=repo.portability.preview(bytes(document))
+        repo.portability.apply(preview,emptySet(),PortableImportOptions(collections=true))
+        val restored=repo.gson.fromJson(repo.dao.bookmarksByKeys(listOf(repo.key(saved))).single().payload,Post::class.java)
+        assertEquals(saved,restored);assertNotNull(ImagePanels.layout(restored.media))
+        val exported=repo.portability.preview(repo.portability.exportState(false))
+        val entry=exported.document.statePayload!!.getAsJsonObject("library").getAsJsonArray("saved").single {repo.gson.fromJson(it.asJsonObject["post"],Post::class.java).id==saved.id}
+        val retained=repo.gson.fromJson(entry.asJsonObject["post"],Post::class.java)
+        assertEquals(saved,retained);assertEquals((1..20).toList(),retained.media.map {it.sourceLayout!!.position})
+    }
     @Test fun publicForwardMetadataIsOptionalForOldSavesAndTypedWhenPresent() {
         val root=post(22)
         val legacy=repo.gson.toJsonTree(root).asJsonObject

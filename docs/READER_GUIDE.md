@@ -43,6 +43,12 @@ does not establish identical footage. Related interview frames can use the same
 compact selector. A still supplied by another platform is labelled as a preview
 or remains selectable as its own image.
 
+Post photos fit inside their frame with their edges intact. A supported complete
+sequence of narrow image panels appears together in original order, with every
+individual file retained. Tap the panel picture to zoom, or choose **Inspect
+individual panels** to open the original files. Collected editions keep their
+media-source label and original-post actions.
+
 When corroborated copies have small wording edits, common text can appear once
 with bracketed alternatives. The small colored platform marks identify each
 fragment and open its original. Shared text stays neutral; full source editions

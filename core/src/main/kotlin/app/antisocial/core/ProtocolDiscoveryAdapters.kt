@@ -92,9 +92,10 @@ object ProtocolDiscoveryParsing {
             val id=node.pText("id").takeIf {it.matches(Regex("[0-9]{1,30}"))} ?: return@mapNotNull null
             val user=node.pObject("user");if(node.get("retweetedStatus")?.isJsonObject==true||node.pText("truncated")=="true"||user.pText("screenName").let {it.isNotBlank()&&!it.equals(username,true)})return@mapNotNull null
             val date=pStamp(node.pText("createdAt")) ?: return@mapNotNull null
-            val body=node.pText("text");val media=node.pArray("mediaEntities").take(20).mapNotNull {raw->raw.pObj()?.let {m->
+            val rawMedia=node.pArray("mediaEntities").take(21);val numberedPhotos=sotwePhotoOrder(rawMedia,username,id)
+            val body=node.pText("text");val media=(numberedPhotos ?: rawMedia).take(20).mapIndexedNotNull {index,raw->raw.pObj()?.let {m->
                 when(m.pText("type")) {
-                    "photo"->pUrl(m.pText("mediaURL"),provenance.finalUrl)?.let {Media(it,description=m.pText("extAltText","altText"))}
+                    "photo"->pUrl(m.pText("mediaURL"),provenance.finalUrl)?.let {Media(it,description=m.pText("extAltText","altText"),sourceLayout=numberedPhotos?.let {photos->declaredImageLayout(m.pObject("imageSize"),index+1,photos.size)})}
                     "video","animated_gif"->{
                         val info=m.pObject("videoInfo")
                         val variants=info.pArray("variants").take(32).mapNotNull {it.pObj()}.filter {it.pText("type")=="video/mp4"}
@@ -118,6 +119,28 @@ object ProtocolDiscoveryParsing {
         }
         return pUsable(Page(pChronological(posts),profile=Profile(target,info.pText("name","screenName"),info.pText("description"),avatar,info.pLong("followerCount"),listOfNotNull(pUrl(info.pObject("urlEntity").pText("expandedURL"),provenance.finalUrl)),displayNameSupplied=info.pText("name").isNotBlank()),provenance=provenance,limitedTimeline=true,notice="Earlier posts and comments may need another source."))
     }
+    /** Only a complete, post-bound photo sequence can override the returned array order. */
+    private fun sotwePhotoOrder(raw:List<JsonElement>,username:String,id:String):List<JsonElement>? {
+        if(raw.size !in 2..20)return null
+        val positions=raw.map {value->
+            val photo=value.pObj()?.takeIf {it.pText("type")=="photo"} ?: return null
+            val link=photo.pText("expandedURL").takeIf {it.length in 1..2048}?.toHttpUrlOrNull() ?: return null
+            if(!link.isHttps||link.port!=443||link.username.isNotEmpty()||link.password.isNotEmpty()||
+                link.host !in setOf("x.com","www.x.com","twitter.com","www.twitter.com")||link.encodedQuery!=null||link.fragment!=null)return null
+            val path=link.pathSegments.let {if(it.lastOrNull().isNullOrEmpty())it.dropLast(1)else it}
+            if(path.size!=5||!path[0].equals(username,true)||path[1]!="status"||path[2]!=id||path[3]!="photo")return null
+            val position=path[4].toIntOrNull()?.takeIf {it in 1..20&&it.toString()==path[4]} ?: return null
+            position to value
+        }
+        if(positions.map {it.first}.sorted()!=(1..raw.size).toList())return null
+        return positions.sortedBy {it.first}.map {it.second}
+    }
+    private val imageDimension=Regex("[1-9][0-9]{0,4}")
+    private fun declaredImageLayout(size:JsonObject,position:Int,count:Int):SourceImageLayout? {
+        fun dimension(key:String)=size.pText(key).takeIf {imageDimension.matches(it)}?.toIntOrNull()?.takeIf {it<=32768}
+        val width=dimension("width");val height=dimension("height")
+        return if(width!=null&&height!=null)SourceImageLayout(width,height,position,count)else null
+    }
     fun redditArchivePost(node: JsonObject,provenance: Provenance,routes: DarwinRoutes): Post? {
         val id=node.pText("id").takeIf {it.matches(Regex("[a-z0-9]{1,20}"))} ?: return null
         val raw=pUrl(node.pText("permalink"),Platform.REDDIT.origin) ?: return null
@@ -139,7 +162,15 @@ object ProtocolDiscoveryParsing {
         val path=canonical.canonicalUrl.toHttpUrlOrNull()?.pathSegments.orEmpty()
         if(platform==Platform.X&&(path.size!=3||path[1]!="status"||path[2]!=id||!path[0].equals(handle,true)))return null
         if(platform==Platform.BLUESKY&&(path.size!=4||path[0]!="profile"||path[2]!="post"||path[3]!=id||!path[1].equals(handle,true)&&path[1]!=author.pText("did","id")))return null
-        val media=node.pObject("media");val images=media.pArray("photos").take(20).mapNotNull {raw->raw.pObj()?.let {p->pUrl(p.pText("url"),provenance.finalUrl)?.let {Media(it,description=p.pText("altText","alt_text"))}}}
+        val media=node.pObject("media");val photos=media.pArray("photos").take(21);val all=media.pArray("all").take(21)
+        // The complete all-media sequence must agree with the photo sequence.
+        // A partial photo list or a mixed gallery does not establish panel order.
+        val orderedPhotos=photos.size in 2..20&&photos.size==all.size&&photos.zip(all).all {(a,b)->
+            val photo=a.pObj();val item=b.pObj()
+            photo!=null&&item!=null&&photo.pText("type")=="photo"&&item.pText("type")=="photo"&&
+                photo.pText("url")==item.pText("url")&&declaredImageLayout(photo,1,1)==declaredImageLayout(item,1,1)
+        }
+        val images=photos.take(20).mapIndexedNotNull {index,raw->raw.pObj()?.let {p->pUrl(p.pText("url"),provenance.finalUrl)?.let {Media(it,description=p.pText("altText","alt_text"),sourceLayout=if(orderedPhotos)declaredImageLayout(p,index+1,photos.size)else null)}}}
         val videos=media.pArray("videos").take(8).mapNotNull {raw->raw.pObj()?.let {v->
             val formats=v.pArray("formats").take(32).mapNotNull {it.pObj()}.filter {it.pText("container")=="mp4"&&it.pText("codec") in setOf("","h264")}
             val preferred=formats.maxByOrNull {it.pLong("bitrate") ?: 0}

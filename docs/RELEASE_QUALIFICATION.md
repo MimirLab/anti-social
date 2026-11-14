@@ -9,6 +9,69 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.107: complete photo framing and source-ordered image panels
+
+The continuing native audit on November 14, 2026 (UTC) found a twenty-photo
+announcement occupying many screens of cropped fragments. The source's complete
+numbered sequence reconstructed a whole picture; an alternate route supplied the
+same ordered photos at a different resolution. The [panel presentation](ATTACHMENT_COLLECTIONS.md#numbered-image-panels-and-complete-photo-framing-038107)
+preserves every original and source credit while arranging qualified panels in
+one frame. Ordinary post photos retain their edges. Version code is 216;
+application ID, signing compatibility and the established collection detectors
+are unchanged.
+
+The frozen corrected candidate qualifies:
+
+- **55 focused JVM checks:** all pass without skips, including both explicitly
+  supplied private source-response replays and ambiguous/overflow/mixed-gallery
+  controls. The recorded response objects remain unchanged.
+- **2,885 full JVM cases:** 2,878 pass, seven optional skips, zero failures/errors.
+- **150 named native checks on each API 35 and minimum API 26:** 142 pass,
+  eight explicit skips, zero failures. Ten classes cover fusion, media identity,
+  cross-post feeds, saved media, Library, article sessions, caption processing
+  and strict reader-state portability.
+- **Four focused native controls per API:** complete source panels, shared
+  platform credit, ambiguous panel declarations and complete wide-image edges
+  pass without skips. The released baseline reproduces the panel/edge failures
+  while retaining the ambiguous-gallery control.
+- **Both captured-format native replays per API:** all twenty source files remain
+  in published order, the compact picture and zoom are inspected, individual
+  originals remain accessible and every original saved field is retained.
+  The alternate route's twenty exact full-rendition URLs are separately read
+  through the shipping Gateway/cache/decoder; all succeed and remain twenty
+  distinct attachments. Default-rendition bytes are not substituted for them.
+- **Import/export controls:** legacy media with absent layout remains valid;
+  a complete twenty-panel saved record round-trips without losing a source
+  field. Malformed scalars and unknown nested fields remain rejected.
+
+An initial candidate was held when local fingerprint observations changed full
+`Media` equality and caused the panel layout to disappear. Selection now follows
+the unchanged source URL sequence. Broader native regressions then caught a
+missing optional-field registration in strict export validation; that boundary
+is repaired and explicitly tested. One earlier Library selector observation did
+not recur in the unchanged frozen-baseline control or complete corrected runs;
+no user-facing navigation change is attributed to that observation.
+
+The combined viewer reuses the bounded feed decodes; the existing individual
+viewer retains original-image inspection. Zoom uses a bounded draw transform.
+No new dependency, model, database migration, permission or automatic source
+search is introduced. Old captures with unknown panel geometry retain their
+individual originals; fresh supported source responses acquire the new hints.
+
+Some API 26 display captures intermittently omitted interface layers, including
+in stock Android Settings after anti social was stopped. That independent
+emulator/capture observation is retained rather than presented as an app fix.
+Native functional checks, inspected complete frames and this capture limitation
+are separate evidence. The older isolated database event recorded under
+0.38.105 also remains unexplained; this increment changes no database corruption
+handling. No new physical-phone latency, battery or hardware-display qualification
+is claimed. The wider duplicate/noise audit continues.
+
+Promotion requires the final frozen APK controls, clean source/revision and
+signer checks, unchanged native members, source-archive privacy/correspondence
+checks, recoverable preview-state preservation and anonymous permanent-download
+verification under [the publishing procedure](PUBLISHING.md).
+
 ## 0.38.106: read collected name variants without repeating the statement
 
 The continuing native audit on November 14, 2026 (UTC) found an already merged

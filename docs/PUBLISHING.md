@@ -170,6 +170,27 @@ business fallback. Retain the original per-case expectations when migrating a
 previous private benchmark. These are engineering test arguments, not user-facing
 installation or runtime requirements.
 
+The optional `SotweMediaOrderTest` and `FxImagePanelsTest` source replays accept
+`ANTISOCIAL_PRIVATE_PANEL_SOURCE` and `ANTISOCIAL_PRIVATE_FX_PANEL_SOURCE`,
+respectively. Each private JSON packet supplies a recorded `response` and
+`expectedPhotoUrls`; the profile response also supplies `account` and `id`.
+Ordinary runs skip these inputs. Keep captured responses outside the checkout.
+
+The native `FusionFeedTest.suppliedPrivateNumberedPanelsPreserveEveryOriginalAndItsCompletePicture`
+requires `antisocialPanelSourcePacket=true` and
+`antisocialIsolatedFixtureDevice=true`, plus
+`files/panel-private-packet/input.json` on a separate fixture device. The packet
+contains `account`, `id`, `response`, `expectedPhotoUrls` and a complete `files`
+map from source URLs to supplied local filenames. Optional `format` is `sotwe`
+(default) or `fx-status`. Every source URL requires its actual supplied file;
+this private replay never generates substitute pictures. It checks source order,
+compact native presentation, rendered zoom, individual originals and saved-field
+retention. Optional `antisocialPanelInspectPauseMs` (zero through 10,000) holds the
+zoom screen for independent display inspection. Captures, filenames and private
+source inputs stay in the external evidence area. Dialog pixel sampling on API
+26 uses display/window bounds because Compose's dialog PixelCopy helper requires
+API 28. No user-facing feature requires these engineering tools or arguments.
+
 
 The helper defaults to `MimirLab/anti-social` and the existing external artifact
 directory. `--apk` can select another locally packaged APK. `GH_CONFIG_DIR` is
