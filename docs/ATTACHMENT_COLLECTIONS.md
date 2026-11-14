@@ -1380,3 +1380,36 @@ reader reconstructs the compact body from its captured originals after local
 subscriptions are removed. This extension introduces no network request, model,
 dependency, permission, database or media-equivalence rule. It cannot nominate
 two posts for collection merely because they share a closing sentence.
+
+## Direct provider video thumbnails (0.38.113)
+
+A qualified X thumbnail can arrive as a direct `pbs.twimg.com` URL as well as
+through the existing source-scoped Nitter `/pic/` wrapper. `DeclaredVideo` now
+reads both forms into the same provider clip namespace. The direct form requires
+HTTPS, the exact host, an `amplify_video_thumb` or `ext_tw_video_thumb` path
+followed by `/<decimal-id>/img/<file>`, a supported picture suffix and only
+the existing `name`/`format` query
+keys. Credentials, fragments, other ports, unrelated hosts, arbitrary pictures
+and avatar reuse do not qualify. The published media URL and image type remain
+unchanged; a thumbnail does not supply playback or authenticate its publisher.
+
+The existing same-publisher/validated-repost collection route can use that
+declared clip identity before image or footage work. Its six-hour whole-group
+window, original-source checks, comparison caps and independent cross-platform
+admission remain in force. Different captions or claims retain their complete
+source alternatives. Generic shared pictures alone do not establish this route.
+
+In an already admitted collection, a single-image declared thumbnail is marked
+as a preview edition. It can share the existing selectable media slot with a
+recording even when the covers show different frames. The recording is selected
+initially; the preview remains a separate choice labelled with its actual
+platform. This presentation does not assert equal pixels or equal recordings,
+and does not suppress either captured attachment. This declaration alone cannot
+make ordinary pictures, avatar reuse or multi-picture originals into preview
+editions; their existing image and pixel rules remain.
+
+Context and Library keep the complete attachment inventory. The offline picker
+continues enumerating every raw source's assets, including a preview outside the
+currently selected slot. Selected images use the existing protected download
+path; ordinary cache eviction cannot remove them. No model, dependency,
+permission, database migration, new request or invented video URL is introduced.

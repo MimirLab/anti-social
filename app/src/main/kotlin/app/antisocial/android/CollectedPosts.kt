@@ -188,11 +188,13 @@ internal fun collectedAttachments(posts: List<Post>,identities: MediaIdentitySto
     }.toMap()
     return clusters.indices.filter {it !in previewOf}.map {i->
         val group=clusters[i];val previews=previewOf.filterValues {it==i}.keys.flatMap {clusters[it]}
-        // RSS-Bridge explicitly prefixes Instagram videos with a play marker.
-        // Its public fallback can supply only the poster. This is a preview
-        // edition, not another photograph or a playable video declaration.
-        val videoPreview=group.all {it.media.type=="image"&&it.post.platform==Platform.INSTAGRAM&&it.post.media.size==1&&
-            it.post.provenance?.source?.frontend=="rss-bridge"&&it.post.title.trimStart().startsWith("▶")&&!it.post.body.trimStart().startsWith("▶")}
+        // A qualified provider thumbnail or the bridge's explicit play marker
+        // describes a preview. Keep it selectable beside the actual recording;
+        // it does not establish equivalent pixels or playback on that service.
+        val videoPreview=group.all {it.media.type=="image"&&it.post.media.size==1&&
+            (it.post.platform==Platform.X&&DeclaredVideo.key(it.post,it.media)!=null||
+                it.post.platform==Platform.INSTAGRAM&&it.post.provenance?.source?.frontend=="rss-bridge"&&
+                it.post.title.trimStart().startsWith("▶")&&!it.post.body.trimStart().startsWith("▶"))}
         CollectedAttachment(group.first().media,group.map {it.post.platform}.toSet(),(group+previews).map {CrossPosts.originalKey(it.post)}.toSet(),previews.map {it.post.platform}.toSet(),videoPreview)
     }
 }

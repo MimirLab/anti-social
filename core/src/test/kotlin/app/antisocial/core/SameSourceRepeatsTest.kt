@@ -6,38 +6,38 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SameSourceRepeatsTest {
-    private val at=1_792_196_226_000L
+    private val at=1_800_014_400_000L
     private val caption="Our community workshop has completed another important software release. The public notes explain the careful preparation, current changes, remaining tasks, and practical next steps everyone can follow together."
-    private val border="We didn't just talk about closing the border — we actually did it."
-    private val longer=".@VP: \"$border We didn't just talk about getting opioid overdose deaths down — we actually did it. We didn't just talk about bringing trillions of dollars of new investment into the country — we actually did it. I do think you have to raise the flag and celebrate your accomplishments a little bit, but I do fundamentally think you have to make a promise to the American voter — a believable promise — that you can continue to work on the things that they care about today.\""
-    private val shorter="“$border” - @VP 🎯"
-    private val thumb="https://pbs.twimg.com/amplify_video_thumb/2111249215355580416/img/SL7jClSKrhKkTC__.jpg"
-    private val source=Source(Platform.X,"nitter","https://nitter.netbub.com")
-    private fun post(id: String="100",body: String=caption,author: String="WhiteHouse",time: Long?=at,media: List<Media> = emptyList(),title: String="",provenance: Provenance?=null)=
+    private val border="We didn't just talk about repairing the workshop — we actually did it."
+    private val longer=".@CrewLead: \"$border We didn't just talk about inspecting every toolbox — we actually did it. We didn't just talk about publishing safety instructions for every volunteer — we actually did it. I do think you have to show the repaired equipment and explain each remaining task, but I also think you have to make a clear promise to the people who use the shared workshop, with practical instructions that everyone can follow.\""
+    private val shorter="“$border” - @CrewLead 🎯"
+    private val thumb="https://pbs.twimg.com/amplify_video_thumb/710001/img/workshop.jpg"
+    private val source=Source(Platform.X,"nitter","https://nitter.fixture.invalid")
+    private fun post(id: String="100",body: String=caption,author: String="Workshop",time: Long?=at,media: List<Media> = emptyList(),title: String="",provenance: Provenance?=null)=
         Post(id,Platform.X,"https://x.com/$author/status/$id","@$author",body,title,publishedAt=time,media=media,provenance=provenance)
-    private fun provenance(curator: String="WhiteHouse")=Provenance(source,at+100_000,"${source.root}/$curator/rss")
-    private fun actualPair(): List<Post> = listOf(
-        post("2111250113670623270","$longer Video","RapidResponse47",at,listOf(Media(thumb)),"RT by @WhiteHouse: $longer",provenance()),
-        post("2111262069441921126","$shorter Video",time=at+2_851_000,media=listOf(Media(thumb)),title=shorter,provenance=provenance())
+    private fun provenance(curator: String="Workshop")=Provenance(source,at+100_000,"${source.root}/$curator/rss")
+    private fun curatedPair(): List<Post> = listOf(
+        post("810001","$longer Video","RepairCrew",at,listOf(Media(thumb)),"RT by @Workshop: $longer",provenance()),
+        post("810002","$shorter Video",time=at+2_851_000,media=listOf(Media(thumb)),title=shorter,provenance=provenance())
     )
 
-    @Test fun actualWhiteHouseCuratedVideoExcerptGroupsWithoutSwallowingOtherVanceTopics() {
-        val pair=actualPair()
-        val workers=post("2111269500087644170","The things we really need should be made by American workers – not in some overseas factory. That’s exactly what President Trump and this administration have been fighting for. Video","JDVance",at+4_622_000,listOf(Media("https://pbs.twimg.com/amplify_video_thumb/2111269351101698048/img/tbJiM8wZgkAuEeRU.jpg")),provenance=provenance())
-        val accounts=post("2111499311863230782","Vice President JD Vance on the Trump Accounts: “What this means to me is participation in America’s capitalist economy. We want a generation of Americans who own something… the fundamental ambition of Trump’s Economic Nationalism is that we’re sick of people feeling like they’re just treading water in their own country, we want you to gain a real stake in the future.” Video","VP",at+59_414_000,listOf(Media("https://pbs.twimg.com/amplify_video_thumb/2111499143575212033/img/7rUQmdKXgS4r6BYY.jpg")),provenance=provenance())
+    @Test fun curatedWorkshopVideoExcerptGroupsWithoutSwallowingOtherRepairTopics() {
+        val pair=curatedPair()
+        val workers=post("810004","The tool crew completed its separate inspection of the shared equipment and published a detailed maintenance checklist for next month.","ToolTeam",at+4_622_000,listOf(Media("https://pbs.twimg.com/amplify_video_thumb/710002/img/tools.jpg")),provenance=provenance())
+        val accounts=post("810005","The garden crew published a different plan for the raised beds, seed storage, greenhouse repairs and next season's volunteer training sessions.","CrewLead",at+59_414_000,listOf(Media("https://pbs.twimg.com/amplify_video_thumb/710003/img/garden.jpg")),provenance=provenance())
         val before=(pair+workers+accounts).map {Gson().toJson(it)}
         assertTrue(CrossPosts.sameSourceRepeats(pair))
         val groups=CrossPosts.group(pair+workers+accounts,emptyList())
         assertEquals(3,groups.size)
         val repeated=groups.single {it.posts.size==2}
         assertEquals(pair.toSet(),repeated.posts.toSet());assertEquals(pair.first(),repeated.primary)
-        assertEquals("Reposted by @WhiteHouse",PostPresentation.text(repeated.primary).attribution)
+        assertEquals("Reposted by @Workshop",PostPresentation.text(repeated.primary).attribution)
         assertNull("The literal excerpt must not weaken general 20-word fusion.",CrossPostFusion.compose(pair))
         assertEquals(before,(pair+workers+accounts).map {Gson().toJson(it)})
     }
 
     @Test fun aThirdOriginalIsRetainedAndDoesNotRebumpTheOldestPost() {
-        val pair=actualPair();val third=pair[1].copy(id="2111262069441921127",canonicalUrl="https://x.com/WhiteHouse/status/2111262069441921127",publishedAt=at+3_000_000,replyCount=91)
+        val pair=curatedPair();val third=pair[1].copy(id="810003",canonicalUrl="https://x.com/Workshop/status/810003",publishedAt=at+3_000_000,replyCount=91)
         val other=post("101","A completely separate update about maintenance.",time=at+1_000_000)
         val groups=CrossPosts.group(listOf(third,other)+pair.reversed(),emptyList())
         assertEquals(listOf(other,pair.first()),groups.map {it.primary})
@@ -47,32 +47,35 @@ class SameSourceRepeatsTest {
     }
 
     @Test fun aSharedCuratorRequiresItsExactFeedOriginPathAndValidatedRepostAttribution() {
-        val (long,short)=actualPair()
+        val (long,short)=curatedPair()
         val bad=listOf(
-            long.copy(provenance=long.provenance!!.copy(finalUrl="https://unrelated.example/WhiteHouse/rss")),
-            long.copy(provenance=long.provenance!!.copy(finalUrl="${source.root}/someone/WhiteHouse/rss")),
-            long.copy(provenance=long.provenance!!.copy(finalUrl="${source.root}/WhiteHouse/rss?other=1")),
+            long.copy(provenance=long.provenance!!.copy(finalUrl="https://unrelated.example/Workshop/rss")),
+            long.copy(provenance=long.provenance!!.copy(finalUrl="${source.root}/someone/Workshop/rss")),
+            long.copy(provenance=long.provenance!!.copy(finalUrl="${source.root}/Workshop/rss?other=1")),
             long.copy(provenance=long.provenance!!.copy(source=source.copy(role=SourceRole.CACHE))),
             long.copy(provenance=long.provenance!!.copy(source=source.copy(frontend="unknown"))),
             long.copy(title=longer),
             long.copy(title="RT by @OtherPerson: $longer"),
-            long.copy(title="RT by @WhiteHouse: A heading that does not echo this caption.")
+            long.copy(title="RT by @Workshop: A heading that does not echo this caption.")
         )
         bad.forEach {assertFalse(CrossPosts.sameSourceRepeats(listOf(it,short)));assertEquals(2,CrossPosts.group(listOf(it,short),emptyList()).size)}
     }
 
     @Test fun genericImagesAndQuotedOverlapAloneDoNotEstablishARepeat() {
-        val pair=actualPair()
+        val pair=curatedPair()
         assertFalse(CrossPosts.sameSourceRepeats(pair.map {it.copy(media=listOf(Media("https://images.example/common-image.jpg")))}))
         assertFalse(CrossPosts.sameSourceRepeats(pair.map {it.copy(provenance=null,title=PostPresentation.content(it))}))
-        val changed=pair[1].copy(body="“We didn't just talk about closing the border — we did not do it.” - @VP 🎯",title="")
-        assertFalse(CrossPosts.sameSourceRepeats(listOf(pair[0],changed)))
-        val editorial=pair[1].copy(body="This claim is wrong: $shorter",title="")
-        assertFalse(CrossPosts.sameSourceRepeats(listOf(pair[0],editorial)))
+        // These are text-only controls. A qualified provider clip is a
+        // separate collection route whose full alternative claims must survive.
+        val generic=pair.map {it.copy(media=listOf(Media("https://images.example/common-cover.jpg")))}
+        val changed=generic[1].copy(body="“We didn't just talk about repairing the workshop — we did not do it.” - @CrewLead 🎯",title="")
+        assertFalse(CrossPosts.sameSourceRepeats(listOf(generic[0],changed)))
+        val editorial=generic[1].copy(body="This claim is wrong: $shorter",title="")
+        assertFalse(CrossPosts.sameSourceRepeats(listOf(generic[0],editorial)))
     }
 
-    @Test fun sameVideoWithACompletelyDifferentCaptionRemainsItsOwnPost() {
-        val (long,short)=actualPair()
+    @Test fun anUnqualifiedSharedCoverWithACompletelyDifferentCaptionRemainsItsOwnPost() {
+        val (long,short)=curatedPair().map {it.copy(media=listOf(Media("https://images.example/common-cover.jpg")))}
         val different=short.copy(body="A separate detailed announcement about local school construction, public transport improvements, and the summer volunteer program in our community.",title="")
         assertFalse(CrossPosts.sameSourceRepeats(listOf(long,different)))
         assertEquals(2,CrossPosts.group(listOf(long,different),emptyList()).size)
@@ -107,7 +110,7 @@ class SameSourceRepeatsTest {
 
     @Test fun contentCopiesNeverReplaceOriginalAccountProof() {
         val first=post();val next=post("101",author="OtherPerson",time=at+1_000).copy(author=first.author)
-        val follows=listOf("WhiteHouse","OtherPerson").map {name->Follow(name,Target(Platform.X,TargetKind.PROFILE,name,"https://x.com/$name"),"Same name",personId="same-person")}
+        val follows=listOf("Workshop","OtherPerson").map {name->Follow(name,Target(Platform.X,TargetKind.PROFILE,name,"https://x.com/$name"),"Same name",personId="same-person")}
         assertFalse(CrossPosts.sameSourceRepeats(listOf(first,next)))
         assertTrue(CrossPosts.sameContentCopies(listOf(first,next)))
         assertNotEquals(CrossPosts.originalAccount(first),CrossPosts.originalAccount(next))

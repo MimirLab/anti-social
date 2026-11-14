@@ -506,8 +506,11 @@ class FusionFeedTest {
             val requiredOnce=required.all {text->shown.values.sumOf {Regex(Regex.escape(compact(text))).findAll(compact(it)).count()}==1}
             val collected=groups.filter {it.posts.any {post->repo.key(post) in keys}}
             val captured=collected.flatMap {it.posts}.map(repo::key).toSet()
-            val attachments=collected.flatMap {collectionPlan(it.posts).attachments}
+            val plans=collected.map {collectionPlan(it.posts)}
+            val attachments=plans.flatMap {it.attachments}
             val expected=spec.get("expectedAttachments")?.asInt
+            val slots=plans.sumOf {collectedMediaGroups(it.attachments,CrossPosts.relatedVisualUpdates(it.originals)).size}
+            val expectedSlots=spec.get("expectedMediaSlots")?.asInt?.also {require(it in 1..256)}
             val save=runBlocking {runCatching {
                 val roots=collected.single().posts
                 if(roots.size>1)repo.library.save(roots.first(),emptyList(),fusionRoots=roots)
@@ -526,7 +529,9 @@ class FusionFeedTest {
                 "originalsPreserved" to (captured==keys),"attachments" to attachments.size,"requiredPassagesOnce" to requiredOnce,
                 "deferredImageEvidence" to deferImages,"observedImages" to collected.sumOf {group->group.posts.sumOf {post->post.media.count {it.visualFingerprint!=null||it.attachmentFingerprint!=null}}},
                 "observedVideos" to collected.sumOf {group->group.posts.sumOf {post->post.media.count {it.videoFootage!=null}}},
-                "expectedAttachmentsPreserved" to (expected==null||expected==attachments.size),"savedOriginalsPreserved" to save.isSuccess,"saveError" to save.exceptionOrNull()?.message)
+                "expectedAttachmentsPreserved" to (expected==null||expected==attachments.size),"mediaSlots" to slots,
+                "expectedMediaSlotsPreserved" to (expectedSlots==null||expectedSlots==slots),
+                "savedOriginalsPreserved" to save.isSuccess,"saveError" to save.exceptionOrNull()?.message)
         }
         File(output,"report.json").writeText(repo.gson.toJson(reports))
         if(deferImages)assertTrue("The source-only comparison must not borrow image or footage observations",reports.all {it["observedImages"]==0&&it["observedVideos"]==0})
@@ -651,7 +656,7 @@ class FusionFeedTest {
                 evidence("private-collected-caption-cold-library-after-inspection")
             }
         }
-        assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["requiredPassagesOnce"]==true&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
+        assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["requiredPassagesOnce"]==true&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["expectedMediaSlotsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
     }
     private fun revealCombinedControl(matcher: SemanticsMatcher,listTag: String="Combined feed") {
         val list=ui.onNodeWithTag(listTag)
@@ -1278,6 +1283,114 @@ class FusionFeedTest {
         assertEquals(2,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!.flatMap {it.media}.size)
         ui.waitUntil(10000){ui.onAllNodesWithContentDescription("Second source video cover").fetchSemanticsNodes().isNotEmpty()}
         evidence("different-video-opening-frames-one-player")
+    }
+
+    @Test fun aDeclaredXThumbnailSharesOneSlotWithARecordingAndSurvivesColdSaving() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val preview="https://pbs.twimg.com/amplify_video_thumb/710003/img/workshop.jpg?name=small&format=webp"
+        val video=Media("https://video-fixture-$suffix.invalid/workshop.mp4","video","https://video-cover-$suffix.invalid/workshop.png","Recording cover")
+        val x=oldX.copy(body=shared,media=listOf(Media(preview,description="Declared source preview")))
+        val facebook=x.copy(id=x.id+"3",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/${x.id}3",publishedAt=now-59_000,media=listOf(video))
+        val originals=listOf(x,facebook);records+=originals
+        originalVideoSampler=repo.videos.sample;var samples=0;repo.videos.sample={_,_->samples++;error("Preview presentation needs no footage download")}
+        originals.forEach {store(it,follow(it.platform))};cacheGalleryPicture(preview,1);cacheGalleryPicture(video.preview!!,2)
+        assertEquals(originals.toSet(),CrossPosts.group(originals,accounts).single().posts.toSet())
+        val plan=collectionPlan(originals,repo.images.identities)
+        assertEquals(2,plan.attachments.size)
+        val slot=collectedMediaGroups(plan.attachments).single();assertEquals(2,slot.editions.size)
+        assertEquals(video.url,slot.primary.media.url)
+        val declared=slot.editions.single {it.media.url==preview}
+        assertTrue(declared.videoPreview);assertEquals("image",declared.media.type)
+        assertEquals("Video preview from X",declared.sourceLabel)
+        assertEquals(setOf(video.url,preview),contextSnapshot(repo,x,originals).media.map {it.url}.toSet())
+        seed("all",originals);show(model(),all=true);waitRow(x);row(facebook).assertDoesNotExist()
+        revealCombinedControl(hasTestTag("Media edition $preview"))
+        ui.onNodeWithTag("Media sources ${video.url}").assertTextEquals("Video from Facebook")
+        ui.onAllNodesWithText("Play video").assertCountEquals(1)
+        ui.onNodeWithTag("Post image ${repo.key(x)} $preview").assertDoesNotExist()
+        ui.onNodeWithTag("Media edition $preview").performClick()
+        ui.onNodeWithTag("Media sources $preview").assertTextEquals("Video preview from X")
+        ui.onAllNodesWithText("Play video").assertCountEquals(0)
+        ui.onNodeWithTag("Post image ${repo.key(x)} $preview").assertExists()
+        evidence("declared-thumbnail-one-slot-feed")
+        val selected=repo.library.availableAssets(x,fusionRoots=originals).filter {it.type=="image"}
+        assertEquals(setOf(preview,video.preview),selected.map {it.url}.toSet())
+        val sourceBytes=runBlocking {selected.associate {it.url to requireNotNull(repo.availableMedia(it.url)).readBytes()}}
+        runBlocking {
+            val owner=repo.library.save(x,selected,fusionRoots=originals)
+            val token=requireNotNull(repo.library.details(owner)).token
+            repo.library.download(owner,token)
+            accounts.forEach {repo.dao.removeFollow(it.id)}
+            repo.cleanup(true)
+            selected.forEach {asset->assertArrayEquals(sourceBytes.getValue(asset.url),requireNotNull(repo.library.assetFile(asset.url)).readBytes())}
+        }
+        repo.images.identities.clear()
+        val copy=runBlocking {repo.library.copy(repo.key(x))}!!
+        assertEquals(2,copy.assets.size);assertTrue(copy.assets.all {it.status=="COMPLETE"})
+        val retained=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        fun source(post:Post)=post.copy(media=post.media.map {it.copy(aiMetadata=null,visualFingerprint=null,attachmentFingerprint=null)})
+        assertEquals(originals.map(repo::key).toSet(),retained.map(repo::key).toSet())
+        originals.forEach {original->assertEquals(source(original),source(retained.single {repo.key(it)==repo.key(original)}))}
+        val coldPlan=collectionPlan(retained);assertEquals(2,coldPlan.attachments.size)
+        assertEquals(1,collectedMediaGroups(coldPlan.attachments).size)
+        assertNull(runBlocking {repo.availableMedia(video.url)})
+        ui.onNodeWithTag("Primary destination saved").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library scope saved").performClick()
+        val open=hasText("Saved copy") and hasAnyAncestor(hasTestTag("Library entry ${repo.key(x)}"))
+        ui.onNodeWithTag("Library results",useUnmergedTree=true).performScrollToNode(open)
+        ui.onNode(open,useUnmergedTree=true).performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Media editions ${video.url}"))
+        ui.onNodeWithTag("Media edition $preview").performClick()
+        ui.onNodeWithText("Video preview from X").assertExists()
+        ui.onNodeWithTag("Media edition ${video.url}").performClick()
+        ui.onNodeWithText("Video from Facebook").assertExists()
+        ui.onNodeWithText("Video not included in this copy").assertExists()
+        ui.onNodeWithTag("Media edition $preview").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Declared source preview").fetchSemanticsNodes().isNotEmpty()}
+        evidence("declared-thumbnail-one-slot-cold-library")
+        assertEquals(0,samples)
+    }
+
+    @Test fun differentClaimsOnOneDeclaredRecordingRemainCompleteSourceAlternatives() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val preview="https://pbs.twimg.com/amplify_video_thumb/710005/img/workshop.jpg"
+        val x=oldX.copy(body="The workshop approved 20 repairs and opened every room for the public demonstration.",media=listOf(Media(preview)))
+        val correction=x.copy(id=x.id+"3",canonicalUrl=x.canonicalUrl+"3",publishedAt=now-59_000,
+            body="Correction: no repair approvals were issued. Visitors must stay outside because the building remains closed.")
+        val originals=listOf(x,correction);records+=originals;val subscription=follow(Platform.X)
+        originals.forEach {store(it,subscription)};cacheGalleryPicture(preview,1)
+        assertEquals(originals.toSet(),CrossPosts.group(originals,accounts).single().posts.toSet())
+        seed("all",originals);show(model(),all=true);waitRow(x);row(correction).assertDoesNotExist()
+        originals.forEach {ui.onAllNodesWithText(it.body).assertCountEquals(1)}
+        assertEquals(1,collectionPlan(originals).attachments.size)
+        evidence("declared-recording-keeps-different-claims")
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=originals);accounts.forEach {repo.dao.removeFollow(it.id)}}
+        repo.images.identities.clear()
+        val saved=runBlocking {repo.library.copy(repo.key(x))}!!
+        val retained=repo.library.normalizedFusionRoots(saved.post,saved.details!!.fusionRoots!!)
+        assertEquals(originals.map {repo.key(it) to it.body}.toMap(),retained.associate {repo.key(it) to it.body})
+        val fusion=requireNotNull(collectedPostFusion(retained))
+        originals.forEach {original->assertEquals(1,fusion.segments.count {it.text==original.body})}
+        assertTrue(retained.all {it.media.single().type=="image"&&it.media.single().videoFootage==null})
+    }
+
+    @Test fun ordinaryPicturesAvatarsAndGalleriesDoNotBecomeSelectableVideoPreviews() {
+        val url="https://pbs.twimg.com/amplify_video_thumb/710004/img/workshop.jpg"
+        val x=Post("98${suffix}4001",Platform.X,"https://x.com/$handle/status/98${suffix}4001",handle,shared,publishedAt=now-60_000,media=listOf(Media(url)))
+        val facebook=x.copy(id=x.id+"3",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/${x.id}3",media=listOf(Media("https://video-fixture-$suffix.invalid/separate.mp4","video","https://cover-fixture-$suffix.invalid/separate.jpg")))
+        val ordinary=listOf(x.copy(media=listOf(Media("https://pbs.twimg.com/media/ordinary.jpg"))),x.copy(avatar=url),
+            x.copy(media=listOf(Media(url.replace("pbs.twimg.com","other.example")))))
+        for(photo in ordinary) {
+            val plan=collectionPlan(listOf(photo,facebook));assertEquals(2,plan.attachments.size)
+            assertTrue(plan.attachments.none {it.videoPreview});assertEquals(2,collectedMediaGroups(plan.attachments).size)
+        }
+        val gallery=x.copy(media=x.media+Media("https://photo-fixture-$suffix.invalid/tools.jpg"))
+        val plan=collectionPlan(listOf(gallery,facebook));assertEquals(3,plan.attachments.size)
+        assertTrue(plan.attachments.none {it.videoPreview});assertEquals(3,collectedMediaGroups(plan.attachments).size)
     }
 
     @Test fun anOlderLateCounterpartDoesNotMoveAReadCollectionBackBelowTheReader() {

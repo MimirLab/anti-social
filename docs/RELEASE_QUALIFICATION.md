@@ -9,6 +9,61 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.113: one selectable preview and recording slot from declared source data
+
+The continuing November 14, 2026 (UTC) native review found an already collected
+two-source card stacking an X video thumbnail and a Facebook recording cover.
+Their visible frames differ, so they must remain distinct assets. The direct X
+thumbnail URL was missing from the existing declared-recording parser and preview
+classification; only its source-scoped proxy form was supported.
+
+The [direct-thumbnail extension](ATTACHMENT_COLLECTIONS.md#direct-provider-video-thumbnails-038113)
+uses the existing provider namespace and collection guards, then the existing
+selectable media presentation. Both originals and both attachments remain intact.
+Preview attribution does not claim that source supplied playable recording bytes.
+Version code is 222; application ID and signing compatibility remain unchanged.
+
+Qualification on the frozen prototype:
+
+- **2,923 JVM cases:** 2,916 pass, seven optional skips, zero failures/errors.
+  Four new controls qualify the direct thumbnail, reject unsafe/unrelated forms,
+  preserve publisher/time/gallery boundaries and retain differing original claims.
+- **160 broader named native checks per API 35 and minimum API 26:** 152 pass,
+  eight explicit skips, zero failures. No source-dependent opt-in check is counted
+  as passed merely because its fixture was unavailable.
+- **Three focused native controls per API:** all pass. They exercise the actual
+  feed and cold Library, separate source attribution, ordinary-photo/avatar/gallery
+  preservation, and complete alternatives for different claims on one declared
+  recording. The strengthened tester uses the identical prototype application
+  APK and verifies both selected image files byte-for-byte after ordinary cache
+  purge and subscription removal. No movie download or sampled footage is needed.
+- **Actual two-source replay:** without local image inputs or image observations,
+  the shipping 0.38.112 counterexample on API 35 has two media slots; the corrected
+  reader has one slot containing both attachments on both APIs. With the two exact
+  cached source files decoded, it still has two distinct attachments and one slot.
+  Both originals and their literal paths survive cold saving. This captured
+  replay selects no offline assets; its metadata conservation and the focused
+  test's selected-byte conservation are separate evidence.
+- **Native pixels:** the real card's source choices and separate thumbnail/video
+  roles, complete differing claims, and both strengthened cold-reader images were
+  directly inspected. Captured reader inputs and images remain private.
+
+The initial direct-thumbnail regression failed twice against the shipping parser,
+as expected. An early full run then failed two legacy controls whose video
+thumbnail fixture had been treated as a generic picture. Their text-only negative
+checks now use generic covers, while qualified clip collections separately retain
+different claims as complete originals. The touched legacy examples were replaced
+with synthetic workshop fixtures. Another tester-only attempt called a nonexistent
+cache helper; compilation failed and was corrected to the existing purge API.
+Those failed attempts are retained and do not supply accepted pass counts.
+
+Final publication additionally requires the clean-revision APK's native checks,
+current and prior captured-family controls, explicit cache recovery, protected
+preview upgrade, source/signer checks and anonymous permanent-download hashing.
+Repeated thread headings, background refresh presentation and broader recording
+identity coverage remain separate work. This is not complete-feed clearance or
+a physical-phone latency, energy or display measurement.
+
 ## 0.38.112: share a short closing inside its complete source collection
 
 The continuing November 14, 2026 (UTC) native review reproduced a presentation

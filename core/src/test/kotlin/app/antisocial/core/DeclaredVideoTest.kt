@@ -36,6 +36,55 @@ class DeclaredVideoTest {
         assertEquals(posts.toSet(),CrossPosts.group(posts,emptyList()).single().posts.toSet())
         assertTrue(CrossPosts.sameSourceRepeats(posts));assertTrue(posts.all {it.media.single().type=="image"})
     }
+    @Test fun directProviderThumbnailsRetainTheirRecordingIdentityWithoutInventingPlayback() {
+        val post=pair().first()
+        val direct="https://pbs.twimg.com/amplify_video_thumb/710001/img/cover.jpg?name=small&format=webp"
+        val still=Media(direct)
+        assertEquals(DeclaredVideo.key(post,Media(poster)),DeclaredVideo.key(post,still))
+        assertEquals(DeclaredVideo.key(post,post.media.single()),DeclaredVideo.key(post,still))
+        assertEquals("twitter:ext_tw_video:710002",DeclaredVideo.key(post,Media(direct.replace("amplify_video_thumb/710001","ext_tw_video_thumb/710002"))))
+        assertEquals("image",still.type);assertEquals(direct,still.url)
+        val posts=pair().map {it.copy(media=listOf(still))}
+        assertEquals(posts.toSet(),CrossPosts.group(posts,emptyList()).single().posts.toSet())
+        assertTrue(CrossPosts.sameSourceRepeats(posts))
+        assertTrue(posts.all {it.media.single()==still})
+    }
+    @Test fun directThumbnailQualificationRejectsAvatarsOtherHostsAndUnqualifiedPaths() {
+        val post=pair().first()
+        val direct="https://pbs.twimg.com/amplify_video_thumb/710001/img/cover.jpg"
+        assertEquals("twitter:amplify_video:710001",DeclaredVideo.key(post,Media(direct)))
+        val invalid=listOf(direct.replace("https://","http://"),direct.replace("pbs.twimg.com","pbs.twimg.com.evil.example"),
+            direct.replace("pbs.twimg.com","user:pass@pbs.twimg.com"),direct.replace("pbs.twimg.com","pbs.twimg.com:444"),
+            direct+"#other",direct+"?action=other",direct+"/extra",direct.replace("/710001/","/not-a-clip/"),
+            direct.replace("/img/","/image/"),direct.replace("/amplify_video_thumb/","/media/"),
+            direct.replace(".jpg",".svg"),direct.replace("/img/","%2Fimg%2F"))
+        invalid.forEach {assertNull(it,DeclaredVideo.key(post,Media(it)))}
+        assertNull(DeclaredVideo.key(post.copy(avatar=direct),Media(direct)))
+        assertNull(DeclaredVideo.key(post.copy(platform=Platform.FACEBOOK),Media(direct)))
+    }
+    @Test fun aDirectThumbnailCannotBridgeDifferentRecordingsGalleriesOrUnlinkedPublishers() {
+        val direct="https://pbs.twimg.com/amplify_video_thumb/710001/img/cover.jpg"
+        val posts=pair().map {it.copy(media=listOf(Media(direct)))}
+        val other=posts[1]
+        for(candidate in listOf(other.copy(publicRelations=null),other.copy(parentId="parent"),other.copy(preview=true),
+            other.copy(publishedAt=posts[0].publishedAt!!+7*60*60_000L),
+            other.copy(media=listOf(Media(direct.replace("710001","710002")))),
+            other.copy(media=other.media+Media("https://images.example/workshop/photo.jpg")))) {
+            assertEquals(candidate.toString(),2,CrossPosts.group(listOf(posts[0],candidate),emptyList()).size)
+            assertFalse(CrossPosts.sameSourceRepeats(listOf(posts[0],candidate)))
+        }
+    }
+    @Test fun aQualifiedRecordingRetainsDifferentClaimsAsCompleteUnmodifiedOriginals() {
+        val direct="https://pbs.twimg.com/amplify_video_thumb/710001/img/cover.jpg"
+        val raw=pair().mapIndexed {index,post->post.copy(media=listOf(Media(direct)),body=if(index==0)
+            "The workshop approved 20 repairs and opened every room for the public demonstration."
+            else "Correction: the workshop did not approve 20 repairs. The second room remains closed during the public demonstration.")}
+        val before=raw.map {com.google.gson.Gson().toJson(it)}
+        assertEquals(raw.toSet(),CrossPosts.group(raw,emptyList()).single().posts.toSet())
+        assertTrue(CrossPosts.declaredRecordingCollection(raw))
+        assertEquals(before,raw.map {com.google.gson.Gson().toJson(it)})
+        assertTrue(raw.all {it.media.single().type=="image"})
+    }
     @Test fun genericCoverEqualityOtherAuthorsAndUnqualifiedSourcesCannotCollectDifferentCaptions() {
         val posts=pair()
         val bad=listOf(

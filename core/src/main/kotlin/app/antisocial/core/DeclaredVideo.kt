@@ -39,6 +39,11 @@ object DeclaredVideo {
         val original=https(raw) ?: return null
         return VideoAssetIdentity.key(original.toString())?.takeIf {it.startsWith("twitter:")}
     }
+    private fun thumbnail(url:HttpUrl):String? {
+        if(url.host!="pbs.twimg.com"||url.queryParameterNames.any {it !in setOf("name","format")})return null
+        val match=picture.matchEntire(url.encodedPath) ?: return null
+        return "twitter:${match.groupValues[1]}:${match.groupValues[2]}"
+    }
     fun key(post:Post,media:Media):String? {
         if(post.platform!=Platform.X)return null
         if(media.type=="video") {
@@ -47,13 +52,15 @@ object DeclaredVideo {
             return post.provenance?.let {proxyRecording(media.url,it)}
         }
         if(media.type!="image"||media.url==post.avatar)return null
+        val image=https(media.url) ?: return null
+        // Nitter can retain the original provider thumbnail rather than wrap
+        // it in /pic/. Both spellings declare a clip, never playable bytes.
+        if(image.host=="pbs.twimg.com")return thumbnail(image)
         val provenance=post.provenance ?: return null;val root=root(provenance) ?: return null
-        val parts=relative(https(media.url) ?: return null,root) ?: return null
+        val parts=relative(image,root) ?: return null
         if(parts.size!=2||parts[0]!="pic")return null
         val declared=https("https://pbs.twimg.com/"+parts[1]) ?: return null
-        val match=picture.matchEntire(declared.encodedPath) ?: return null
-        if(declared.queryParameterNames.any {it !in setOf("name","format")})return null
-        return "twitter:${match.groupValues[1]}:${match.groupValues[2]}"
+        return thumbnail(declared)
     }
     /** Only one recording and no separate still/gallery. No caption or cover
      * resemblance can supply a missing or conflicting provider identifier. */
