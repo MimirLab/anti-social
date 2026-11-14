@@ -182,6 +182,7 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
     val caption=if(selectedEdition=="all"&&!showingArchive&&fusion==null)collectedCaptionPost(fusionRoots) ?: displayed else displayed
     val body=remember(caption){PostPresentation.text(caption)}
     val selectedUrls=entry.details?.selectedAssets.orEmpty().map {it.url}.toSet()
+    val readyUrls=entry.assets.filter {it.status=="COMPLETE"}.map {it.url}.toSet()
     val threads=entry.details?.threads.orEmpty()
     val shownThreads=if(selectedPlatform=="all")threads else threads.filter {it.root.platform.id==selectedPlatform}
     val list=rememberLazyListState()
@@ -205,11 +206,22 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
             item {RecoveredArchiveLabel(displayed);ArchiveVersionLabel(version,showingArchive);if(fusion!=null)FusedPostText(fusion,roots=fusionRoots,repo=repo,networkAllowed=false)else {if(caption.author!=displayed.author)PostAttribution("Fuller original · ${caption.author}",Modifier.padding(bottom=8.dp),repo,caption.platform,caption.canonicalUrl,networkAllowed=false);body.attribution?.let {PostAttribution(it,Modifier.padding(bottom=8.dp),repo,caption.platform,caption.canonicalUrl,networkAllowed=false)};if(body.title.isNotBlank())MentionText(body.title,repo,caption.platform,caption.canonicalUrl,networkAllowed=false,explicitProfileLinks=caption.links.orEmpty(),fontSize=20.sp,fontWeight=FontWeight.SemiBold);if(body.body.isNotBlank())PostBodyText(body.body,repo,caption.platform,tag="Local post body",sourceUrl=caption.canonicalUrl,networkAllowed=false,explicitProfileLinks=caption.links.orEmpty())}}
             if(displayed.preview)item {Text("Partial public content · this is the text that was available when saved.",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
             items(mediaGroups,key={"local-media:${it.primary.media.url}"}) {group->
-                val selected=CollectedMediaChoice(group)
+                // Prefer an available saved edition before an undownloaded recording.
+                // The original primary wins ties; every edition stays selectable.
+                val editions=listOf(group.primary)+group.editions
+                val preferred=editions.firstOrNull {it.media.url in readyUrls}
+                    ?: editions.firstOrNull {it.media.preview in readyUrls}
+                    ?: editions.firstOrNull {it.media.url in selectedUrls}
+                    ?: editions.firstOrNull {it.media.preview in selectedUrls}
+                val selected=CollectedMediaChoice(group,preferred)
                 val media=selected.media
                 val owner=if(fusion==null)displayed else fusionRoots.firstOrNull {root->root.media.any {it.url==media.url}} ?: displayed
                 if(fusionRoots.map {it.platform}.distinct().size>1)Text(selected.sourceLabel,fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                if(media.url in selectedUrls)LocalCopyMedia(repo,media,owner,onImage={image=it})else Text(if(media.type=="image")"Photo not included in this copy"else "Video not included in this copy",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(media.url in selectedUrls)LocalCopyMedia(repo,media,owner,onImage={image=it})
+                else if(media.type=="video"&&media.preview!=null&&media.preview in selectedUrls) {
+                    Text("Video preview · video not included in this copy",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    LocalCopyMedia(repo,Media(media.preview!!,description=media.description.ifBlank {"Saved video preview"}),owner,onImage={image=it})
+                }else Text(if(media.type=="image")"Photo not included in this copy"else "Video not included in this copy",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Text("Original link",fontWeight=FontWeight.Medium,fontSize=13.sp)

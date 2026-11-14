@@ -1401,7 +1401,7 @@ source alternatives. Generic shared pictures alone do not establish this route.
 
 In an already admitted collection, a single-image declared thumbnail is marked
 as a preview edition. It can share the existing selectable media slot with a
-recording even when the covers show different frames. The recording is selected
+recording even when the covers show different frames. The live reader selects the recording
 initially; the preview remains a separate choice labelled with its actual
 platform. This presentation does not assert equal pixels or equal recordings,
 and does not suppress either captured attachment. This declaration alone cannot
@@ -1413,3 +1413,9 @@ continues enumerating every raw source's assets, including a preview outside the
 currently selected slot. Selected images use the existing protected download
 path; ordinary cache eviction cannot remove them. No model, dependency,
 permission, database migration, new request or invented video URL is introduced.
+
+The saved reader prefers a downloaded edition when the recording was not selected
+for offline use. A selected video cover can also be viewed locally without the
+movie bytes, explicitly labelled as a preview with the video absent. It does not
+become a playable recording or modify the saved source. Download status only
+chooses the initial edition; it does not override a reader’s manual selection.

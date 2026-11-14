@@ -9,7 +9,7 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
-## 0.38.113: one selectable preview and recording slot from declared source data
+## 0.38.113: one selectable preview/recording slot and available saved editions
 
 The continuing November 14, 2026 (UTC) native review found an already collected
 two-source card stacking an X video thumbnail and a Facebook recording cover.
@@ -21,22 +21,27 @@ The [direct-thumbnail extension](ATTACHMENT_COLLECTIONS.md#direct-provider-video
 uses the existing provider namespace and collection guards, then the existing
 selectable media presentation. Both originals and both attachments remain intact.
 Preview attribution does not claim that source supplied playable recording bytes.
+The saved reader also prefers an available downloaded edition over an absent
+recording, and can display a selected local cover with an explicit video-absent
+label. It retains manual source choices and never invents playable bytes.
 Version code is 222; application ID and signing compatibility remain unchanged.
 
-Qualification on the frozen prototype:
+Qualification on the frozen prototypes:
 
 - **2,923 JVM cases:** 2,916 pass, seven optional skips, zero failures/errors.
   Four new controls qualify the direct thumbnail, reject unsafe/unrelated forms,
   preserve publisher/time/gallery boundaries and retain differing original claims.
-- **160 broader named native checks per API 35 and minimum API 26:** 152 pass,
+- **Initial thumbnail prototype, 160 broader named native checks per API 35 and minimum API 26:** 152 pass,
   eight explicit skips, zero failures. No source-dependent opt-in check is counted
   as passed merely because its fixture was unavailable.
 - **Three focused native controls per API:** all pass. They exercise the actual
   feed and cold Library, separate source attribution, ordinary-photo/avatar/gallery
   preservation, and complete alternatives for different claims on one declared
-  recording. The strengthened tester uses the identical prototype application
-  APK and verifies both selected image files byte-for-byte after ordinary cache
-  purge and subscription removal. No movie download or sampled footage is needed.
+  recording. A strengthened tester first verified both selected image files byte-for-byte
+  after ordinary cache purge and subscription removal on the identical initial
+  prototype APK. A further frozen prototype passes all three controls on both
+  APIs with the saved-reader initial choice and local video-cover correction.
+  No movie download or sampled footage is needed.
 - **Actual two-source replay:** without local image inputs or image observations,
   the shipping 0.38.112 counterexample on API 35 has two media slots; the corrected
   reader has one slot containing both attachments on both APIs. With the two exact
@@ -47,6 +52,16 @@ Qualification on the frozen prototype:
 - **Native pixels:** the real card's source choices and separate thumbnail/video
   roles, complete differing claims, and both strengthened cold-reader images were
   directly inspected. Captured reader inputs and images remain private.
+
+A separate native saved-reader counterexample then failed its expected initial
+choice assertion: both image files were complete and intact, but the reader
+selected the undownloaded movie and reported its absence. The corrected prototype
+selects the downloaded image; manually choosing the recording edition displays
+its downloaded cover with the explicit preview/video-absent label. The source
+records, selected files and playback availability remain unchanged. A first
+screenshot also captured the pre-existing transient missing-image message while
+local decoding was still pending; that separate loading-state polish remains open.
+Final screenshot controls wait for the actual saved bitmap before accepting it.
 
 The initial direct-thumbnail regression failed twice against the shipping parser,
 as expected. An early full run then failed two legacy controls whose video

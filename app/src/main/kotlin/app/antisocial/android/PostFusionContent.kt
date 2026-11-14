@@ -65,10 +65,12 @@ import androidx.compose.ui.unit.TextUnit
 }
 
 /** A shared cover takes one slot while every recording remains selectable. */
-@Composable internal fun CollectedMediaChoice(group:CollectedMediaGroup):CollectedAttachment {
+@Composable internal fun CollectedMediaChoice(group:CollectedMediaGroup,preferred:CollectedAttachment?=null):CollectedAttachment {
     fun key(index:Int,item:CollectedAttachment)=index.toString()+":"+item.media.type+":"+item.media.url+":"+item.media.durationMs+":"+item.media.audioUrl+":"+item.originalKeys.sorted().joinToString("|")
-    var chosen by remember(group.primary.media.url){mutableStateOf(key(group.editions.indexOf(group.primary),group.primary))}
-    val selected=group.editions.withIndex().firstOrNull {key(it.index,it.value)==chosen}?.value ?: group.primary
+    val initial=group.editions.firstOrNull {it==preferred} ?: group.primary
+    // Availability chooses the initial offline edition, never overrides a reader's choice.
+    var chosen by remember(group.primary.media.url){mutableStateOf(key(group.editions.indexOf(initial),initial))}
+    val selected=group.editions.withIndex().firstOrNull {key(it.index,it.value)==chosen}?.value ?: initial
     if(group.editions.size>1)Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         Text("Media editions",fontSize=11.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(horizontalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.testTag("Media editions ${group.primary.media.url}")) {

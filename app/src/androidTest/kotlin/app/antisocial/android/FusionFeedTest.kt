@@ -1343,11 +1343,17 @@ class FusionFeedTest {
         ui.onNode(open,useUnmergedTree=true).performClick()
         ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
         ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Media editions ${video.url}"))
+        ui.onNodeWithText("Video preview from X").assertExists()
+        ui.onNodeWithText("Video not included in this copy").assertDoesNotExist()
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Declared source preview").fetchSemanticsNodes().isNotEmpty()}
+        evidence("saved-preview-initial-choice")
         ui.onNodeWithTag("Media edition $preview").performClick()
         ui.onNodeWithText("Video preview from X").assertExists()
         ui.onNodeWithTag("Media edition ${video.url}").performClick()
         ui.onNodeWithText("Video from Facebook").assertExists()
-        ui.onNodeWithText("Video not included in this copy").assertExists()
+        ui.onNodeWithText("Video preview · video not included in this copy").assertExists()
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Recording cover").fetchSemanticsNodes().isNotEmpty()}
+        evidence("saved-video-cover-without-recording")
         ui.onNodeWithTag("Media edition $preview").performClick()
         ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Declared source preview").fetchSemanticsNodes().isNotEmpty()}
         evidence("declared-thumbnail-one-slot-cold-library")
