@@ -1,5 +1,34 @@
 # Attachment collections
 
+## Explicitly curated shared photographs (0.38.116)
+
+An author's photograph and another author's commentary on that photograph can
+belong in one collection without having interchangeable captions or identifying
+the same person. The additional collector requires the exact supplied ordinary
+X photograph URL and the existing qualified repost relationship, including its
+actual acquisition origin. Display names and an unrelated profile link cannot
+establish that relationship.
+
+This route runs after existing caption families are formed, preserving their
+cross-platform editions. Every additional edition needs direct existing caption
+proof against an original photograph witness. The complete family stays within
+two hours and existing edition limits. Captions, destinations and framing remain
+bounded; conflicting observed photographs, curator chains, ambiguous own-post
+reuse, different renditions, numbered galleries, avatars, recording covers,
+replies and archives do not supply this proof. Oversized candidate buckets remain
+unexamined. They never become evidence that two originals differ.
+
+Existing literal composers retain priority. When the captions are genuinely
+different, complete attributed blocks keep every original path. Feed, Context
+and Library use the same collection; independent author subscriptions are not
+rewritten. The exact source URL does not grant a byte-cache or signature alias.
+Other platforms' photographs still need their own existing comparison evidence
+before a picture can disappear. An unavailable file remains unresolved.
+
+The route introduces no networking, model, dependency, permission or database
+migration. Regression fixtures use unrelated synthetic workshop posts; actual
+reader captures and acquired images remain private outside the checkout.
+
 ## Early name and handle alternatives in collected captions (0.38.106)
 
 An already collected announcement can still repeat most of its caption when one

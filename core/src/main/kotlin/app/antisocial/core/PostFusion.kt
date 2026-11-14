@@ -424,6 +424,15 @@ object CrossPostFusion {
     /** The no-download wording route cannot treat editorial response framing
      * as a cosmetic change. Reuse the same vocabulary as ordinary fusion. */
     internal fun neutralCopyFraming(post:Post):Boolean=prepare(post)?.let {!editorial.containsMatchIn(it.text)}==true
+    /** A qualified source/material relationship does not need the text
+     * aligner's twenty-word minimum. Screen its complete short caption with
+     * the same framing vocabulary, without changing ordinary copy admission. */
+    internal fun neutralMaterialFraming(post:Post):Boolean {
+        if(post.body.length.toLong()+post.title.length>MAX_TEXT)return false
+        var text=PostPresentation.content(post)
+        repeat(2){text=org.jsoup.parser.Parser.unescapeEntities(text,false)}
+        return !editorial.containsMatchIn(text)
+    }
     internal fun compatibleIntroductions(first:String,second:String):Boolean =
         !editorial.containsMatchIn(first)&&!editorial.containsMatchIn(second)&&!competingContext(first,second)
 
@@ -657,6 +666,7 @@ object CrossPostFusion {
         ?: if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)else null
         ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
         ?: if(CrossPosts.pictureReferenceCollection(posts))AnnouncementEditions.composeReferenceNames(posts)else null
+        ?: CuratedImageReposts.compose(posts)
 
     /** Read-only name/handle alternatives in an independently admitted group.
      * Consumers prefer existing compact captions before refining full repeated

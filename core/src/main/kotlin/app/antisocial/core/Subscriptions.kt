@@ -426,6 +426,29 @@ object CrossPosts {
             sameContentCopies(pair)||CrossPostFusion.composeCollectedEditions(pair)!=null||CrossPostFusion.compose(pair)!=null
         }}
     }
+    /** Portable source/material relationship, not interchangeable captions or
+     * common control. A qualified curator connects exact supplied photographs;
+     * other editions retain a direct existing caption proof to a root. */
+    fun curatedImageCollection(posts:List<Post>):Boolean=CrossPostFusion.withPrepared {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size||posts.any {
+            it.preview||it.parentId!=null||it.recoveredArchive!=null||!realOriginal(it)||it.body.length.toLong()+it.title.length>MAX_TEXT||
+                it.media.size!=1||it.media.single().type!="image"||it.publishedAt?.let {at->at>0}!=true
+        })return@withPrepared false
+        val times=posts.map {requireNotNull(it.publishedAt)}
+        if(times.max()-times.min()>2*60*60_000L)return@withPrepared false
+        val witnesses=CuratedImageReposts.witnesses(posts) ?: return@withPrepared false
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        if(rows.any {it.truncated||it.tokens.size<3||!referenceIntegrity(it.post)||!CrossPostFusion.neutralMaterialFraming(it.post)})return@withPrepared false
+        fun destinations(row:Features)=row.destinations.filterNot {nitterMentionLink(row.post,it)}.toSet()
+        if(rows.map(::destinations).distinct().size!=1)return@withPrepared false
+        val roots=witnesses.roots
+        if(roots.size>1&&roots.map(PostPresentation::content).distinct().size!=1&&!sameContentCopies(roots)&&
+            CrossPostFusion.composeCollectedEditions(roots)==null&&CrossPostFusion.compose(roots)==null)return@withPrepared false
+        posts.filter {it !in witnesses.posts}.all {post->roots.any {root->
+            val pair=listOf(root,post)
+            sameContentCopies(pair)||CrossPostFusion.composeCollectedEditions(pair)!=null||CrossPostFusion.compose(pair)!=null
+        }}
+    }
     /** Content evidence, not account ownership. Every supplied original and its
      * discussion remains distinct; the UI must retain each publisher attribution. */
     fun sameContentCopies(posts: List<Post>,sameMedia: (Post,Post)->Boolean={_,_->false}): Boolean {
@@ -1699,7 +1722,8 @@ object CrossPosts {
         val owners=ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}}
         val announcements=AnnouncementCollections.collect(established,owners,{a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
         val quotations=QuotedSources.collect(announcements,owners,checkpoint)
-        val declared=DeclaredVideo.collect(quotations,::declaredRecordingCollection,checkpoint)
+        val pictures=CuratedImageReposts.collect(quotations,::curatedImageCollection,checkpoint)
+        val declared=DeclaredVideo.collect(pictures,::declaredRecordingCollection,checkpoint)
         return (if(sharedFootage==null)declared else SharedVideoCollections.collect(declared,owners,sharedFootage,checkpoint))
             .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }

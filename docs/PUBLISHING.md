@@ -154,6 +154,15 @@ individual card screenshots and Library saves. Reports check one reading row,
 one shared passage, original retention and saved-root retention. Temporary cache
 rows and fixture records are restored or removed after the check. Captured reader
 inputs, images and reports stay in the private external evidence area.
+Optional per-case `captionHints` supplies up to twelve bounded, original-keyed
+literal locators for inspecting differing captions. It does not change the
+shared-passage or source-preservation assertions. `inspectSavedCaption=true`
+also checks every original's reconstructed path after removing subscriptions.
+The additional explicit `inspectSavedCaptionBlocks=true` mode inspects each
+complete attributed block when shared material has genuinely different captions;
+the default still requires the existing compact shared/woven caption. Display
+expectations use the existing scoped mention policy, separately from exact raw
+source reconstruction.
 Optional `deferImageEvidence=true` requires an image-only input and an empty
 `files` map. The isolated check temporarily removes those exact media-cache rows,
 restores them during cleanup and requires zero observed image fingerprints in

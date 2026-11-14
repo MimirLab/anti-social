@@ -9,6 +9,53 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.116: collect explicitly curated photographs without equating authors
+
+The continuing November 14, 2026 (UTC) native review found a photograph displayed
+in an existing three-platform caption family and again in a different author's
+explicitly reposted commentary. The exact 0.38.115 native counterexample shows
+two cards and two picture slots for the two X originals. Both source captions
+are genuinely different and must remain intact.
+
+The [bounded shared-photograph collector](ATTACHMENT_COLLECTIONS.md#explicitly-curated-shared-photographs-038116)
+uses the supplied exact photograph and qualified curator relationship, then
+preserves other platforms through direct existing caption proof. It neither
+equates the authors nor changes the ordinary caption matcher or image suppression
+rules. Version code is 225; application ID and signing compatibility are unchanged.
+
+Qualification on the frozen corrected prototype:
+
+- **2,944 JVM cases:** 2,937 pass, seven optional skips, zero failures/errors.
+  Ten new controls cover source paths, source-order permutations, existing
+  caption families, independently followed authors, curator chains, ambiguous
+  own-post reuse, contrary pixels, resources, missing provenance and exclusions.
+- **One new API 35 native journey:** separate author labels, one shared picture,
+  both complete captions in feed and Context, all three selected source image
+  files protected byte-for-byte after cache cleanup, removed subscriptions and
+  cold Library reopening. Native caption and picture frames were inspected.
+- **Two captured API 35 replays:** the two-original case displays one card and
+  one picture. The four-original case displays one card and both distinct
+  captions once, preserving every original and its cold saved source path.
+  Only two genuine acquired image files are available for that latter case;
+  its unobserved platform attachment remains a second unresolved slot. No file
+  is substituted to manufacture a one-picture result.
+
+An initial unshipped control exposed the text aligner's twenty-word preparation
+minimum in a route intended to retain complete short captions. The material
+route now screens the complete bounded caption with the existing framing
+vocabulary; the ordinary copy matcher is unchanged. A native inspector initially
+compared raw handle notation to the intentional clickable-name display. The
+corrected display expectation retains the separate exact raw source-path checks;
+the same frozen application passes. The failed attempt is not counted as a pass.
+
+Final publication requires the clean-revision APK's broader API 35 and minimum
+API 26 native checks, current and prior captured-family replays, lint, signer,
+corresponding source, privacy audits, protected preview upgrade and anonymous
+permanent-download verification. These checks are separate from the prototype
+observations above. Delayed initial video discovery and other remaining feed
+candidates stay under review; this increment does not establish complete-feed
+clearance or controlled physical-phone latency, battery or display measurements.
+
 ## 0.38.115: collect qualified institutional name/handle editions
 
 The continuing November 14, 2026 (UTC) native review found a text-only shared
@@ -61,9 +108,12 @@ selector requested the ordinary body rather than the woven body; and an artifact
 collector requested a class it had not run. Corrected checks ran against the
 identical frozen application APK. Earlier attempts are not counted as passes.
 
-Final publication additionally requires the clean-revision APK's native suite,
-current and prior captured-family checks, source/signer/privacy verification,
-a protected preview upgrade and anonymous permanent-download hashing. Broader
+The published clean-revision APK additionally passed the same **188 named native
+checks per API** (180 pass, eight skips, zero failures), eight captured-family
+replays per API and explicit cache recovery on both APIs. Source, signer, privacy,
+all four release assets and the full anonymous permanent download were verified.
+The protected preview upgrade preserved 44 local files and passed five SQLite
+integrity checks. Broader
 recording identity and the remaining feed candidates remain under review. These
 are emulator and retained-preview observations, not physical-phone latency,
 battery or display measurements.

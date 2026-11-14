@@ -564,7 +564,9 @@ class FusionFeedTest {
                 // legitimately occur in the introduction and its heading;
                 // locate one unique literal node inside this retained card.
                 val passage=spec["once"].asString.trim();val words=passage.split(spaces)
-                val hints=(listOf(passage)+listOf(12,8,5,3).map {words.take(it).joinToString(" ")}).distinct()
+                val sourceHints=spec.getAsJsonObject("captionHints")?.also {require(it.size()<=12)}
+                val individual=group.posts.mapNotNull {post->sourceHints?.get(repo.key(post))?.asString?.also {require(it.length in 2..256)}}
+                val hints=(listOf(passage)+individual+listOf(12,8,5,3).map {words.take(it).joinToString(" ")}).distinct()
                 val scope=hasAnyAncestor(hasTestTag("Feed row $visibleKey"))
                 val caption=hints.map {hasText(it,substring=true,ignoreCase=true) and scope}.firstOrNull {
                     ui.onAllNodes(it).fetchSemanticsNodes().size==1
@@ -634,19 +636,46 @@ class FusionFeedTest {
             // A supplied heading can remain a separate attributed field while
             // its complete shared body has one woven node. All source paths,
             // including that heading, were checked above before choosing it.
-            val nested=if(weave==null)fusion.segments.singleOrNull {it.weave!=null}?.weave else null
-            val visibleRuns=(weave ?: nested).orEmpty().filter {run->run.variants.any {it.visibleText.isNotBlank()}}
-            val captionTag=if(weave==null&&nested==null) {
-                require(fusion.segments.size==1&&fusion.segments.single().shared) {"The inspected caption must be compact and source-complete"}
-                "Fusion shared text"
-            }else if(visibleRuns.size==1&&visibleRuns.single().shared)"Fusion shared text"else"Fusion woven text"
-            val woven=ui.onNodeWithTag(captionTag)
-            ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag(captionTag))
-            woven.assertIsDisplayed()
-            val text=woven.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
-            val spec=cases.single().asJsonObject
-            for(value in listOf(spec["once"])+spec.getAsJsonArray("requiredPassages")?.toList().orEmpty())
-                assertEquals(1,Regex(Regex.escape(compact(value.asString))).findAll(compact(text)).count())
+            val blocks=packet.get("inspectSavedCaptionBlocks")?.asBoolean==true
+            if(blocks) {
+                // Shared material can have genuinely different captions. Check
+                // every complete attributed block, retaining the exact source
+                // reconstruction above and the original compact-caption path
+                // below for tests which require a single flowing caption.
+                require(weave==null&&fusion.segments.isNotEmpty()&&fusion.segments.none {it.weave!=null})
+                val displayed=fusion.segments.mapIndexed {index,segment->
+                    val tag=if(segment.shared)"Fusion shared text"else "Fusion context $index"
+                    val matcher=hasTestTag(tag)
+                    ui.onNodeWithTag("Local copy content").performScrollToNode(matcher)
+                    val node=ui.onNode(matcher);node.assertIsDisplayed()
+                    val text=node.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+                    val context=fusionMentionContext(reopened.filter {CrossPosts.originalKey(it)in segment.originalKeys},segment.text,repo)
+                    val raw=repo.publicText(segment.text,context?.platform)
+                    val matches=if(context!=null&&repo.mentionNames.enabled.value)
+                        MentionNames.find(raw,context.platform,context.sourceUrl,repo.routes,context.explicitProfileLinks)else emptyList()
+                    val presented=MentionNames.present(raw,matches,repo.mentionNames.names.value).text
+                    assertEquals(compact(presented),compact(text))
+                    evidence("private-collected-caption-cold-block-$index")
+                    text
+                }.joinToString(" ")
+                val spec=cases.single().asJsonObject
+                for(value in listOf(spec["once"])+spec.getAsJsonArray("requiredPassages")?.toList().orEmpty())
+                    assertEquals(1,Regex(Regex.escape(compact(value.asString))).findAll(compact(displayed)).count())
+            }else {
+                val nested=if(weave==null)fusion.segments.singleOrNull {it.weave!=null}?.weave else null
+                val visibleRuns=(weave ?: nested).orEmpty().filter {run->run.variants.any {it.visibleText.isNotBlank()}}
+                val captionTag=if(weave==null&&nested==null) {
+                    require(fusion.segments.size==1&&fusion.segments.single().shared) {"The inspected caption must be compact and source-complete"}
+                    "Fusion shared text"
+                }else if(visibleRuns.size==1&&visibleRuns.single().shared)"Fusion shared text"else"Fusion woven text"
+                val woven=ui.onNodeWithTag(captionTag)
+                ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag(captionTag))
+                woven.assertIsDisplayed()
+                val text=woven.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+                val spec=cases.single().asJsonObject
+                for(value in listOf(spec["once"])+spec.getAsJsonArray("requiredPassages")?.toList().orEmpty())
+                    assertEquals(1,Regex(Regex.escape(compact(value.asString))).findAll(compact(text)).count())
+            }
             evidence("private-collected-caption-cold-library")
             File(output,"saved-caption-inspection.json").writeText(repo.gson.toJson(mapOf("originals" to reopened.size,"exactSourcePaths" to true,"commonPassagesOnce" to true,"subscriptionsRemoved" to true,"nativeLocalReader" to true)))
             // Explicit isolated inspection can compare OS framebuffer readback
@@ -1375,6 +1404,77 @@ class FusionFeedTest {
         assertEquals(1,Regex(Regex.escape(passage)).findAll(saved).count());assertTrue(saved.contains("Metro Civic Authority"));assertTrue(saved.contains("MCAnotices",ignoreCase=true))
         ui.waitForIdle();android.os.SystemClock.sleep(250)
         evidence("acronym-reference-cold-library")
+    }
+
+    @Test fun aCuratedPhotographKeepsItsDistinctAuthorsAndColdSavedSourceCopies() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val poster="https://pbs.twimg.com/media/Workshop$suffix.jpg?name=large"
+        val rootText="The neighborhood repair workshop has published its equipment handbook. Visitors can read the checkout procedure, inspect current maintenance records, ask the coordinators about accessible tools, and compare the room schedule before reserving a workbench."
+        val childText="Repair should be practical. I use four tools at this workshop when helping neighbors mend their household equipment. The volunteer session supplies a useful place to compare repair methods and share experience."
+        val source=Source(Platform.X,"nitter","https://nitter-$suffix.invalid")
+        val root=oldX.copy(author="Workshop office",title="",body=rootText,publishedAt=now-75*60_000L,
+            media=listOf(Media(poster,description="Workshop tools poster")),provenance=Provenance(source,now,"${source.root}/$handle?cursor=next-page"))
+        val authorHandle="ashelper${suffix.takeLast(6)}"
+        val child=root.copy(id=root.id+"5",canonicalUrl="https://x.com/$authorHandle/status/${root.id}5",author="Workshop volunteer",body=childText,
+            publishedAt=now-5*60_000L,provenance=Provenance(source,now,"${source.root}/$handle#m"),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,"https://x.com/$handle","Workshop office")))
+        val facebook=root.copy(id=root.id+"3",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/${root.id}3",
+            publishedAt=root.publishedAt!!+60_000,media=listOf(Media("https://fusion-fb-$suffix.invalid/workshop.jpg",description="Workshop tools poster")),provenance=null)
+        val instagram=oldInstagram.copy(author="Workshop office",body=rootText,title="",publishedAt=root.publishedAt!!+62_000,
+            media=listOf(Media("https://fusion-instagram-$suffix.invalid/workshop.jpg",description="Workshop tools poster")))
+        val originals=listOf(root,facebook,instagram,child);records+=originals
+        val xFollow=follow(Platform.X);store(root,xFollow);store(child,xFollow)
+        store(facebook,follow(Platform.FACEBOOK));store(instagram,follow(Platform.INSTAGRAM))
+        // The independently followed author keeps their own person identity.
+        // Only the actual curator feed supplied this captured post.
+        val author=Follow("$person:volunteer",repo.routes.target(Platform.X,authorHandle),"Workshop volunteer",personId="$person-volunteer")
+        accounts+=author;runBlocking {repo.dao.putFollow(FollowRow(author.id,Platform.X.id,repo.gson.toJson(author)))}
+        cachePicture(root);cachePicture(facebook,jpeg=true);cachePicture(instagram)
+        val captured=originals.map(repo.images.identities::captured)
+        val memberships=runBlocking {originals.associate {repo.key(it)to repo.dao.postFollowIds(repo.key(it)).toSet()}}
+        assertEquals(originals.toSet(),CrossPosts.group(originals,accounts,memberships).single().posts.toSet())
+        assertEquals(setOf(xFollow.id),memberships.getValue(repo.key(child)))
+        val plan=collectionPlan(captured);assertEquals(1,plan.attachments.size)
+        for(text in listOf(rootText,childText))assertEquals(1,Regex(Regex.escape(text)).findAll(contextSnapshot(repo,root,captured).text).count())
+        seed("all",originals);show(model(),all=true);waitRow(root);row(child).assertDoesNotExist()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Fused post text").fetchSemanticsNodes().size==1}
+        ui.onAllNodesWithText(rootText).assertCountEquals(1);ui.onAllNodesWithText(childText).assertCountEquals(1)
+        val caption=hasText(childText) and hasAnyAncestor(hasTestTag("Feed row ${repo.key(root)}"))
+        revealCombinedControl(caption);ui.onNode(caption).assertIsDisplayed()
+        val childSegment=requireNotNull(plan.fusion).segments.indexOfFirst {repo.key(child)in it.originalKeys}
+        assertTrue(childSegment>=0)
+        ui.onNodeWithTag("Fusion authors $childSegment",useUnmergedTree=true).assert(hasAnyDescendant(hasText("Workshop volunteer")))
+        evidence("curated-photo-distinct-author-captions")
+        val selected=repo.library.availableAssets(root,fusionRoots=originals).filter {it.type=="image"}
+        assertEquals(3,selected.size)
+        val bytes=runBlocking {selected.associate {it.url to requireNotNull(repo.availableMedia(it.url)).readBytes()}}
+        runBlocking {
+            val owner=repo.library.save(root,selected,fusionRoots=originals)
+            repo.library.download(owner,requireNotNull(repo.library.details(owner)).token)
+            accounts.forEach {repo.dao.removeFollow(it.id)}
+        }
+        ui.onNodeWithTag("Primary destination saved").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+        runBlocking {repo.cleanup(true)};repo.images.identities.clear()
+        selected.forEach {asset->assertArrayEquals(bytes.getValue(asset.url),runBlocking {requireNotNull(repo.library.assetFile(asset.url)).readBytes()})}
+        val copy=runBlocking {repo.library.copy(repo.key(root))}!!
+        assertEquals(3,copy.assets.size);assertTrue(copy.assets.all {it.status=="COMPLETE"})
+        val retained=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        assertCapturedSources(originals,retained);assertEquals(1,collectionPlan(retained).attachments.size)
+        assertEquals(child.author,retained.single {repo.key(it)==repo.key(child)}.author)
+        assertEquals(child.publicRelations,retained.single {repo.key(it)==repo.key(child)}.publicRelations)
+        ui.onNodeWithTag("Library scope saved").performClick()
+        val open=hasText("Saved copy") and hasAnyAncestor(hasTestTag("Library entry ${repo.key(root)}"))
+        ui.onNodeWithTag("Library results",useUnmergedTree=true).performScrollToNode(open);ui.onNode(open,useUnmergedTree=true).performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onAllNodesWithText(rootText).assertCountEquals(1);ui.onAllNodesWithText(childText).assertCountEquals(1)
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasText(childText));ui.onNodeWithText(childText).assertIsDisplayed()
+        evidence("curated-photo-cold-source-captions")
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasContentDescription("Workshop tools poster"))
+        ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Workshop tools poster").fetchSemanticsNodes().size==1}
+        ui.waitForIdle();android.os.SystemClock.sleep(250)
+        evidence("curated-photo-one-protected-picture")
     }
 
     @Test fun aDeclaredXThumbnailSharesOneSlotWithARecordingAndSurvivesColdSaving() {
