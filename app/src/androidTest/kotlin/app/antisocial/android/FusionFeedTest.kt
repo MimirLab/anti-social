@@ -886,6 +886,71 @@ class FusionFeedTest {
         evidence("short-campaign-caption-with-both-distinct-pictures")
     }
 
+    @Test fun aDirectCuratedQuotationKeepsItsCommentaryAttributionAndColdSavedSourcePaths() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body=shared,media=emptyList())
+        val instagram=oldInstagram.copy(body=shared,media=emptyList())
+        val own="Our volunteers repaired the damaged entrance, inspected every gate, replaced the broken signs, and prepared the next training session. Their separate report explains the materials, equipment, and remaining work before the community workshop opens its doors."
+        val quoted=x.copy(id=x.id+"2",canonicalUrl="https://x.com/RepairCrew/status/${x.id}2",author="Repair Crew",body="$own $shared — ${x.canonicalUrl}",publishedAt=now,
+            provenance=Provenance(Source(Platform.X,"nitter","https://nitter.fixture.invalid",role=SourceRole.ALTERNATE),now,"https://nitter.fixture.invalid/$handle/rss"),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,"https://x.com/$handle")))
+        records+=listOf(x,instagram,quoted);val xFollow=follow(Platform.X);store(x,xFollow);store(quoted,xFollow);store(instagram,follow(Platform.INSTAGRAM))
+        val groups=CrossPosts.group(records,accounts,records.associate {repo.key(it) to setOf(if(it.platform==Platform.X)xFollow.id else accounts.single {f->f.target.platform==Platform.INSTAGRAM}.id)})
+        assertEquals(1,groups.size)
+        val fusion=requireNotNull(collectedPostFusion(groups.single().posts))
+        assertEquals(1,Regex(Regex.escape(shared)).findAll(fusion.segments.joinToString(" "){it.text}).count())
+        assertTrue(fusion.segments.single().text.contains("@repaircrew"));assertTrue(fusion.segments.single().text.contains(own))
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();row(quoted).assertDoesNotExist()
+        ui.onNodeWithTag("Fusion woven text").assert(hasText(own,substring=true)).assert(hasText("@repaircrew",substring=true))
+        evidence("curated-direct-quotation-common-once-commentary-attributed")
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=records);accounts.forEach {repo.dao.removeFollow(it.id)}}
+        repo.images.identities.clear()
+        val copy=runBlocking {repo.library.copy(repo.key(x))}!!
+        val retained=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        assertEquals(records.map(repo::key).toSet(),retained.map(repo::key).toSet())
+        val saved=requireNotNull(collectedPostFusion(retained))
+        val spaces=Regex("[\\s\\p{Z}]+")
+        for(post in retained) {
+            val key=repo.key(post)
+            val projection=saved.weave!!.joinToString(" "){run->run.variants.single {key in it.originalKeys}.text}
+            assertEquals(PostPresentation.content(post).replace(spaces," ").trim(),projection.replace(spaces," ").trim())
+        }
+    }
+
+    @Test fun lateQuotedCommentaryWaitsForAdoptionAndDoesNotInheritTheSourcesReadMark() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val x=oldX.copy(body=shared,media=emptyList())
+        val own="A separate repair crew checked the entrance, inspected the fence, replaced the signs, organized the equipment, and prepared their own detailed report before the next neighborhood workshop. Their commentary records the remaining work for everyone attending the public session."
+        val quoted=x.copy(id=x.id+"2",canonicalUrl="https://x.com/RepairCrew/status/${x.id}2",author="Repair Crew",body="$own $shared — ${x.canonicalUrl}",publishedAt=now,
+            provenance=Provenance(Source(Platform.X,"nitter","https://nitter.fixture.invalid",role=SourceRole.ALTERNATE),now,"https://nitter.fixture.invalid/$handle/rss"),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,"https://x.com/$handle")))
+        val tail=x.copy(id=x.id+"8",canonicalUrl=x.canonicalUrl+"8",body=(1..30).joinToString("\n"){"Independent reading-room notice $it: bring a book."},publishedAt=now-120_000)
+        records+=listOf(x,quoted,tail);val xFollow=follow(Platform.X);records.forEach {store(it,xFollow)}
+        val initial=listOf(x,tail);val feed="late-quote:$person";seed(feed,initial,offset=19)
+        val known=mutableStateOf(mapOf(repo.key(x) to listOf(x),repo.key(tail) to listOf(tail)));val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {ChronologicalFeed(vm,initial,accounts,emptySet(),feed,"Quote fixture","Bounded source window",grouped=true,onAdd={},counterparts=known.value)}}}
+        waitRow(x);repo.feedMemory.markRead(feed,listOf(repo.key(x)));val before=top(x)
+        val activity="Card activity ${x.identityKey}"
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Ready"}}
+        ui.runOnIdle {known.value=mapOf(repo.key(x) to listOf(x,quoted),repo.key(quoted) to listOf(x,quoted),repo.key(tail) to listOf(tail))}
+        // The footer intentionally has one chooser per platform, including
+        // when two distinct X originals are captured. Observe pending content.
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="New details ready"}}
+        assertFalse(repo.key(quoted) in repo.feedMemory.get(feed).readKeys)
+        assertTrue(abs(top(x)-before)<=2f);ui.onNodeWithTag("Fusion woven text").assertDoesNotExist()
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(tail)}"))
+        ui.onNodeWithTag("Combined feed").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,600f)}
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Feed row ${repo.key(x)}").fetchSemanticsNodes().isEmpty()}
+        runBlocking {delay(1500)};ui.waitForIdle()
+        ui.onNodeWithTag("Combined feed").performScrollToNode(hasTestTag("Feed row ${repo.key(x)}"))
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Fusion woven text").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Fusion woven text").assert(hasText(own,substring=true)).assert(hasText(shared,substring=true)).assert(hasText("@repaircrew",substring=true))
+        evidence("late-quoted-commentary-adopted-without-moving-active-reader")
+    }
+
     @Test fun aLateSameCaptionPhotographIsAdoptedOffscreenWithoutNeedingNewest() {
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
         val x=oldX.copy(body=shared)

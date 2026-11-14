@@ -1235,3 +1235,44 @@ continues to require its existing media evidence. Before pictures are observed,
 their distinct source records remain; actual matching observations can then
 reduce repeated picture presentation. Existing image-backed collection remains
 available and is qualified separately from the caption-only path.
+
+## Direct curated quotations and their own commentary (0.38.109)
+
+A publisher can share another account's commentary which quotes its complete
+earlier announcement. The earlier announcement's platform copies may already
+form a collection, while the shared commentary repeats that whole passage on
+another card. This is a related quotation rather than interchangeable wording.
+The ordinary copied-prose thresholds and rebuttal guards remain unchanged.
+
+`QuotedSources` adds a separate bounded route. Its leaf must link one captured X
+original using a canonical HTTPS status URL or a status URL on its qualified
+Nitter acquisition origin. The typed repost role must agree with the source
+profile. Live grouping also requires the existing local publisher bundle for
+every participating record. A shared name, matching caption or arbitrary
+curator claim supplies none of that evidence.
+
+The entire literal source message must occur exactly once in each quotation,
+contain at least 160 characters, 24 words and 12 distinct words, and agree across
+the existing root editions. Normalization preserves case and punctuation while
+collapsing whitespace and normalizing Unicode. Complete, dated, non-reply
+originals must fit within 48 hours; a quotation cannot precede its cited root.
+Wrong source identifiers/accounts, foreign frontend links, partial or changed
+quotations, multiple post destinations, nested quotations and cycles do not
+qualify. Initial groups remain frozen anchors: accepted commentary cannot create
+a new root for transitive collection. Existing edition and cancellation bounds
+apply, and ordinary captions exit before preparing another text bank.
+
+The complete source passage reads once. Each prefix, suffix and reference retains
+its original's literal path. Added commentary keeps its own attribution,
+including URL-bound handles when two authors use X. A bare separator before a
+source link stays in that original path without becoming an empty-looking
+wording alternative. Feed, Context and saved readers reuse the same composition.
+Every distinct captured attachment and discussion root remains governed by its
+existing evidence; quotation containment cannot suppress a picture or recording.
+
+Saved admission validates this narrow content/source relationship independently
+of current subscriptions and volatile image observations. It grants neither
+account ownership nor retrieval authority. Late new commentary uses the existing
+pending-details/read-adoption path rather than inheriting the earlier source's
+read mark or moving the active reader. No new request, database, permission,
+dependency, model or broad similarity threshold is introduced.

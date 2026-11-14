@@ -199,7 +199,7 @@ internal object AnnouncementEditions {
         }),common(words.first().takeLast(suffix).joinToString(" "))).filterNot {run->run.shared&&run.variants.single().text.isBlank()}
         return finishPassages(docs,runs)
     }
-    private fun finishPassages(docs:List<Caption>,parts:List<FusionRun>):PostFusion? {
+    internal fun finishPassages(docs:List<Caption>,parts:List<FusionRun>,labelActors:Boolean=false):PostFusion? {
         val posts=docs.map {it.post}
         val runs=parts.toMutableList()
         if(docs.any {it.references.isNotBlank()})runs+=FusionRun(false,docs.indices.groupBy {key(docs[it].references)}.values.map {indexes->
@@ -212,7 +212,9 @@ internal object AnnouncementEditions {
             if(key(text)!=key(doc.text))return null
         }
         val text=runs.filter {it.variants.any {v->v.visibleText.isNotBlank()}}.joinToString(" "){run->if(run.shared)run.variants.single().visibleText else run.variants.filter {it.visibleText.isNotBlank()}.joinToString(" / ","[","]") {
-            it.visibleText+" — "+PlatformOrder.sort(it.platforms).joinToString(" · "){p->p.label}
+            it.visibleText+" — "+(if(labelActors)posts.filter {p->CrossPosts.originalKey(p) in it.originalKeys}.mapNotNull {p->
+                CrossPosts.originalAccount(p)?.takeIf {account->account.startsWith("twitter:")}?.removePrefix("twitter:")?.let {account->"@$account"}
+            }.distinct().joinToString(" · ").let {actors->if(actors.isBlank())""else "$actors · "}else "")+PlatformOrder.sort(it.platforms).joinToString(" · "){p->p.label}
         }}
         return PostFusion(listOf(FusionSegment(text,posts.mapTo(linkedSetOf()){it.platform},false,posts.mapTo(linkedSetOf(),CrossPosts::originalKey))),runs)
     }

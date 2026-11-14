@@ -9,6 +9,66 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.109: read a direct curated quotation once with its own commentary
+
+The continuing native audit on November 14, 2026 (UTC) confirmed a complete
+announcement repeated beneath a curator-shared post's substantial commentary.
+All four originals already resolved through the existing local publisher bundle;
+the defect did not require another account database or live identity lookup.
+The 0.38.108 source replay retains a three-edition collection and a separate
+quotation, matching the directly inspected reader. A separate
+[direct-quotation route](ATTACHMENT_COLLECTIONS.md#direct-curated-quotations-and-their-own-commentary-038109)
+collects that relationship without weakening ordinary copy/rebuttal gates.
+Version code is 218; application ID and signing compatibility are unchanged.
+
+The frozen corrected prototype qualifies:
+
+- **2,901 JVM cases:** 2,894 pass, seven optional skips, zero failures/errors.
+  Eight new synthetic controls cover complete literal source paths, canonical
+  and source-bound frontend links, wrong citations, missing curator/source or
+  local-bundle evidence, changed/repeated excerpts, roundups, negative commentary,
+  stale/incomplete/reply records and direct versus nested quotation chains.
+- **153 named native checks per API 35 and minimum API 26:** 145 pass, eight
+  explicit skips, zero failures. The ten-class set retains feed, photo-panel,
+  image identity, saved media, Library, article-session, caption and strict
+  reader-portability controls. New checks cover source-attributed commentary,
+  subscription-independent saved paths and late unread commentary adopting
+  without moving the active reader.
+- **Captured-family replays on both APIs:** one card shows the complete common
+  passage and unique commentary once, including with zero image observations.
+  All four original media records remain: three unique URLs before observations.
+  Supplying two exact cached source files observes three source occurrences of
+  one picture; the unavailable fourth rendition remains separately inspectable.
+  Neither the missing bytes nor their equivalence is fabricated.
+- **Cold native Library checks:** every original and literal source path remains
+  after fixture subscriptions and volatile image observations are removed.
+  Actual feed and saved-reader frames were directly inspected.
+- **Captured source-window comparison:** only the selected three-edition
+  collection and singleton join, reducing 566 groups to 565. The other 564 groups
+  remain unchanged; all 682 originals occur exactly once. This is the recorded
+  window, not a claim that the complete feed is free of duplicates.
+
+A new late-arrival test initially assumed two footer controls for two X originals.
+The footer deliberately has one chooser per platform; the test now observes the
+actual pending-details state. Its earlier timeout remains in the private record.
+Source-path test normalization also trims the whitespace introduced by empty
+weave alternatives, without relaxing production reconstruction. The corrected
+full runs above follow those harness corrections. A stray link separator found
+during screen review is hidden only in presentation and remains in its source
+path. Ordinary cards leave the new route through cheap role/reference checks.
+
+The existing source, destination, publisher, chronology, attachment and saved
+record protections remain. No additional crawl, network request, model,
+dependency, permission or schema migration is introduced. The earlier isolated
+database event and API 26 capture-layer observation remain open; no physical-phone
+latency, energy or hardware-display qualification is claimed.
+
+Promotion additionally requires final frozen APK/native controls, source/revision
+and signer checks, unchanged native members, corresponding-source/privacy checks,
+recoverable preview-state preservation and anonymous permanent-download
+verification under [the publishing procedure](PUBLISHING.md). The continuing
+duplicate/noise audit remains active.
+
 ## 0.38.108: collect literal quotation credits before image work
 
 The continuing native audit on November 14, 2026 (UTC) found a long quotation

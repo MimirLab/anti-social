@@ -335,6 +335,13 @@ object CrossPosts {
         val owner=originalAccount(a)
         return owner!=null&&owner==originalAccount(b)||(curator(a) ?: owner)?.let {it==(curator(b) ?: originalAccount(b))}==true
     }
+    /** A typed sharing role must agree with its acquisition profile before a
+     * direct quotation can join that publisher's captured announcement. The
+     * original creator remains distinct; this establishes no account control. */
+    internal fun curatedQuotationSource(post:Post,root:Post):Boolean {
+        val declared=NitterReposts.handle(post) ?: return false
+        return curator(post)=="twitter:"+declared.lowercase(java.util.Locale.ROOT)&&repeatIdentity(post,root)
+    }
     private val quotedSpeaker=Regex("^\\s*\\.?@([A-Za-z0-9_]{1,15})\\s*:\\s*[\"“]")
     private val subjectNoise=setOf("about","after","again","before","being","could","every","first","going","having","other","people","really","should","their","there","these","thing","things","those","through","today","together","under","very","where","which","while","would","public","update","updates","video")
     private fun speaker(post: Post)=quotedSpeaker.find(PostPresentation.content(post))?.groupValues?.get(1)?.lowercase(java.util.Locale.ROOT)
@@ -1660,7 +1667,8 @@ object CrossPosts {
         val established=RedditSupplements.collect(collectImageEchoes(collectGalleries(collectCompleteGalleries(grouped,shortGalleries,checkpoint),sameMedia,checkpoint),sameMedia,checkpoint))
         val owners=ordered.associate {row->originalKey(row.post) to row.owner.takeIf {row.validOriginal}}
         val announcements=AnnouncementCollections.collect(established,owners,{a,b->sameAnnouncementArtwork(a,b,sameMedia)},checkpoint)
-        val declared=DeclaredVideo.collect(announcements,::declaredRecordingCollection,checkpoint)
+        val quotations=QuotedSources.collect(announcements,owners,checkpoint)
+        val declared=DeclaredVideo.collect(quotations,::declaredRecordingCollection,checkpoint)
         return (if(sharedFootage==null)declared else SharedVideoCollections.collect(declared,owners,sharedFootage,checkpoint))
             .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }

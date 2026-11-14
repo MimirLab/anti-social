@@ -147,6 +147,14 @@ import androidx.compose.ui.unit.TextUnit
                 run.variants.filter {it.visibleText.isNotBlank()}.forEachIndexed {variantIndex,variant->
                     if(variantIndex>0)withStyle(SpanStyle(color=color)){append(" / ")}
                     append(variant.visibleText)
+                    // One platform can contain both a quoted publisher and
+                    // its curator. A platform badge alone cannot identify who
+                    // supplied the added wording. Use URL-bound ASCII handles.
+                    if(roots.filter {it.platform==Platform.X}.mapNotNull(CrossPosts::originalAccount).distinct().size>1) {
+                        val actors=roots.filter {it.platform==Platform.X&&CrossPosts.originalKey(it) in variant.originalKeys}
+                            .mapNotNull(CrossPosts::originalAccount).distinct().map {"@"+it.removePrefix("twitter:")}
+                        if(actors.isNotEmpty())withStyle(SpanStyle(color=color)){append(" — "+actors.joinToString(" · "))}
+                    }
                     app.antisocial.core.PlatformOrder.sort(variant.platforms).forEach {platform->
                         append(" ")
                         val id="source-$index-$variantIndex-${platform.id}"

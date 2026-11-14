@@ -671,6 +671,7 @@ object CrossPostFusion {
     fun composeCollectedReferences(posts:List<Post>):PostFusion?=CaptionWeave.composeReferences(posts)
 
     fun compose(posts: List<Post>): PostFusion? {
+        QuotedSources.compose(posts)?.let {return it}
         CrossPosts.quotedCreditFusion(posts)?.let {return it}
         composeOrdinary(posts)?.let {ordinary->
             // A successful paragraph fallback can still repeat most of a
