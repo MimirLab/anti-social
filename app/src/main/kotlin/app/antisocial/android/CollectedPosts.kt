@@ -85,7 +85,13 @@ internal fun collectionPlan(posts:List<Post>,identities:MediaIdentityStore?=null
 internal fun addsCollectedMedia(before:List<Post>,after:List<Post>,identities:MediaIdentityStore?=null):Boolean {
     val known=before.flatMap {it.media}.mapTo(hashSetOf()){it.type to it.url}
     if(after.all {post->post.media.all {(it.type to it.url) in known}})return false
-    return collectedAttachments(before+after,identities).size>collectedAttachments(before,identities).size
+    val combined=collectedAttachments(before+after,identities)
+    // A first playable recording can replace its known still poster in the
+    // same display slot. Its playback is new content even when the slot count
+    // stays constant. Proven recording aliases retain the old representative.
+    return combined.size>collectedAttachments(before,identities).size||combined.any {
+        it.media.type in setOf("video","audio")&&(it.media.type to it.media.url) !in known
+    }
 }
 
 internal fun collectedCaptionTexts(posts: List<Post>): List<String> = collectedPostFusion(posts)?.segments?.map {it.text}

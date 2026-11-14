@@ -9,6 +9,58 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.110: complete caption copies and late playable recordings
+
+The November 14, 2026 (UTC) native review confirmed three separate defects:
+
+- An Instagram bridge's generated short play/excerpt title doubled an authored
+  body marker. The captured two-original family remained two cards on 0.38.109
+  despite an existing local publisher binding and matching complete body text.
+- New video playback could replace a previously known still poster without
+  increasing attachment-slot count. The old new-content predicate consequently
+  missed the update; its native counterexample fails before the correction.
+- A public X progressive MP4 delivery prefix was recognized by the post detector
+  but absent from attachment identity. Supplied renditions and qualified proxies
+  could therefore retain different recording identities. Focused JVM controls
+  reproduce the old mismatch.
+
+The [bounded corrections](ATTACHMENT_COLLECTIONS.md#generated-play-excerpts-and-late-playable-media-038110)
+retain raw captions, distinct recordings, preview attribution and local saved
+records. Version code is 219; application ID and signing compatibility remain.
+
+Qualification before the clean final build:
+
+- **2,911 JVM cases:** 2,904 pass, seven optional skips, zero failures/errors.
+  The separate captured-family and ten focused synthetic controls pass all
+  **11 cases** with no skips. They cover literal short excerpts, claims, numeric
+  changes, references, provenance, original destinations, qualified clip IDs,
+  rejected delivery shapes and unchanged playback URLs.
+- **155 named native checks per API 35 and minimum API 26** on the frozen
+  corrected prototype: 147 pass, eight explicit skips, zero failures. New
+  controls exercise the caption, every saved original, preview-only source
+  credit, new playback, a proven rendition alias and fixed-anchor adoption.
+- **Captured family:** the corrected native card shows the common passage once,
+  with both originals and their media retained, including a cold Library reopen
+  after fixture subscriptions are removed. No image or footage evidence is
+  fabricated to obtain the caption merge.
+- **Captured-window replay:** 565 groups become 564; the other 563 groups stay
+  unchanged and all 682 originals occur exactly once. This measures the captured
+  window, not complete-feed correctness.
+
+An earlier minimum-API saved-reader capture omitted part of the frame. Stronger
+visibility assertions and simultaneous OS captures then showed the complete
+reader with the identical app APK. The earlier observation remains retained; no
+GPU or rendering repair is claimed. An intermediate test compilation error also
+left older XML in shared outputs; that stale count is explicitly excluded from
+qualification. Fresh counts above are accepted only after successful execution.
+
+Final publication additionally requires the exact clean-revision APK's native
+suite, current and earlier captured-family controls, cache recovery, prior caption
+regressions, saved-state-preserving preview upgrade, signer/revision/source checks
+and anonymous permanent-download verification. The earlier isolated database
+event and capture-layer cause remain open. No physical-phone performance, energy
+or hardware-display measurement is inferred from these emulator checks.
+
 ## 0.38.109: read a direct curated quotation once with its own commentary
 
 The continuing native audit on November 14, 2026 (UTC) confirmed a complete

@@ -420,8 +420,9 @@ class FusionFeedTest {
             repo.images.identities.clear()
             val files=packet.getAsJsonObject("files")
             if(deferImages) {
-                require((files==null||files.size()==0)&&records.all {post->post.media.all {it.type=="image"}})
-                val keys=records.flatMap {it.media}.map {Repository.hash(it.url)}.distinct()
+                require((files==null||files.size()==0)&&records.all {post->post.media.all {it.type in setOf("image","video")&&it.visualFingerprint==null&&it.attachmentFingerprint==null&&it.videoFootage==null}})
+                repo.videos.cleanup(true)
+                val keys=records.flatMap {it.media}.flatMap {listOfNotNull(it.url,it.preview)}.map(Repository::hash).distinct()
                 for(key in keys)if(!packetMedia.containsKey(key))packetMedia[key]=repo.dao.media(key)
                 repo.dao.removeMedia(keys);repo.images.clear()
             }
@@ -524,10 +525,11 @@ class FusionFeedTest {
             mapOf("case" to index,"rows" to shown.size,"passageOccurrences" to count,"shown" to shown,
                 "originalsPreserved" to (captured==keys),"attachments" to attachments.size,"requiredPassagesOnce" to requiredOnce,
                 "deferredImageEvidence" to deferImages,"observedImages" to collected.sumOf {group->group.posts.sumOf {post->post.media.count {it.visualFingerprint!=null||it.attachmentFingerprint!=null}}},
+                "observedVideos" to collected.sumOf {group->group.posts.sumOf {post->post.media.count {it.videoFootage!=null}}},
                 "expectedAttachmentsPreserved" to (expected==null||expected==attachments.size),"savedOriginalsPreserved" to save.isSuccess,"saveError" to save.exceptionOrNull()?.message)
         }
         File(output,"report.json").writeText(repo.gson.toJson(reports))
-        if(deferImages)assertTrue("The source-only comparison must not borrow image observations",reports.all {it["observedImages"]==0})
+        if(deferImages)assertTrue("The source-only comparison must not borrow image or footage observations",reports.all {it["observedImages"]==0&&it["observedVideos"]==0})
         File(output,"groups.json").writeText(repo.gson.toJson(groups))
         // Capture each current card's beginning explicitly as well as the
         // continuous scroll. A fling can move past a short caption between two
@@ -576,10 +578,11 @@ class FusionFeedTest {
             val copy=runBlocking {repo.library.copy(owner)}!!
             val reopened=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
             assertEquals(roots.map(repo::key).toSet(),reopened.map(repo::key).toSet())
-            val fusion=requireNotNull(collectedPostFusion(reopened));val weave=requireNotNull(fusion.weave)
+            val fusion=requireNotNull(collectedPostFusion(reopened));val weave=fusion.weave
             for(post in reopened) {
                 val original=CrossPosts.originalKey(post)
-                val projected=weave.joinToString(" "){run->run.variants.single {original in it.originalKeys}.text}
+                val projected=weave?.joinToString(" "){run->run.variants.single {original in it.originalKeys}.text}
+                    ?: fusion.segments.filter {original in it.originalKeys}.joinToString(" "){it.text}
                 assertEquals(compact(PostPresentation.content(post)),compact(projected))
             }
             ui.onNodeWithTag("Primary destination saved").performClick()
@@ -603,14 +606,28 @@ class FusionFeedTest {
                 }.onFailure {File(output,"saved-library-observer-error.txt").writeText(it.toString())}
                 throw failure
             }
-            val woven=ui.onNodeWithTag("Fusion woven text")
-            ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Fusion woven text"))
+            val visibleRuns=weave.orEmpty().filter {run->run.variants.any {it.visibleText.isNotBlank()}}
+            val captionTag=if(weave==null) {
+                require(fusion.segments.size==1&&fusion.segments.single().shared) {"The inspected caption must be compact and source-complete"}
+                "Fusion shared text"
+            }else if(visibleRuns.size==1&&visibleRuns.single().shared)"Fusion shared text"else"Fusion woven text"
+            val woven=ui.onNodeWithTag(captionTag)
+            ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag(captionTag))
+            woven.assertIsDisplayed()
             val text=woven.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
             val spec=cases.single().asJsonObject
             for(value in listOf(spec["once"])+spec.getAsJsonArray("requiredPassages")?.toList().orEmpty())
                 assertEquals(1,Regex(Regex.escape(compact(value.asString))).findAll(compact(text)).count())
             evidence("private-collected-caption-cold-library")
             File(output,"saved-caption-inspection.json").writeText(repo.gson.toJson(mapOf("originals" to reopened.size,"exactSourcePaths" to true,"commonPassagesOnce" to true,"subscriptionsRemoved" to true,"nativeLocalReader" to true)))
+            // Explicit isolated inspection can compare OS framebuffer readback
+            // with UiAutomation while this exact saved screen is still open.
+            val inspectionPause=args.getString("antisocialCollectedFeedInspectPauseMs")?.toLongOrNull() ?: 0L
+            require(inspectionPause in 0..10_000)
+            if(inspectionPause>0) {
+                Thread.sleep(inspectionPause)
+                evidence("private-collected-caption-cold-library-after-inspection")
+            }
         }
         assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["requiredPassagesOnce"]==true&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
     }
@@ -884,6 +901,65 @@ class FusionFeedTest {
         assertEquals(2,repo.library.normalizedFusionRoots(captured.first(),captured).size)
         ui.waitUntil(10_000){ui.onAllNodesWithContentDescription("Short caption first picture").fetchSemanticsNodes().isNotEmpty()}
         evidence("short-campaign-caption-with-both-distinct-pictures")
+    }
+
+    @Test fun aLatePlayableVideoIsNewContentWhenItReplacesAnAlreadyKnownPosterSlot() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val still=oldInstagram.copy(body=shared)
+        val recording=Media("https://video-fixture-$suffix.invalid/new-recording.mp4",type="video",preview=still.media.single().url)
+        val video=oldX.copy(body=shared,media=listOf(recording))
+        assertEquals(1,collectedAttachments(listOf(still)).size)
+        val merged=collectedAttachments(listOf(still,video));assertEquals(1,merged.size)
+        assertEquals(setOf(Platform.INSTAGRAM),merged.single().previewPlatforms)
+        val canonical=video.copy(media=listOf(recording.copy(url="https://video.twimg.com/ext_tw_video/920001/pu/vid/avc1/720x1280/first.mp4")))
+        val alias=canonical.copy(id=canonical.id+"9",canonicalUrl=canonical.canonicalUrl+"9",media=listOf(canonical.media.single().copy(url="https://video.twimg.com/ext_tw_video/920001/pu/vid/avc1/320x568/second.mp4")))
+        assertFalse("A proven rendition of an existing recording is source attribution",addsCollectedMedia(listOf(canonical),listOf(canonical,alias)))
+        assertTrue("A new playable recording must not disappear behind an unchanged poster-slot count",addsCollectedMedia(listOf(still),listOf(still,video)))
+        val tail=oldX.copy(id=oldX.id+"8",canonicalUrl=oldX.canonicalUrl+"8",body=(1..30).joinToString("\n"){"Independent reading-room notice $it: bring a book."},publishedAt=now-120_000,media=emptyList())
+        records+=listOf(still,video,tail);store(still,follow(Platform.INSTAGRAM));val xFollow=follow(Platform.X);store(video,xFollow);store(tail,xFollow)
+        cachePicture(still)
+        val initial=listOf(still,tail);val feed="late-playable:$person";seed(feed,initial,offset=19)
+        val known=mutableStateOf(mapOf(repo.key(still) to listOf(still),repo.key(tail) to listOf(tail)));val vm=model()
+        ui.runOnUiThread {ui.activity.setContent {MaterialTheme {ChronologicalFeed(vm,initial,accounts,emptySet(),feed,"Video fixture","Captured sources",grouped=true,onAdd={},counterparts=known.value)}}}
+        waitRow(still);repo.feedMemory.markRead(feed,listOf(repo.key(still)));val before=top(still);val activity="Card activity ${still.identityKey}"
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="Ready"}}
+        ui.runOnIdle {known.value=mapOf(repo.key(still) to listOf(still,video),repo.key(video) to listOf(still,video),repo.key(tail) to listOf(tail))}
+        ui.waitUntil(10_000){ui.onAllNodesWithTag(activity).fetchSemanticsNodes().any {it.config.getOrNull(SemanticsProperties.StateDescription)=="New details ready"}}
+        assertFalse(repo.key(video) in repo.feedMemory.get(feed).readKeys);assertTrue(abs(top(still)-before)<=2f)
+        ui.onNodeWithTag("Post image ${repo.key(still)} ${still.media.single().url}").assertExists();row(video).assertDoesNotExist()
+        ui.onNodeWithTag(activity).performClick();ui.onNodeWithText("Show details").performClick()
+        val play=hasText("Play video") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(still)}"))
+        ui.waitUntil(10_000){ui.onAllNodes(play).fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Post image ${repo.key(still)} ${still.media.single().url}").assertDoesNotExist()
+        assertTrue(abs(top(still)-before)<=2f);assertEquals(repo.key(still),repo.feedMemory.get(feed).anchorKey)
+        assertFalse(addsCollectedMedia(listOf(video),listOf(video,still)))
+        evidence("late-playable-recording-adopted-with-one-known-poster-and-fixed-anchor")
+    }
+
+    @Test fun aGeneratedFlagHeadingSharesItsCompleteCaptionAndKeepsTheVideoAndPreviewSources() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val body="🇨🇦 $shared"
+        val video=Media("https://video-fixture-$suffix.invalid/recording.mp4",type="video")
+        val x=oldX.copy(body=body,media=listOf(video))
+        val source=Source(Platform.INSTAGRAM,"rss-bridge","https://reader.fixture.invalid/bridge",role=SourceRole.ALTERNATE)
+        val instagram=oldInstagram.copy(title="▶ 🇨🇦...",body=body,provenance=Provenance(source,now,"${source.root}?action=display&bridge=Instagram&context=Username&u=$handle&format=Atom&media_type=all"))
+        records+=listOf(x,instagram);store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))
+        val groups=CrossPosts.group(records,accounts);assertEquals(1,groups.size)
+        assertTrue(groups.single().posts.flatMap {it.media}.all {it.visualFingerprint==null&&it.attachmentFingerprint==null&&it.videoFootage==null})
+        val fusion=requireNotNull(collectedPostFusion(groups.single().posts));assertEquals(body,fusion.segments.single().text)
+        seed("all",records);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();ui.onNodeWithTag("Fusion shared text").assertTextEquals(body)
+        evidence("generated-flag-heading-one-caption-complete-video-preview-originals")
+        runBlocking {repo.library.save(x,emptyList(),fusionRoots=records);accounts.forEach {repo.dao.removeFollow(it.id)}}
+        repo.images.identities.clear()
+        val copy=runBlocking {repo.library.copy(repo.key(x))}!!
+        val retained=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        assertEquals(records.map(repo::key).toSet(),retained.map(repo::key).toSet())
+        assertEquals(instagram.title,retained.single {it.platform==Platform.INSTAGRAM}.title)
+        assertEquals(records.flatMap {it.media}.map {it.type to it.url}.toSet(),retained.flatMap {it.media}.map {it.type to it.url}.toSet())
+        assertEquals(body,requireNotNull(collectedPostFusion(retained)).segments.single().text)
     }
 
     @Test fun aDirectCuratedQuotationKeepsItsCommentaryAttributionAndColdSavedSourcePaths() {

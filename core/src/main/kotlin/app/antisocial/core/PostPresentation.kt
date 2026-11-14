@@ -4,6 +4,7 @@ package app.antisocial.core
 import org.jsoup.Jsoup
 import org.jsoup.nodes.TextNode
 import org.jsoup.parser.Parser
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.net.URI
 import java.text.Normalizer
 import java.util.Locale
@@ -39,6 +40,29 @@ object PostPresentation {
     private val videoLabel=Regex("\\s+Video\\s*$",RegexOption.IGNORE_CASE)
     private val shortenedHostLabel=Regex("(?<![\\p{L}\\p{N}_@.])(?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z0-9-]+(?:…|\\.\\.\\.)(?!\\S)")
     private val inlineHashtag=Regex("(?<![\\p{L}\\p{N}_])#(?=[\\p{L}][\\p{L}\\p{N}_]{2,})")
+
+    /** A bridge-generated play/excerpt heading can be a single word or symbol.
+     * Require its declared profile-feed operation and complete literal tokens
+     * at the start of substantial body text. Keep the authored body intact;
+     * a short reference label cannot prove its destination this way. */
+    private fun generatedPlayExcerpt(post:Post,title:String,prefix:String?,body:String):Boolean {
+        if(prefix==null||prefix.length !in 1..23||!title.startsWith('▶')||!body.startsWith("$prefix ")||body.length !in 48..65_536||
+            CaptionWordScan.count(body,12,simple=true)<12||body.any {it in '\u202a'..'\u202e'||it in '\u2066'..'\u2069'})return false
+        if('@' in prefix||'#' in prefix||urlMatches(prefix).any()||post.platform!=Platform.INSTAGRAM||post.parentId!=null||post.preview)return false
+        val provenance=post.provenance ?: return false;val source=provenance.source
+        if(source.platform!=Platform.INSTAGRAM||source.frontend!="rss-bridge"||source.role!=SourceRole.ALTERNATE||
+            SocialLinkHosts.platform(post.canonicalUrl)!=Platform.INSTAGRAM||!ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("post:"))return false
+        val original=runCatching {URI(post.canonicalUrl)}.getOrNull() ?: return false
+        if(original.scheme!="https"||original.userInfo!=null||original.port !in setOf(-1,443))return false
+        if(source.root.length>2048||provenance.finalUrl.length>8192)return false
+        val root=source.root.toHttpUrlOrNull() ?: return false;val final=provenance.finalUrl.toHttpUrlOrNull() ?: return false
+        if(!root.isHttps||!final.isHttps||root.username.isNotEmpty()||root.password.isNotEmpty()||root.query!=null||root.fragment!=null||
+            final.username.isNotEmpty()||final.password.isNotEmpty()||final.fragment!=null||root.host!=final.host||root.port!=final.port)return false
+        val base=root.encodedPath.trimEnd('/')
+        if(final.encodedPath!=base&&final.encodedPath!="$base/"&&!final.encodedPath.startsWith("$base/"))return false
+        return final.queryParameterValues("action")==listOf("display")&&final.queryParameterValues("bridge")==listOf("Instagram")&&
+            final.queryParameterValues("context")==listOf("Username")&&final.queryParameterValues("u").singleOrNull()?.matches(Regex("[A-Za-z0-9_.]{1,30}"))==true
+    }
 
     fun text(post:Post):PostTextPresentation=CrossPostFusion.presentation(post) ?: (if('\uffff' in post.title||'\uffff' in post.body)
         // CharacterReader uses this noncharacter as its end marker at token
@@ -116,7 +140,7 @@ object PostPresentation {
             val completeAttributedEcho=heading==unwrapped&&prefix==body
             val generatedShort=post.platform in setOf(Platform.INSTAGRAM,Platform.FACEBOOK)&&post.provenance?.source?.frontend in setOf("rss-bridge","rsshub")&&
                 prefix!=null&&prefix.length>=12&&CaptionWordScan.count(prefix,2,simple=true)>=2
-            val truncatedEcho=prefix!=null&&(prefix.length>=24||generatedShort)&&
+            val truncatedEcho=prefix!=null&&(prefix.length>=24||generatedShort||generatedPlayExcerpt(post,title,prefix,body))&&
                 (body.length>prefix.length&&body.startsWith(prefix)||completeAttributedEcho)
             val fullPrefix=heading.length>=40&&CaptionWordScan.count(heading,6,simple=true)>=6&&body.startsWith("$heading ")&&
                 (heading.trimEnd('"','\'','’','”').lastOrNull() in listOf('.','!','?')||heading==repostCaption)

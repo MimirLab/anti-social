@@ -1276,3 +1276,42 @@ account ownership nor retrieval authority. Late new commentary uses the existing
 pending-details/read-adoption path rather than inheriting the earlier source's
 read mark or moving the active reader. No new request, database, permission,
 dependency, model or broad similarity threshold is introduced.
+
+## Generated play excerpts and late playable media (0.38.110)
+
+A declared Instagram RSS-Bridge profile feed can supply a generated title such
+as a play marker followed by a short excerpt and ellipsis. If that excerpt is
+short, keeping it alongside the complete body can duplicate an authored symbol
+or word in the comparison caption and prevent an otherwise complete copy from
+joining its counterpart. `PostPresentation` now recognizes this narrow wrapper:
+the qualified alternate source and final HTTPS origin must agree, the declared
+operation must be the Instagram username feed, and the short excerpt must match
+complete literal tokens at the beginning of substantial body text. Reference
+labels, unknown origins, replies, previews and misleading directional controls
+do not qualify. The rule uses no country, emoji or caption dictionary.
+
+Only the generated title is omitted from presentation. The entire authored body
+and raw original title remain available, and the existing account, claim, date
+and attachment rules still decide collection. Source-wrapper cleanup establishes
+neither account ownership nor picture equivalence.
+
+A separate adoption correction recognizes the first playable video or audio
+recording when it replaces a known still poster in the same attachment slot.
+Slot count alone missed that new content. The existing combined attachment plan
+now also checks whether a playable representative was previously known. A proven
+rendition alias keeps its old representative, and additional preview attribution
+alone does not reopen read material. New playback uses the existing pending
+details control and preserves the visible card's anchor.
+
+The public X progressive MP4 delivery form
+`/ext_tw_video/CLIP_ID/pu/vid/...mp4` now uses the same provider clip identifier
+already recognized by the post detector. This also reaches the existing
+source-bound encoded-proxy and supplied smaller-rendition paths. Qualification
+requires an approved HTTPS delivery host, default port, no fragment and the
+observed progressive MP4 shape. Different clip identifiers, unsupported public
+paths, HLS/segment shapes and foreign origins cannot establish this relation.
+Playback URLs remain unchanged; this identity does not transfer byte-level
+validation or collapse recordings merely because they share a cover.
+
+These corrections reuse existing local data and plans. They add no crawl, model,
+dependency, permission, database or main-scroll decoding operation.
