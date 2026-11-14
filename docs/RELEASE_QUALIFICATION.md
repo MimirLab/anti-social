@@ -9,6 +9,56 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.114: read quoted preview headlines once and keep background progress above cards
+
+The continuing November 14, 2026 (UTC) native review found one original whose
+quoted caption was repeated by its source-rendered link preview. This is an
+intra-post presentation defect, separate from collecting cross-platform posts.
+The shipping 0.38.113 native counterexample has one card, two occurrences of
+the headline, one attachment and an intact saved original. The corrected frozen
+prototype has one occurrence on both API 35 and minimum API 26, with the same
+original, attachment and saved source retained. This source-only replay uses no
+image input or image/recording observation.
+
+The [qualified quote projection](ATTACHMENT_COLLECTIONS.md#source-rendered-quotelink-echoes-038114)
+preserves commentary, quoted-account attribution and complete supplied links.
+It changes neither the raw post nor general post/media equivalence. Separate
+native inspection confirmed that automatic refresh progress occupied the card
+area. It now stays in the existing fixed-height toolbar; explicit pull-to-refresh
+retains its full native arrow/spinner and stable finished-batch nudge. Version
+code is 223; application ID and signing compatibility remain unchanged.
+
+Qualification on the frozen prototype:
+
+- **2,928 JVM cases:** 2,921 pass, seven optional skips, zero failures/errors.
+  Five new controls cover quote/preview projection, retained original data,
+  changed claims and publisher/destination mismatches, acquisition boundaries,
+  authored repetitions and nested/ambiguous material. The initial shipping-parser
+  run failed its two positive cases as expected. The focused text/repost batch
+  passes all 40 controls, including the later cheap-nomination ordering.
+- **Four focused native controls per API:** all pass. They cover actual feed
+  text, Context text, unchanged saved originals, subscription removal, ordinary
+  cache purge, local reopening, the preceding selected-image/recording choices,
+  background progress bounds/reading anchors and preserved manual refresh/nudge.
+- **Native counterexamples:** the strengthened shipping refresh selection has
+  one expected background-bounds failure and one manual-refresh pass. Corrected
+  native frames show progress inside the toolbar while manual refresh retains
+  its large indicator. Actual captured quote frames and the synthetic cold
+  Library reader were directly inspected on both Android versions.
+
+An initial corrected native selection had three passes and one fixture failure:
+it expected an ordinary image to disappear while the live reader still held its
+cache lease. The strengthened tester leaves that reader before purging cache.
+All four controls then pass on both APIs against the identical frozen application
+APK. The earlier failure is retained; it is not counted as an accepted pass.
+
+Final publication additionally requires the clean-revision APK's complete native
+selection, current and prior captured-family controls, cache recovery, source and
+signer checks, a protected preview upgrade and anonymous permanent-download
+hashing. Broader recording identity, remaining picture candidates and repeated
+parent-thread headings remain open. This is not complete-feed clearance or a
+physical-phone performance, battery or display qualification.
+
 ## 0.38.113: one selectable preview/recording slot and available saved editions
 
 The continuing November 14, 2026 (UTC) native review found an already collected

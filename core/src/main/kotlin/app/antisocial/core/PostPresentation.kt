@@ -122,6 +122,8 @@ object PostPresentation {
             listOf(heading,heading.trimStart('▶','\uFE0E','\uFE0F',' '))
         }.distinct()
         var presentedBody=sourceBody
+        if(nitter)NitterRssQuoteText.compact(post,repost?.groupValues?.get(2) ?: rawHeading,
+            repost?.groupValues?.get(1),presentedBody)?.let {presentedBody=it}
         val mediaLabel=videoLabel.find(sourceBody)
         if(nitter&&post.media.isNotEmpty()&&mediaLabel!=null) {
             val without=sourceBody.substring(0,mediaLabel.range.first).trimEnd()

@@ -588,6 +588,8 @@ class FeedMemoryTest {
             ui.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate) and !hasAnyAncestor(card)).assertCountEquals(1)
             ui.onNodeWithTag("Feed check summary").assertTextContains("updating",substring=true)
             evidence("background-refresh-keeps-cached-card-uncovered")
+            val progress=ui.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate) and !hasAnyAncestor(card)).fetchSemanticsNodes().single().boundsInRoot
+            assertTrue("Automatic refresh progress belongs inside the fixed toolbar, above every cached card",progress.top>=toolbar.top&&progress.bottom<=toolbar.bottom)
             ui.onNodeWithTag("Feed options").performClick();ui.onNodeWithText("Stop refresh").performClick()
             ui.waitUntil(5_000){!repo.feedRefresh.value.running}
             assertEquals(FollowRefreshStatus.PENDING,repo.feedMemory.refresh.value[account.id]?.status)

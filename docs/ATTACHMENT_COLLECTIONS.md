@@ -1419,3 +1419,24 @@ for offline use. A selected video cover can also be viewed locally without the
 movie bytes, explicitly labelled as a preview with the video absent. It does not
 become a playable recording or modify the saved source. Download status only
 chooses the initial edition; it does not override a reader’s manual selection.
+
+## Source-rendered quote/link echoes (0.38.114)
+
+Nitter's [RSS renderer](https://github.com/zedeus/nitter/blob/8142bab1a920d13589ab5e689d7623ac0ac7ec34/src/views/rss.nimf)
+can include a quoted caption and a generated preview repeating that caption.
+`NitterRssQuoteText` qualifies their flattened representation during read-only
+presentation. A complete root caption, scoped HTTPS profile feed, original
+destination, typed repost or matching own profile, quoted account and exact
+source citation must agree. The preview publisher must match the quoted name;
+its complete excerpt must literally match that quote, apart from its one
+independently supplied destination label. Changed words, extra commentary,
+ambiguous abbreviations, nested quotes and other acquisition contexts retain
+their full existing presentation.
+
+The supported echo becomes one quoted passage with its full destination and
+citation. The original `Post`, links, media and stored text remain unchanged.
+Feed, Context and local Library readers use the same projection, including
+already-cached records. Cheap marker checks precede URL inspection; body,
+caption, name, excerpt and link limits bound the work. This adds no request,
+model, dependency, permission or database migration, and does not establish
+cross-post or recording equivalence.

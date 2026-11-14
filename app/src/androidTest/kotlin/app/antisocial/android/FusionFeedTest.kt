@@ -1285,6 +1285,50 @@ class FusionFeedTest {
         evidence("different-video-opening-frames-one-player")
     }
 
+    @Test fun aGeneratedQuotedLinkHeadlineIsReadOnceAndItsOriginalSurvivesColdSaving() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val caption="A live look inside the community workshop."
+        val headline="Watch the public workshop demonstration and inspect every repair step."
+        val name="Local Workshop News";val origin="https://nitter-$suffix.invalid"
+        val destination="$origin/i/broadcasts/RepairShowComplete";val shortened="nitter-$suffix.invalid/i/broadcasts/RepairShow…"
+        val quote="$origin/WorkshopNews/status/910002#m"
+        val raw=oldX.copy(body="$caption $name (@WorkshopNews) $headline $shortened Link $name $headline $destination — $quote",
+            title="RT by @$handle: $caption",media=listOf(Media("https://quote-preview-$suffix.invalid/cover.png")),
+            provenance=Provenance(Source(Platform.X,"nitter",origin),now,"$origin/$handle/rss"),links=listOf(destination,quote),
+            publicRelations=listOf(PublicRelation(PublicRelationKind.REPOSTED_BY,"https://x.com/$handle")))
+        records+=raw;store(raw,follow(Platform.X));cacheGalleryPicture(raw.media.single().url,1)
+        assertEquals(2,Regex(Regex.escape(headline)).findAll(raw.body).count())
+        assertEquals(1,Regex(Regex.escape(headline)).findAll(contextSnapshot(repo,raw,listOf(raw)).text).count())
+        seed("all",listOf(raw));show(model(),all=true);waitRow(raw)
+        val bodyTag="Post body ${repo.key(raw)}";revealCombinedControl(hasTestTag(bodyTag))
+        val shown=ui.onNodeWithTag(bodyTag).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        assertEquals(1,Regex(Regex.escape(headline)).findAll(shown).count())
+        assertTrue(shown.contains(caption));assertTrue(shown.contains("WorkshopNews"))
+        assertEquals(1,collectionPlan(listOf(raw),repo.images.identities).attachments.size)
+        evidence("quoted-preview-headline-once-feed")
+        runBlocking {
+            repo.library.save(raw,emptyList());accounts.forEach {repo.dao.removeFollow(it.id)}
+        }
+        repo.images.identities.clear()
+        val copy=runBlocking {repo.library.copy(repo.key(raw))}!!
+        fun source(post:Post)=post.copy(media=post.media.map {it.copy(aiMetadata=null,visualFingerprint=null,attachmentFingerprint=null)})
+        assertEquals(source(raw),source(copy.post));assertEquals(2,Regex(Regex.escape(headline)).findAll(copy.post.body).count())
+        assertEquals(listOf(destination,quote),copy.post.links)
+        ui.onNodeWithTag("Primary destination saved").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library scope saved").performClick()
+        // Dispose the live image first: cache maintenance correctly honors its lease.
+        runBlocking {repo.cleanup(true);assertNull(repo.availableMedia(raw.media.single().url))}
+        val open=hasText("Saved copy") and hasAnyAncestor(hasTestTag("Library entry ${repo.key(raw)}"))
+        ui.onNodeWithTag("Library results",useUnmergedTree=true).performScrollToNode(open);ui.onNode(open,useUnmergedTree=true).performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Local post body"))
+        val saved=ui.onNodeWithTag("Local post body").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        assertEquals(1,Regex(Regex.escape(headline)).findAll(saved).count());assertTrue(saved.contains(caption))
+        evidence("quoted-preview-headline-once-cold-library")
+    }
+
     @Test fun aDeclaredXThumbnailSharesOneSlotWithARecordingAndSurvivesColdSaving() {
         repo.prefs.mentionLookups=false
         val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))

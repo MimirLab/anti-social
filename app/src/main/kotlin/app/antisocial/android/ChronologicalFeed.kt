@@ -561,6 +561,10 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                     Row(Modifier.then(if(incoming)Modifier.testTag("Feed incoming banner")else Modifier),verticalAlignment=Alignment.CenterVertically) {
                         Text(if(incoming){when {staged>0&&returned>0->"$staged new · $returned available";staged>0->"$staged new · $unread unread";returned>0->"$returned available · $unread unread";else->"Post updates ready"}}else "$fresh new · ${unread-fresh} unread",fontSize=10.sp,color=if(incoming)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f,false).testTag("Feed unread summary"))
                         if(updating||pending>0||state.loading||nearbyNotice!=null||state.error!=null)Text(if(updating)" · updating"else if(pending>0)" · $pending pending"else " · status",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,modifier=Modifier.testTag("Feed check summary").clickable {showSources=true})
+                        if(updating&&manualRefresh==null) {
+                            Spacer(Modifier.width(4.dp))
+                            CircularProgressIndicator(Modifier.size(10.dp).testTag("Feed background refresh indicator"),strokeWidth=1.5.dp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
                 if(canContinue)IconButton(onClick={continueReading()},enabled=!navigating&&!preparing,modifier=Modifier.testTag("Continue reading")){Icon(Icons.Rounded.History,"Continue reading",Modifier.size(20.dp))}
@@ -585,10 +589,10 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
         CompositionLocalProvider(LocalArchiveChecksPaused provides (LocalArchiveChecksPaused.current||why!=null)) {
         FeedVideoPreparation(list,ordered,store.get(feedId),ready,!restored||filtersPending,frozen.filter(::readable),filtering,
             showSources||showOptions||filtering.managing||filtering.reviewing||filtering.candidate!=null||preparing||restored&&navigating,repo) {preparingVideoKeys=it}
-        // Restore the full native pull arrow/spinner. Matching and pixel
-        // checkpoint work are independent of this visible request feedback.
-        PullToRefreshBox(isRefreshing=updating||manualRefresh!=null,state=pullState,onRefresh={requestRefresh()},
-            indicator={PullToRefreshDefaults.Indicator(state=pullState,isRefreshing=updating||manualRefresh!=null,
+        // Full native feedback belongs to an explicit refresh. Background
+        // progress stays in the fixed toolbar, above the reading card.
+        PullToRefreshBox(isRefreshing=manualRefresh!=null,state=pullState,onRefresh={requestRefresh()},
+            indicator={PullToRefreshDefaults.Indicator(state=pullState,isRefreshing=manualRefresh!=null,
                 modifier=Modifier.align(Alignment.TopCenter).testTag("Feed refresh indicator"))},
             modifier=Modifier.weight(1f).fillMaxWidth().testTag("Feed pull to refresh")) {
         ArchiveListViewport(list) {
