@@ -21,9 +21,13 @@ internal fun orderedCollectedOriginals(posts: List<Post>): List<Post> {
 
 /** Already verified short clip quotations may not meet the full aligner's text
  * length. They remain accessible as originals; align their fullest editions. */
-internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusion.composeCollectedEditions(posts)
-    ?: CrossPostFusion.compose(posts)
-    ?: CrossPostFusion.composeMedia(posts)
+internal fun collectedPostFusion(posts: List<Post>): PostFusion? {
+    val primary=CrossPostFusion.composeCollectedEditions(posts)
+        ?: CrossPostFusion.compose(posts)
+        ?: CrossPostFusion.composeMedia(posts)
+    if(primary!=null)return if(primary.weave==null&&primary.segments.size>1)
+        CrossPostFusion.composeCollectedNames(posts) ?: primary else primary
+    return CrossPostFusion.composeCollectedNames(posts)
     // A complete literal weave is preferable to sharing just an identical
     // subset of bodies. Keep its inline source marks before the field fallback.
     ?: CrossPostFusion.composeCollectedReferences(posts)
@@ -32,6 +36,7 @@ internal fun collectedPostFusion(posts: List<Post>): PostFusion? = CrossPostFusi
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}
     ?: CrossPostFusion.composeCollectedPrefixes(posts)
     ?: sourceCaptionBlocks(posts)
+}
 
 /** Compression is optional after admission. A failed aligner must not choose a
  * platform's longest edition and quietly omit another source's unique prose. */

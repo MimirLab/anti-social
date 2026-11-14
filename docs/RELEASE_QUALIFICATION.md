@@ -9,6 +9,58 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.106: read collected name variants without repeating the statement
+
+The continuing native audit on November 14, 2026 (UTC) found an already merged
+three-platform announcement repeating its common statement in two source blocks.
+A name/handle difference near the opening fell outside the existing compact
+formatter. The additional [literal presentation route](ATTACHMENT_COLLECTIONS.md#early-name-and-handle-alternatives-in-collected-captions-038106)
+retains coupled, attributed variants and every original's complete source path.
+It changes no collection, identity, media-selection or saved-record admission.
+Version code is 215; application ID and signing compatibility are unchanged.
+
+The frozen corrected candidate qualifies:
+
+- **2,874 JVM cases:** 2,869 pass, five optional skips, zero failures/errors.
+- **130 named native checks on each API 35 and minimum API 26:** 123 pass,
+  seven explicit skips, zero failures. The nine classes cover fusion, media
+  identity, cross-post feeds, saved media, Library, article sessions and native
+  caption tokenization/presentation.
+- **Three focused native checks on each API:** the established compound-handle
+  caption and both Android collected-caption controls pass without skips.
+- **The actual three-original replay on each API:** one card and one occurrence
+  of each common passage, with all three media records and all originals
+  preserved. Existing four-scene observations from previous gateway reads are
+  attached only to their exact recorded source URLs. No new remote sampling or
+  invented pixel/video observation supplies this replay.
+- **Cold Library inspection on each API:** the captured collection reopens after
+  removing its fixture subscriptions and volatile image bank. Every literal
+  source path reconstructs; the actual native reader shows the statement once.
+  The feed and saved-reader screens were directly inspected.
+- **The surrounding 669-original source-only window:** all 556 groups and every
+  source object remain unchanged. The five explicit private replay cases pass.
+  This does not establish complete media evidence for every post in that window.
+
+An initial candidate was held after both native suites caught it pre-empting an
+existing clean compound-handle caption. The corrected routing retains existing
+compact compositions before refining repeated blocks; that regression remains
+covered by its unchanged native test. The expanded Library test also needed to
+tap the existing saved-copy label instead of an interactive account mention in
+the preview. No account-link interaction was removed.
+
+An interrupted earlier host observer canceled a JVM run and disconnected native
+UI automation. Those partial runs are retained as unqualified observations;
+the counts above come from complete supervised runs. The isolated API 26 database
+event recorded under 0.38.105 remains unexplained; this increment changes no
+storage schema or corruption handling and does not claim to repair that event.
+
+These are native emulator and captured-source qualifications, not physical-phone
+latency, battery or complete-live-feed measurements. The wider duplicate/noise
+audit continues. Release promotion additionally requires clean source/APK
+correspondence, compatible signing, final frozen-APK controls, privacy checks,
+recoverable preview-state preservation and anonymous permanent-download
+verification under [the publishing procedure](PUBLISHING.md).
+
 ## 0.38.105: reconcile observed Facebook editions without losing saved originals
 
 The continuing native feed audit on November 14, 2026 (UTC) confirms a compact

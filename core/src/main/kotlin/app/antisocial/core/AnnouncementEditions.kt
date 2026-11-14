@@ -115,7 +115,15 @@ internal object AnnouncementEditions {
     /** A caller separately proves the same observed photograph and announcement.
      * Name/handle lists stay one coupled alternative, never an identity assertion
      * or independently selectable names that no source published together. */
-    fun composeReferenceNames(posts:List<Post>):PostFusion? {
+    fun composeReferenceNames(posts:List<Post>):PostFusion? = composeReferenceNames(posts,collected=false)
+
+    /** Presentation only: an independently collected caption can introduce its
+     * name/handle alternatives before the long common passage. Keep that whole
+     * alternative coupled and attributed; this is never identity or admission
+     * evidence. The photograph-backed detector retains its original bounds. */
+    fun composeCollectedNames(posts:List<Post>):PostFusion? = composeReferenceNames(posts,collected=true)
+
+    private fun composeReferenceNames(posts:List<Post>,collected:Boolean):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
         if(posts.none {'@' in it.body||'@' in it.title})return null
         val docs=posts.sortedBy(CrossPosts::originalKey).map {caption(it) ?: return null}
@@ -127,14 +135,15 @@ internal object AnnouncementEditions {
         while(prefix<shortest&&keys.all {it[prefix]==keys.first()[prefix]})prefix++
         while(suffix<shortest-prefix&&keys.all {it[it.lastIndex-suffix]==keys.first()[keys.first().lastIndex-suffix]})suffix++
         val shared=words.first().take(prefix)
-        if(prefix<24||shared.distinct().size<12||shared.joinToString(" ").length<140||suffix<3)return null
+        val commonWords=if(collected)shared+words.first().takeLast(suffix)else shared
+        if((!collected&&(prefix<24||suffix<3))||commonWords.size<24||commonWords.distinct().size<12||commonWords.joinToString(" ").length<140)return null
         val alternatives=words.map {it.subList(prefix,it.size-suffix)}
-        if(alternatives.any {!referenceNames(it)}||alternatives.none {it.any(::isMention)})return null
+        if(alternatives.any {!referenceNames(it)}||alternatives.none {parts->parts.any {isMention(if(collected)it.removeSuffix(",")else it)}})return null
         val allPlatforms=posts.mapTo(linkedSetOf()){it.platform};val allKeys=posts.mapTo(linkedSetOf(),CrossPosts::originalKey)
         fun common(text:String)=FusionRun(true,listOf(FusionVariant(text,allPlatforms,allKeys)))
         val runs=listOf(common(shared.joinToString(" ")),FusionRun(false,docs.indices.groupBy {alternatives[it].map(::key)}.values.map {rows->
             FusionVariant(alternatives[rows.first()].joinToString(" "),rows.mapTo(linkedSetOf()){docs[it].post.platform},rows.mapTo(linkedSetOf()){CrossPosts.originalKey(docs[it].post)})
-        }),common(words.first().takeLast(suffix).joinToString(" ")))
+        }),common(words.first().takeLast(suffix).joinToString(" "))).filterNot {run->run.shared&&run.variants.single().text.isBlank()}
         return finishPassages(docs,runs)
     }
     private fun finishPassages(docs:List<Caption>,parts:List<FusionRun>):PostFusion? {

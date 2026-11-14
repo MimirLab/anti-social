@@ -6,6 +6,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CollectedCaptionNativeTest {
+    @Test fun earlyNameVariantsReadTheirSharedPassageOnceAndKeepEverySourcePath() {
+        val tail="speaks about the workshop schedule and the practical demonstrations planned for visitors throughout the afternoon. Everyone is welcome to bring questions and learn about the equipment available to our community."
+        val posts=listOf(
+            Post("881",Platform.X,"https://x.com/caption_fixture/status/881","","Workshop Director, @WorkshopLead, $tail https://t.co/FixtureName01"),
+            Post("882",Platform.FACEBOOK,"https://www.facebook.com/caption_fixture/posts/882","","Workshop Director Mira Vale $tail")
+        )
+        val fusion=requireNotNull(collectedPostFusion(posts));assertNotNull(fusion.weave)
+        for(post in posts) {
+            val original=CrossPosts.originalKey(post)
+            val projected=fusion.weave!!.joinToString(" "){run->run.variants.single {original in it.originalKeys}.text}
+            val spaces=Regex("[\\s\\p{Z}]+")
+            assertEquals(PostPresentation.content(post).replace(spaces," ").trim(),projected.replace(spaces," ").trim())
+        }
+        assertEquals(1,Regex(Regex.escape(tail)).findAll(fusion.segments.single().text).count())
+        assertTrue(fusion.segments.single().text.contains("Director, @WorkshopLead, — X"))
+        assertTrue(fusion.segments.single().text.contains("Director Mira Vale — Facebook"))
+    }
+
     @Test fun shortCaptionPrefixesPreserveEveryInlineCaseSensitiveDestination() {
         val heading="The public laboratory demonstrates a remarkable new telescope workshop"
         val posts=listOf(

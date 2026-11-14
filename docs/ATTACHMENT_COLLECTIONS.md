@@ -1,5 +1,28 @@
 # Attachment collections
 
+## Early name and handle alternatives in collected captions (0.38.106)
+
+An already collected announcement can still repeat most of its caption when one
+edition names a speaker and another uses an account handle near the beginning.
+The additional literal presentation route shares the substantial common passage
+and keeps the complete name/handle interval as one attributed alternative. It
+does not claim that those names or accounts identify the same person. Multiple
+names stay coupled rather than becoming independently selectable fragments.
+
+Every original must reconstruct through its own ordered path, including its
+literal reference suffix. Input length, word count, variation count and source
+count remain bounded. Incomplete captions, directional controls, unqualified
+name intervals and differing same-platform versions keep their existing faithful
+fallback. The photograph-backed admission route retains its original bounds;
+the new presentation route does not nominate or admit a post.
+
+Existing compact captions and weaves retain priority. Only repeated primary
+blocks are refined, or a missing primary composition receives this additional
+fallback. This preserves the established compound-handle/full-name expansion.
+Feed, Context and Library share the same presentation function. Distinct source
+records, media selection and saved-manifest validation are unchanged. No model,
+network request, new dependency, permission or database migration is added.
+
 ## Observed compact Facebook editions and saved content proof (0.38.105)
 
 A numeric Facebook post URL and an opaque `pfbid` URL can be supplied through

@@ -657,6 +657,11 @@ object CrossPostFusion {
         ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
         ?: if(CrossPosts.pictureReferenceCollection(posts))AnnouncementEditions.composeReferenceNames(posts)else null
 
+    /** Read-only name/handle alternatives in an independently admitted group.
+     * Consumers prefer existing compact captions before refining full repeated
+     * source blocks. Never used as collection or identity evidence. */
+    fun composeCollectedNames(posts:List<Post>):PostFusion?=AnnouncementEditions.composeCollectedNames(posts)
+
     /** Last presentation fallback after ordinary formatting, passage, media,
      * field and quotation composers. Never used for collection admission. */
     fun composeCollectedPrefixes(posts:List<Post>):PostFusion?=AnnouncementEditions.composePrefixes(posts)

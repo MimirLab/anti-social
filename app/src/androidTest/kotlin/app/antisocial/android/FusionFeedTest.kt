@@ -421,6 +421,50 @@ class FusionFeedTest {
                 File(output,"card-$index-caption.png").outputStream().use {captionBitmap.compress(Bitmap.CompressFormat.PNG,100,it)};captionBitmap.recycle()
             }
         }
+        if(packet.get("inspectSavedCaption")?.asBoolean==true) {
+            require(cases.size()==1) {"The focused saved-caption inspection accepts one announcement"}
+            val roots=groups.single().posts;val owner=repo.key(roots.first())
+            repo.images.identities.clear()
+            runBlocking {accounts.forEach {repo.dao.removeFollow(it.id)}}
+            val copy=runBlocking {repo.library.copy(owner)}!!
+            val reopened=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+            assertEquals(roots.map(repo::key).toSet(),reopened.map(repo::key).toSet())
+            val fusion=requireNotNull(collectedPostFusion(reopened));val weave=requireNotNull(fusion.weave)
+            for(post in reopened) {
+                val original=CrossPosts.originalKey(post)
+                val projected=weave.joinToString(" "){run->run.variants.single {original in it.originalKeys}.text}
+                assertEquals(compact(PostPresentation.content(post)),compact(projected))
+            }
+            ui.onNodeWithTag("Primary destination saved").performClick()
+            ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+            ui.onNodeWithTag("Library scope saved").performClick()
+            val entry=hasTestTag("Library entry $owner")
+            ui.onNodeWithTag("Library results").performScrollToNode(entry)
+            File(output,"saved-library-before-click.txt").writeText(ui.onRoot(useUnmergedTree=true).printToString())
+            // The preview deliberately retains clickable account mentions.
+            // Tap its saved-copy label rather than an arbitrary body position.
+            val openCopy=hasText("Saved copy") and hasAnyAncestor(entry)
+            ui.onNodeWithTag("Library results",useUnmergedTree=true).performScrollToNode(openCopy)
+            ui.onNode(openCopy,useUnmergedTree=true).assertIsDisplayed().performClick()
+            try {ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}}
+            catch(failure:Throwable) {
+                runCatching {
+                    val screen=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                    try {File(output,"saved-library-failure.png").outputStream().use {screen.compress(Bitmap.CompressFormat.PNG,100,it)}}finally {screen.recycle()}
+                    val roots=ui.onAllNodes(isRoot(),useUnmergedTree=true)
+                    File(output,"saved-library-failure.txt").writeText(roots.fetchSemanticsNodes().indices.joinToString("\n\n"){roots[it].printToString()})
+                }.onFailure {File(output,"saved-library-observer-error.txt").writeText(it.toString())}
+                throw failure
+            }
+            val woven=ui.onNodeWithTag("Fusion woven text")
+            ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Fusion woven text"))
+            val text=woven.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+            val spec=cases.single().asJsonObject
+            for(value in listOf(spec["once"])+spec.getAsJsonArray("requiredPassages")?.toList().orEmpty())
+                assertEquals(1,Regex(Regex.escape(compact(value.asString))).findAll(compact(text)).count())
+            evidence("private-collected-caption-cold-library")
+            File(output,"saved-caption-inspection.json").writeText(repo.gson.toJson(mapOf("originals" to reopened.size,"exactSourcePaths" to true,"commonPassagesOnce" to true,"subscriptionsRemoved" to true,"nativeLocalReader" to true)))
+        }
         assertTrue("Inspect private native report and screenshots for each announcement",reports.all {it["rows"]==1&&it["passageOccurrences"]==1&&it["requiredPassagesOnce"]==true&&it["originalsPreserved"]==true&&it["expectedAttachmentsPreserved"]==true&&it["savedOriginalsPreserved"]==true})
     }
     private fun revealCombinedControl(matcher: SemanticsMatcher,listTag: String="Combined feed") {
