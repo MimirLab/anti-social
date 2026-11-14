@@ -1315,3 +1315,31 @@ validation or collapse recordings merely because they share a cover.
 
 These corrections reuse existing local data and plans. They add no crawl, model,
 dependency, permission, database or main-scroll decoding operation.
+
+## Incomplete direct recording samples (0.38.111)
+
+Measuring one edition can make the ordinary direct route eligible for its peer.
+A large progressive rendition can still yield only one or two usable scenes
+within that route's allowance, or its range decoder can end prematurely. Those
+outcomes are incomplete acquisition, not evidence that the recordings differ.
+
+`VideoEvidenceStore` now permits one existing metadata lookup after a valid,
+associated one/two-scene result or `EOFException`, for a provider clip already
+qualified by `VideoAssetIdentity.canResolveMetadata`. Complete direct samples
+remain on their current path. Unassociated results, other ordinary I/O failures,
+already supplied sampling URLs and cooling metadata routes do not nominate this
+fallback. The current reader interest, resource admission, connection selection
+and evidence generation are rechecked before the lookup.
+
+The returned metadata must identify the same provider clip, retain compatible
+timing and supply a different supported rendition. A successful lookup alone
+does not establish shared footage. The alternative must produce the existing
+minimum valid scene evidence before it enters the expiring local evidence bank.
+The original post, playback URL and saved source caption are unchanged.
+
+Each rendition gets its own `VideoSamplingAttempt`, so retained range blocks and
+validators cannot cross URLs. Both remain inside the original eight-MiB,
+32-request, 45-second parent and the same decoder lane, Gateway and selected Tor
+policy. Cancellation stays retryable; an actual failed fallback pauses the
+attempted routes under the existing cooldown. No new source pool, dependency,
+permission, database or foreground scroll work is introduced.

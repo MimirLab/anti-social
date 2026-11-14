@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.io.EOFException
 import java.io.IOException
 
 /** A reading intent may prepare one prefix; frames wait for its visible card.
@@ -129,6 +130,7 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         val media=post.media.singleOrNull {it.type=="video"} ?: return false
         val input=VideoAssetIdentity.acquisitionKey(media)
         val useMetadata=metadataRoute(post,media,resolveMetadata)
+        var usedFallbackMetadata=false
         if(media.videoFootage?.scenes?.size?.let {it>=3}==true&&VideoFootage.valid(media))return false
         synchronized(lock) {
             if(lookup(media)!=null)return false
@@ -144,11 +146,43 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                 VideoAssetIdentity.withMetadata(media,supplied) ?: throw IOException("Video metadata belongs to another recording")
             }else media
             if(beforeSample?.invoke(prepared,post.contentSourceUrl)==false)return false
-            val result=sample(prepared,post.contentSourceUrl)
+            var endedEarly:EOFException?=null
+            val initial=try {sample(prepared,post.contentSourceUrl)}catch(e:EOFException){endedEarly=e;null}
             currentCoroutineContext().ensureActive()
-            val observation=VideoFootageEvidence(result.renditionUrl,result.frames.durationMs,clock(),result.frames.scenes.toList())
-            if(observation.scenes.size<3||!VideoFootage.valid(media.copy(videoFootage=observation)))throw IOException("Too few supported video scenes")
-            val row=Entry(media.url,observation);val bytes=repo.gson.toJson(row).toByteArray()
+            fun measurement(value:GatewayVideoSampler.Result)=VideoFootageEvidence(value.renditionUrl,value.frames.durationMs,clock(),value.frames.scenes.toList())
+            var observation=initial?.let(::measurement)
+            val partial=observation
+            // Measuring the peer permits the ordinary route, but a large
+            // rendition can still yield too few scenes within that route's
+            // allowance, or the range decoder can end before producing them.
+            // Only an actual partial/EOF result nominates the existing route
+            // for this qualified provider clip; complete samples stay cheap.
+            if(!useMetadata&&prepared.samplingUrl==null&&VideoAssetIdentity.canResolveMetadata(post)&&
+                (endedEarly!=null||partial!=null&&partial.scenes.size in 1..2&&VideoFootage.valid(media.copy(videoFootage=partial)))&&
+                synchronized(lock){!cooling(input,true)}) {
+                if(!sameSelection()||synchronized(lock){epoch!=generation}||automatic&&!automaticAllowedNow())return false
+                if(beforeMetadata?.invoke()==false)return false
+                usedFallbackMetadata=true
+                val supplied=metadata(post) ?: throw IOException("No supported current video metadata")
+                currentCoroutineContext().ensureActive()
+                val measured=partial?.let {media.copy(durationMs=it.durationMs)} ?: media
+                val improved=VideoAssetIdentity.withMetadata(measured,supplied)
+                    ?.takeIf {it.samplingUrl!=null&&VideoAssetIdentity.sampleUrl(it)!=VideoAssetIdentity.sampleUrl(prepared)}
+                    ?: throw IOException("No qualified alternate video rendition")
+                // A different rendition has its own retained blocks and
+                // validators. Both attempts still share the enclosing byte,
+                // request, time, connection and decoder-lane limits.
+                val alternative=VideoSamplingAttempt()
+                val retried=try {withContext(alternative) {
+                    if(beforeSample?.invoke(improved,post.contentSourceUrl)==false)null else sample(improved,post.contentSourceUrl)
+                }}finally {alternative.close()}
+                val result=retried ?: return false
+                currentCoroutineContext().ensureActive()
+                observation=measurement(result)
+            }
+            val completed=observation ?: throw requireNotNull(endedEarly)
+            if(completed.scenes.size<3||!VideoFootage.valid(media.copy(videoFootage=completed)))throw IOException("Too few supported video scenes")
+            val row=Entry(media.url,completed);val bytes=repo.gson.toJson(row).toByteArray()
             require(bytes.size<=MAX_ENTRY_BYTES)
             synchronized(lock) {
                 if(epoch!=generation)return false
@@ -178,7 +212,11 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
                     }
                 }
             }
-            synchronized(lock){if(epoch==generation){failures[FailedInput(input,useMetadata)]=clock();while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1}}
+            synchronized(lock){if(epoch==generation){
+                failures[FailedInput(input,useMetadata)]=clock()
+                if(usedFallbackMetadata)failures[FailedInput(input,true)]=clock()
+                while(failures.size>MAX_ENTRIES)failures.remove(failures.keys.first());changes.value+=1
+            }}
             return refreshed
         }
         return false

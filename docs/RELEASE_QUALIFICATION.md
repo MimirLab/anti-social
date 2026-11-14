@@ -9,6 +9,55 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.111: recover an incomplete bounded recording sample
+
+The continuing November 14, 2026 (UTC) native review found a fifth recording
+edition outside an existing four-original collection. Local publisher bindings
+were already present. The direct progressive rendition supplied only one usable
+scene within the existing range allowance; on minimum API 26 it instead ended
+with `EOFException`. Neither outcome reached the existing smaller-rendition
+metadata route after its peer had been measured. The unchanged matcher collects
+all five when supplied the two actual, independently acquired scene observations.
+
+The [targeted acquisition fallback](ATTACHMENT_COLLECTIONS.md#incomplete-direct-recording-samples-038111)
+uses the existing qualified provider metadata route once after an associated
+one/two-scene result or premature end. A different rendition has a separate
+range attempt, within the original shared request, byte, time and decoder limits.
+Version code is 220; application ID and signing compatibility remain unchanged.
+
+Qualification on the frozen corrected prototype:
+
+- **53 focused native checks per API 35 and minimum API 26:** all pass, zero
+  skips/failures. Five new controls cover partial samples, premature end, wrong
+  clip metadata, an unassociated result and cancellation/retry. Existing checks
+  retain complete-sample efficiency, generation, transport, budget and dwell rules.
+- **155 broader named native checks per API:** 147 pass, eight explicit skips,
+  zero failures. Feed adoption, saved records, portability, cache recovery,
+  foreground visibility and isolated decoding remain covered by their named cases.
+- **Actual captured-window journey on both APIs:** 684 followed originals, no
+  fabricated scenes or supplied rendition hint; the five selected originals
+  collect through the production Gateway and isolated decoder. The long common
+  passage reads once. An independent save control retains all five originals,
+  their distinct text and the combined attachment inventory.
+- **Unchanged core:** the preceding prototype's fresh JVM execution covers
+  2,911 cases: 2,904 pass, seven optional skips, zero failures/errors. The revision
+  between these prototypes changes only Android acquisition and its native tests.
+
+The published 0.38.110 fails the new deterministic counterexample and the live
+captured-window observation. An intermediate correction passed on API 35 but
+still missed the API 26 premature-end case; that failure motivated the final
+correction and remains in private evidence. An earlier positive-control replay
+incorrectly required a source renewal unrelated to its scene-only input; its
+corrected invocation passes. These failures are not counted as passing checks.
+
+Final publication additionally requires the clean-revision APK's native checks,
+captured acquisition and retention controls, prior caption/cache regressions,
+saved-state-preserving preview upgrade, source/signer verification and anonymous
+permanent-download verification. Short source-specific closing phrases can still
+repeat in attributed text blocks; this increment does not claim a caption-weaving
+fix or complete-feed deduplication. The measured journeys are emulator observations,
+not physical-phone latency, battery or display qualification.
+
 ## 0.38.110: complete caption copies and late playable recordings
 
 The November 14, 2026 (UTC) native review confirmed three separate defects:

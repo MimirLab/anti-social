@@ -79,6 +79,95 @@ class VideoEvidenceStoreTest {
         bank.enrich(pair,automatic=false)
         assertEquals(1,lookups.get());assertEquals(2,samples.get());assertNotNull(bank.captured(legacy).media.single().videoFootage)
     }
+    @Test fun anIncompleteDirectSampleCanUseTheExistingMetadataRenditionAfterItsPeerIsMeasured():Unit=runBlocking {
+        for(count in 1..2) {
+            val bank=VideoEvidenceStore(repo,System::currentTimeMillis,File(directory,"partial-$count"))
+            val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+            val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+            val small="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+            val lookups=AtomicInteger();val samples=mutableListOf<String>();val attempts=mutableListOf<VideoSamplingAttempt>()
+            bank.metadata={post->assertEquals(legacy,post);lookups.incrementAndGet();first.media.single().copy(samplingUrl=small)}
+            bank.sample={media,_->
+                samples+=VideoAssetIdentity.sampleUrl(media)
+                attempts+=requireNotNull(currentCoroutineContext()[VideoSamplingAttempt])
+                val result=result(media)
+                if(media.url==legacy.media.single().url&&media.samplingUrl==null)result.copy(frames=result.frames.copy(scenes=result.frames.scenes.take(count)))else result
+            }
+            val pair=VideoFootageRequest(raw,legacy,setOf(raw.identityKey,legacy.identityKey),resolveMetadata=true)
+            bank.enrich(pair,automatic=false)
+            assertEquals("An actual incomplete sample can nominate one bounded metadata fallback",1,lookups.get())
+            assertEquals(listOf(raw.media.single().url,legacy.media.single().url,small),samples)
+            assertNotSame(attempts[1],attempts[2]);assertTrue(attempts.all {it.retainedBlocks==0})
+            assertEquals(4,bank.captured(legacy).media.single().videoFootage!!.scenes.size)
+            assertEquals(small,bank.captured(legacy).media.single().videoFootage!!.renditionUrl)
+            assertEquals(4,bank.captured(raw).media.single().videoFootage!!.scenes.size)
+            assertNull(legacy.media.single().samplingUrl);assertNull(legacy.media.single().videoFootage)
+            assertFalse(bank.available(pair))
+        }
+    }
+    @Test fun anIncompleteSampleCannotBorrowAnotherClipsMetadataRendition():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val samples=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        bank.metadata={lookups.incrementAndGet();first.media.single().copy(url=first.media.single().url.replace("710001","710009"))}
+        bank.sample={media,_->
+            samples.incrementAndGet();val result=result(media)
+            if(media.url==legacy.media.single().url)result.copy(frames=result.frames.copy(scenes=result.frames.scenes.take(1)))else result
+        }
+        val pair=VideoFootageRequest(raw,legacy,setOf(raw.identityKey,legacy.identityKey),resolveMetadata=true)
+        bank.enrich(pair,automatic=false)
+        assertEquals(1,lookups.get());assertEquals(2,samples.get())
+        assertNull(bank.captured(legacy).media.single().videoFootage)
+        assertNotNull(bank.captured(raw).media.single().videoFootage)
+        assertFalse(bank.available(pair));bank.retryFailures();assertTrue(bank.available(pair))
+    }
+    @Test fun aPrematureEndCanUseOneQualifiedMetadataRenditionWithoutSharingItsRangeAttempt():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val samples=mutableListOf<String>();val attempts=mutableListOf<VideoSamplingAttempt>()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        val small="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        bank.metadata={post->assertEquals(legacy,post);lookups.incrementAndGet();first.media.single().copy(samplingUrl=small)}
+        bank.sample={media,_->
+            samples+=VideoAssetIdentity.sampleUrl(media);attempts+=requireNotNull(currentCoroutineContext()[VideoSamplingAttempt])
+            if(media.url==legacy.media.single().url&&media.samplingUrl==null)throw java.io.EOFException("Fixture direct range ended")
+            result(media)
+        }
+        bank.enrich(VideoFootageRequest(raw,legacy,setOf(raw.identityKey,legacy.identityKey),resolveMetadata=true),automatic=false)
+        assertEquals(1,lookups.get());assertEquals(listOf(raw.media.single().url,legacy.media.single().url,small),samples)
+        assertNotSame(attempts[1],attempts[2]);assertTrue(attempts.all {it.retainedBlocks==0})
+        assertEquals(4,bank.captured(legacy).media.single().videoFootage!!.scenes.size)
+        assertNull(legacy.media.single().samplingUrl);assertNull(legacy.media.single().videoFootage)
+    }
+    @Test fun anUnassociatedPartialSampleCannotNominateMetadata():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        bank.metadata={lookups.incrementAndGet();first.media.single()}
+        bank.sample={media,_->
+            val result=result(media)
+            if(media.url==legacy.media.single().url)result.copy(frames=result.frames.copy(scenes=result.frames.scenes.take(1)),renditionUrl="https://media.fixture.invalid/unassociated.mp4")else result
+        }
+        bank.enrich(VideoFootageRequest(raw,legacy,setOf(raw.identityKey,legacy.identityKey),resolveMetadata=true),automatic=false)
+        assertEquals(0,lookups.get());assertNull(bank.captured(legacy).media.single().videoFootage)
+    }
+    @Test fun cancellingAnIncompleteSamplesMetadataFallbackKeepsItRetryable():Unit=runBlocking {
+        val bank=store();val lookups=AtomicInteger();val entered=CompletableDeferred<Unit>();val finish=CompletableDeferred<Unit>()
+        val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
+        val raw=second.copy(media=second.media.map {it.copy(durationMs=null)})
+        val small="https://video-s.twimg.com/amplify_video/710001/vid/320x180/small.mp4"
+        bank.metadata={lookups.incrementAndGet();entered.complete(Unit);finish.await();first.media.single().copy(samplingUrl=small)}
+        bank.sample={media,_->
+            val result=result(media)
+            if(media.url==legacy.media.single().url&&media.samplingUrl==null)result.copy(frames=result.frames.copy(scenes=result.frames.scenes.take(1)))else result
+        }
+        val pair=VideoFootageRequest(raw,legacy,setOf(raw.identityKey,legacy.identityKey),resolveMetadata=true)
+        val pending=launch {bank.enrich(pair,automatic=false)}
+        withTimeout(5_000){entered.await()};pending.cancelAndJoin()
+        assertTrue(bank.available(pair));assertNull(bank.captured(legacy).media.single().videoFootage)
+        bank.metadata={lookups.incrementAndGet();first.media.single().copy(samplingUrl=small)}
+        bank.enrich(pair,automatic=false)
+        assertEquals(2,lookups.get());assertEquals(4,bank.captured(legacy).media.single().videoFootage!!.scenes.size)
+    }
     @Test fun failedMetadataAndSamplingStayQuietUntilTheirRoutesCanBeRetried():Unit=runBlocking {
         val bank=store();val lookups=AtomicInteger();val samples=AtomicInteger()
         val legacy=first.copy(media=first.media.map {it.copy(durationMs=null)})
