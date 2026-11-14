@@ -103,6 +103,59 @@ internal object AnnouncementEditions {
     private val nameConnectives=setOf("and","of","the","de","del","van","von","da","di","du","le","la","&")
     private val changedStatus=setOf("no","not","never","without","new","old","former","different","replacement","fake","counterfeit",
         "approved","rejected","denied","closed","cancelled","canceled","postponed","rescheduled","increased","decreased")
+    private val quotedCredit=Regex("""(["”])\s+[-—–]\s+([^\r\n]+)$""")
+    private val creditInitial=Regex("\\p{Lu}\\.")
+    private val creditStatus=changedStatus+setOf("acting","incoming","outgoing","interim","late","deputy","assistant","retired","elect")
+    /** One complete literal quotation with a spelled-out middle name in its
+     * final credit. This collation preserves the entire credited name as one
+     * attributed alternative; it never asserts that the named people or their
+     * accounts are identical. Live admission separately checks linked publishers,
+     * time, destinations and claims. There is no approximate quote matching. */
+    fun composeQuotedCredits(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.any {it.preview||it.parentId!=null||it.body.length.toLong()+it.title.length>4096})return null
+        // Most captions have no quotation credit. Reuse prepared presentation
+        // and reject those before tokenizing or constructing comparison facts.
+        if(posts.any {PostPresentation.content(it).firstOrNull() !in listOf('"','“')})return null
+        if(posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
+        val docs=posts.sortedBy(CrossPosts::originalKey).map {caption(it) ?: return null}
+        val pieces=docs.map {doc->
+            val split=quotedCredit.find(doc.message) ?: return null
+            val closing=if(doc.message.firstOrNull()=='"')"\""else if(doc.message.firstOrNull()=='“')"”"else return null
+            if(split.groupValues[1]!=closing)return null
+            val quote=doc.message.substring(0,split.range.first+1)
+            val terms=word.findAll(quote).map {key(it.value)}.toList()
+            if(quote.length<160||terms.size<24||terms.distinct().size<12)return null
+            val start=requireNotNull(split.groups[2]).range.first
+            doc.message.substring(0,start).trimEnd() to split.groupValues[2].trim()
+        }
+        if(pieces.map {key(it.first)}.distinct().size!=1||pieces.map {key(it.second)}.distinct().size !in 2..8)return null
+        val names=pieces.map {(_,credit)->
+            if(credit.length>160)return null
+            val parts=word.findAll(credit).map {it.value}.toList()
+            if(parts.size !in 2..12||parts.any {part->
+                part.firstOrNull()?.isUpperCase()!=true||(!nameWord.matches(part)&&!creditInitial.matches(part))||
+                    part.lowercase(Locale.ROOT).removeSuffix(".") in creditStatus
+            })return null
+            parts
+        }
+        // A short surname-only credit cannot bridge two incompatible expanded
+        // names. Require insertion compatibility for every pair, including in
+        // portable copies which no longer have their live grouping context.
+        for(a in names.indices)for(b in a+1 until names.size) {
+            val short=if(names[a].size<=names[b].size)names[a]else names[b]
+            val long=if(names[a].size<=names[b].size)names[b]else names[a]
+            if(long.size-short.size !in 0..6||long.first()!=short.first()||long.last()!=short.last())return null
+            var i=0
+            for(part in long)if(i<short.size&&part==short[i])i++
+            if(i!=short.size)return null
+        }
+        val allPlatforms=posts.mapTo(linkedSetOf()){it.platform};val allKeys=posts.mapTo(linkedSetOf(),CrossPosts::originalKey)
+        val runs=listOf(FusionRun(true,listOf(FusionVariant(pieces.first().first,allPlatforms,allKeys))),
+            FusionRun(false,docs.indices.groupBy {key(pieces[it].second)}.values.map {rows->
+                FusionVariant(pieces[rows.first()].second,rows.mapTo(linkedSetOf()){docs[it].post.platform},rows.mapTo(linkedSetOf()){CrossPosts.originalKey(docs[it].post)})
+            }))
+        return finishPassages(docs,runs)
+    }
     private fun referenceNames(parts:List<String>):Boolean {
         if(parts.size !in 1..16||parts.joinToString(" ").length>192)return false
         val words=parts.map {it.removeSuffix(",")}

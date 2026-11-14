@@ -9,6 +9,65 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.108: collect literal quotation credits before image work
+
+The continuing native audit on November 14, 2026 (UTC) found a long quotation
+remaining in separate cards while one edition spelled out its final credit.
+The frozen 0.38.107 baseline displays two cards without image observations but
+already displays one after its four source pictures are decoded. This is a
+delayed-collection case, rather than evidence that the existing image-backed
+route never works. The additional [literal-credit route](ATTACHMENT_COLLECTIONS.md#collect-exact-quotations-before-image-observations-038108)
+uses the acquired text to establish that narrow collection earlier, preserving
+each whole credited name as an attributed alternative. Version code is 217;
+application ID and signing compatibility are unchanged.
+
+The frozen corrected candidate qualifies:
+
+- **2,893 JVM cases:** 2,886 pass, seven optional skips, zero failures/errors.
+  Eight new synthetic controls cover exact quotation/credit collation, original
+  paths, unlinked accounts, changed speakers and claims, document-link case,
+  stale/incomplete records, same-account repetitions and incompatible expanded
+  names which must not be bridged by a short credit.
+- **151 named native checks on each API 35 and minimum API 26:** 143 pass,
+  eight explicit skips, zero failures. The ten-class set retains the photo-panel,
+  image identity, feed, saved media, Library, article-session, caption and strict
+  reader-portability controls. The new native credit case also preserves every
+  saved source path after removing its fixture subscriptions.
+- **Two captured-family native replays per API:** with image evidence explicitly
+  deferred, one card shows the common passage once with zero observed image
+  fingerprints; all four unobserved media records remain. With four exact source
+  files supplied, it remains one card and presents one observed picture. The
+  files were independently acquired through the shipping Gateway/cache/decoder,
+  rather than replaced with synthetic pictures or invented observations.
+- **Cold Library inspection in both replays on each API:** every original and
+  literal caption path remains after removing fixture subscriptions and volatile
+  image observations. The actual native feed and saved-reader frames were
+  directly inspected.
+- **Captured source-window comparison:** the selected four editions replace two
+  prior groups with one. The other groups remain unchanged and all 682 originals
+  occur exactly once. This is a recorded window, not a complete-feed cleanliness
+  or physical-phone performance claim.
+
+An Android test build was held when a new assertion referenced a core-internal
+whitespace helper. Its test-local normalization was corrected without changing
+production visibility or adding a dependency. The complete corrected native runs
+above follow that correction. The independent API 26 capture-layer observation
+and older isolated database event recorded in previous increments remain open;
+this increment claims no fix for either.
+
+The route keeps the existing linked-publisher/same-account proof, ten-minute
+window, original validity, destination and factual guards. It requires the whole
+literal quotation and ordered name insertions for every pair. Existing detectors,
+image/footage evidence, collection ambiguity checks and saved-record guarantees
+remain. There is no new network request, model, permission, dependency or database
+migration. No new phone latency, energy or hardware-display measurement is claimed.
+
+Promotion requires final frozen APK controls, clean source/revision and signer
+checks, unchanged native members, source-archive privacy/correspondence checks,
+recoverable preview-state preservation and anonymous permanent-download
+verification under [the publishing procedure](PUBLISHING.md). The broader native
+duplicate/noise audit continues.
+
 ## 0.38.107: complete photo framing and source-ordered image panels
 
 The continuing native audit on November 14, 2026 (UTC) found a twenty-photo

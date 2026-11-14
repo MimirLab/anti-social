@@ -1203,3 +1203,35 @@ Existing saved captures keep their first-capture guarantees. Fresh source reads
 can acquire the new hints; earlier captures with unknown order remain readable
 as their individual originals. There is no schema migration, new dependency,
 model call or additional automatic source search.
+
+## Collect exact quotations before image observations (0.38.108)
+
+An announcement can repeat the same complete quotation while one platform spells
+out the credited person's middle names. Waiting for its pictures to establish
+the collection can leave apparently repeated cards visible during acquisition.
+The additional literal-credit route uses already acquired captions; it does not
+request images, resolve the named person's account or broaden an approximate
+text threshold.
+
+Live admission still requires the existing linked-publisher or same-account
+repetition proof, valid originals, a ten-minute interval and compatible claims,
+symbols and destinations. The complete quotation, closing punctuation and credit
+delimiter must agree. Its shared text must contain at least 160 characters,
+24 words and 12 distinct words. Credits contain bounded proper-name words and
+initials; an expansion preserves the first and last words and every ordered word
+of the shorter credit. Every pair must qualify: an abbreviated credit cannot
+bridge two incompatible expanded names. Changed status words, speakers, quoted
+claims and document destinations remain outside this route.
+
+The quotation appears once; each complete credit remains a coupled, attributed
+alternative. Every original's literal caption and reference suffix reconstruct
+from the weave. Feed, Context and saved copies retain their shared composition
+path. A saved copy can validate the same bounded content without performing a
+new account lookup, including after its test subscriptions and volatile image
+observations are removed.
+
+This changes when the text collection can be established. Attachment suppression
+continues to require its existing media evidence. Before pictures are observed,
+their distinct source records remain; actual matching observations can then
+reduce repeated picture presentation. Existing image-backed collection remains
+available and is qualified separately from the caption-only path.

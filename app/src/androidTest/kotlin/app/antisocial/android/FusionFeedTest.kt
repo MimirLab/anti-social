@@ -372,6 +372,8 @@ class FusionFeedTest {
         require(input.isFile&&input.length() in 1..4*1024*1024)
         val packet=com.google.gson.JsonParser.parseReader(input.reader()).asJsonObject
         val automatic=packet.get("automaticVideoEvidence")?.asBoolean==true
+        val deferImages=packet.get("deferImageEvidence")?.asBoolean==true
+        require(!deferImages||!automatic)
         if(automatic) {
             Assume.assumeTrue(args.getString("antisocialVideoSceneAutoLive")=="true")
             repo.prefs.videoDownloadWifiOnly=false;repo.prefs.mentionLookups=false
@@ -417,6 +419,12 @@ class FusionFeedTest {
             }
             repo.images.identities.clear()
             val files=packet.getAsJsonObject("files")
+            if(deferImages) {
+                require((files==null||files.size()==0)&&records.all {post->post.media.all {it.type=="image"}})
+                val keys=records.flatMap {it.media}.map {Repository.hash(it.url)}.distinct()
+                for(key in keys)if(!packetMedia.containsKey(key))packetMedia[key]=repo.dao.media(key)
+                repo.dao.removeMedia(keys);repo.images.clear()
+            }
             files?.entrySet()?.forEach {(url,value)->
                 val name=value.asString;require(name.matches(Regex("[A-Za-z0-9_.-]{1,100}")))
                 val file=File(input.parentFile,name);require(file.isFile&&file.length() in 1..25L*1024*1024)
@@ -515,9 +523,11 @@ class FusionFeedTest {
             }}
             mapOf("case" to index,"rows" to shown.size,"passageOccurrences" to count,"shown" to shown,
                 "originalsPreserved" to (captured==keys),"attachments" to attachments.size,"requiredPassagesOnce" to requiredOnce,
+                "deferredImageEvidence" to deferImages,"observedImages" to collected.sumOf {group->group.posts.sumOf {post->post.media.count {it.visualFingerprint!=null||it.attachmentFingerprint!=null}}},
                 "expectedAttachmentsPreserved" to (expected==null||expected==attachments.size),"savedOriginalsPreserved" to save.isSuccess,"saveError" to save.exceptionOrNull()?.message)
         }
         File(output,"report.json").writeText(repo.gson.toJson(reports))
+        if(deferImages)assertTrue("The source-only comparison must not borrow image observations",reports.all {it["observedImages"]==0})
         File(output,"groups.json").writeText(repo.gson.toJson(groups))
         // Capture each current card's beginning explicitly as well as the
         // continuous scroll. A fling can move past a short caption between two
@@ -1453,6 +1463,38 @@ class FusionFeedTest {
 
     @Test fun aLocalWordingInsertionReadsOnceAcrossThreeEditionsAndSurvivesSaving() {
         assertWordingInsertion(distinctPictures=false)
+    }
+    @Test fun anExpandedQuotationCreditReadsOnceAndKeepsEveryColdSavedSourcePath() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val quotation="\"Our community workshop has published the complete repair guide for visitors. The illustrated instructions explain how to inspect every connector, compare the available materials, and prepare the equipment before the next practical demonstration. Please read the full document and bring your questions to the afternoon session.\""
+        val x=oldX.copy(title="",body="$quotation - Director Vale",media=emptyList())
+        val facebook=x.copy(id="credit-fb-$suffix",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1002",
+            body="$quotation - Director Mira L. Vale",publishedAt=now-59_500)
+        val instagram=oldInstagram.copy(title="",body=facebook.body,media=emptyList())
+        val originals=listOf(x,facebook,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform))}
+        seed("all",originals);show(model(),all=true);waitRow(x)
+        row(facebook).assertDoesNotExist();row(instagram).assertDoesNotExist()
+        val woven=ui.onNodeWithTag("Fusion woven text");woven.assertExists()
+        val shown=woven.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        assertEquals(1,Regex(Regex.escape(quotation)).findAll(shown).count())
+        assertTrue(shown.contains("Director Vale"));assertTrue(shown.contains("Director Mira L. Vale"))
+        evidence("expanded-quotation-credit-feed")
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        runBlocking {accounts.forEach {repo.dao.removeFollow(it.id)}};repo.images.identities.clear()
+        val copy=runBlocking {repo.library.copy(repo.key(x))}!!
+        val saved=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        assertCapturedSources(originals,saved)
+        val fusion=requireNotNull(collectionPlan(saved).fusion)
+        assertEquals(1,Regex(Regex.escape(quotation)).findAll(fusion.segments.single().text).count())
+        for(post in saved) {
+            val key=CrossPosts.originalKey(post)
+            val projected=fusion.weave!!.joinToString(" "){run->run.variants.single {key in it.originalKeys}.text}
+            fun compact(text:String)=text.replace(Regex("[\\s\\p{Z}]+")," ").trim()
+            assertEquals(compact(PostPresentation.content(post)),compact(projected))
+        }
     }
     @Test fun aLocalWordingInsertionReadsOnceWhilePreservingDifferentPictures() {
         assertWordingInsertion(distinctPictures=true)

@@ -154,6 +154,14 @@ individual card screenshots and Library saves. Reports check one reading row,
 one shared passage, original retention and saved-root retention. Temporary cache
 rows and fixture records are restored or removed after the check. Captured reader
 inputs, images and reports stay in the private external evidence area.
+Optional `deferImageEvidence=true` requires an image-only input and an empty
+`files` map. The isolated check temporarily removes those exact media-cache rows,
+restores them during cleanup and requires zero observed image fingerprints in
+the resulting collections. This distinguishes caption-only admission from a
+warm image-backed result; it does not alter the captured source records or the
+shipping acquisition policy. Optional `inspectSavedCaption=true` additionally
+reopens the saved native reader after removing fixture subscriptions and volatile
+image observations, and checks every original caption path and shared passage.
 Optional `backgroundPosts` supplies up to 512 additional image-only, dated posts
 with their explicit memberships. The focused cases retain their 64-original
 total allowance. Background posts participate in the actual full feed and its

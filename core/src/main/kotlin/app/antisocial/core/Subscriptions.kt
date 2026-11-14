@@ -503,6 +503,19 @@ object CrossPosts {
         // they still retain all pairwise time, destination and claim guards.
         return rows.indices.all {i->(i+1 until rows.size).all {j->wordingEditContext(rows[i],rows[j])}}&&CaptionWeave.composeWordingEdits(posts)!=null
     }
+    /** Portable literal-credit proof. Local account links still belong to live
+     * pair admission; this does not make a credited name an account identity. */
+    internal fun quotedCreditFusion(posts:List<Post>):PostFusion? {
+        val fusion=AnnouncementEditions.composeQuotedCredits(posts) ?: return null
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        return fusion.takeIf {rows.indices.all {i->(i+1 until rows.size).all {j->quotedCreditContext(rows[i],rows[j])}}}
+    }
+    private fun quotedCreditContext(a:Features,b:Features):Boolean {
+        if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated||
+            a.post.recoveredArchive!=null||b.post.recoveredArchive!=null||!referenceIntegrity(a.post)||!referenceIntegrity(b.post))return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        return kotlin.math.abs(x-y)<=600_000&&a.destinations==b.destinations&&a.numbers==b.numbers&&a.negatives==b.negatives&&a.symbols==b.symbols
+    }
     fun resourceAnnouncementCollection(posts:List<Post>):Boolean {
         if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size)return false
         val rows=posts.map {features(it,emptyMap(),emptyMap())}
@@ -1243,6 +1256,7 @@ object CrossPosts {
         val timeA=a.post.publishedAt ?: return false;val timeB=b.post.publishedAt ?: return false
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>WINDOW.toULong())return false
+        if(quotedCreditContext(a,b)&&AnnouncementEditions.composeQuotedCredits(listOf(a.post,b.post))!=null)return true
         if(!repeated&&distance<=600_000uL&&fieldCaptionMatch(a,b,sameMedia))return true
         if(!repeated&&distance<=600_000uL&&headingMatch(a,b,sameMedia))return true
         // Linked publishers often make a small literal wording edit while

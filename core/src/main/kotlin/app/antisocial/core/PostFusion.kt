@@ -671,6 +671,7 @@ object CrossPostFusion {
     fun composeCollectedReferences(posts:List<Post>):PostFusion?=CaptionWeave.composeReferences(posts)
 
     fun compose(posts: List<Post>): PostFusion? {
+        CrossPosts.quotedCreditFusion(posts)?.let {return it}
         composeOrdinary(posts)?.let {ordinary->
             // A successful paragraph fallback can still repeat most of a
             // caption. Refine those blocks with the strict, lossless wording
