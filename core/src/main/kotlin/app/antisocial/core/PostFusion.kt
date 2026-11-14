@@ -653,6 +653,7 @@ object CrossPostFusion {
      * from pair admission and its corroboration thresholds. */
     fun composeCollectedEditions(posts:List<Post>):PostFusion? = AnnouncementEditions.compose(posts) ?: DecoratedPostCopies.composeShort(posts)
         ?: AnnouncementEditions.composeMentionMarks(posts)
+        ?: CrossPosts.acronymReferenceFusion(posts)
         ?: if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)else null
         ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
         ?: if(CrossPosts.pictureReferenceCollection(posts))AnnouncementEditions.composeReferenceNames(posts)else null
@@ -673,6 +674,7 @@ object CrossPostFusion {
     fun compose(posts: List<Post>): PostFusion? {
         QuotedSources.compose(posts)?.let {return it}
         CrossPosts.quotedCreditFusion(posts)?.let {return it}
+        CrossPosts.acronymReferenceFusion(posts)?.let {return it}
         composeOrdinary(posts)?.let {ordinary->
             // A successful paragraph fallback can still repeat most of a
             // caption. Refine those blocks with the strict, lossless wording

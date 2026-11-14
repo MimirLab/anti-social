@@ -591,7 +591,9 @@ class FusionFeedTest {
         }
         if(packet.get("inspectSavedCaption")?.asBoolean==true) {
             require(cases.size()==1) {"The focused saved-caption inspection accepts one announcement"}
-            val roots=groups.single().posts;val owner=repo.key(roots.first())
+            val roots=groups.single {group->group.posts.any {repo.key(it) in focusedKeys}}.posts
+            assertEquals("The saved inspection must contain exactly the focused originals",focusedKeys,roots.map(repo::key).toSet())
+            val owner=repo.key(roots.first())
             repo.images.identities.clear()
             runBlocking {accounts.forEach {repo.dao.removeFollow(it.id)}}
             val copy=runBlocking {repo.library.copy(owner)}!!
@@ -1327,6 +1329,52 @@ class FusionFeedTest {
         val saved=ui.onNodeWithTag("Local post body").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
         assertEquals(1,Regex(Regex.escape(headline)).findAll(saved).count());assertTrue(saved.contains(caption))
         evidence("quoted-preview-headline-once-cold-library")
+    }
+
+    @Test fun anInstitutionReferenceSharesItsTextAndKeepsEveryColdSavedSourcePath() {
+        repo.prefs.mentionLookups=false
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val passage="opened the community repair workshop for registered neighborhood groups after the quarterly equipment inspection. MCA coordinators have published the room roster and safety checklist. Visitors can inspect each tool, read the volunteer handbook, review the maintenance record, and discuss accessible workstations with the staff before choosing a project."
+        val x=oldX.copy(title="",body="The @MCAnotices $passage",media=emptyList(),publishedAt=now-25*60_000L,
+            provenance=Provenance(Source(Platform.X,"nitter","https://nitter-$suffix.invalid"),now,"https://nitter-$suffix.invalid/$handle/rss"),
+            links=listOf("https://nitter-$suffix.invalid/MCAnotices"))
+        val facebook=x.copy(id=x.id+"3",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/${x.id}3",
+            body="Shared from Workshop coordinator:\nThe Metro Civic Authority $passage",publishedAt=x.publishedAt!!-24*60_000L,
+            provenance=Provenance(Source(Platform.FACEBOOK,"original","https://www.facebook.com",role=SourceRole.ORIGINAL),now,"https://www.facebook.com/api/graphql/"),links=emptyList())
+        val instagram=facebook.copy(id=x.id+"4",platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/Acro$suffix/",
+            body="The Metro Civic Authority $passage",publishedAt=x.publishedAt!!+24*60_000L,
+            provenance=Provenance(Source(Platform.INSTAGRAM,"rss-bridge","https://rss-$suffix.invalid"),now,"https://rss-$suffix.invalid/?action=display&bridge=Instagram&context=Username&u=$handle"))
+        val originals=listOf(facebook,x,instagram);records+=originals
+        originals.forEach {store(it,follow(it.platform))}
+        val memberships=runBlocking {originals.associate {repo.key(it) to repo.dao.postFollowIds(repo.key(it)).toSet()}}
+        assertTrue(memberships.values.all {it.isNotEmpty()})
+        assertEquals(originals.toSet(),CrossPosts.group(originals,accounts,memberships).single().posts.toSet())
+        assertEquals(1,Regex(Regex.escape(passage)).findAll(contextSnapshot(repo,x,originals).text).count())
+        seed("all",originals);show(model(),all=true);waitRow(facebook)
+        val woven=hasTestTag("Fusion woven text") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(facebook)}"))
+        ui.waitUntil(10_000){ui.onAllNodes(woven).fetchSemanticsNodes().size==1&&ui.onAllNodesWithText("3 platforms · combined post").fetchSemanticsNodes().isNotEmpty()}
+        revealCombinedControl(woven)
+        val shown=ui.onNode(woven).fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        assertEquals(1,Regex(Regex.escape(passage)).findAll(shown).count());assertTrue(shown.contains("Metro Civic Authority"));assertTrue(shown.contains("MCAnotices",ignoreCase=true))
+        assertTrue(collectionPlan(originals).attachments.isEmpty())
+        evidence("acronym-reference-one-card")
+        runBlocking {repo.library.save(facebook,emptyList(),fusionRoots=originals);accounts.forEach {repo.dao.removeFollow(it.id)}}
+        val copy=runBlocking {repo.library.copy(repo.key(facebook))}!!
+        val roots=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        assertEquals(originals.toSet(),roots.map {it.copy(archivedVersion=null)}.toSet())
+        assertTrue(roots.single {it.platform==Platform.FACEBOOK}.body.startsWith("Shared from Workshop coordinator:\n"))
+        ui.onNodeWithTag("Primary destination saved").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library scope saved").performClick();runBlocking {repo.cleanup(true)}
+        val open=hasText("Saved copy") and hasAnyAncestor(hasTestTag("Library entry ${repo.key(facebook)}"))
+        ui.onNodeWithTag("Library results",useUnmergedTree=true).performScrollToNode(open);ui.onNode(open,useUnmergedTree=true).performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Fusion woven text"))
+        val body=ui.onNodeWithTag("Fusion woven text");body.assertIsDisplayed()
+        val saved=body.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        assertEquals(1,Regex(Regex.escape(passage)).findAll(saved).count());assertTrue(saved.contains("Metro Civic Authority"));assertTrue(saved.contains("MCAnotices",ignoreCase=true))
+        ui.waitForIdle();android.os.SystemClock.sleep(250)
+        evidence("acronym-reference-cold-library")
     }
 
     @Test fun aDeclaredXThumbnailSharesOneSlotWithARecordingAndSurvivesColdSaving() {

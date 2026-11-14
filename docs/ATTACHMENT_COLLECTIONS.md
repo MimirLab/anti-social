@@ -1440,3 +1440,34 @@ already-cached records. Cheap marker checks precede URL inspection; body,
 caption, name, excerpt and link limits bound the work. This adds no request,
 model, dependency, permission or database migration, and does not establish
 cross-post or recording equivalence.
+
+## Institutional name and handle editions (0.38.115)
+
+A text-only announcement can spell out an institution in one source and mention
+its handle in another. The existing literal reference composer now has a narrow
+acronym-backed route: at least 32 common words, 16 distinct words and 180 common
+characters must surround exactly one coupled reference alternative. One expanded
+name has three to eight capitalized significant words. Their initials must occur
+independently as an exact uppercase word in the shared prose, and every alternative
+handle must begin with those initials. Two different institutions cannot bridge
+through one handle merely because their initials agree.
+
+Live pair admission still requires the existing linked-publisher evidence.
+This is evidence about literal editions of an announcement, not a new ownership
+claim about the mentioned account. Valid dated originals, neutral framing,
+nontruncated text and compatible numbers, negation, symbols, questions and
+concrete destinations remain required. Only the existing source-qualified Nitter
+mention-navigation links are exempt from destination comparison. Previews,
+replies, recovered archives and posts with attachments do not enter this route.
+
+Each differently spelled reference pair must be published within 30 minutes,
+and the complete family within one hour. Identically spelled editions may
+surround a handle edition without making the saved family impossible to
+reconstruct. Both spellings remain one attributed alternative; the common prose
+reads once, and every original's literal path must reconstruct successfully.
+Feed, Context and Library use the same portable proof after fixture subscriptions
+are removed. Raw posts and acquisition provenance remain unchanged.
+
+The existing candidate and comparison limits remain in force. This introduces
+no model, request, dependency, permission, database migration or media-equivalence
+rule. The narrow English initialism rule does not claim general name resolution.

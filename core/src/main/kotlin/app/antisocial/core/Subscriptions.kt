@@ -433,6 +433,7 @@ object CrossPosts {
         if(completeGalleryCollection(posts))return true
         if(RedditSupplements.collection(posts)||galleryCollection(posts,sameMedia)||imageEchoCollection(posts,sameMedia))return true
         if(pictureReferenceCollection(posts))return true
+        if(acronymReferenceFusion(posts)!=null)return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         if(prepared.indices.all {i->(i+1 until prepared.size).all {j->shortPictureCaptionPair(prepared[i],prepared[j])}})return true
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->
@@ -516,6 +517,35 @@ object CrossPosts {
         val fusion=AnnouncementEditions.composeQuotedCredits(posts) ?: return null
         val rows=posts.map {features(it,emptyMap(),emptyMap())}
         return fusion.takeIf {rows.indices.all {i->(i+1 until rows.size).all {j->quotedCreditContext(rows[i],rows[j])}}}
+    }
+    /** Portable literal-reference evidence for text-only announcements. Live
+     * admission separately requires the same linked publisher. No reference
+     * is silently expanded and no current subscription is needed to reopen a
+     * saved collection. A second expanded name cannot bridge through a handle. */
+    internal fun acronymReferenceFusion(posts:List<Post>):PostFusion?=CrossPostFusion.withPrepared {
+        if(posts.size !in 2..MAX_EDITIONS||posts.map(::originalKey).distinct().size!=posts.size||
+            posts.map {it.platform}.distinct().size<2||posts.none {'@' in it.body||'@' in it.title}||posts.any {
+                it.media.isNotEmpty()||it.preview||it.parentId!=null||it.recoveredArchive!=null||!realOriginal(it)||
+                    it.title.length.toLong()+it.body.length>4096
+            })return@withPrepared null
+        val times=posts.map {it.publishedAt?.takeIf {at->at>0} ?: return@withPrepared null}
+        if(times.max()-times.min()>60*60_000L)return@withPrepared null
+        val fusion=AnnouncementEditions.composeAcronymReferences(posts) ?: return@withPrepared null
+        val reference=fusion.weave?.singleOrNull {!it.shared} ?: return@withPrepared null
+        val spellings=posts.map {post->reference.variants.singleOrNull {originalKey(post)in it.originalKeys}?.text ?: return@withPrepared null}
+        // Identical editions may surround a handle-based edition without
+        // changing its evidence. Keep every differing-reference pair inside
+        // thirty minutes and the complete family inside one hour; this is not
+        // a transitive allowance through an unrelated expanded institution.
+        for(a in posts.indices)for(b in 0 until a)
+            if(spellings[a]!=spellings[b]&&kotlin.math.abs(times[a]-times[b])>30*60_000L)return@withPrepared null
+        val rows=posts.map {features(it,emptyMap(),emptyMap())}
+        if(rows.any {it.truncated||!referenceIntegrity(it.post)||!CrossPostFusion.neutralCopyFraming(it.post)})return@withPrepared null
+        fun concrete(row:Features)=row.destinations.filterNot {nitterMentionLink(row.post,it)}.toSet()
+        fun questions(row:Features)=PostPresentation.proseWithoutLinks(PostPresentation.content(row.post)).count {it=='?'}
+        val first=rows.first()
+        fusion.takeIf {rows.drop(1).all {row->row.numbers==first.numbers&&row.negatives==first.negatives&&row.symbols==first.symbols&&
+            questions(row)==questions(first)&&concrete(row)==concrete(first)}}
     }
     private fun quotedCreditContext(a:Features,b:Features):Boolean {
         if(!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated||
@@ -1264,6 +1294,7 @@ object CrossPosts {
         val distance=if(timeA>=timeB)timeA.toULong()-timeB.toULong()else timeB.toULong()-timeA.toULong()
         if(distance>WINDOW.toULong())return false
         if(quotedCreditContext(a,b)&&AnnouncementEditions.composeQuotedCredits(listOf(a.post,b.post))!=null)return true
+        if(!repeated&&acronymReferenceFusion(listOf(a.post,b.post))!=null)return true
         if(!repeated&&distance<=600_000uL&&fieldCaptionMatch(a,b,sameMedia))return true
         if(!repeated&&distance<=600_000uL&&headingMatch(a,b,sameMedia))return true
         // Linked publishers often make a small literal wording edit while

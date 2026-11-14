@@ -9,6 +9,65 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.115: collect qualified institutional name/handle editions
+
+The continuing November 14, 2026 (UTC) native review found a text-only shared
+announcement that remained two cards: one edition spelled out an institution,
+and another mentioned its handle. Actual local publisher bindings were already
+present. The unchanged 0.38.114 counterexample on both API 35 and minimum API 26
+has two cards and two common passages. The corrected frozen prototype has one
+card and one passage, with both original paths preserved in the cold Library.
+No image, recording, generated scene or new network acquisition supplies this
+proof.
+
+The [bounded literal-reference route](ATTACHMENT_COLLECTIONS.md#institutional-name-and-handle-editions-038115)
+requires a substantial common passage, one expanded institutional name, matching
+initials independently present in that passage, compatible claims and resources,
+and existing publisher linkage. It keeps the full name and handle as one
+attributed alternative. It does not claim ownership of the mentioned account.
+Version code is 224; application ID and signing compatibility remain unchanged.
+
+Qualification on the frozen corrected prototype:
+
+- **2,934 JVM cases:** 2,927 pass, seven optional skips, zero failures/errors.
+  Six new controls cover linked admission, exact source reconstruction, missing
+  or mismatched initials, changed claims/resources, publication boundaries,
+  previews/replies/archives, media exclusion, unrelated institutions sharing
+  initials and portable three-source composition.
+- **188 named native checks per API 35 and 26:** 180 pass, eight explicit
+  opt-in skips, zero failures. These include 26 feed-memory/read-position
+  controls. The new three-source control reads the actual feed and Context,
+  saves every raw original, removes fixture subscriptions, purges ordinary
+  cache and reopens the native Library with all literal paths intact.
+- **Actual source-only and crowded replays on both APIs:** both produce one
+  target card and one common passage. The crowded replay adds 433 earlier
+  captured originals, conserves all 435 originals exactly once and retains the
+  same two-source cold saved copy. This measures the supplied window, not
+  complete-feed correctness. Native feed and saved-reader frames were directly
+  inspected; captured inputs remain private outside the checkout.
+
+An initial unshipped JVM prototype grouped a three-source family but could not
+compose its saved body when identical full-name editions surrounded a handle
+edition across 48 minutes. A new preservation regression caught this before any
+APK was built. Differently spelled pairs now retain their 30-minute bound while
+the complete family has a one-hour ceiling and only one expanded institution.
+The complete regression then passes. This is a corrected prototype defect, not
+an observed Library defect in the preceding published release.
+
+Native qualification also retained several tester/setup stops: a crowded-feed
+inspector incorrectly assumed the entire window was one group; a source-binding
+assertion used an opaque display URL instead of actual stored memberships; a
+selector requested the ordinary body rather than the woven body; and an artifact
+collector requested a class it had not run. Corrected checks ran against the
+identical frozen application APK. Earlier attempts are not counted as passes.
+
+Final publication additionally requires the clean-revision APK's native suite,
+current and prior captured-family checks, source/signer/privacy verification,
+a protected preview upgrade and anonymous permanent-download hashing. Broader
+recording identity and the remaining feed candidates remain under review. These
+are emulator and retained-preview observations, not physical-phone latency,
+battery or display measurements.
+
 ## 0.38.114: read quoted preview headlines once and keep background progress above cards
 
 The continuing November 14, 2026 (UTC) native review found one original whose

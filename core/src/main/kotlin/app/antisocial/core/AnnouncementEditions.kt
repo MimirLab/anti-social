@@ -100,6 +100,7 @@ internal object AnnouncementEditions {
     }
 
     private val nameWord=Regex("[\\p{L}]+(?:['’\\-][\\p{L}]+)*")
+    private val acronymNameWord=Regex("[A-Z][A-Za-z]+")
     private val nameConnectives=setOf("and","of","the","de","del","van","von","da","di","du","le","la","&")
     private val changedStatus=setOf("no","not","never","without","new","old","former","different","replacement","fake","counterfeit",
         "approved","rejected","denied","closed","cancelled","canceled","postponed","rescheduled","increased","decreased")
@@ -175,6 +176,30 @@ internal object AnnouncementEditions {
      * alternative coupled and attributed; this is never identity or admission
      * evidence. The photograph-backed detector retains its original bounds. */
     fun composeCollectedNames(posts:List<Post>):PostFusion? = composeReferenceNames(posts,collected=true)
+
+    /** A substantial unchanged announcement can spell an institution out in
+     * one edition and mention its handle in another. Require its initials to
+     * occur independently in the shared prose too. Keep both literal names as
+     * one attributed alternative; this does not resolve account ownership.
+     * The caller still checks publication, claims, destinations and time. */
+    fun composeAcronymReferences(posts:List<Post>):PostFusion? {
+        if(posts.none {'@' in it.body||'@' in it.title})return null
+        val fusion=composeReferenceNames(posts,collected=true) ?: return null
+        val runs=fusion.weave ?: return null
+        val alternatives=runs.singleOrNull {!it.shared} ?: return null
+        val common=runs.filter {it.shared}.flatMap {run->word.findAll(run.variants.single().text).map {it.value}.toList()}
+        if(common.size<32||common.distinct().size<16||common.joinToString(" ").length<180)return null
+        val versions=alternatives.variants.map {word.findAll(it.text).map {word->word.value.removeSuffix(",")}.toList()}
+        val handles=versions.filter {it.size==1&&isMention(it.single())}
+        val names=versions.filterNot {it in handles}
+        if(handles.isEmpty()||names.size!=1)return null
+        val name=names.single();val significant=name.filter {it !in nameConnectives}
+        if(significant.size !in 3..8||significant.any {!acronymNameWord.matches(it)}||handles.any {it.single().length !in 4..31})return null
+        val acronym=significant.joinToString(""){it.take(1)}
+        if(common.none {it.trim('(',')',',','.',';',':','!','?')==acronym}||
+            handles.any {!it.single().removePrefix("@").startsWith(acronym,ignoreCase=true)})return null
+        return fusion
+    }
 
     private fun composeReferenceNames(posts:List<Post>,collected:Boolean):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size)return null
