@@ -52,7 +52,7 @@ object CaptionFieldBlocks {
      * retain their literal spelling. The original Post records remain intact. */
     fun sourcePathMatches(first:String,second:String,typography:Boolean=false):Boolean {
         if(first.length>16_384||second.length>16_384||projection(first,typography=typography)!=projection(second,typography=typography))return false
-        fun terms(text:String)=closingWords.findAll(text).map {
+        fun terms(text:String)=closingTerms(text).map {
             val value=if(typography)it.value.replace('’','\'').replace('‘','\'')else it.value
             value.lowercase(java.util.Locale.ROOT)
         }.toList()
@@ -76,13 +76,37 @@ object CaptionFieldBlocks {
     }
     private data class Fields(val post:Post,val title:String,val body:String,val bodyPost:Post)
     private data class BodyGroup(val sources:List<Fields>,val fusion:PostFusion?=null,val opaque:Boolean=false)
-    private val closingWords=Regex("[\\p{L}\\p{N}]+(?:['’‘][\\p{L}\\p{N}]+)*")
+    private data class ClosingWord(val value:String,val range:IntRange)
+    private fun wordPoint(point:Int)=when(Character.getType(point)) {
+        Character.UPPERCASE_LETTER.toInt(),Character.LOWERCASE_LETTER.toInt(),Character.TITLECASE_LETTER.toInt(),
+        Character.MODIFIER_LETTER.toInt(),Character.OTHER_LETTER.toInt(),Character.DECIMAL_DIGIT_NUMBER.toInt(),
+        Character.LETTER_NUMBER.toInt(),Character.OTHER_NUMBER.toInt()->true
+        else->false
+    }
+    /** The same letter/number and interior-apostrophe vocabulary without a
+     * recursive regex stack. Supplementary code points retain UTF-16 ranges. */
+    private fun closingTerms(text:String,limit:Int=Int.MAX_VALUE):List<ClosingWord> {
+        val out=mutableListOf<ClosingWord>();var at=0
+        while(at<text.length&&out.size<limit) {
+            val point=text.codePointAt(at)
+            if(!wordPoint(point)){at+=Character.charCount(point);continue}
+            val start=at;at+=Character.charCount(point)
+            while(at<text.length) {
+                val next=text.codePointAt(at)
+                if(wordPoint(next))at+=Character.charCount(next)
+                else if((next==0x27||next==0x2018||next==0x2019)&&at+1<text.length&&wordPoint(text.codePointAt(at+1)))at++
+                else break
+            }
+            out+=ClosingWord(text.substring(start,at),start until at)
+        }
+        return out
+    }
     private val closingOperators=Regex("[+\\-−<>=≤≥≠≈\\p{Sc}]")
     /** Only a whole short body may nominate a terminal clause in fuller bodies.
      * This is presentation after collection, never candidate or pair evidence. */
     private fun closingFusion(sources:List<Fields>):PostFusion? {
         if(sources.size !in 2..CrossPosts.MAX_EDITIONS||sources.minOf {it.body.length}>320)return null
-        val words=sources.map {closingWords.findAll(it.body).take(257).toList()}
+        val words=sources.map {closingTerms(it.body,257)}
         if(words.any {it.size !in 4..256})return null
         val shortest=words.indices.minWith(compareBy<Int> {words[it].size}.thenBy {sources[it].body.length})
         val short=sources[shortest].body;val count=words[shortest].size

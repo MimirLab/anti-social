@@ -1368,6 +1368,22 @@ class FusionFeedTest {
         evidence("caption-witness-${if(late)"late"else"initial"}-one-card-coupled-clauses-without-false-media-credit")
     }
 
+    @Test fun largeApostropheSourceWordsKeepBoundedUnicodePathsOnAndroid() {
+        ui.runOnIdle {
+            for(count in listOf(2_047,8_191)) {
+                val text="a'".repeat(count)+"a"
+                assertTrue(CaptionFieldBlocks.sourcePathMatches(text,text,typography=true))
+                assertFalse(CaptionFieldBlocks.sourcePathMatches(text,text+"b",typography=true))
+            }
+            val exact="a'".repeat(8_191)+"ab"
+            assertTrue(CaptionFieldBlocks.sourcePathMatches(exact,exact,typography=true))
+            val oversized="a'".repeat(8_192)+"a"
+            assertFalse(CaptionFieldBlocks.sourcePathMatches(oversized,oversized,typography=true))
+            assertTrue(CaptionFieldBlocks.sourcePathMatches("𝒜’Ⅻ⑫","𝒜'Ⅻ⑫",typography=true))
+            assertFalse(CaptionFieldBlocks.sourcePathMatches("𝒜 Ⅻ⑫","𝒜Ⅻ⑫",typography=true))
+        }
+    }
+
     @Test fun aShortClosingReadsOnceWithItsFullerCaptionAndKeepsEveryColdSavedOriginal() {
         val introduction="The repair team prepared the shared tools, welcomed new visitors and explained each safe working area. Every visitor could inspect the materials and ask for help. 🛠️"
         val ending="We're grateful for every volunteer."

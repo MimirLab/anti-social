@@ -27,15 +27,18 @@ is 221; application ID and signing compatibility remain unchanged.
 
 Qualification on the frozen corrected prototype:
 
-- **2,917 JVM cases:** 2,910 pass, seven optional skips, zero failures/errors.
-  Six new controls cover whole-clause composition, different introductions,
+- **2,919 JVM cases:** 2,912 pass, seven optional skips, zero failures/errors.
+  Eight new controls cover whole-clause composition, different introductions,
   mid-sentence and repeated text, changed claims, literal identifiers and source
-  reconstruction. The focused field-composition batch passes all 16 cases.
-- **156 broader named native checks per API 35 and minimum API 26:** 148 pass,
+  reconstruction, long apostrophe chains and supplementary Unicode word bounds.
+  The focused field-composition batch passes all 18 cases.
+- **157 broader named native checks per API 35 and minimum API 26:** 149 pass,
   eight explicit skips, zero failures. The new synthetic case verifies the
   actual feed, zero recording sampling/download, retained source records and a
   cold Library reopen after removing fixture subscriptions. Its declared-asset
-  witnesses use the existing X-scoped route; no provider scope is widened.
+  witnesses use the existing X-scoped route; no provider scope is widened. A
+  second native control exercises the bounded Unicode source-path scanner on
+  the UI thread.
 - **Actual five-original replay on both APIs:** the common introduction and
   closing prefix appear once; different terminal wording/symbols remain inline
   source alternatives. All five source paths and the four captured attachment
@@ -54,6 +57,16 @@ X witnesses; the broader coverage question remains separate. Another fixture
 used an image assertion requiring downloaded movie bytes. Its corrected recording
 assertion instead checks exact source retention and explicitly verifies that no
 movie was downloaded. Those failed attempts remain in private evidence.
+
+An unreleased draft also failed a source-path stress regression with a 4,095-
+character apostrophe chain: its recursive regular expression overflowed the JVM
+stack. The corrected path uses an iterative code-point scanner. Unit and native
+controls exercise the ordinary field limit, the 16,384-character path boundary,
+oversized rejection and supplementary letters/numbers. This draft failure does
+not establish a defect in the previous shipped release. One owned-device run
+started before Android's package service was ready; another private replay
+correctly refused a nonempty fixture database. Those setup failures are retained
+separately; only the guarded, empty-fixture reruns supply accepted counts.
 
 Final publication additionally requires the clean-revision APK's native suite,
 current and prior captured-family controls, cache recovery, state-preserving

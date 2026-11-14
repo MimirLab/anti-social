@@ -22,6 +22,23 @@ class CaptionFieldBlocksTest {
             segment.weave?.joinToString(" "){run->run.variants.single {key in it.originalKeys}.text} ?: segment.text
         }
     }
+    @Test fun maximumAllowedApostropheWordsDoNotRequireRecursiveMatching() {
+        for(count in listOf(2_047,8_191)) {
+            val text="a'".repeat(count)+"a"
+            assertTrue(CaptionFieldBlocks.sourcePathMatches(text,text,typography=true))
+            assertFalse(CaptionFieldBlocks.sourcePathMatches(text,text+"b",typography=true))
+        }
+        val exact="a'".repeat(8_191)+"ab"
+        assertTrue(CaptionFieldBlocks.sourcePathMatches(exact,exact,typography=true))
+        val oversized="a'".repeat(8_192)+"a"
+        assertFalse(CaptionFieldBlocks.sourcePathMatches(oversized,oversized,typography=true))
+    }
+    @Test fun supplementaryLettersAndOtherNumbersKeepTheirLiteralWordBoundaries() {
+        val curved="𝒜’Ⅻ⑫";val straight="𝒜'Ⅻ⑫"
+        assertTrue(CaptionFieldBlocks.sourcePathMatches(curved,straight,typography=true))
+        assertFalse(CaptionFieldBlocks.sourcePathMatches("𝒜 Ⅻ⑫","𝒜Ⅻ⑫",typography=true))
+        assertFalse(CaptionFieldBlocks.sourcePathMatches("𝒜’Ⅻ⑫","𝒜’Ⅻ⑬",typography=true))
+    }
     @Test fun aCompleteShortClosingSharesItsClauseWhileHeadingsIntroductionsAndEndingsStaySourced() {
         val posts=closingEditions();val raw=posts.map {it.copy()}
         val ordinary=requireNotNull(CaptionFieldBlocks.compose(posts,partialReferences=true))

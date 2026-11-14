@@ -1369,6 +1369,12 @@ share prose; URLs, addresses, numeric tokens, identifiers and code retain litera
 spelling. Word boundaries, source ordering and every original path are checked
 before accepting the presentation. Raw `Post` records are unchanged.
 
+Closing words are scanned iteratively by Unicode code point, including interior
+apostrophes and supplementary letters/numbers, while retaining UTF-16 ranges for
+source slicing. This avoids recursive matching on long apostrophe chains. The
+source-path comparison rejects inputs above 16,384 characters; closing nomination
+stops after 257 terms and retains the existing smaller field limits.
+
 Feed, Context and Library continue consuming the same collection plan. The saved
 reader reconstructs the compact body from its captured originals after local
 subscriptions are removed. This extension introduces no network request, model,
