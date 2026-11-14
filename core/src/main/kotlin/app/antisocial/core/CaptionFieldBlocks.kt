@@ -35,15 +35,28 @@ object CaptionFieldBlocks {
         }
         return merged
     }
-    private fun projection(value:String,compact:Boolean=true):List<Part> = buildList {
-        fun prose(text:String)=if(compact)text.filterNot {it.isWhitespace()||Character.isSpaceChar(it)}.lowercase(java.util.Locale.ROOT)
-            else TextWhitespace.collapse(text).lowercase(java.util.Locale.ROOT)
+    private fun projection(value:String,compact:Boolean=true,typography:Boolean=false):List<Part> = buildList {
+        fun prose(text:String):String {
+            val folded=if(typography)text.replace('’','\'').replace('‘','\'')else text
+            return if(compact)folded.filterNot {it.isWhitespace()||Character.isSpaceChar(it)}.lowercase(java.util.Locale.ROOT)
+                else TextWhitespace.collapse(folded).lowercase(java.util.Locale.ROOT)
+        }
         var at=0
         verbatim(value).forEach {range->
             add(Part(false,prose(value.substring(at,range.first))))
             add(Part(true,value.substring(range)));at=range.last+1
         }
         add(Part(false,prose(value.substring(at))))
+    }
+    /** Source paths may share prose typography; URLs, code and identifiers
+     * retain their literal spelling. The original Post records remain intact. */
+    fun sourcePathMatches(first:String,second:String,typography:Boolean=false):Boolean {
+        if(first.length>16_384||second.length>16_384||projection(first,typography=typography)!=projection(second,typography=typography))return false
+        fun terms(text:String)=closingWords.findAll(text).map {
+            val value=if(typography)it.value.replace('’','\'').replace('‘','\'')else it.value
+            value.lowercase(java.util.Locale.ROOT)
+        }.toList()
+        return terms(first)==terms(second)
     }
     internal fun bodyEdition(post:Post):Post? {
         if(post.preview||post.parentId!=null||post.title.length.toLong()+post.body.length>4096)return null
@@ -63,6 +76,96 @@ object CaptionFieldBlocks {
     }
     private data class Fields(val post:Post,val title:String,val body:String,val bodyPost:Post)
     private data class BodyGroup(val sources:List<Fields>,val fusion:PostFusion?=null,val opaque:Boolean=false)
+    private val closingWords=Regex("[\\p{L}\\p{N}]+(?:['’‘][\\p{L}\\p{N}]+)*")
+    private val closingOperators=Regex("[+\\-−<>=≤≥≠≈\\p{Sc}]")
+    /** Only a whole short body may nominate a terminal clause in fuller bodies.
+     * This is presentation after collection, never candidate or pair evidence. */
+    private fun closingFusion(sources:List<Fields>):PostFusion? {
+        if(sources.size !in 2..CrossPosts.MAX_EDITIONS||sources.minOf {it.body.length}>320)return null
+        val words=sources.map {closingWords.findAll(it.body).take(257).toList()}
+        if(words.any {it.size !in 4..256})return null
+        val shortest=words.indices.minWith(compareBy<Int> {words[it].size}.thenBy {sources[it].body.length})
+        val short=sources[shortest].body;val count=words[shortest].size
+        if(count>32||words[shortest].first().range.first!=0)return null
+        fun wordKey(value:String)=value.replace('’','\'').replace('‘','\'').lowercase(java.util.Locale.ROOT)
+        val tokens=words.map {terms->terms.map {wordKey(it.value)}}
+        val selected=tokens[shortest]
+        if(tokens.any {it.takeLast(count)!=selected})return null
+        val core=short.substring(0,words[shortest].last().range.last+1)
+        if(core.length !in 20..280||words[shortest].map {it.value.lowercase(java.util.Locale.ROOT)}.distinct().size<3||
+            PostPresentation.urlMatches(core).any()||core.any {it in "@#`"})return null
+        val coreKey=projection(core,compact=false,typography=true)
+        val starts=words.map {it[it.size-count].range.first}
+        val ends=words.map {it.last().range.last+1}
+        val prefixes=sources.indices.map {sources[it].body.substring(0,starts[it]).trim()}
+        val tails=sources.indices.map {sources[it].body.substring(ends[it]).trim()}
+        if(tails.any {it.length>32||closingOperators.containsMatchIn(it)||it.any {c->c in "@#`_/"}})return null
+        for(i in sources.indices) {
+            val text=sources[i].body;val terms=words[i];val start=starts[i]
+            if(projection(text.substring(start,ends[i]),compact=false,typography=true)!=coreKey)return null
+            if(start>0) {
+                val gap=text.substring(terms[terms.size-count-1].range.last+1,start)
+                // Do not cut a negated/quoted mid-sentence tail into an
+                // apparently independent assertion. Symbols before a complete
+                // sentence remain part of that source's introduction.
+                if(gap.any {it in "\"“‘"}||gap.contains("...")||'…' in gap||
+                    gap.none {it in ".!?"}&&gap.count {it=='\n'}<2)return null
+            }
+            var occurrences=0
+            for(at in 0..terms.size-count) {
+                // Most windows are unrelated. Check their small token keys
+                // before allocating protected-span projections for a match.
+                if((0 until count).any {tokens[i][at+it]!=selected[it]})continue
+                val candidate=text.substring(terms[at].range.first,terms[at+count-1].range.last+1)
+                if(projection(candidate,compact=false,typography=true)==coreKey&&++occurrences>1)return null
+            }
+        }
+        if(prefixes.all {it.isBlank()}||sources.map {projection(it.body,compact=false,typography=true)}.distinct().size<2)return null
+        val all=sources.indices.toList();val runs=mutableListOf<FusionRun>()
+        fun emit(parts:List<String>) {
+            if(parts.all(String::isBlank))return
+            val variants=all.groupBy {projection(parts[it],compact=false,typography=true)}.values.map {rows->
+                FusionVariant(parts[rows.first()],rows.mapTo(linkedSetOf()){sources[it].post.platform},rows.mapTo(linkedSetOf()){CrossPosts.originalKey(sources[it].post)})
+            }
+            runs+=FusionRun(variants.size==1,variants)
+        }
+        emit(prefixes)
+        // A differing ending borrows its last word, so the UI never presents
+        // an unexplained punctuation-only alternative or empty source label.
+        val endingsDiffer=tails.map {projection(it,compact=false,typography=true)}.distinct().size>1
+        emit(sources.indices.map {i->
+            val end=if(endingsDiffer)words[i].last().range.first else ends[i]
+            sources[i].body.substring(starts[i],end).trim()
+        })
+        if(endingsDiffer)emit(sources.indices.map {i->sources[i].body.substring(words[i].last().range.first).trim()})else emit(tails)
+        if(runs.none {it.shared&&it.variants.single().text.any(Char::isLetter)})return null
+        for(i in sources.indices) {
+            val key=CrossPosts.originalKey(sources[i].post)
+            val path=sourcePath(runs,key) ?: return null
+            if(!sourcePathMatches(path,sources[i].body,typography=true))return null
+        }
+        val text=runs.joinToString(" "){run->if(run.shared)run.variants.single().text else run.variants.filter {it.text.isNotBlank()}
+            .joinToString(" / ","[","]"){it.text+" — "+PlatformOrder.sort(it.platforms).joinToString(" · "){p->p.label}}}
+        return PostFusion(listOf(FusionSegment(text,sources.mapTo(linkedSetOf()){it.post.platform},false,sources.mapTo(linkedSetOf()){CrossPosts.originalKey(it.post)})),runs)
+    }
+    private fun closingGroups(groups:List<BodyGroup>,fields:List<Fields>):List<BodyGroup> {
+        val positions=fields.mapIndexed {index,field->CrossPosts.originalKey(field.post)to index}.toMap()
+        val out=mutableListOf<BodyGroup>();var attempts=0
+        // A complete short edition nominates the clause before longer bodies
+        // arrive, allowing several distinct introductions to share its ending.
+        for(group in groups.sortedWith(compareBy<BodyGroup> {it.sources.minOf {source->source.body.length}}
+            .thenBy {it.sources.minOf {source->positions.getValue(CrossPosts.originalKey(source.post))}})) {
+            var joined=false
+            for(i in out.indices) {
+                if(attempts++>=32)break
+                val combined=(out[i].sources+group.sources).sortedBy {positions.getValue(CrossPosts.originalKey(it.post))}
+                val fusion=closingFusion(combined) ?: continue
+                out[i]=BodyGroup(combined,fusion,out[i].opaque||group.opaque);joined=true;break
+            }
+            if(!joined)out+=group
+        }
+        return out.sortedBy {it.sources.minOf {source->positions.getValue(CrossPosts.originalKey(source.post))}}
+    }
     private fun sourcePath(runs:List<FusionRun>,key:String):String? {
         val parts=mutableListOf<String>()
         for(run in runs)parts+=run.variants.singleOrNull {key in it.originalKeys}?.text ?: return null
@@ -97,7 +200,7 @@ object CaptionFieldBlocks {
         }
         return out.sortedBy {first(it.sources)}
     }
-    fun compose(posts:List<Post>,partialReferences:Boolean=false):PostFusion? {
+    fun compose(posts:List<Post>,partialReferences:Boolean=false,shortClosings:Boolean=false):PostFusion? {
         if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size||
             posts.any {it.preview||it.title.length.toLong()+it.body.length>4096})return null
         val fields=posts.sortedWith(compareBy<Post> {it.publishedAt ?: Long.MAX_VALUE}.thenBy(CrossPosts::originalKey)).map {post->
@@ -118,7 +221,8 @@ object CaptionFieldBlocks {
         // Verbatim URL/identifier spans stay in the key; the complete per-source
         // title/body projection below must still pass for every merged group.
         }.groupBy {sources->projection(sources.first().body,compact=false)}.values.map {it.flatten()}
-        val bodies=if(partialReferences)referenceGroups(groups,fields)else groups.map {BodyGroup(it)}
+        val grouped=if(partialReferences)referenceGroups(groups,fields)else groups.map {BodyGroup(it)}
+        val bodies=if(shortClosings)closingGroups(grouped,fields)else grouped
         if(bodies.none {it.sources.size>1})return null
         fun segment(text:String,sources:List<Fields>)=FusionSegment(text,sources.mapTo(linkedSetOf()){it.post.platform},
             sources.size==posts.size,sources.mapTo(linkedSetOf()){CrossPosts.originalKey(it.post)})
@@ -138,7 +242,10 @@ object CaptionFieldBlocks {
                 segment.weave?.let {sourcePath(it,key) ?: return null} ?: segment.text
             }
             val projected=parts.joinToString("\n\n")
-            if(projection(projected)!=projection(PostPresentation.content(source.post)))return null
+            val original=PostPresentation.content(source.post)
+            if(shortClosings) {
+                if(!sourcePathMatches(projected,original,typography=true))return null
+            }else if(projection(projected)!=projection(original))return null
         }
         return PostFusion(segments)
     }

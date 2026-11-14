@@ -568,6 +568,20 @@ class FusionFeedTest {
                 ui.waitForIdle()
                 val captionBitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
                 File(output,"card-$index-caption.png").outputStream().use {captionBitmap.compress(Bitmap.CompressFormat.PNG,100,it)};captionBitmap.recycle()
+                val fragments=spec.getAsJsonArray("inspectFragments")?.also {require(it.size()<=8)}?.map {
+                    it.asString.also {value->require(value.length in 2..256)}
+                }.orEmpty()
+                for((fragmentIndex,fragment)in fragments.withIndex()) {
+                    val matcher=hasText(fragment,substring=true,ignoreCase=true) and scope
+                    val matches=ui.onAllNodes(matcher,useUnmergedTree=true).fetchSemanticsNodes().size
+                    require(matches in 1..8) {"The requested literal fragment is absent or ambiguous beyond the inspection bound"}
+                    for(occurrence in 0 until matches) {
+                        val control=ui.onAllNodes(matcher,useUnmergedTree=true)[occurrence]
+                        revealLiteralFragment(control,fragment)
+                        val frame=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                        try {File(output,"card-$index-fragment-$fragmentIndex-$occurrence.png").outputStream().use {frame.compress(Bitmap.CompressFormat.PNG,100,it)}}finally {frame.recycle()}
+                    }
+                }
             }
         }
         if(packet.get("inspectSavedCaption")?.asBoolean==true) {
@@ -582,8 +596,12 @@ class FusionFeedTest {
             for(post in reopened) {
                 val original=CrossPosts.originalKey(post)
                 val projected=weave?.joinToString(" "){run->run.variants.single {original in it.originalKeys}.text}
-                    ?: fusion.segments.filter {original in it.originalKeys}.joinToString(" "){it.text}
-                assertEquals(compact(PostPresentation.content(post)),compact(projected))
+                    ?: fusion.segments.filter {original in it.originalKeys}.joinToString(" "){segment->
+                        segment.weave?.joinToString(" "){run->run.variants.single {original in it.originalKeys}.text} ?: segment.text
+                    }
+                if(packet.get("sourceTypography")?.asBoolean==true)
+                    assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),projected,typography=true))
+                else assertEquals(compact(PostPresentation.content(post)),compact(projected))
             }
             ui.onNodeWithTag("Primary destination saved").performClick()
             ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
@@ -606,8 +624,12 @@ class FusionFeedTest {
                 }.onFailure {File(output,"saved-library-observer-error.txt").writeText(it.toString())}
                 throw failure
             }
-            val visibleRuns=weave.orEmpty().filter {run->run.variants.any {it.visibleText.isNotBlank()}}
-            val captionTag=if(weave==null) {
+            // A supplied heading can remain a separate attributed field while
+            // its complete shared body has one woven node. All source paths,
+            // including that heading, were checked above before choosing it.
+            val nested=if(weave==null)fusion.segments.singleOrNull {it.weave!=null}?.weave else null
+            val visibleRuns=(weave ?: nested).orEmpty().filter {run->run.variants.any {it.visibleText.isNotBlank()}}
+            val captionTag=if(weave==null&&nested==null) {
                 require(fusion.segments.size==1&&fusion.segments.single().shared) {"The inspected caption must be compact and source-complete"}
                 "Fusion shared text"
             }else if(visibleRuns.size==1&&visibleRuns.single().shared)"Fusion shared text"else"Fusion woven text"
@@ -651,6 +673,24 @@ class FusionFeedTest {
         }
         evidence("unreachable-native-control")
         ui.onNode(matcher).assertIsDisplayed()
+    }
+    private fun revealLiteralFragment(control:SemanticsNodeInteraction,fragment:String,listTag:String="Combined feed") {
+        val list=ui.onNodeWithTag(listTag)
+        repeat(3) {
+            val layouts=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            control.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult){action->assertTrue(action(layouts))}
+            val layout=layouts.single();val at=layout.layoutInput.text.text.indexOf(fragment,ignoreCase=true);require(at>=0)
+            val node=control.fetchSemanticsNode();val viewport=list.fetchSemanticsNode().boundsInRoot
+            val distance=node.positionInRoot.y+layout.getBoundingBox(at).top-(viewport.top+viewport.height*.35f)
+            if(abs(distance)>2f)list.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,distance)}
+            ui.waitForIdle()
+        }
+        val layouts=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        control.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult){action->assertTrue(action(layouts))}
+        val layout=layouts.single();val at=layout.layoutInput.text.text.indexOf(fragment,ignoreCase=true);require(at>=0)
+        val node=control.fetchSemanticsNode();val viewport=list.fetchSemanticsNode().boundsInRoot
+        assertTrue("The literal fragment must be inside the visible reader",node.positionInRoot.y+layout.getBoundingBox(at).top>=viewport.top-1f&&
+            node.positionInRoot.y+layout.getBoundingBox(at+fragment.length-1).bottom<=viewport.bottom+1f)
     }
 
     private fun cacheGalleryPicture(url:String,index:Int,distinctFourth:Boolean=false) {
@@ -1326,6 +1366,70 @@ class FusionFeedTest {
         assertTrue(saved.single {repo.key(it)==repo.key(alias)}.media.isEmpty())
         assertCapturedSources(records,saved)
         evidence("caption-witness-${if(late)"late"else"initial"}-one-card-coupled-clauses-without-false-media-credit")
+    }
+
+    @Test fun aShortClosingReadsOnceWithItsFullerCaptionAndKeepsEveryColdSavedOriginal() {
+        val introduction="The repair team prepared the shared tools, welcomed new visitors and explained each safe working area. Every visitor could inspect the materials and ask for help. 🛠️"
+        val ending="We're grateful for every volunteer."
+        val video="https://video.twimg.com/amplify_video/710001/vid/avc1/1280x720/workshop.mp4"
+        val poster="https://closing-caption-$suffix.invalid/poster.png"
+        val x=Post("98${suffix}1001",Platform.X,"https://x.com/$handle/status/98${suffix}1001",handle,"$introduction\n\n$ending","Workshop recap",now-60_000,
+            media=listOf(Media(video,"video",poster,mimeType="video/mp4",durationMs=120_000)))
+        val instagram=x.copy(id="Closing$suffix",platform=Platform.INSTAGRAM,canonicalUrl="https://www.instagram.com/p/Closing$suffix/",title="",body="$introduction $ending",publishedAt=now-59_000)
+        val facebook=x.copy(id="98${suffix}1003",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}1003",title="",publishedAt=now-58_000)
+        // The declared-asset route is scoped to X. The captured cross-platform
+        // replay separately supplies actual matching footage for its short leaf.
+        val short=x.copy(id="98${suffix}1004",canonicalUrl="https://x.com/$handle/status/98${suffix}1004",title="We’re grateful for every volunteer 🛠️",body="",publishedAt=now-57_000)
+        val originals=listOf(x,instagram,facebook,short);records+=originals
+        val subscriptions=originals.map {it.platform}.distinct().associateWith(::follow)
+        originals.forEach {store(it,subscriptions.getValue(it.platform))};cacheGalleryPicture(poster,1)
+        originalVideoSampler=repo.videos.sample;var samples=0;repo.videos.sample={_,_->samples++;error("A declared recording needs no sampled footage")}
+        assertEquals(originals.toSet(),CrossPosts.group(originals,accounts).single().posts.toSet())
+        seed("all",originals);show(model(),all=true);waitRow(x)
+        listOf(instagram,facebook,short).forEach {row(it).assertDoesNotExist()}
+        val woven=ui.onNodeWithTag("Fusion woven text")
+        fun inspect(node:SemanticsNodeInteraction) {
+            val text=node.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+            assertEquals(1,Regex("grateful for every").findAll(text).count())
+            assertEquals(1,Regex("The repair team prepared").findAll(text).count())
+            assertTrue(text.contains("volunteer."));assertTrue(text.contains("volunteer 🛠️"))
+        }
+        inspect(woven);revealLiteralFragment(woven,"grateful for every");evidence("shared-short-closing-feed")
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==4}
+        runBlocking {accounts.forEach {repo.dao.removeFollow(it.id)}};repo.images.identities.clear()
+        val copy=runBlocking {repo.library.copy(repo.key(x))}!!
+        val reopened=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        // Quick Save preserves recording URLs without downloading a movie.
+        // The image-fixture helper intentionally requires local image bytes
+        // and their annotations, so compare the recording source records here.
+        assertEquals(originals.map(repo::key).toSet(),reopened.map(repo::key).toSet())
+        fun source(post:Post)=post.copy(media=post.media.map {it.copy(aiMetadata=null,visualFingerprint=null,attachmentFingerprint=null)})
+        originals.forEach {original->assertEquals(source(original),source(reopened.single {repo.key(it)==repo.key(original)}))}
+        assertNull(runBlocking {repo.availableMedia(video)})
+        assertTrue(reopened.all {post->post.media.all {it.videoFootage==null}})
+        val plan=collectionPlan(reopened);assertEquals(1,plan.attachments.size)
+        val fusion=requireNotNull(plan.fusion)
+        for(post in reopened) {
+            val key=CrossPosts.originalKey(post)
+            val path=fusion.segments.filter {key in it.originalKeys}.joinToString(" "){segment->
+                segment.weave?.joinToString(" "){run->run.variants.single {key in it.originalKeys}.text} ?: segment.text
+            }
+            assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),path,typography=true))
+        }
+        ui.onNodeWithTag("Primary destination saved").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library scope saved").performClick()
+        val entry=hasTestTag("Library entry ${repo.key(x)}")
+        val open=hasText("Saved copy") and hasAnyAncestor(entry)
+        ui.onNodeWithTag("Library results",useUnmergedTree=true).performScrollToNode(open)
+        ui.onNode(open,useUnmergedTree=true).performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        val cold=ui.onNodeWithTag("Fusion woven text")
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasTestTag("Fusion woven text"));inspect(cold)
+        revealLiteralFragment(cold,"grateful for every","Local copy content");evidence("shared-short-closing-cold-library")
+        assertEquals(0,samples)
     }
 
     @Test fun declaredRecordingCollectsAuthoredAndRepostedCaptionsBeforeAnyFootageWork() {

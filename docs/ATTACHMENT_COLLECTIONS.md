@@ -1343,3 +1343,34 @@ validators cannot cross URLs. Both remain inside the original eight-MiB,
 policy. Cancellation stays retryable; an actual failed fallback pauses the
 attempted routes under the existing cooldown. No new source pool, dependency,
 permission, database or foreground scroll work is introduced.
+
+## Short closing editions (0.38.112)
+
+An already collected recording family can contain a full announcement and a
+short edition of its final sentence. Sharing only identical whole body fields
+still makes the reader encounter that closing twice. `CaptionFieldBlocks` now
+offers an explicit reader-only `shortClosings` mode alongside its existing
+field and reference composers. The default path used by ordinary grouping keeps
+its original projection checks.
+
+A complete short body nominates a bounded terminal clause in the fuller bodies.
+It must contain four to 32 words and 20 to 280 characters; only a unique whole
+occurrence can qualify. A preceding sentence boundary or paragraph is required
+in fuller text. Mid-sentence tails, ambiguous repeated clauses, opening quotation
+boundaries, changed words and unsupported URL/handle/code closings retain their
+existing full source blocks. Small token keys reject unrelated windows before
+protected-span comparisons, and at most 32 group attempts run.
+
+Different introductions remain complete, coupled alternatives. Supplied headings
+stay attached to their original body paths. A changed terminal symbol or
+punctuation borrows its final word for a readable attributed alternative, rather
+than displaying a bare punctuation choice. Ordinary apostrophe typography may
+share prose; URLs, addresses, numeric tokens, identifiers and code retain literal
+spelling. Word boundaries, source ordering and every original path are checked
+before accepting the presentation. Raw `Post` records are unchanged.
+
+Feed, Context and Library continue consuming the same collection plan. The saved
+reader reconstructs the compact body from its captured originals after local
+subscriptions are removed. This extension introduces no network request, model,
+dependency, permission, database or media-equivalence rule. It cannot nominate
+two posts for collection merely because they share a closing sentence.

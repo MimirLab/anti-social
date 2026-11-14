@@ -9,6 +9,75 @@ class CaptionFieldBlocksTest {
     private val first=Post("100",Platform.X,"https://x.com/publicstudio/status/100","Public studio",body,"Workshop film",publishedAt=1_800_000_000_000)
     private val second=first.copy(id="200",platform=Platform.BLUESKY,canonicalUrl="https://bsky.app/profile/publicstudio.test/post/fixture",body=body.replace(" ",""),title="",publishedAt=first.publishedAt!!+1_000)
     private val other=first.copy(id="300",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/publicstudio/posts/300",body="See how the public workshop came together.",title="",publishedAt=first.publishedAt!!+2_000)
+    private val closing="We're grateful for every volunteer."
+    private val introduction="The repair team prepared the shared tools, welcomed new visitors and explained each safe working area. Every visitor could inspect the materials and ask for help. 🛠️"
+    private fun closingEditions():List<Post> = listOf(
+        first.copy(title="Workshop recap",body="$introduction\n\n$closing"),
+        second.copy(title="",body="$introduction $closing"),
+        other.copy(body="$introduction $closing"),
+        other.copy(id="400",platform=Platform.TIKTOK,canonicalUrl="https://www.tiktok.com/@publicstudio/video/400",title="We’re grateful for every volunteer 🛠️",body="",publishedAt=first.publishedAt!!+3_000))
+    private fun sourcePath(fusion:PostFusion,post:Post):String {
+        val key=CrossPosts.originalKey(post)
+        return fusion.segments.filter {key in it.originalKeys}.joinToString(" "){segment->
+            segment.weave?.joinToString(" "){run->run.variants.single {key in it.originalKeys}.text} ?: segment.text
+        }
+    }
+    @Test fun aCompleteShortClosingSharesItsClauseWhileHeadingsIntroductionsAndEndingsStaySourced() {
+        val posts=closingEditions();val raw=posts.map {it.copy()}
+        val ordinary=requireNotNull(CaptionFieldBlocks.compose(posts,partialReferences=true))
+        assertTrue(ordinary.segments.all {it.weave==null})
+        val fused=requireNotNull(CaptionFieldBlocks.compose(posts,partialReferences=true,shortClosings=true))
+        val woven=fused.segments.single {it.weave!=null}
+        assertEquals(1,Regex("grateful for every").findAll(woven.text).count())
+        assertEquals(1,Regex("The repair team prepared").findAll(woven.text).count())
+        assertEquals(setOf(CrossPosts.originalKey(posts[0])),fused.segments.single {it.text=="Workshop recap"}.originalKeys)
+        assertEquals(setOf(Platform.X,Platform.BLUESKY,Platform.FACEBOOK),woven.weave!!.first().variants.single {it.text.isNotBlank()}.platforms)
+        assertEquals(setOf(Platform.TIKTOK),woven.weave.last().variants.single {"🛠️" in it.text}.platforms)
+        for(post in posts)assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),sourcePath(fused,post),typography=true))
+        assertEquals(raw,posts);assertEquals(fused,CaptionFieldBlocks.compose(posts.reversed(),partialReferences=true,shortClosings=true))
+        assertTrue("Presentation must not turn different raw accounts into a match",CrossPosts.group(posts,emptyList()).size>1)
+    }
+    @Test fun distinctCompleteIntroductionsRemainCoupledToTheirOwnClosingAndSource() {
+        val posts=closingEditions().toMutableList()
+        posts[2]=posts[2].copy(body="The workshop is closed today. $closing")
+        val fused=requireNotNull(CaptionFieldBlocks.compose(posts,shortClosings=true))
+        val woven=fused.segments.single {it.weave!=null}
+        assertTrue(woven.weave!!.first().variants.any {it.text=="The workshop is closed today."&&it.originalKeys==setOf(CrossPosts.originalKey(posts[2]))})
+        for(post in posts)assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),sourcePath(fused,post),typography=true))
+    }
+    @Test fun aMidSentenceOrRepeatedClosingCannotBeLiftedIntoASharedAssertion() {
+        for(body in listOf("We did not say ${closing.replaceFirstChar {it.lowercase()}}",
+            "The team quoted: $closing", "$closing\n\n$introduction\n\n$closing")) {
+            val posts=closingEditions().map {if(it.platform==Platform.TIKTOK)it else it.copy(body=body)}
+            val fused=requireNotNull(CaptionFieldBlocks.compose(posts,shortClosings=true))
+            assertTrue(fused.segments.all {it.weave==null})
+            for(post in posts)assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),sourcePath(fused,post)))
+        }
+    }
+    @Test fun changedClosingClaimsAndUnrelatedNearMatchesKeepTheirWholeOriginalBlocks() {
+        for(text in listOf("We're not grateful for every volunteer.","We're grateful for every donor.","We're grateful for 12 volunteers.","We're grateful for every volunteer? More details follow.")) {
+            val posts=closingEditions().map {if(it.platform==Platform.TIKTOK)it.copy(title=text)else it}
+            val fused=requireNotNull(CaptionFieldBlocks.compose(posts,shortClosings=true))
+            assertTrue(fused.segments.all {it.weave==null})
+            for(post in posts)assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),sourcePath(fused,post)))
+        }
+    }
+    @Test fun proseApostropheTypographyCannotRewriteUrlsIdentifiersNumbersOrCode() {
+        assertFalse(CaptionFieldBlocks.sourcePathMatches("We're grateful.","We’re grateful."))
+        assertTrue(CaptionFieldBlocks.sourcePathMatches("We're grateful.","We’re grateful.",typography=true))
+        for(value in listOf("https://example.org/O’Neil","Person@O’Neil.org","API_ID=O’Neil","`O’Neil`","12’34"))
+            assertFalse(value,CaptionFieldBlocks.sourcePathMatches("Read $value exactly.","Read ${value.replace('’','\'')} exactly.",typography=true))
+        assertFalse(CaptionFieldBlocks.sourcePathMatches("New York workshop.","NewYork workshop.",typography=true))
+        assertFalse(CaptionFieldBlocks.sourcePathMatches("The team is grateful.","The team is not grateful.",typography=true))
+    }
+    @Test fun questionAndSymbolEndingsRemainWholeAttributedAlternatives() {
+        val posts=closingEditions().map {if(it.platform==Platform.TIKTOK)it.copy(title="We're grateful for every volunteer?")else it}
+        val fused=requireNotNull(CaptionFieldBlocks.compose(posts,shortClosings=true))
+        val tail=fused.segments.single {it.weave!=null}.weave!!.last()
+        assertTrue(tail.variants.any {it.text=="volunteer?"&&it.platforms==setOf(Platform.TIKTOK)})
+        assertTrue(tail.variants.any {it.text=="volunteer."})
+        for(post in posts)assertTrue(CaptionFieldBlocks.sourcePathMatches(PostPresentation.content(post),sourcePath(fused,post),typography=true))
+    }
     @Test fun aResolvedLinkInventoryCannotSplitIdenticalLongBodiesInsideAWiderCollection() {
         val caption="Last month, the repair team opened Example.org, a workshop built around visitors. " +
             "It respects their time. Gives clear instructions. And helps everyone repair their belongings. " +

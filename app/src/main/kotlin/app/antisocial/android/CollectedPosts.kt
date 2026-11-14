@@ -31,7 +31,7 @@ internal fun collectedPostFusion(posts: List<Post>): PostFusion? {
     // A complete literal weave is preferable to sharing just an identical
     // subset of bodies. Keep its inline source marks before the field fallback.
     ?: CrossPostFusion.composeCollectedReferences(posts)
-    ?: CaptionFieldBlocks.compose(posts,partialReferences=true)
+    ?: CaptionFieldBlocks.compose(posts,partialReferences=true,shortClosings=true)
     ?: CrossPostFusion.composeRelated(posts)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}
     ?: CrossPostFusion.composeCollectedPrefixes(posts)

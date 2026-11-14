@@ -9,6 +9,59 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.112: share a short closing inside its complete source collection
+
+The continuing November 14, 2026 (UTC) native review reproduced a presentation
+defect after a five-original recording family had already collected correctly.
+Identical fuller bodies appeared once, but a short edition of their closing
+remained in a separate source block. The shipping 0.38.111 native counterexample
+reports one card, one long passage and two occurrences of the closing prefix;
+all five original records were still preserved. This is distinct from a failed
+post match or lost source data.
+
+The [bounded field-composition extension](ATTACHMENT_COLLECTIONS.md#short-closing-editions-038112)
+shares a complete terminal clause after independent collection. It keeps each
+introduction, heading and ending attributed. It does not change ordinary pair
+admission, source identity, media equivalence or request scheduling. Version code
+is 221; application ID and signing compatibility remain unchanged.
+
+Qualification on the frozen corrected prototype:
+
+- **2,917 JVM cases:** 2,910 pass, seven optional skips, zero failures/errors.
+  Six new controls cover whole-clause composition, different introductions,
+  mid-sentence and repeated text, changed claims, literal identifiers and source
+  reconstruction. The focused field-composition batch passes all 16 cases.
+- **156 broader named native checks per API 35 and minimum API 26:** 148 pass,
+  eight explicit skips, zero failures. The new synthetic case verifies the
+  actual feed, zero recording sampling/download, retained source records and a
+  cold Library reopen after removing fixture subscriptions. Its declared-asset
+  witnesses use the existing X-scoped route; no provider scope is widened.
+- **Actual five-original replay on both APIs:** the common introduction and
+  closing prefix appear once; different terminal wording/symbols remain inline
+  source alternatives. All five source paths and the four captured attachment
+  records survive saving and reopening with fixture subscriptions removed.
+  It uses two previously acquired, real Gateway/isolated-decoder observations;
+  no scene evidence is invented or newly downloaded to obtain text compaction.
+- **Native pixels:** the inspector scrolls to the literal phrase using its
+  actual text layout before capturing. Feed-fragment and cold-reader frames on
+  both APIs were directly inspected; a tall-card fling is not substituted for
+  inspecting the wording at issue.
+
+Two early Kotlin literal-spacing compilation errors produced no accepted test
+counts. The first synthetic fixture expected an X-scoped identifier to establish
+a wider platform relation. Its corrected presentation control uses the qualified
+X witnesses; the broader coverage question remains separate. Another fixture
+used an image assertion requiring downloaded movie bytes. Its corrected recording
+assertion instead checks exact source retention and explicitly verifies that no
+movie was downloaded. Those failed attempts remain in private evidence.
+
+Final publication additionally requires the clean-revision APK's native suite,
+current and prior captured-family controls, cache recovery, state-preserving
+preview upgrade, source/signer checks and anonymous permanent-download hashing.
+Repeated thread headings, global refresh presentation and unrelated media cases
+remain separate investigations. This is not complete-feed clearance or a
+physical-phone latency, energy or display measurement.
+
 ## 0.38.111: recover an incomplete bounded recording sample
 
 The continuing November 14, 2026 (UTC) native review found a fifth recording
