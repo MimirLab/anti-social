@@ -1432,6 +1432,48 @@ class FusionFeedTest {
         assertEquals(1,Regex(Regex.escape(prefix)).findAll(text).count());assertTrue(text.contains(names));assertTrue(text.contains(handles))
     }
 
+    @Test fun aJointlySuppliedEditionKeepsItsExistingSiblingOneCaptionAndEverySavedOriginal() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val text="Under the community repair program, equipment is returning. Volunteers are returning. Practical skills are returning. The workshop is BACK. 🛠"
+        val marked=text.replace("workshop is","@workshop is");val bridge="https://bridge.fixture.invalid"
+        val partnerHandle="aspartner${suffix.takeLast(6)}"
+        val partner=Follow("partner-$suffix",repo.routes.target(Platform.INSTAGRAM,partnerHandle),"Partner workshop",personId="partner-person-$suffix").also {accounts+=it}
+        val local=follow(Platform.INSTAGRAM);val facebookFollow=follow(Platform.FACEBOOK);val xFollow=follow(Platform.X)
+        val instagram=oldInstagram.copy(author=partnerHandle,body=text,title="▶ $text",publishedAt=now-59_000,
+            provenance=Provenance(Source(Platform.INSTAGRAM,"rss-bridge",bridge),now,"$bridge/?bridge=Instagram&context=Username&u=$partnerHandle"))
+        val x=oldX.copy(body="$marked Video",title="RT by @$partnerHandle: $marked",publishedAt=now-120_000,
+            provenance=Provenance(Source(Platform.X,"nitter","https://nitter.fixture.invalid"),now,"https://nitter.fixture.invalid/$partnerHandle/rss"),
+            links=listOf("https://nitter.fixture.invalid/workshop"))
+        val facebook=oldX.copy(id="shared-fb-$suffix",platform=Platform.FACEBOOK,canonicalUrl="https://www.facebook.com/$handle/posts/98${suffix}2001",
+            author="Community workshop",body=text,title="",publishedAt=now-58_500,media=listOf(Media("https://fusion-video-$suffix.invalid/repair.mp4","video")))
+        val originals=listOf(x,instagram,facebook);records+=originals
+        store(x,xFollow);store(instagram,local);store(instagram,partner);store(facebook,facebookFollow)
+        cachePicture(instagram);cachePicture(x,inverted=true)
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x)
+        row(instagram).assertDoesNotExist();row(facebook).assertDoesNotExist()
+        val caption=ui.onNodeWithTag("Fusion woven text").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" "){it.text}
+        assertEquals(1,Regex(Regex.escape("Under the community repair program")).findAll(caption).count())
+        for(label in listOf("Facebook","Instagram","X"))assertTrue(caption.contains(label))
+        ui.waitForIdle();Thread.sleep(300);evidence("shared-feed-whole-family-one-caption")
+        val captured=originals.map(repo.images.identities::captured);val plan=collectionPlan(captured)
+        assertEquals(3,plan.attachments.size);assertNull(instagram.authorAccount)
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==3}
+        val saved=runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!
+        // The byte-observation helper applies to the two cached pictures. This
+        // video deliberately has no downloaded bytes: retain its exact source
+        // record without inventing a file hash, watermark or pixel observation.
+        val imageSources=originals.filter {post->post.media.all {it.type=="image"}}
+        assertCapturedSources(imageSources,saved.filter {post->imageSources.any {repo.key(it)==repo.key(post)}})
+        assertEquals(facebook,saved.single {it.platform==Platform.FACEBOOK})
+        assertNull(saved.single {it.platform==Platform.INSTAGRAM}.authorAccount)
+        val savedPlan=collectionPlan(saved);assertEquals(3,savedPlan.attachments.size)
+        val fusion=requireNotNull(savedPlan.fusion)
+        assertEquals(1,Regex(Regex.escape("Under the community repair program")).findAll(fusion.segments.single().text).count())
+        assertTrue(requireNotNull(fusion.weave).any {run->run.variants.any {it.text=="@workshop"}})
+    }
+
     @Test fun settingsCachePurgeRefillsTheNativeFeedAndRetainsConfigurationAndSavedText() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))

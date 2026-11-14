@@ -66,6 +66,39 @@ internal object AnnouncementEditions {
         return finishPassages(docs,fusion.weave.orEmpty())
     }
 
+    private val markedMention=Regex("@[A-Za-z][A-Za-z0-9_]{1,29}[.,!?;:]?")
+    /** Literal @marker variants after independent publication/collection proof.
+     * No name expansion, matching account lookup or identity assertion. */
+    fun composeMentionMarks(posts:List<Post>):PostFusion? {
+        if(posts.size !in 2..CrossPosts.MAX_EDITIONS||posts.map(CrossPosts::originalKey).distinct().size!=posts.size||
+            posts.none {'@' in it.body||'@' in it.title})return null
+        val docs=posts.sortedBy(CrossPosts::originalKey).map {caption(it) ?: return null}
+        val words=docs.map {it.messageTokens};val count=words.first().size
+        if(count !in 12..256||words.any {it.size!=count}||docs.any {it.message.length<80})return null
+        if(docs.indices.groupBy {docs[it].post.platform}.values.any {rows->rows.map {words[it].map(::key)}.distinct().size>1})return null
+        val changes=words.first().indices.filter {index->words.map {key(it[index])}.distinct().size>1}
+        if(changes.size !in 1..4)return null
+        for(index in changes) {
+            val variants=words.map {it[index]}.distinct()
+            if(variants.size!=2||variants.none(markedMention::matches)||variants.map {key(it.removePrefix("@"))}.distinct().size!=1)return null
+        }
+        val common=words.first().indices.filter {it !in changes}.map {words.first()[it]}
+        if(common.size<12||common.map(::key).distinct().size<8)return null
+        val allPlatforms=posts.mapTo(linkedSetOf()){it.platform};val allKeys=posts.mapTo(linkedSetOf(),CrossPosts::originalKey)
+        val runs=mutableListOf<FusionRun>();val buffer=mutableListOf<String>()
+        fun flush() {if(buffer.isNotEmpty()){runs+=FusionRun(true,listOf(FusionVariant(buffer.joinToString(" "),allPlatforms,allKeys)));buffer.clear()}}
+        for(index in words.first().indices) {
+            if(index !in changes)buffer+=words.first()[index]else {
+                flush()
+                runs+=FusionRun(false,docs.indices.groupBy {key(words[it][index])}.values.map {rows->
+                    FusionVariant(words[rows.first()][index],rows.mapTo(linkedSetOf()){docs[it].post.platform},rows.mapTo(linkedSetOf()){CrossPosts.originalKey(docs[it].post)})
+                })
+            }
+        }
+        flush()
+        return finishPassages(docs,runs)
+    }
+
     private val nameWord=Regex("[\\p{L}]+(?:['’\\-][\\p{L}]+)*")
     private val nameConnectives=setOf("and","of","the","de","del","van","von","da","di","du","le","la","&")
     private val changedStatus=setOf("no","not","never","without","new","old","former","different","replacement","fake","counterfeit",

@@ -3,6 +3,7 @@ package app.antisocial.core
 import org.jsoup.Jsoup
 import java.net.URI
 import java.text.Normalizer
+import java.util.Locale
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -114,7 +115,7 @@ object CrossPosts {
     }
     private data class Features(val post: Post,val owner: String?,val text: String,val base: String,val tokens: List<String>,
         val numbers: List<String>,val negatives: List<String>,val symbols: String,val urls: Set<String>,val destinations: Set<String>,val media: Set<String>,val truncated: Boolean,
-        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>,val decoration:DecoratedPostCopies.Prepared?) {
+        val validOriginal:Boolean,val canonical:String?,val account:String?,val curator:String?,val clips:Set<String>,val suppliedBy:Set<String>,val decoration:DecoratedPostCopies.Prepared?,val sharedFeedOwners:Set<String> = emptySet()) {
     }
     /** One active source window may receive many image observations. Keep only
      * its pure source analysis; never retain an admitted pair/group or a pixel
@@ -201,7 +202,7 @@ object CrossPosts {
             fun size(values:Iterable<String>)=values.sumOf {8L+if(strings.put(it,true)==null)56L+it.length*2L else 0L}
             val cost=1024L+size(listOf(source.title,source.body,source.author,source.canonicalUrl,features.text,features.base,features.symbols))+
                 size(source.links.orEmpty()+listOfNotNull(source.avatar,source.parentId,source.conversationId,source.relationId,source.sourceParentId))+
-                size(features.tokens+features.numbers+features.negatives+features.urls+features.destinations+features.media+features.clips+candidates)+
+                size(features.tokens+features.numbers+features.negatives+features.urls+features.destinations+features.media+features.clips+features.sharedFeedOwners+candidates)+features.sharedFeedOwners.size*32L+
                 source.media.sumOf {512L+size(listOfNotNull(it.url,it.preview,it.description,it.mimeType,it.audioUrl,it.audioMimeType))}+
                 (decoration?.let {1024L+size(listOf(it.text,it.symbols)+it.tokens+it.resources+it.claims)+it.chunks.size*4L} ?: 0L)
             val entry=SourceFeatures(source,features.copy(post=source,decoration=null),decorative,decorationKnown,decoration?.copy(post=source),candidates,cost)
@@ -952,6 +953,30 @@ object CrossPosts {
             else->pathOwners.intersect(sourceOwners.toSet()).singleOrNull()
         }
     }
+    /** The same original was supplied by distinct followed profile feeds. This
+     * proves distribution only, never common control or a preferred author.
+     * Keep legacy aliases of one profile and unrelated declared authors out. */
+    private fun sharedFeedOwners(post:Post,eligible:List<Pair<String,Follow>>,sources:Set<String>):Set<String> {
+        if(post.platform!=Platform.INSTAGRAM||sources.size !in 2..16||!PostAuthorAccounts.valid(post))return emptySet()
+        val proof=post.provenance ?: return emptySet()
+        if(proof.source.platform!=Platform.INSTAGRAM||proof.source.frontend!="rss-bridge"||proof.source.role!=SourceRole.ALTERNATE)return emptySet()
+        val root=proof.source.root.toHttpUrlOrNull() ?: return emptySet()
+        val final=proof.finalUrl.toHttpUrlOrNull() ?: return emptySet()
+        if(!root.isHttps||!final.isHttps||root.host!=final.host||root.port!=final.port||
+            root.username.isNotEmpty()||root.password.isNotEmpty()||root.query!=null||root.fragment!=null||
+            final.username.isNotEmpty()||final.password.isNotEmpty()||final.fragment!=null||
+            final.encodedPath.trimEnd('/') !in setOf(root.encodedPath.trimEnd('/'),root.encodedPath.trimEnd('/')+"/index.php"))return emptySet()
+        if(final.queryParameterValues("bridge")!=listOf("Instagram")||final.queryParameterValues("context")!=listOf("Username"))return emptySet()
+        val username=final.queryParameterValues("u").singleOrNull() ?: return emptySet()
+        val declared=PostAuthorAccounts.instagram(username)?.profileUrl?.lowercase(Locale.ROOT) ?: return emptySet()
+        val feeds=eligible.filter {it.second.id in sources&&it.second.target.kind==TargetKind.PROFILE}
+        if(feeds.size!=sources.size)return emptySet()
+        val profiles=feeds.map {(_,follow)->PostAuthorAccounts.target(Platform.INSTAGRAM,PostAuthorAccount(follow.target.canonicalUrl))?.canonicalUrl?.lowercase(Locale.ROOT) ?: return emptySet()}
+        if(profiles.distinct().size!=profiles.size||declared !in profiles)return emptySet()
+        val actual=PostAuthorAccounts.target(post)?.canonicalUrl?.lowercase(Locale.ROOT)
+        if(actual!=null&&actual !in profiles)return emptySet()
+        return feeds.mapTo(linkedSetOf()){it.first}.takeIf {it.size>=2}.orEmpty()
+    }
     private fun features(post: Post,accounts: Map<Platform,List<Pair<String,Follow>>>,memberships: Map<String,Set<String>>): Features {
         val eligible=accounts[post.platform].orEmpty()
         val sources=memberships[originalKey(post)].orEmpty()
@@ -978,7 +1003,21 @@ object CrossPosts {
             // resource. Unmentioned generic homepages from attachment lists
             // remain weak evidence, as do profile/navigation destinations.
             urls.filter {it !in enclosures&&(destination(it)||it in literalLinks&&SocialLinkHosts.platform(it)==null)&&it!=normalizedUrl(post.canonicalUrl)&&!linksToOriginal(it,post)}.toSet(),media,Regex("(?:…|\\.\\.\\.)\\s*$").containsMatchIn(plain),
-            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post),eligible.filter {it.second.id in sources}.mapTo(linkedSetOf()){it.second.id},null)
+            realOriginal(post),normalizedUrl(post.canonicalUrl),originalAccount(post),curator(post),clipIds(post),eligible.filter {it.second.id in sources}.mapTo(linkedSetOf()){it.second.id},null,sharedFeedOwners(post,eligible,sources))
+    }
+    private fun sharedFeedAnnouncement(a:Features,b:Features):Boolean {
+        if(!(b.owner!=null&&b.owner in a.sharedFeedOwners||a.owner!=null&&a.owner in b.sharedFeedOwners))return false
+        if(a.post.platform==b.post.platform||!a.validOriginal||!b.validOriginal||a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||
+            a.post.recoveredArchive!=null||b.post.recoveredArchive!=null||a.truncated||b.truncated||
+            a.post.title.length.toLong()+a.post.body.length>4096||b.post.title.length.toLong()+b.post.body.length>4096||
+            a.post.media.size !in 1..64||b.post.media.size !in 1..64||a.text.length<80||a.tokens.size !in 12..256||a.tokens.toSet().size<8)return false
+        val x=a.post.publishedAt?.takeIf {it>0} ?: return false;val y=b.post.publishedAt?.takeIf {it>0} ?: return false
+        fun concrete(row:Features)=row.destinations.filterNot {nitterMentionLink(row.post,it)}.toSet()
+        if(kotlin.math.abs(x-y)>600_000||concrete(a)!=concrete(b)||!referenceIntegrity(a.post)||!referenceIntegrity(b.post)||!completeCopyText(a,b))return false
+        // Complete literal captions have no unmatched response framing. The
+        // longer passage aligner's minimum length is not an admission rule here.
+        return PostPresentation.comparableContent(a.post)==PostPresentation.comparableContent(b.post)||
+            AnnouncementEditions.composeMentionMarks(listOf(a.post,b.post))!=null
     }
     private fun explicit(a: Features,b: Features): Boolean {
         return a.urls.any {linksToOriginal(it,b.post)}||b.urls.any {linksToOriginal(it,a.post)}
@@ -1472,7 +1511,7 @@ object CrossPosts {
         ordered.indices.forEach {i->candidates[i]?.filter {it>i&&i in candidates[it].orEmpty()}?.forEach {j->
             checkpoint()
             if(repeatMatch(ordered[i],ordered[j],sameMedia,includeDeclared=false)||copyMatch(ordered[i],ordered[j],sameMedia)){repeatEdges[i]+=j;repeatEdges[j]+=i}
-            val exact=matches(ordered[i],ordered[j],sameMedia)
+            val exact=matches(ordered[i],ordered[j],sameMedia)||sharedFeedAnnouncement(ordered[i],ordered[j])
             if(exact||fusionMatch(ordered[i],ordered[j],sameMedia)) {
                 edges[i]+=j;edges[j]+=i
                 if(!exact){fusionEdges[i]+=j;fusionEdges[j]+=i}

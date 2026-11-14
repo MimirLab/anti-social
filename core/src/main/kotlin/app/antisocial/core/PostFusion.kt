@@ -652,6 +652,7 @@ object CrossPostFusion {
     /** Literal compression of already collected editions. Deliberately separate
      * from pair admission and its corroboration thresholds. */
     fun composeCollectedEditions(posts:List<Post>):PostFusion? = AnnouncementEditions.compose(posts) ?: DecoratedPostCopies.composeShort(posts)
+        ?: AnnouncementEditions.composeMentionMarks(posts)
         ?: if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)else null
         ?: if(posts.any {'@' in it.body||'@' in it.title}&&CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)else null
         ?: if(CrossPosts.pictureReferenceCollection(posts))AnnouncementEditions.composeReferenceNames(posts)else null
@@ -672,9 +673,11 @@ object CrossPostFusion {
             if(ordinary.segments.size>1&&CrossPosts.literalWordingCollection(posts))
                 CaptionWeave.composeWordingEdits(posts)?.let {return it}
             if(ordinary.segments.size>1&&CrossPosts.pictureReferenceCollection(posts))return AnnouncementEditions.composeReferenceNames(posts)
+            if(ordinary.segments.size>1)AnnouncementEditions.composeMentionMarks(posts)?.let {return it}
             return ordinary
         }
         if(CrossPosts.pictureReferenceCollection(posts))return AnnouncementEditions.composeReferenceNames(posts)
+        AnnouncementEditions.composeMentionMarks(posts)?.let {return it}
         if(CrossPosts.resourceAnnouncementCollection(posts))ResourceAnnouncements.compose(posts)?.let {return it}
         if(CrossPosts.literalWordingCollection(posts))CaptionWeave.composeWordingEdits(posts)?.let {return it}
         if(CrossPosts.corroboratedPassageCollection(posts))AnnouncementEditions.composePassages(posts)?.let {return it}

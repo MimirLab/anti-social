@@ -1,5 +1,44 @@
 # Attachment collections
 
+## Shared public-feed announcements and literal mention markers (0.38.104)
+
+An opaque Instagram original can be supplied through two distinct subscribed
+profile feeds. A single-owner field correctly remains unresolved when their
+local subscription bundles differ. The collection matcher now retains that
+distribution evidence separately: it can compare a complete announcement with
+another edition from one of those already linked bundles, without selecting an
+author or asserting common account control.
+
+The additional route currently qualifies RSS-Bridge Instagram username feeds.
+It checks the actual HTTPS bridge origin, endpoint and unique username/context
+parameters, enabled profile memberships and distinct canonical profiles. Case
+aliases of one profile, disabled sources, tags and unrelated declared authors
+do not supply the proof. Captions need at least 80 characters, 12 words and
+eight distinct terms, media on both editions and publication times within ten
+minutes. Existing claim, symbol, question, destination and source-reference
+guards apply. Ordinary reciprocal nomination, complete-link grouping and
+per-platform ambiguity limits remain in place.
+
+A companion literal compositor handles a word such as `workshop` versus
+`@workshop` in an otherwise identical substantial caption. It shares the common
+text and retains each exact marker variant with its source. It permits no name
+expansion or account lookup. Whole ordered source paths must reconstruct, and
+different claims, punctuation or names cannot become marker variants. Qualified
+Nitter mention navigation remains separate from literal article destinations.
+
+These changes work from existing local subscription supplies and captured text;
+they add no request, model, dependency, permission or persistent identity store.
+The native captured family retains its separate authors and repost attribution,
+all three source editions and all three distinct attachment records in a save.
+Missing image/video bytes in that replay remain unverified; caption collection
+does not establish equal pictures, equal recordings or playback availability.
+
+Qualification compares the complete three-platform family and its surrounding
+702-original capture. An earlier two-post candidate is rejected because it
+strands an already grouped sibling. The final candidate joins the entire family
+and leaves every other captured group unchanged. See
+[release qualification](RELEASE_QUALIFICATION.md).
+
 ## Names and handles inside one observed picture announcement (0.38.103)
 
 A long shared caption can name people on one platform and use account handles

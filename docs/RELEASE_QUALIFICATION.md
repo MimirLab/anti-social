@@ -9,6 +9,56 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.104: preserve the whole shared-feed announcement family
+
+The continuing feed audit on November 13–14, 2026 (UTC) reproduces a complete
+announcement supplied through two Instagram profile feeds and published on two
+other platforms. Released 0.38.103 keeps the Instagram edition apart. A bounded
+distribution relation and literal mention-marker compositor now retain the full
+family with one common caption. They preserve separate authors, source links,
+repost attribution and every captured edition; they do not resolve ambiguous
+account ownership. See
+[the collection contract](ATTACHMENT_COLLECTIONS.md#shared-public-feed-announcements-and-literal-mention-markers-038104).
+Version code is 213; application ID and signing compatibility are unchanged.
+
+- The exact released APK reproduces **two cards and two common-caption
+  occurrences** for the three-source family. The captured replay on the prototype
+  passes on API 35 and minimum API 26: **one card, one common caption, three
+  attachment records and all three saved originals**. No missing image or video
+  bytes, fingerprint or playback result is invented.
+- The first candidate passes a two-post replay but changes the surrounding
+  702-original corpus from two old groups into two different groups, stranding
+  the existing third-platform sibling. That candidate is held. The corrected
+  replay includes all three editions, passes in both input orders and changes
+  exactly those two old groups into one three-source family. All other captured
+  groups and all original source fields remain unchanged.
+- **67 focused JVM checks pass**, with zero skips, failures or errors. The full
+  JVM suite completes **2,862 cases: 2,858 passes, four optional skips, zero
+  failures or errors**, without private reader inputs. Coverage includes
+  conflicting profile aliases, actual-author preservation, source/URL guards,
+  changed claims and destinations, source-preparation handoff and whole-family
+  literal projections.
+- The new synthetic native case fails on released 0.38.103 because the extra
+  Instagram row remains. Its corrected prototype run passes separately on each
+  API, with two genuinely cached, distinct pictures and one deliberately
+  undownloaded video. The initial prototype test reaches its save but then fails
+  because an image-byte helper expects a file for that video. The helper is
+  scoped to the two supplied pictures; a separate exact-record assertion keeps
+  the unavailable video free of manufactured metadata. Runtime code is unchanged
+  by this test correction, and the original failures are retained.
+- Each broader native selection completes **128 named checks: 121 passes,
+  seven explicit opt-in skips, zero failures** on API 35 and API 26. The selection
+  includes the full fusion suite, media identity, cross-post cards, saved media
+  and Library records, connection handling and native caption tokenization.
+
+Fresh native captures of the real and synthetic families are inspected on both
+APIs. This is an incremental correction within an ongoing feed audit. It does
+not qualify every shared-author source, missing-media route, gallery or quote
+case, and it does not establish physical-phone latency or energy measurements.
+Clean-source stamping, signer and source-archive correspondence, a recoverable
+preview-state backup and anonymous permanent-download verification remain
+publication gates.
+
 ## 0.38.103: collect name and handle variants of an observed picture announcement
 
 The continuing native feed audit on November 13, 2026 (UTC) reproduced a
