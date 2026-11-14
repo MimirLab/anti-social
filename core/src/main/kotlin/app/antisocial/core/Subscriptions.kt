@@ -428,7 +428,9 @@ object CrossPosts {
         if(pictureReferenceCollection(posts))return true
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         if(prepared.indices.all {i->(i+1 until prepared.size).all {j->shortPictureCaptionPair(prepared[i],prepared[j])}})return true
-        return prepared.indices.all {i->(i+1 until prepared.size).all {j->copyMatch(prepared[i],prepared[j],sameMedia)}}
+        return prepared.indices.all {i->(i+1 until prepared.size).all {j->
+            copyMatch(prepared[i],prepared[j],sameMedia)||facebookPictureCaptionCopy(prepared[i],prepared[j])
+        }}
     }
     /** Portable content proof for a two-word caption and one actually observed
      * whole picture. This never proves common account control. Pair admission
@@ -1139,6 +1141,46 @@ object CrossPosts {
         val author=label(a.post)
         return !author.isNullOrBlank()&&author==label(b.post)&&supplied(a.post)&&supplied(b.post)
     }
+    private val facebookNumericId=Regex("[0-9]{5,40}")
+    private val facebookVanity=Regex("[A-Za-z][A-Za-z0-9.]{0,99}")
+    private val facebookOpaqueId=Regex("pfbid[A-Za-z0-9]{12,160}")
+    /** Portable literal/picture evidence for saved editions, never an account
+     * identifier mapping. Live admission below additionally needs the exact
+     * supplying subscription and its existing publisher binding. */
+    private fun facebookPictureCaptionCopy(a:Features,b:Features):Boolean {
+        if(a.post.platform!=Platform.FACEBOOK||b.post.platform!=Platform.FACEBOOK||!a.validOriginal||!b.validOriginal||
+            a.post.preview||b.post.preview||a.post.parentId!=null||b.post.parentId!=null||a.truncated||b.truncated||
+            a.post.recoveredArchive!=null||b.post.recoveredArchive!=null||
+            a.post.canonicalUrl.length>512||b.post.canonicalUrl.length>512||
+            a.post.publishedAt?.let {it>0&&it==b.post.publishedAt}!=true||
+            a.post.title.length.toLong()+a.post.body.length>256||b.post.title.length.toLong()+b.post.body.length>256||
+            a.text.length !in 12..80||a.tokens.size !in 3..7||a.tokens.distinct().size<3||
+            a.destinations!=b.destinations||!completeCopyText(a,b))return false
+        fun form(post:Post):Int? {
+            val url=uri(post.canonicalUrl) ?: return null
+            if(url.port!=-1&&url.port!=443||url.rawQuery!=null||url.rawFragment!=null)return null
+            val parts=url.path.trim('/').split('/')
+            if(parts.size!=3||parts[1]!="posts")return null
+            return when {
+                facebookNumericId.matches(parts[0])&&facebookNumericId.matches(parts[2])->0
+                facebookVanity.matches(parts[0])&&facebookOpaqueId.matches(parts[2])->1
+                else->null
+            }
+        }
+        val firstForm=form(a.post) ?: return false;val secondForm=form(b.post) ?: return false
+        if(firstForm==secondForm)return false
+        fun literal(post:Post)=Normalizer.normalize(TextWhitespace.collapse(decoded(PostPresentation.content(post))).trim(),Normalizer.Form.NFC)
+        fun author(post:Post)=post.author.takeIf {it.length in 1..300}?.let {Normalizer.normalize(TextWhitespace.collapse(decoded(it)).trim(),Normalizer.Form.NFC).lowercase(Locale.ROOT)}
+        val label=author(a.post)
+        if(label.isNullOrBlank()||label!=author(b.post)||literal(a.post)!=literal(b.post))return false
+        val first=singlePhotograph(a.post) ?: return false;val second=singlePhotograph(b.post) ?: return false
+        return VisualFrames.sameImage(first,second)
+    }
+    /** Fold two observed representations before they compete for another
+     * platform's counterpart, without asserting common account control. */
+    private fun observedFacebookAlias(a:Features,b:Features):Boolean =
+        a.post.platform==Platform.FACEBOOK&&b.post.platform==Platform.FACEBOOK&&a.owner!=null&&a.owner==b.owner&&
+            a.suppliedBy.any {it in b.suppliedBy}&&facebookPictureCaptionCopy(a,b)
     private fun copyMatch(a: Features,b: Features,sameMedia: (Post,Post)->Boolean): Boolean {
         if(commentCopies(a,b))return true
         if(a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated||!a.validOriginal||!b.validOriginal)return false
@@ -1314,7 +1356,7 @@ object CrossPosts {
         if(a.post.platform!=b.post.platform||a.post.parentId!=null||b.post.parentId!=null||a.post.preview||b.post.preview||a.truncated||b.truncated)return false
         // Fold proven extraction aliases before they become two competing
         // candidates for another platform's one counterpart slot.
-        if(compactFacebookAlias(a,b))return true
+        if(compactFacebookAlias(a,b)||observedFacebookAlias(a,b))return true
         val sameAccount=a.account!=null&&a.account==b.account||(a.curator ?: a.account)?.let {it==(b.curator ?: b.account)}==true
         // Facebook commonly exposes both numeric and pfbid editions. The
         // exact same subscribed feed, timestamp and distinctive complete text

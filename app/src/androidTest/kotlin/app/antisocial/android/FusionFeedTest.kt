@@ -1474,6 +1474,58 @@ class FusionFeedTest {
         assertTrue(requireNotNull(fusion.weave).any {run->run.variants.any {it.text=="@workshop"}})
     }
 
+    @Test fun observedFacebookAliasesSaveAndReopenWithoutTheirSubscriptionOrImageBank() {
+        val (oldX,oldInstagram)=pair();records.removeAll(listOf(oldX,oldInstagram))
+        val text="Our workshop tools are ready. 🛠"
+        val x=oldX.copy(title="",body=text)
+        val instagram=oldInstagram.copy(title="",body=text)
+        val numericId="98${suffix}1002"
+        val facebook=x.copy(id="post:$numericId",platform=Platform.FACEBOOK,author="Public workshop",
+            canonicalUrl="https://www.facebook.com/1234567$suffix/posts/$numericId",publishedAt=now-59_500,
+            media=listOf(Media("https://fusion-alias-$suffix.invalid/numeric.png")))
+        val opaque=facebook.copy(id="post:pfbidFixtureAlias$suffix",canonicalUrl="https://www.facebook.com/$handle/posts/pfbidFixtureAlias$suffix",
+            media=listOf(Media("https://fusion-alias-$suffix.invalid/opaque.jpg")))
+        val originals=listOf(x,facebook,opaque,instagram);records+=originals
+        val linked=listOf(Platform.X,Platform.FACEBOOK,Platform.INSTAGRAM).associateWith(::follow)
+        originals.forEach {store(it,linked.getValue(it.platform));cachePicture(it,jpeg=it==opaque||it==instagram)}
+        val raw=runBlocking {originals.associate {repo.key(it) to requireNotNull(repo.dao.post(repo.key(it))).payload}}
+        val observed=originals.map(repo.images.identities::captured)
+        assertTrue(observed.all {it.media.single().visualFingerprint?.startsWith("f2|")==true})
+        assertEquals(1,collectionPlan(observed).attachments.size)
+        seed("all",originals);val vm=model();show(vm,all=true);waitRow(x)
+        originals.filter {it!=x}.forEach {row(it).assertDoesNotExist()}
+        ui.onAllNodesWithText(text).assertCountEquals(1)
+        ui.onNodeWithText("4 originals · X · Facebook · Instagram").assertExists()
+        val save=hasContentDescription("Save post") and hasAnyAncestor(hasTestTag("Feed row ${repo.key(x)}"))
+        revealCombinedControl(save);ui.onNode(save).performClick()
+        ui.waitUntil(5_000){runBlocking {repo.library.details(repo.key(x))}?.fusionRoots?.size==4}
+        assertCapturedSources(originals,runBlocking {repo.library.details(repo.key(x))}!!.fusionRoots!!)
+        evidence("observed-facebook-aliases-one-feed-card")
+
+        // The saved collection must validate from its captured evidence after
+        // local subscriptions and the volatile image bank disappear.
+        repo.images.identities.clear()
+        runBlocking {linked.values.forEach {repo.dao.removeFollow(it.id)}}
+        val copy=runBlocking {repo.library.copy(repo.key(x))}!!
+        val reopened=repo.library.normalizedFusionRoots(copy.post,copy.details!!.fusionRoots!!)
+        assertCapturedSources(originals,reopened)
+        assertEquals(1,collectionPlan(reopened).attachments.size)
+        assertEquals(text,requireNotNull(collectionPlan(reopened).fusion).segments.single().text)
+        assertEquals(raw,runBlocking {originals.associate {repo.key(it) to requireNotNull(repo.dao.post(repo.key(it))).payload}})
+        ui.onNodeWithTag("Primary destination saved").performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Library screen").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Library scope saved").performClick()
+        val entry=hasTestTag("Library entry ${repo.key(x)}")
+        ui.onNodeWithTag("Library results").performScrollToNode(entry);ui.onNode(entry).performClick()
+        ui.waitUntil(10_000){ui.onAllNodesWithTag("Local copy reader").fetchSemanticsNodes().isNotEmpty()}
+        ui.onNodeWithTag("Local source edition all").assertExists()
+        for(post in listOf(facebook,opaque))ui.onNodeWithTag("Local source editions").performScrollToNode(hasTestTag("Local source edition ${repo.key(post)}"))
+        ui.onNodeWithTag("Local copy content").performScrollToNode(hasText("Photo not included in this copy"))
+        ui.onAllNodesWithText(text).assertCountEquals(1)
+        ui.onAllNodesWithText("Photo not included in this copy").assertCountEquals(1)
+        evidence("observed-facebook-aliases-cold-local-copy")
+    }
+
     @Test fun settingsCachePurgeRefillsTheNativeFeedAndRetainsConfigurationAndSavedText() {
         Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("antisocialIsolatedFixtureDevice")=="true")
         val (x,instagram)=pair();store(x,follow(Platform.X));store(instagram,follow(Platform.INSTAGRAM))

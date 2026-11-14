@@ -1,5 +1,34 @@
 # Attachment collections
 
+## Observed compact Facebook editions and saved content proof (0.38.105)
+
+A numeric Facebook post URL and an opaque `pfbid` URL can be supplied through
+the same subscribed profile with the same publication instant and caption.
+For short captions, the two records could remain competing candidates for
+another platform's counterpart, leaving repeated cards and photographs.
+
+A bounded additional route now reconciles those editions when their existing
+publisher binding and exact supplying subscription agree. It requires a complete
+literal caption, the same author label and timestamp, compatible destinations,
+one numeric and one opaque URL form, and the existing detailed whole-photograph
+comparison. It uses already decoded pixels. Missing or coarse observations,
+attachment-only graphics, galleries, video covers, avatars, changed words or
+punctuation and unrelated source supplies do not establish this relation.
+
+The picture-and-caption proof is also available to saved-content validation.
+It proves matching content, without mapping a numeric account identifier to a
+vanity name or claiming common account control. Live grouping still requires
+the local subscription evidence. Both original URLs and all captured source
+records remain distinct, including after their subscriptions are removed and
+the volatile image comparison bank is cleared. Library can reopen the combined
+caption with both Facebook editions available separately.
+
+An initial candidate fixed the reading card but failed the Library save; it was
+held. The corrected candidate qualifies the complete four-edition announcement
+and its surrounding 669-original capture, with every other group unchanged.
+No request, dependency, permission, persistent identity map or database migration
+is added. See [release qualification](RELEASE_QUALIFICATION.md).
+
 ## Shared public-feed announcements and literal mention markers (0.38.104)
 
 An opaque Instagram original can be supplied through two distinct subscribed

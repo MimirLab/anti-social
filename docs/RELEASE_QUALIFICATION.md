@@ -9,6 +9,66 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.105: reconcile observed Facebook editions without losing saved originals
+
+The continuing native feed audit on November 14, 2026 (UTC) confirms a compact
+announcement appearing under numeric and opaque Facebook post URLs, alongside
+two other platforms. Existing local subscriptions already supply the publisher
+bindings. The duplicate Facebook candidates prevented complete collection.
+The new relation uses that same feed supply, exact caption/time and an actual
+whole-picture observation. Its saved-content proof remains separate from account
+ownership. See [the collection contract](ATTACHMENT_COLLECTIONS.md#observed-compact-facebook-editions-and-saved-content-proof-038105).
+Version code is 214; application ID and signing compatibility are unchanged.
+
+- Four explicit public image reads through the shipping Gateway and decoder
+  succeed. The existing media collector recognizes one picture; no invented
+  fingerprint or substituted source image supplies this proof. A different
+  candidate has an unavailable image returning 403 and remains unqualified.
+- Released 0.38.104 leaves repeated cards, captions and pictures in the captured
+  native replays. The corrected candidate yields **one card, one caption, one
+  picture and all four saved source editions** on API 35 and minimum API 26.
+  The first candidate achieves the reading result but fails Library validation
+  of the repeated Facebook editions. It is held; the shared content proof fixes
+  saving without inventing an account-identity mapping.
+- **48 focused JVM checks pass**, with zero failures or skips. On the identical
+  669-original capture and four recorded native picture observations, exactly
+  three old groups become one four-original family: **558 groups to 556**.
+  All other groups and every original source field remain unchanged. Both input
+  orders pass. Earlier private diagnostic expectation/key mistakes are retained
+  separately and are not used as product-defect evidence.
+- The full JVM suite completes **2,870 cases: 2,866 passes, four optional skips,
+  zero failures or errors**. This is the corrected candidate, including portable
+  saved-content validation; the earlier candidate's green core run did not
+  establish a working native save.
+- The new synthetic native regression fails on the released baseline because
+  an extra opaque Facebook row remains. It qualifies the corrected feed, saves
+  all four originals, removes its own fixture subscriptions, clears the image
+  comparison bank, and reopens the combined copy in Library. Each original URL
+  remains available. Quick Save keeps its existing text-only behavior, with one
+  explicit unavailable-photo placeholder rather than repeated placeholders.
+- Each broader native selection completes **129 named checks: 122 passes,
+  seven explicit opt-in skips, zero failures** on API 35 and API 26. It includes
+  fusion, media identity, cross-post feeds, saved media and Library records,
+  connection handling and native caption tokenization.
+
+One initial cold-check attempt on the disposable API 26 installation reports
+SQLite corruption. Android's default handler deletes that test database; the
+logs and remaining database files are preserved before any recovery action.
+An ordinary application launch creates an empty test database, whose offline
+integrity check passes. The repeated cold check and complete native selection
+then pass. The corruption's cause remains unresolved; this increment changes no
+database schema, migration or persistence implementation and does not claim to
+repair database corruption. The retained reader preview is not that disposable
+installation. Observer-path/termination errors are also retained separately from
+the completed native method outcomes and fresh screenshots.
+
+Actual native captured and synthetic screens are inspected. This remains an
+increment within the wider duplicate-feed audit, not a claim that all captions,
+galleries, missing media or video families are resolved. No physical-phone
+latency or energy measurements are inferred. Clean source stamping, signer and
+archive correspondence, a verified recoverable preview-state backup, final-APK
+checks and anonymous permanent-download verification remain publication gates.
+
 ## 0.38.104: preserve the whole shared-feed announcement family
 
 The continuing feed audit on November 13–14, 2026 (UTC) reproduces a complete
