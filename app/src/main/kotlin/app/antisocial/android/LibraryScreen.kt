@@ -258,26 +258,85 @@ private data class LibraryCard(val savedAt:Long,val post:LibraryEntry?=null,val 
     if(create)CreateLibraryCollection(repo,onCreated={selectedCollections=selectedCollections+it;create=false},onDismiss={create=false})
 }
 
-@Composable private fun LocalCopyMedia(repo: Repository,media: Media,post: Post,onImage: (String)->Unit) {
-    val revision by repo.library.revision.collectAsState()
-    var file by remember(media.url){mutableStateOf<File?>(null)}
-    LaunchedEffect(media.url,revision){file=repo.library.assetFile(media.url)}
-    if(media.type=="image")LocalCopyImage(repo,file,media.description,Modifier.fillMaxWidth().heightIn(min=100.dp,max=420.dp).clickable(enabled=file!=null){onImage(media.url)})
-    else VideoCard(media,post,repo,localOnly=true,localFile=file)
+private data class LocalCopyFile(val file:File?=null,val loading:Boolean=true,val failed:Boolean=false,val retry:()->Unit={})
+
+@Composable private fun localCopyFile(repo:Repository,url:String,revision:Int):LocalCopyFile {
+    var attempt by remember(url){mutableIntStateOf(0)}
+    var state by remember(url){mutableStateOf(LocalCopyFile())}
+    LaunchedEffect(url,revision,attempt) {
+        if(state.file==null)state=LocalCopyFile()
+        state=try {LocalCopyFile(repo.library.assetFile(url),loading=false)}
+            catch(cancel:CancellationException){throw cancel}
+            catch(_:Exception){LocalCopyFile(loading=false,failed=true)}
+    }
+    return state.copy(retry={attempt++})
 }
 
-@Composable private fun LocalCopyImage(repo: Repository,file: File?,description: String,modifier: Modifier) {
-    var bitmap by remember(file?.path,file?.lastModified()){mutableStateOf<android.graphics.Bitmap?>(null)}
-    LaunchedEffect(file?.path,file?.lastModified()) {bitmap=file?.let {try {repo.images.loadLocal(it,1600)}catch(e: CancellationException){throw e}catch(_: Exception){null}}}
-    if(bitmap!=null)Image(bitmap!!.asImageBitmap(),description,modifier,contentScale=ContentScale.Fit)
-    else Surface(modifier=modifier,shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.surfaceVariant) {Box(Modifier.padding(22.dp),contentAlignment=Alignment.Center){Text("Image not downloaded",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+@Composable internal fun LocalCopyMedia(repo: Repository,media: Media,post: Post,onImage: (String)->Unit) {
+    val revision by repo.library.revision.collectAsState()
+    val source=localCopyFile(repo,media.url,revision)
+    if(media.type=="image")LocalCopyImage(repo,source.file,media.description,Modifier.fillMaxWidth().heightIn(min=100.dp,max=420.dp).clickable(enabled=source.file!=null){onImage(media.url)},
+        lookupPending=source.loading,lookupFailed=source.failed,onRetryLookup=source.retry)
+    else if(source.loading||source.failed)Surface(Modifier.fillMaxWidth().aspectRatio(if(post.platform in setOf(Platform.TIKTOK,Platform.SNAPCHAT))1f else 16f/9),shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
+            Text(if(source.loading)"Loading saved video"else "Saved file could not be read",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(source.failed)TextButton(onClick=source.retry){Text("Retry saved video")}
+        }
+    }else if(source.file==null&&media.type=="video"&&media.preview!=null) {
+        val preview=localCopyFile(repo,media.preview!!,revision)
+        Text("Video is not downloaded · saved preview",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Saved video unavailable"))
+        if(preview.file!=null||preview.loading||preview.failed)LocalCopyImage(repo,preview.file,media.description.ifBlank {"Saved video preview"},
+            Modifier.fillMaxWidth().heightIn(min=100.dp,max=420.dp).clickable(enabled=preview.file!=null){onImage(media.preview!!)},
+            lookupPending=preview.loading,lookupFailed=preview.failed,onRetryLookup=preview.retry)
+    }else VideoCard(media,post,repo,localOnly=true,localFile=source.file)
+}
+
+@Composable internal fun LocalCopyImage(repo: Repository,file: File?,description: String,modifier: Modifier,
+    decode:suspend (File)->android.graphics.Bitmap?={repo.images.loadLocal(it,1600)},
+    lookupPending:Boolean=false,lookupFailed:Boolean=false,onRetryLookup:(()->Unit)?=null) {
+    val stamp=file?.lastModified()
+    var attempt by remember(file?.path,stamp){mutableIntStateOf(0)}
+    var bitmap by remember(file?.path,stamp,lookupPending,lookupFailed){mutableStateOf<android.graphics.Bitmap?>(null)}
+    var decoding by remember(file?.path,stamp,lookupPending,lookupFailed){mutableStateOf(file!=null&&!lookupPending&&!lookupFailed)}
+    var failed by remember(file?.path,stamp,lookupPending,lookupFailed){mutableStateOf(false)}
+    LaunchedEffect(file?.path,stamp,lookupPending,lookupFailed,attempt) {
+        if(lookupPending||lookupFailed||file==null)return@LaunchedEffect
+        decoding=true;failed=false
+        try {bitmap=decode(file);failed=bitmap==null}
+        catch(cancel:CancellationException){throw cancel}
+        catch(_:Exception){failed=true}
+        finally {decoding=false}
+    }
+    // Keep one bounded viewport through lookup, decoding, failure and success.
+    // The complete source image is fitted inside it, never cropped or replaced.
+    BoxWithConstraints(modifier) {
+        val limit=if(maxHeight.value.isFinite())maxHeight.coerceAtMost(420.dp)else 420.dp
+        val desired=if(maxWidth.value.isFinite())maxWidth/1.25f else 320.dp
+        val height=desired.coerceAtLeast(100.dp).coerceAtMost(limit).coerceAtLeast(minHeight)
+        val viewport=Modifier.fillMaxWidth().height(height)
+        if(bitmap!=null)Image(bitmap!!.asImageBitmap(),description,viewport,contentScale=ContentScale.Fit)
+        else Surface(viewport,shape=RoundedCornerShape(12.dp),color=MaterialTheme.colorScheme.surfaceVariant) {
+            Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
+                val loading=lookupPending||decoding
+                if(loading)CircularProgressIndicator(Modifier.size(20.dp).padding(bottom=4.dp).testTag("Saved image progress"),strokeWidth=2.dp)
+                Text(when {
+                    loading->"Loading saved image"
+                    lookupFailed->"Saved file could not be read"
+                    failed->"Saved image could not be read"
+                    else->"Image not downloaded"
+                },fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(lookupFailed&&onRetryLookup!=null)TextButton(onClick=onRetryLookup){Text("Retry saved image")}
+                else if(failed)TextButton(onClick={bitmap=null;decoding=true;failed=false;attempt++}){Text("Retry saved image")}
+            }
+        }
+    }
 }
 
 @Composable private fun LocalCopyImageDialog(repo: Repository,url: String,onDismiss: ()->Unit) {
-    var file by remember(url){mutableStateOf<File?>(null)}
-    LaunchedEffect(url){file=repo.library.assetFile(url)}
+    val revision by repo.library.revision.collectAsState()
+    val source=localCopyFile(repo,url,revision)
     androidx.compose.ui.window.Dialog(onDismissRequest=onDismiss,properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false)) {
-        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {Column {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){IconButton(onClick=onDismiss){Icon(Icons.Rounded.Close,"Close saved image")}};LocalCopyImage(repo,file,"Saved image",Modifier.fillMaxWidth().weight(1f))}}
+        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {Column {Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){IconButton(onClick=onDismiss){Icon(Icons.Rounded.Close,"Close saved image")}};LocalCopyImage(repo,source.file,"Saved image",Modifier.fillMaxWidth().weight(1f),lookupPending=source.loading,lookupFailed=source.failed,onRetryLookup=source.retry)}}
     }
 }
 

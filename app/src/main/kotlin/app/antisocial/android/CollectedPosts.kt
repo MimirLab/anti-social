@@ -22,15 +22,25 @@ internal fun orderedCollectedOriginals(posts: List<Post>): List<Post> {
 /** Already verified short clip quotations may not meet the full aligner's text
  * length. They remain accessible as originals; align their fullest editions. */
 internal fun collectedPostFusion(posts: List<Post>): PostFusion? {
+    val articlePreviews=CrossPosts.articlePreviewKeys(posts)
+    if(articlePreviews.isNotEmpty()) {
+        val announcements=posts.filter {CrossPosts.originalKey(it) !in articlePreviews}
+        val main=CaptionFormatting.composeDetachedReferences(announcements) ?: collectedPostFusion(announcements) ?: sourceCaptionBlocks(announcements)
+        val previewPosts=posts.filter {CrossPosts.originalKey(it) in articlePreviews}
+        val references=previewPosts.singleOrNull()?.let {preview->PostFusion(listOf(FusionSegment(PostPresentation.content(preview),setOf(preview.platform),false,setOf(CrossPosts.originalKey(preview)))))}
+            ?: sourceCaptionBlocks(previewPosts)
+        if(main!=null&&references!=null)return PostFusion(main.segments+references.segments)
+    }
     val primary=CrossPostFusion.composeCollectedEditions(posts)
         ?: CrossPostFusion.compose(posts)
         ?: CrossPostFusion.composeMedia(posts)
     if(primary!=null)return if(primary.weave==null&&primary.segments.size>1)
-        CrossPostFusion.composeCollectedNames(posts) ?: primary else primary
+        CrossPostFusion.composeCollectedNames(posts) ?: CaptionFormatting.compose(posts) ?: primary else primary
     return CrossPostFusion.composeCollectedNames(posts)
     // A complete literal weave is preferable to sharing just an identical
     // subset of bodies. Keep its inline source marks before the field fallback.
     ?: CrossPostFusion.composeCollectedReferences(posts)
+    ?: CaptionFormatting.compose(posts)
     ?: CaptionFieldBlocks.compose(posts,partialReferences=true,shortClosings=true)
     ?: CrossPostFusion.composeRelated(posts)
     ?: CrossPosts.clipQuotationCaption(posts)?.let {full->PostFusion(listOf(FusionSegment(PostPresentation.content(full),setOf(full.platform),false,setOf(CrossPosts.originalKey(full)))))}

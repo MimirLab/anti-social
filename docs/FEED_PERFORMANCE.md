@@ -4,6 +4,54 @@
 process launch, application initialization and the first cached reading card.
 Its test-only sampler does not change the released reader's manifest or runtime.
 
+## Closeout: strict fast paths and visible resource deferral (0.38.117)
+
+Qualified exact recording URLs can now connect already linked platform carriers
+without a scene download. Acquired article previews can join the announcement
+which explicitly links their same complete article. Both paths reuse source data
+already present in the reader; they retain the previous matching routes, request
+allowances, source records and distinct attachments. Their narrow material proofs
+are documented in [attachment collections](ATTACHMENT_COLLECTIONS.md).
+
+A settled card with an actual pending video-comparison candidate now explains
+Wi-Fi, battery-saver, thermal or low-memory deferral. It checks resource readiness
+only while that candidate and reader attention remain current, with no comparison
+requests, prefix reads, failure learning or attempt consumption during the wait.
+The visible wait checks policy at 1.5-second intervals and resumes through the
+existing lane when permitted. An idle catalogue has no such timer. Input changes
+replan; scrolling, overlays and lifecycle loss cancel. The final admission still
+rechecks resources after waiting for the lane. No background video crawl is added.
+
+A catalogue handoff between two deferred offers no longer briefly reports Ready.
+The activity drawer retains its last inspected pause reason when opening the
+drawer itself retires optional work. Other actual card work can still be reported
+alongside that explanation. A completed comparison can expose New details while
+preserving the reader's frozen body; accepting those details remains distinct
+from finding a counterpart. The native resume control follows that real adoption
+path rather than requiring a silent rewrite beneath an active reader.
+
+Qualification retained several rejected attempts. A single acquired article
+preview initially fell through a multi-source-only caption fallback and repeated
+the shared prose. Its native control now requires one common passage, both different
+pictures, all raw originals and a cold Library copy with both selected files intact.
+An early resource control intercepted sampling but left initial prefix preparation
+active; the inherited fail-closed connection correctly refused that real read.
+The corrected fixture intercepts both acquisition seams and tests the same frozen
+application. That local control is not a live-provider speed measurement.
+
+The older observed gallery candidate also required current source evidence:
+expired media URLs initially returned refusal responses. A bounded whole-source
+read through the production router obtained current URLs; the native replay then
+retained three originals in one card, five distinct pictures and one common caption.
+No missing picture, substituted file or relaxed visual threshold established the
+result. Raw captures and failure receipts stay in the private external evidence area.
+
+Cold recordings without a qualified shared identifier still need actual scene
+observations and source-dependent acquisition time. Existing retained evidence
+continues to survive warm reader restarts within its bounds. This closeout does
+not establish an instantaneous cold merge, physical-phone latency distribution,
+controlled battery result or a complete public-source availability guarantee.
+
 ## Post-0.38.93 investigation: reject earlier memory expansion
 
 A fresh diagnostic uses the exact published 0.38.93 APK, a restored 53.5 MB

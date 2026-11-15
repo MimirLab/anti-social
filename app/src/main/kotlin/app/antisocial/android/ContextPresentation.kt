@@ -23,7 +23,7 @@ internal fun contextSnapshot(repo: Repository,displayed: Post,roots: List<Post>,
         // model reads the same cleaned body as the reader, without injected
         // speaker labels that can turn its brief into a narration of the post.
         contextReadable(body,root,repo)
-    }else listOf(contextReadable(PostBodyDetails.split(PostPresentation.content(displayed)).body,displayed,repo))
+    }else listOf(contextReadable(PostBodyDetails.split(PostPresentation.content(displayed),allowStandalone=PostBodyDetails.mediaReferencesOnly(displayed)).body,displayed,repo))
     val text=passages.filter(String::isNotBlank).joinToString("\n\n")
     val bodies=if(archived)listOf(displayed)else bodyRoots
     val links=bodies.flatMap(PostLinks::urls).map {repo.publicUrl(it)}.distinct().take(PostLinks.MAX_LINKS)

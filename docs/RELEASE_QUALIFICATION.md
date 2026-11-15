@@ -9,6 +9,53 @@ They do not mean the app has never run on a phone. Likewise, a local artifact
 named `preview` can contain the same non-debuggable APK as an official release.
 See [reviewing and evidence](REVIEWING.md) for how these evidence types relate.
 
+## 0.38.117: close the finite feed-review backlog
+
+This increment closes the confirmed correctness and presentation findings from
+the retained native feed review. It includes the qualified local 0.38.116 curated
+photograph increment, which was held for this combined public release. Version
+code is 226; application ID, signing identity and stock Android support are retained.
+
+- Exact qualified recording URLs can collect different caption editions carried
+  across linked platforms without sampled footage. Exact acquired article previews
+  can join their publisher's explicitly linked announcement while keeping both
+  different pictures and all original captions.
+- Short comma-only variants and identical bodies with detached references read
+  compactly with complete source paths. URL-only media captions use one expandable
+  link inventory. Long Reddit comment-thread headings can expand without repeating
+  a large heading above every distinct answer.
+- A real pending comparison explains resource deferral and can resume while its
+  card stays visible. Its drawer preserves the inspected reason. Reader body locks,
+  per-source attribution, request limits and the existing comparison lane remain.
+- Offline images distinguish pending lookup, decoding, confirmed absence and read
+  failure, with stable geometry and local retry. A selected unavailable recording
+  retains its available protected cover. A cancelled old decode cannot replace the
+  currently selected picture.
+
+Recorded combined-prototype evidence before the final versioned build:
+
+- **2,967 JVM cases:** 2,960 pass, seven explicit optional skips, zero failures/errors.
+- **Fourteen focused API 26 native checks:** fourteen pass, zero skips/failures.
+  They include per-original text paths, two different article pictures, protected
+  selected bytes after cache cleanup and subscription removal, cold Library UI,
+  pending/missing/failed image states, stale decode completion, resource pause,
+  cancellation, resumption and deliberate body adoption.
+- **Two real captured API 26 journeys:** the renewed gallery is one three-original
+  card with five pictures and one shared caption; the related article is one
+  four-original card with two different pictures and common prose once. Every
+  captured source and saved original is preserved. These are source-specific
+  observations rather than a claim that arbitrary unavailable sources work.
+
+The [performance closeout](FEED_PERFORMANCE.md#closeout-strict-fast-paths-and-visible-resource-deferral-038117)
+distinguishes the repaired conditions, rejected prototypes, source renewal and
+remaining cold-acquisition limits. The final publication gate repeats the broader
+native selection on API 35 and minimum API 26, the current and earlier captured
+families, resource/foreground checks, cache recovery, clean-revision assembly,
+lint, signer and corresponding-source checks, public-fixture audits, protected
+preview replacement and full anonymous permanent-download verification. The
+[versioned release](https://github.com/MimirLab/anti-social/releases/tag/v0.38.117)
+records the shipping artifact's actual counts and integrity results.
+
 ## 0.38.116: collect explicitly curated photographs without equating authors
 
 The continuing November 14, 2026 (UTC) native review found a photograph displayed
@@ -48,13 +95,13 @@ compared raw handle notation to the intentional clickable-name display. The
 corrected display expectation retains the separate exact raw source-path checks;
 the same frozen application passes. The failed attempt is not counted as a pass.
 
-Final publication requires the clean-revision APK's broader API 35 and minimum
-API 26 native checks, current and prior captured-family replays, lint, signer,
-corresponding source, privacy audits, protected preview upgrade and anonymous
-permanent-download verification. These checks are separate from the prototype
-observations above. Delayed initial video discovery and other remaining feed
-candidates stay under review; this increment does not establish complete-feed
-clearance or controlled physical-phone latency, battery or display measurements.
+The clean local candidate subsequently completed broader API 35 and minimum
+API 26 qualification, prior captured-family replays, source/privacy checks and a
+protected compatible laptop-preview upgrade. Public promotion was held while the
+finite remaining review findings were addressed; this increment is included in
+0.38.117. Its prototype observations above remain separate from the final shipping
+artifact's qualification. They establish neither complete-feed clearance nor
+controlled physical-phone latency, battery or display measurements.
 
 ## 0.38.115: collect qualified institutional name/handle editions
 

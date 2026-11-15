@@ -407,6 +407,11 @@ object CrossPosts {
         val prepared=posts.map {features(it,emptyMap(),emptyMap())}
         return prepared.indices.all {i->(i+1 until prepared.size).all {j->repeatMatch(prepared[i],prepared[j],sameMedia)}}
     }
+    /** Shared-resource proof, with publisher linkage checked separately by
+     * grouping. These portable checks do not assert common account control. */
+    fun articlePreviewCollection(posts:List<Post>):Boolean=SharedArticlePreviews.accepts(posts)
+    fun articlePreviewKeys(posts:List<Post>):Set<String> = SharedArticlePreviews.previewKeys(posts)
+    fun carriedRecordingCollection(posts:List<Post>):Boolean=CarriedRecording.accepts(posts)
     /** Portable proof for an exact declared recording and its already-matching
      * caption editions. Sharing stays distinct from original authorship. Every
      * other edition needs a direct existing content/composition proof against
@@ -1724,7 +1729,9 @@ object CrossPosts {
         val quotations=QuotedSources.collect(announcements,owners,checkpoint)
         val pictures=CuratedImageReposts.collect(quotations,::curatedImageCollection,checkpoint)
         val declared=DeclaredVideo.collect(pictures,::declaredRecordingCollection,checkpoint)
-        return (if(sharedFootage==null)declared else SharedVideoCollections.collect(declared,owners,sharedFootage,checkpoint))
+        val articles=SharedArticlePreviews.collect(declared,owners,checkpoint)
+        val carried=CarriedRecording.collect(articles,owners,checkpoint)
+        return (if(sharedFootage==null)carried else SharedVideoCollections.collect(carried,owners,sharedFootage,checkpoint))
             .sortedWith(compareByDescending<PostGroup> {it.primary.publishedAt ?: Long.MIN_VALUE}.thenBy {originalKey(it.primary)})
     }
 }

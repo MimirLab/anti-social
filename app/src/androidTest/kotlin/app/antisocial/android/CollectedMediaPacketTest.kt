@@ -27,11 +27,27 @@ class CollectedMediaPacketTest {
         repo.images.identities.clear()
         try {
             for((index,raw)in cases.withIndex()) {
-                val spec=raw.asJsonObject;val posts=spec.getAsJsonArray("posts").map {repo.gson.fromJson(it,Post::class.java)}
-                require(posts.size in 1..12)
+                val spec=raw.asJsonObject;val originalPosts=spec.getAsJsonArray("posts").map {repo.gson.fromJson(it,Post::class.java)}
+                require(originalPosts.size in 1..12)
+                val sourceReads=JsonArray()
+                val refresh=spec["refreshWholeSources"]?.asBoolean==true
+                val posts=if(!refresh)originalPosts else originalPosts.map {original->
+                    if(spec.getAsJsonObject("files")?.has(original.media.firstOrNull()?.url.orEmpty())==true)return@map original
+                    val note=JsonObject().apply {addProperty("originalKey",repo.key(original))};sourceReads.add(note)
+                    try {
+                        val target=requireNotNull(repo.postTarget(original))
+                        val page=withTimeout(90_000){repo.directLoader(target){}}
+                        page.posts.singleOrNull {repo.key(it)==repo.key(original)&&!it.preview}?.also {
+                            note.addProperty("freshMatchingOriginal",true);note.add("post",repo.gson.toJsonTree(it))
+                        } ?: original.also {note.addProperty("freshMatchingOriginal",false)}
+                    }catch(e:TimeoutCancellationException){currentCoroutineContext().ensureActive();note.addProperty("error","Source refresh timed out");original}
+                    catch(e:CancellationException){throw e}
+                    catch(e:Exception){note.addProperty("error",e.message ?: e.javaClass.simpleName);original}
+                }
                 val imageEdge=spec["imageEdge"]?.asInt ?: 1600
                 require(imageEdge in 64..1600)
                 val row=JsonObject();report.add(row);val reads=JsonArray();row.add("reads",reads)
+                if(refresh){row.add("sourceBeforeRefresh",repo.gson.toJsonTree(originalPosts));row.add("sourceRefreshes",sourceReads)}
                 for(post in posts)for(media in post.media) {
                     val url=if(media.type=="video")media.preview else media.url
                     if(url==null||repo.images.identities.knows(url))continue

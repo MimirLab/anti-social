@@ -613,11 +613,12 @@ internal fun LazyListLayoutInfo.feedViewportItems(): List<LazyListItemInfo> = vi
                             if(unreadRow)Text(if(newRow)"New"else "Unread",fontSize=11.sp,color=if(newRow)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.testTag("Feed row status ${row.key}"))
                         }
                         if(decision(row)==null)PendingFilterCard()else FilteredPost(decision(row)!!,repo.key(row.bodyPosts.first()),filtering,onEdit={filtering.managing=true}) {
+                            var comparisonPause by remember(row.key){mutableStateOf<VideoComparisonPause?>(null)}
                             CompositionLocalProvider(LocalVideoPreparationPending provides row.aliases.any {it in preparingVideoKeys}) {
-                                FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo)
+                                FeedVideoDwell(list,row.key,row.primary,row.posts.any {p->p.media.any {it.type=="video"}},row.aliases.firstNotNullOfOrNull {LocalVideoRequests.current[it]},repo,onPause={comparisonPause=it})
                             }
                             FeedGalleryDwell(list,row.key,row.aliases.firstNotNullOfOrNull {LocalGalleryRequests.current[it]},repo)
-                            PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts},
+                            PostCard(row.primary,vm,row.aliases.any {it in savedKeys},row.posts,bodyVariants=row.bodyPosts,comparisonPause=comparisonPause,onExplain=row.explanation?.let {explanation->{why=explanation.copy(channel=title)}},onFilter={filtering.candidate=row.posts},
                                 onShowUpdate=if(changes?.details?.contains(row.key)==true)({showCapturedDetails(row.key)})else null){repo.postTarget(row.primary)?.let {vm.open(it)}}
                         }
                     }
@@ -699,12 +700,13 @@ internal data class FeedDwellGeometry(val offset: Int,val size: Int,val start: I
 
 /** Visible, settled cards only. Scrolling, overlays, lost focus and backgrounding
  * cancel the coroutine and its Gateway reads rather than queuing a global scan. */
-@Composable internal fun FeedVideoDwell(list:LazyListState,key:String,post:Post,hasVideo:Boolean,request:VideoFootageRequest?,repo:Repository) {
+@Composable internal fun FeedVideoDwell(list:LazyListState,key:String,post:Post,hasVideo:Boolean,request:VideoFootageRequest?,repo:Repository,onPause:(VideoComparisonPause?)->Unit={}) {
     val running=remember {java.util.concurrent.atomic.AtomicReference<Job?>()}
     val attention=rememberReaderWorkAttention {running.get()?.cancel(CancellationException("Reader attention ended"))}
     val paused=LocalArchiveChecksPaused.current
     val retries by repo.videos.retries.collectAsStateWithLifecycle()
     val playing by repo.videos.playbackActive.collectAsStateWithLifecycle()
+    val latestPause by rememberUpdatedState(onPause)
     val latestRequest by rememberUpdatedState(request)
     val latestOfferRevision by rememberUpdatedState(LocalVideoOfferRevision.current)
     val latestLookup by rememberUpdatedState(LocalVideoRequestLookup.current)
@@ -729,7 +731,6 @@ internal data class FeedDwellGeometry(val offset: Int,val size: Int,val start: I
         // Evidence updates wake this loop without cancelling a pair halfway
         // through its second recording. Nothing polls while the catalog is idle.
         while(attempted.size<12) {
-            if(!repo.videos.automaticAllowed())return@LaunchedEffect
             val lookup=latestLookup;val rawOffer=latestRequest;val offerRevision=latestOfferRevision
             // A precomputed offer can outlive the scene evidence which made
             // it useful. The focused planner already joins current footage;
@@ -743,10 +744,18 @@ internal data class FeedDwellGeometry(val offset: Int,val size: Int,val start: I
             val focusFirst=availableOffer?.let {it.first.platform in covered&&it.second.platform in covered}==true
             val next=if(focusFirst)lookup(key,attempted) ?: availableOffer else availableOffer ?: lookup(key,attempted)
             if(next==null) {
+                latestPause(null)
                 snapshotFlow {Triple(latestLookup,latestRequest,latestOfferRevision)}
                     .first {it.first!==lookup||it.second!=rawOffer||it.third!=offerRevision}
                 continue
             }
+            val sameOffer={latestLookup===lookup&&latestRequest==rawOffer&&latestOfferRevision==offerRevision}
+            val allowed=repo.videos.awaitAutomatic(current=sameOffer,onPause={reason->
+                // A changed catalog immediately replans. Do not flash Ready
+                // between two still-deferred offers for the same visible card.
+                if(reason!=null||sameOffer())latestPause(reason)
+            })
+            if(!allowed)continue
             attempted+=next.acquisitionKey
             coroutineScope {
                 val work=async {repo.videos.enrich(next)}
@@ -768,7 +777,7 @@ internal data class FeedDwellGeometry(val offset: Int,val size: Int,val start: I
                 finally {monitor.cancel()}
             }
         }
-        }finally {running.compareAndSet(job,null)}
+        }finally {latestPause(null);running.compareAndSet(job,null)}
     }
 }
 

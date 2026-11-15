@@ -450,7 +450,7 @@ internal val LocalImageSearch=compositionLocalOf<((Media,String)->Unit)?> {null}
 
 private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread>,val editions:List<Post>)
 
-@Composable internal fun PostCard(post: Post,vm: AntiSocialViewModel,saved: Boolean,discussions: List<Post> = listOf(post),bodyVariants: List<Post>?=null,onExplain: (()->Unit)?=null,onFilter: (()->Unit)?=null,onShowUpdate:(()->Unit)?=null,onOpen: ()->Unit) {
+@Composable internal fun PostCard(post: Post,vm: AntiSocialViewModel,saved: Boolean,discussions: List<Post> = listOf(post),bodyVariants: List<Post>?=null,onExplain: (()->Unit)?=null,onFilter: (()->Unit)?=null,onShowUpdate:(()->Unit)?=null,comparisonPause:VideoComparisonPause?=null,onOpen: ()->Unit) {
     val repo=vm.repo;val context=LocalContext.current
     val outgoing=rememberOutgoingActions(repo)
     val known=LocalPostCounterparts.current[repo.key(post)].orEmpty()
@@ -529,7 +529,7 @@ private data class PostSaveCapture(val post:Post,val replies:List<CapturedThread
                         Text(" · ",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(if(fusion==null)SourcePresentation.label(post)else contentRoots.map {SourcePresentation.label(it)}.distinct().joinToString(" · "),fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.testTag("Post source ${repo.key(post)}"))
                     }
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){PostActivity(repo,threads,postLinks,onShowUpdate.takeUnless {archive.showingArchive||displayed.recoveredArchive!=null})}
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){PostActivity(repo,threads,postLinks,onShowUpdate.takeUnless {archive.showingArchive||displayed.recoveredArchive!=null},comparisonPause.takeUnless {archive.showingArchive||displayed.recoveredArchive!=null})}
                 }
                 ArchiveVersionButton(archive.version,archive.showingArchive,archive.toggle)
                 MediaInfoAction(repo,infoPosts)
@@ -644,14 +644,24 @@ internal fun captureLoadedThreads(vm: AntiSocialViewModel,roots: List<Post>,read
     }
     return captures+reader.communityCaptures(roots)
 }
-@Composable private fun PostText(post: Post,repo: Repository,onOpen: ()->Unit,showDetails: Boolean=true) {
+@Composable internal fun PostText(post: Post,repo: Repository,onOpen: ()->Unit,showDetails: Boolean=true) {
     val text=remember(post){PostPresentation.text(post)}
-    val split=remember(text){PostBodyDetails.split(listOf(text.title,text.body).filter(String::isNotBlank).joinToString("\n"))}
+    val detached=remember(post){PostBodyDetails.mediaReferencesOnly(post)}
+    val split=remember(text,detached){PostBodyDetails.split(listOf(text.title,text.body).filter(String::isNotBlank).joinToString("\n"),allowStandalone=detached)}
     val titleVisible=text.title.isNotBlank()&&(split.body==text.title||split.body.startsWith(text.title+"\n"))
     val body=if(titleVisible)split.body.removePrefix(text.title).removePrefix("\n")else split.body
     text.attribution?.let {PostAttribution(it,Modifier.padding(start=16.dp,end=16.dp,bottom=8.dp),repo,post.platform,post.canonicalUrl)}
-    if(titleVisible)MentionText(text.title,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),fontSize=if(post.platform==Platform.REDDIT)18.sp else 16.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(horizontal=16.dp).clickable(onClick=onOpen))
-    if(body.isNotBlank())PostBodyText(if(showDetails)text.body else body,repo,post.platform,onOpen,modifier=Modifier.padding(horizontal=16.dp,vertical=if(titleVisible||post.media.isNotEmpty())10.dp else 0.dp),tag="Post body ${repo.key(post)}",showDetails=showDetails,sourceUrl=post.canonicalUrl,explicitProfileLinks=post.links.orEmpty())
+    if(titleVisible) {
+        val compact=post.platform==Platform.REDDIT&&text.title.length>160&&ContentIdentity.key(post.platform,post.canonicalUrl).startsWith("comment:")
+        var expanded by rememberSaveable(post.identityKey,text.title){mutableStateOf(false)}
+        MentionText(text.title,repo,post.platform,post.canonicalUrl,explicitProfileLinks=post.links.orEmpty(),fontSize=if(post.platform==Platform.REDDIT)18.sp else 16.sp,
+            fontWeight=FontWeight.SemiBold,maxLines=if(compact&&!expanded)2 else Int.MAX_VALUE,overflow=TextOverflow.Ellipsis,
+            modifier=Modifier.padding(horizontal=16.dp).clickable(onClick=onOpen).testTag("Post thread title ${post.identityKey}"))
+        if(compact)TextButton(onClick={expanded=!expanded},contentPadding=PaddingValues(horizontal=16.dp),modifier=Modifier.testTag("Thread title toggle ${post.identityKey}")) {
+            Text(if(expanded)"Hide thread title"else "Show thread title",fontSize=12.sp)
+        }
+    }
+    if(body.isNotBlank()||showDetails&&split.hasDetails)PostBodyText(if(showDetails)text.body else body,repo,post.platform,onOpen,modifier=Modifier.padding(horizontal=16.dp,vertical=if(titleVisible||post.media.isNotEmpty())10.dp else 0.dp),tag="Post body ${repo.key(post)}",allowStandaloneDetails=detached,showDetails=showDetails,sourceUrl=post.canonicalUrl,explicitProfileLinks=post.links.orEmpty())
 }
 @Composable private fun PinterestFeed(vm: AntiSocialViewModel,posts: List<Post>,savedKeys: Set<String>,title: String) {
     val repo=vm.repo

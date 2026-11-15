@@ -32,33 +32,37 @@ internal fun eventWorkKeys(value:LocalEvent):Set<String> = buildSet {
     add(eventWorkKey(value.id));(value.urls+value.evidence.map {it.sourceUrl}).forEach {addAll(localSourceWorkKeys(it))}
 }
 
-@Composable internal fun CardActivity(work:CardWork,keys:Set<String>,tag:String,compact:Boolean=false,discoveryPending:Boolean=false,onShowUpdate:(()->Unit)?=null) {
+@Composable internal fun CardActivity(work:CardWork,keys:Set<String>,tag:String,compact:Boolean=false,discoveryPending:Boolean=false,onShowUpdate:(()->Unit)?=null,comparisonPause:VideoComparisonPause?=null) {
     val flow=remember(work,keys){work.activity(keys)}
     val tasks by flow.collectAsStateWithLifecycle(emptyList())
     var details by remember(tag){mutableStateOf(false)}
+    var inspectedPause by remember(tag){mutableStateOf<VideoComparisonPause?>(null)}
+    val dialogPause=comparisonPause ?: inspectedPause
     val busy=tasks.isNotEmpty()
     val updateReady=onShowUpdate!=null
     // A fixed footprint avoids changing card geometry when status changes.
     Row(Modifier.width(88.dp).heightIn(min=if(compact)22.dp else 44.dp).testTag("Card activity $tag")
-        .semantics {stateDescription=if(busy)"Updating"else if(updateReady)"New details ready"else if(discoveryPending)"Searching"else "Ready"}
-        .clickable(role=Role.Button,onClickLabel=if(updateReady)"Review captured details"else "Inspect card activity"){details=true},
+        .semantics {stateDescription=if(busy)"Updating"else if(updateReady)"New details ready"else if(discoveryPending)"Searching"else comparisonPause?.shortLabel ?: "Ready"}
+        .clickable(role=Role.Button,onClickLabel=if(updateReady)"Review captured details"else "Inspect card activity"){inspectedPause=comparisonPause;details=true},
         horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
         if(busy||discoveryPending)CircularProgressIndicator(Modifier.size(12.dp),strokeWidth=1.5.dp)
         else Icon(if(updateReady)Icons.Rounded.ExpandMore else Icons.Rounded.Check,null,Modifier.size(14.dp),tint=if(updateReady)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(4.dp))
-        Text(if(busy)"Updating…"else if(updateReady)"New details"else if(discoveryPending)"Searching…"else "Ready",fontSize=11.sp,lineHeight=14.sp,color=if(updateReady&&!busy)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
+        Text(if(busy)"Updating…"else if(updateReady)"New details"else if(discoveryPending)"Searching…"else comparisonPause?.shortLabel ?: "Ready",fontSize=11.sp,lineHeight=14.sp,color=if(updateReady&&!busy)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
     }
-    if(details)AlertDialog(onDismissRequest={details=false},title={Text(if(busy)"Adding details"else if(updateReady)"New details ready"else if(discoveryPending)"Searching public sources"else "Ready to read")},
-        text={Text(if(busy)"Working on: "+tasks.joinToString(", ")+". You can keep reading or move on."+(if(updateReady)" More captured text or media is already ready to show."else "")
+    if(details)AlertDialog(onDismissRequest={details=false},title={Text(if(busy)"Adding details"else if(updateReady)"New details ready"else if(discoveryPending)"Searching public sources"else if(dialogPause!=null)"Video comparison paused"else "Ready to read")},
+        text={Text((if(busy)"Working on: "+tasks.joinToString(", ")+". You can keep reading or move on."+(if(updateReady)" More captured text or media is already ready to show."else "")
             else if(updateReady)"More captured text or media is ready for this post. Its displayed version stays in place while you read. Show details to update this card here."
             else if(discoveryPending)"Other source searches are still running. No update is running for this card right now; useful details can arrive as those searches finish. You can keep reading or move on."
-            else "No background updates are running for this card. You can read it and move on. A later refresh may find new information.")},
+            else if(dialogPause!=null)"At the last check: "+dialogPause.explanation+" No comparison requests are running. You can keep reading; it will resume while this card is in view when the resource policy permits it."
+            else "No background updates are running for this card. You can read it and move on. A later refresh may find new information.")
+                +(if(dialogPause!=null&&(busy||updateReady||discoveryPending))"\n\nAt the last check: "+dialogPause.explanation else ""))},
         confirmButton={TextButton(onClick={details=false;onShowUpdate?.invoke()}){Text(if(updateReady)"Show details"else "Done")}},
         dismissButton={if(updateReady)TextButton(onClick={details=false}){Text("Later")}})
 }
 
 /** Only derive ownership keys; this does not schedule more work. */
-@Composable internal fun PostActivity(repo:Repository,posts:List<Post>,links:List<String>,onShowUpdate:(()->Unit)?=null) {
+@Composable internal fun PostActivity(repo:Repository,posts:List<Post>,links:List<String>,onShowUpdate:(()->Unit)?=null,comparisonPause:VideoComparisonPause?=null) {
     val keys=remember(repo,posts,links){buildSet {
         links.mapNotNull(PublicSourceRecords::paper).forEach {add("source:"+it.key)}
         posts.forEach {post->
@@ -72,5 +76,5 @@ internal fun eventWorkKeys(value:LocalEvent):Set<String> = buildSet {
             mentions.forEach {add("mention:"+it.key.id)}
         }
     }}
-    CardActivity(repo.cardWork,keys,posts.first().identityKey,compact=true,onShowUpdate=onShowUpdate)
+    CardActivity(repo.cardWork,keys,posts.first().identityKey,compact=true,onShowUpdate=onShowUpdate,comparisonPause=comparisonPause)
 }

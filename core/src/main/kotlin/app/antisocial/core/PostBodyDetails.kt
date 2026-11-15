@@ -42,6 +42,22 @@ object PostBodyDetails {
         val prose=withoutReferences(value)
         return prose.count(Char::isLetter)>=32&&word.findAll(prose).take(6).count()>=6
     }
+    /** A detached URL-only caption adds no prose above an already visible
+     * attachment. Preserve it in the same expandable reference inventory.
+     * Mentions, hashtags, authored labels and media-free posts stay visible. */
+    fun mediaReferencesOnly(post:Post):Boolean {
+        if(post.media.none {it.type in setOf("image","video","audio")&&it.url!=post.avatar})return false
+        val value=PostPresentation.content(post)
+        if(value.length !in 1..8192)return false
+        val links=PostPresentation.urlMatches(value).toList()
+        if(links.size !in 1..8||links.any {!it.value.startsWith("https://",true)&&!it.value.startsWith("http://",true)})return false
+        var end=0
+        for(link in links) {
+            if(value.substring(end,link.range.first).any {!it.isWhitespace()&&!Character.isSpaceChar(it)})return false
+            end=link.range.last+1
+        }
+        return value.substring(end).all {it.isWhitespace()||Character.isSpaceChar(it)}
+    }
     fun split(value: String,allowStandalone: Boolean=false): PostBodySplit {
         if(value.isBlank()||value.length>MAX_TEXT)return PostBodySplit(value)
         val references=references(value).take(MAX_REFERENCES+1).toList()

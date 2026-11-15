@@ -15,6 +15,13 @@ import java.io.IOException
  * One decoder/network lane,
  * expiring derived observations and finite parent allowances keep it behind
  * foreground reading. Saved copies own their own observation fields. */
+internal enum class VideoComparisonPause(val shortLabel:String,val explanation:String) {
+    WIFI("Wi-Fi wait","Video comparison is waiting for an unmetered connection because Wi-Fi-only media is enabled."),
+    POWER("Power pause","Video comparison is paused while battery saver is enabled."),
+    THERMAL("Cooling down","Video comparison is paused while the device is too warm."),
+    MEMORY("Memory pause","Video comparison is paused while available device memory is low.")
+}
+
 internal class VideoEvidenceStore(private val repo:Repository,private val clock:()->Long=System::currentTimeMillis,
     private val directory:File=File(repo.context.cacheDir,"video-evidence")) {
     private data class Entry(val url:String,val evidence:VideoFootageEvidence)
@@ -221,16 +228,34 @@ internal class VideoEvidenceStore(private val repo:Repository,private val clock:
         }
         return false
     }
+    internal var resourcePause:()->VideoComparisonPause?=::automaticPauseNow
+    suspend fun automaticPause():VideoComparisonPause?=withContext(Dispatchers.IO){resourcePause()}
+    /** Only a visible, already nominated pair waits here. No requests, sampling,
+     * failure learning or comparison allowance is spent while policy defers it.
+     * Source/catalog changes return to the caller's current bounded planner. */
+    suspend fun awaitAutomatic(current:()->Boolean,onPause:(VideoComparisonPause?)->Unit):Boolean {
+        try {
+            while(current()) {
+                currentCoroutineContext().ensureActive()
+                val reason=automaticPause();onPause(reason)
+                if(reason==null)return current()
+                delay(1500)
+            }
+            return false
+        }finally {onPause(null)}
+    }
     /** The same resource decision gates demand planning and the eventual
      * acquisition. No cached decision can outlive a queue wait or mode change. */
     suspend fun automaticAllowed():Boolean=withContext(Dispatchers.IO){automaticAllowedNow()}
-    private fun automaticAllowedNow():Boolean {
-        if(repo.prefs.videoDownloadWifiOnly&&repo.context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered!=false)return false
+    private fun automaticAllowedNow():Boolean=resourcePause()==null
+    private fun automaticPauseNow():VideoComparisonPause? {
+        if(repo.prefs.videoDownloadWifiOnly&&repo.context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered!=false)return VideoComparisonPause.WIFI
         val power=repo.context.getSystemService(android.os.PowerManager::class.java)
-        if(power?.isPowerSaveMode==true||android.os.Build.VERSION.SDK_INT>=29&&power?.currentThermalStatus?.let {it>=android.os.PowerManager.THERMAL_STATUS_SEVERE}==true)return false
+        if(power?.isPowerSaveMode==true)return VideoComparisonPause.POWER
+        if(android.os.Build.VERSION.SDK_INT>=29&&power?.currentThermalStatus?.let {it>=android.os.PowerManager.THERMAL_STATUS_SEVERE}==true)return VideoComparisonPause.THERMAL
         val info=android.app.ActivityManager.MemoryInfo()
         repo.context.getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(info)
-        return !info.lowMemory
+        return if(info.lowMemory)VideoComparisonPause.MEMORY else null
     }
     suspend fun enrich(request:VideoFootageRequest,automatic:Boolean=true):Unit=enrichInternal(request,automatic,null,null)
     /** Prepare just the first unused prefix. Frames wait for real reader

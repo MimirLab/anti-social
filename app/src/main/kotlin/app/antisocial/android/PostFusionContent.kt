@@ -225,6 +225,9 @@ internal fun fusionMentionContext(roots: List<Post>,text: String,repo: Repositor
  * headings and extracted attachments. All source wording remains selectable. */
 internal fun postDetailSections(caption: Post,fusion: PostFusion?,roots: List<Post>,repo: Repository): List<PostDetailSection> {
     if(fusion==null) {
+        // These exact URLs already have their own inventory rows. Do not print
+        // the same link again as an expanded caption block.
+        if(PostBodyDetails.mediaReferencesOnly(caption))return emptyList()
         val split=PostBodyDetails.split(PostPresentation.content(caption))
         return if(split.hasDetails)listOf(PostDetailSection(repo.publicText(split.details,caption.platform),"Post body ${repo.key(caption)}",platform=caption.platform,sourceUrl=caption.canonicalUrl,explicitProfileLinks=caption.links.orEmpty()))else emptyList()
     }

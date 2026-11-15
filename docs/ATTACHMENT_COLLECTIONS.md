@@ -1,5 +1,39 @@
 # Attachment collections
 
+## Exact recording carriers and article previews (0.38.117)
+
+An exact approved progressive recording URL can arrive inside posts from several
+platforms. `CarriedRecording` collects its frozen caption families only when the
+existing local account linkage establishes one publisher, all posts carry that
+same complete qualified provider URL, the whole family fits six hours, and known
+durations agree. It accepts one recording per original. It neither unwraps another
+platform's proxy nor infers recording identity from a shared cover. Existing
+scene, caption, gallery and declared-X routes retain their separate contracts.
+Every original caption, author, discussion and playable edition stays available.
+
+`SharedArticlePreviews` handles a different relationship: an acquired Nitter link
+card and the same publisher's announcement explicitly carrying its complete
+article URL. A common headline or domain supplies no proof. The captured card,
+exact article destination, linked publisher, ten-minute family and direct caption
+proof for additional editions must agree; another complete article destination
+blocks the collection. All distinct pictures remain. The literal caption composer
+shares common prose, keeps source-specific wording and inventories detached
+references without choosing an expanded destination for a short link.
+
+These portable material checks also serve saved-copy validation after local
+subscriptions are removed. They do not establish shared account control or make
+captions interchangeable. Candidate buckets remain bounded; unexamined overflow
+is not evidence of difference. No new model, network source, dependency, permission
+or database migration is required. Cryptographic metadata and exact-byte caches
+remain attached to the particular acquired file.
+
+Short comma-only captions have a separate presentation-only refinement. It runs
+after collection admission and reconstructs each original's normalized literal
+path. Changed words, numerical punctuation, questions and coupled punctuation
+changes retain the established fallback. A detached-reference refinement similarly
+requires one complete identical body and preserves every source's full reference
+inventory. These refinements never nominate a post pair.
+
 ## Explicitly curated shared photographs (0.38.116)
 
 An author's photograph and another author's commentary on that photograph can
